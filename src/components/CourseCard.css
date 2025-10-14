@@ -1,0 +1,24 @@
+.course-card {
+  --accent-a: #6366f1;
+  --accent-b: #22c55e;
+  background:
+    linear-gradient(#ffffff, #ffffff) padding-box,
+    linear-gradient(135deg, var(--accent-a), var(--accent-b)) border-box;
+  border: 1px solid transparent;
+}
+
+/* Accent palettes */
+.accent-blue  { --accent-a: #60a5fa; --accent-b: #6366f1; }
+.accent-green { --accent-a: #34d399; --accent-b: #22c55e; }
+.accent-purple{ --accent-a: #a78bfa; --accent-b: #8b5cf6; }
+.accent-orange{ --accent-a: #fb923c; --accent-b: #f97316; }
+.accent-pink  { --accent-a: #f472b6; --accent-b: #ec4899; }
+.accent-cyan  { --accent-a: #22d3ee; --accent-b: #06b6d4; }
+
+.course-card h4 {
+  color: #1f2937;
+}
+
+.course-card:hover h4 {
+  color: #111827;
+}

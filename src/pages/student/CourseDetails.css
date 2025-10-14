@@ -1,0 +1,19 @@
+.course-details-page {
+  min-height: 100vh;
+  padding-bottom: 32px;
+  background:
+    radial-gradient(900px 600px at -10% 0%, rgba(99,102,241,0.08), transparent 60%),
+    linear-gradient(180deg, #f8fafc 0%, #eef2ff 100%);
+}
+
+.course-details-page .tabs button {
+  box-shadow: 0 2px 8px rgba(99,102,241,0.12);
+}
+
+.course-details-page .tabs button.active {
+  box-shadow: 0 6px 16px rgba(99,102,241,0.24);
+}
+
+.course-details-page section.card {
+  border-left: 4px solid var(--primary);
+}
