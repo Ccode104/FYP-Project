@@ -1,0 +1,26 @@
+.auth-page {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 40px 24px;
+  background:
+    radial-gradient(1200px 800px at -10% -10%, rgba(99,102,241,0.18), transparent 60%),
+    radial-gradient(1000px 800px at 110% 10%, rgba(52,211,153,0.12), transparent 60%),
+    linear-gradient(180deg, #f9fafb 0%, #eef2ff 100%);
+}
+
+.auth-card {
+  border: 1px solid rgba(99,102,241,0.2);
+  background:
+    linear-gradient(180deg, rgba(255,255,255,0.9), rgba(255,255,255,0.86));
+  backdrop-filter: blur(6px);
+  box-shadow: 0 10px 30px rgba(99,102,241,0.12);
+}
+
+.auth-card .heading {
+  background: linear-gradient(90deg, #6366f1, #22c55e);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}

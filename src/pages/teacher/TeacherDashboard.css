@@ -1,0 +1,17 @@
+.dashboard-page {
+  min-height: 100vh;
+  padding-bottom: 32px;
+  background:
+    radial-gradient(1000px 700px at 110% -10%, rgba(234,88,12,0.08), transparent 60%),
+    linear-gradient(180deg, #fff7ed 0%, #fef2f2 100%);
+}
+
+.teacher-theme .topbar {
+  background: linear-gradient(90deg, rgba(234,88,12,0.12), rgba(251,146,60,0.12));
+  border: 1px solid rgba(234,88,12,0.25);
+  padding: 12px 16px;
+  border-radius: 14px;
+  box-shadow: 0 6px 18px rgba(234,88,12,0.15);
+}
+
+.grid-cards { margin-top: 12px; }
