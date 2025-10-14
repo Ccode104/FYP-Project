@@ -11,7 +11,7 @@ export default function AdminDashboard() {
   return (
     <div className="container container-wide dashboard-page admin-theme">
       <header className="topbar">
-        <h2>Welcome, {user?.name} (Admin)</h2>
+        <h2>Welcome, {user?.name} (TA)</h2>
         <div className="actions">
           <button className="btn btn-ghost" onClick={() => navigate('/')}>Home</button>
           <button className="btn btn-ghost" onClick={logout}>Logout</button>

@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useMemo, useState } from 'react'
 
-export type Role = 'student' | 'teacher' | 'admin'
+export type Role = 'student' | 'teacher' | 'ta'
 
 export interface User {
   id: string
@@ -64,8 +64,8 @@ export function getDashboardPathForRole(role: Role) {
       return '/dashboard/student'
     case 'teacher':
       return '/dashboard/teacher'
-    case 'admin':
-      return '/dashboard/admin'
+    case 'ta':
+      return '/dashboard/ta'
     default:
       return '/login'
   }

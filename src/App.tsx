@@ -42,9 +42,9 @@ function App() {
         />
 
         <Route
-          path="/dashboard/admin"
+          path="/dashboard/ta"
           element={
-            <ProtectedRoute roles={["admin"]}>
+            <ProtectedRoute roles={["ta"]}>
               <AdminDashboard />
             </ProtectedRoute>
           }
@@ -53,7 +53,7 @@ function App() {
         <Route
           path="/courses/:courseId"
           element={
-            <ProtectedRoute roles={["student", "teacher", "admin"]}>
+            <ProtectedRoute roles={["student", "teacher", "ta"]}>
               <CourseDetails />
             </ProtectedRoute>
           }
