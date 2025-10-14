@@ -9,7 +9,10 @@ if (!connectionString) {
 
 export const pool = new Pool({
   connectionString,
-  ssl: { rejectUnauthorized: false }
+  ssl: {
+    rejectUnauthorized: true,
+    require: true
+  }
 });
 
 pool.on('error', (err) => logger.error('Postgres pool error', err));

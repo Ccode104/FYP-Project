@@ -10,6 +10,7 @@ export async function createCourse(req, res) {
 
 export async function createOffering(req, res) {
   const { course_id, term, section, faculty_id, max_capacity, start_date, end_date } = req.body;
+  console.log(req.body);
   const q = `INSERT INTO course_offerings (course_id, term, section, faculty_id, max_capacity, start_date, end_date)
              VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING *`;
   const r = await pool.query(q, [course_id, term, section, faculty_id, max_capacity || null, start_date || null, end_date || null]);
@@ -23,4 +24,33 @@ export async function enroll(req, res) {
   const q = `INSERT INTO enrollments (course_offering_id, student_id) VALUES ($1,$2) ON CONFLICT DO NOTHING RETURNING *`;
   const r = await pool.query(q, [offeringId, studentId]);
   res.json({ success: true, row: r.rows[0] || null });
+}
+
+export async function offeringOverview(req, res) {
+  const offeringId = Number(req.params.offeringId);
+  if (!offeringId) return res.status(400).json({ error: 'Missing offering id' });
+
+  // Basic offering info with course and faculty
+  const q = `SELECT o.*, c.code as course_code, c.title as course_title, u.id as faculty_id, u.name as faculty_name, u.email as faculty_email
+             FROM course_offerings o
+             JOIN courses c ON o.course_id = c.id
+             JOIN users u ON o.faculty_id = u.id
+             WHERE o.id = $1 LIMIT 1`;
+  const r = await pool.query(q, [offeringId]);
+  if (r.rowCount === 0) return res.status(404).json({ error: 'Offering not found' });
+  const offering = r.rows[0];
+
+  // Enrollment count
+  const enr = await pool.query(`SELECT COUNT(*)::int as count FROM enrollments WHERE course_offering_id=$1`, [offeringId]);
+  offering.enrollment_count = enr.rows[0].count;
+
+  // TAs
+  const tasR = await pool.query(`SELECT ta.id as ta_id, u.name, u.email, ta.role FROM ta_assignments ta JOIN users u ON ta.ta_id = u.id WHERE ta.course_offering_id=$1`, [offeringId]);
+  offering.tas = tasR.rows;
+
+  // Upcoming assignments
+  const asR = await pool.query(`SELECT id, title, due_at, release_at FROM assignments WHERE course_offering_id=$1 ORDER BY due_at NULLS LAST`, [offeringId]);
+  offering.assignments = asR.rows;
+
+  res.json({ offering });
 }
