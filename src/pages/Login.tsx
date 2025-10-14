@@ -16,7 +16,7 @@ export default function Login() {
 
   const verify = async () => {
     // Mock verification: require password to match role keyword or be at least 4 chars
-    await new Promise((r) => setTimeout(r, 500)) // Simulates a network delay of 500ms
+    await new Promise((r) => setTimeout(r, 500))
     if (password === role || password.length >= 4) return true
     return false
   }
