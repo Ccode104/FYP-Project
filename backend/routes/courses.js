@@ -1,0 +1,11 @@
+import express from 'express';
+import { requireAuth, requireRole } from '../middleware/auth.js';
+import { createCourse, createOffering, enroll } from '../controllers/coursesController.js';
+
+const router = express.Router();
+
+router.post('/', requireAuth, requireRole('faculty','admin'), createCourse);
+router.post('/:courseId/offerings', requireAuth, requireRole('faculty','admin'), createOffering);
+router.post('/offerings/:offeringId/enroll', requireAuth, requireRole('faculty','ta','admin'), enroll);
+
+export default router;
