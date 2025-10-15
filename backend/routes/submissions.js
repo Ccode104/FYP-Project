@@ -1,7 +1,7 @@
 import express from 'express';
 import { requireAuth, requireRole } from '../middleware/auth.js';
 import { upload } from '../middleware/upload.js';
-import { submitFileAssignment, submitCodeAssignment, gradeSubmission } from '../controllers/submissionsController.js';
+import { submitFileAssignment, submitCodeAssignment, gradeSubmission, submitLinkAssignment } from '../controllers/submissionsController.js';
 
 const router = express.Router();
 
@@ -115,5 +115,7 @@ router.post('/submit/code', requireAuth, requireRole('student'), submitCodeAssig
  *         description: Submission not found
  */
 router.post('/grade', requireAuth, requireRole('ta','faculty','admin'), gradeSubmission);
+
+router.post('/submit/link', requireAuth, requireRole('student'), submitLinkAssignment);
 
 export default router;

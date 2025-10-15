@@ -71,7 +71,23 @@ export async function listAssignmentSubmissions(req, res) {
   }
 
   const enhanced = submissions.map((s) => Object.assign({}, s, { files: filesMap[s.id] || [] }));
-  res.json({ submissions: enhanced });
+res.json({ submissions: enhanced });
 
+}
+
+export async function deleteAssignment(req, res) {
+  const id = Number(req.params.id);
+  if (!id) return res.status(400).json({ error: 'Missing assignment id' });
+  // Verify ownership: creator or faculty for offering, or admin
+  const checkQ = `SELECT a.id, a.created_by, o.faculty_id FROM assignments a JOIN course_offerings o ON a.course_offering_id=o.id WHERE a.id=$1`;
+  const r = await pool.query(checkQ, [id]);
+  if (r.rowCount === 0) return res.status(404).json({ error: 'Not found' });
+  const row = r.rows[0];
+  const uid = req.user?.id;
+  const role = req.user?.role;
+  const isOwner = uid && (uid === row.created_by || uid === row.faculty_id);
+  if (!(isOwner || role === 'admin')) return res.status(403).json({ error: 'Forbidden' });
+  await pool.query(`DELETE FROM assignments WHERE id=$1`, [id]);
+  res.json({ success: true });
 }
 

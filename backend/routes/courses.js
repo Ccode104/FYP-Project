@@ -1,6 +1,6 @@
 import express from 'express';
 import { requireAuth, requireRole } from '../middleware/auth.js';
-import { createCourse, createOffering, enroll } from '../controllers/coursesController.js';
+import { createCourse, createOffering, enroll, listCourses, listMyOfferings, unenroll } from '../controllers/coursesController.js';
 import {
   getCourseResources,
   getCoursePYQs,
@@ -15,6 +15,10 @@ const router = express.Router();
 // All routes require authentication
 router.use(requireAuth);
 
+// List all courses
+router.get('/', requireAuth, listCourses);
+
+// Get all resources (PYQs, notes, assignments) for a course offering
 /**
  * @swagger
  * /api/courses/{offeringId}/resources:
@@ -214,7 +218,7 @@ router.post('/:courseId/offerings', requireAuth, requireRole('faculty','admin'),
  *         description: Forbidden - Requires faculty, ta, or admin role
  */
 router.post('/offerings/:offeringId/enroll', requireAuth, requireRole('faculty','ta','admin'), enroll);
-
+router.delete('/offerings/:offeringId/enroll', requireAuth, requireRole('student','faculty','ta','admin'), unenroll);
 /**
  * @swagger
  * /api/courses/{offeringId}/resources:
@@ -272,6 +276,9 @@ router.post('/:offeringId/resources', uploadResource);
  *       403:
  *         description: Forbidden - Requires faculty, ta, or admin role
  */
+// List offerings for current faculty
+router.get('/mine/offerings', requireAuth, requireRole('faculty','admin'), listMyOfferings);
+
 router.get('/offerings/:offeringId', requireAuth, requireRole('faculty','ta','admin'), offeringOverview);
 
 export default router;
