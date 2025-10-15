@@ -8,7 +8,8 @@ import {
   getCourseSubmissions,
   getCourseGrades,
   getCourseQuizzes,
-  attemptQuiz
+  attemptQuiz,
+  enrollInCourse
 } from '../controllers/studentController.js';
 
 const router = express.Router();
@@ -239,5 +240,37 @@ router.get('/courses/:offeringId/quizzes', getCourseQuizzes);
  *         description: Quiz not found
  */
 router.post('/quizzes/:quizId/attempt', attemptQuiz);
+
+/**
+ * @swagger
+ * /api/student/enroll:
+ *   post:
+ *     summary: Enroll the logged-in student in a course offering
+ *     tags: [Student]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - offeringId
+ *             properties:
+ *               offeringId:
+ *                 type: integer
+ *                 description: The ID of the course offering to enroll in
+ *     responses:
+ *       201:
+ *         description: Enrolled successfully
+ *       400:
+ *         description: Missing or invalid offeringId
+ *       409:
+ *         description: Already enrolled in this course offering
+ *       500:
+ *         description: Internal server error
+ */
+router.post('/enroll', enrollInCourse);
 
 export default router;

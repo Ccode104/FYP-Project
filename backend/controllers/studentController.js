@@ -142,3 +142,28 @@ export async function attemptQuiz(req, res) {
     res.status(500).json({ error: 'Internal server error' });
   }
 }
+
+export async function enrollInCourse(req, res) {
+  try {
+    const studentId = req.user.id;
+    const { offeringId } = req.body;
+    if (!offeringId) return res.status(400).json({ error: 'offeringId is required' });
+    // Check if already enrolled
+    const exists = await pool.query(
+      'SELECT id FROM enrollments WHERE course_offering_id = $1 AND student_id = $2',
+      [offeringId, studentId]
+    );
+    if (exists.rowCount > 0) {
+      return res.status(409).json({ error: 'Already enrolled in this course offering' });
+    }
+    // Enroll
+    const result = await pool.query(
+      `INSERT INTO enrollments (course_offering_id, student_id) VALUES ($1, $2) RETURNING *`,
+      [offeringId, studentId]
+    );
+    res.status(201).json({ message: 'Enrolled successfully', enrollment: result.rows[0] });
+  } catch (err) {
+    console.error('enrollInCourse error:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+}
