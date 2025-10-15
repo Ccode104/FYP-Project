@@ -15,7 +15,38 @@ const router = express.Router();
 // All routes require authentication
 router.use(requireAuth);
 
-// List all courses
+/**
+ * @swagger
+ * /api/courses:
+ *   get:
+ *     summary: List all courses
+ *     tags: [Courses]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: List of all courses
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: array
+ *               items:
+ *                 type: object
+ *                 properties:
+ *                   id:
+ *                     type: string
+ *                   courseCode:
+ *                     type: string
+ *                   name:
+ *                     type: string
+ *                   description:
+ *                     type: string
+ *                   createdAt:
+ *                     type: string
+ *                     format: date-time
+ *       401:
+ *         description: Unauthorized
+ */
 router.get('/', requireAuth, listCourses);
 
 // Get all resources (PYQs, notes, assignments) for a course offering
@@ -218,6 +249,30 @@ router.post('/:courseId/offerings', requireAuth, requireRole('faculty','admin'),
  *         description: Forbidden - Requires faculty, ta, or admin role
  */
 router.post('/offerings/:offeringId/enroll', requireAuth, requireRole('faculty','ta','admin'), enroll);
+/**
+ * @swagger
+ * /api/courses/offerings/{offeringId}/enroll:
+ *   delete:
+ *     summary: Unenroll from a course offering
+ *     tags: [Courses]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: offeringId
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Successfully unenrolled from the course
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Forbidden - Requires student, faculty, ta, or admin role
+ *       404:
+ *         description: Course offering not found
+ */
 router.delete('/offerings/:offeringId/enroll', requireAuth, requireRole('student','faculty','ta','admin'), unenroll);
 /**
  * @swagger
@@ -256,6 +311,46 @@ router.post('/:offeringId/resources', uploadResource);
 
 /**
  * @swagger
+ * /api/courses/mine/offerings:
+ *   get:
+ *     summary: List all course offerings for current faculty
+ *     tags: [Courses]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: List of course offerings
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: array
+ *               items:
+ *                 type: object
+ *                 properties:
+ *                   id:
+ *                     type: string
+ *                   courseId:
+ *                     type: string
+ *                   semester:
+ *                     type: string
+ *                   year:
+ *                     type: number
+ *                   course:
+ *                     type: object
+ *                     properties:
+ *                       courseCode:
+ *                         type: string
+ *                       name:
+ *                         type: string
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Forbidden - Requires faculty or admin role
+ */
+router.get('/mine/offerings', requireAuth, requireRole('faculty','admin'), listMyOfferings);
+
+/**
+ * @swagger
  * /api/courses/offerings/{offeringId}:
  *   get:
  *     summary: Get course offering overview
@@ -276,9 +371,6 @@ router.post('/:offeringId/resources', uploadResource);
  *       403:
  *         description: Forbidden - Requires faculty, ta, or admin role
  */
-// List offerings for current faculty
-router.get('/mine/offerings', requireAuth, requireRole('faculty','admin'), listMyOfferings);
-
 router.get('/offerings/:offeringId', requireAuth, requireRole('faculty','ta','admin'), offeringOverview);
 
 export default router;
