@@ -1,0 +1,5 @@
+.toast-stack { position: fixed; top: 16px; right: 16px; display: grid; gap: 8px; z-index: 1100; }
+.toast { padding: 10px 14px; border-radius: 10px; color: #111827; background: #e5e7eb; box-shadow: 0 6px 16px rgba(0,0,0,0.15); border: 1px solid #d1d5db; }
+.toast-success { background: #dcfce7; border-color: #86efac; color: #065f46; }
+.toast-error { background: #fee2e2; border-color: #fca5a5; color: #7f1d1d; }
+.toast-info { background: #dbeafe; border-color: #93c5fd; color: #1e3a8a; }

@@ -1,78 +1,95 @@
 import { useNavigate } from 'react-router-dom'
-import { courses } from '../../data/mock'
 import CourseCard from '../../components/CourseCard'
 import { useAuth } from '../../context/AuthContext'
-import { useEffect, useMemo, useState } from 'react'
-import { addUserCourse, getUserCourses } from '../../data/userCourses'
+import { useEffect, useState } from 'react'
 import './StudentDashboard.css'
 import Modal from '../../components/Modal'
+import { getEnrolledCourses } from '../../services/student'
+import { enrollStudent } from '../../services/courses'
 
 export default function StudentDashboard() {
   const { user, logout } = useAuth()
   const navigate = useNavigate()
 
-  const [mine, setMine] = useState(() => (user ? getUserCourses(user.id) : []))
+  const [loading, setLoading] = useState(true)
+  const [offerings, setOfferings] = useState<any[]>([])
+  const [err, setErr] = useState<string | null>(null)
 
   useEffect(() => {
-    if (user) setMine(getUserCourses(user.id))
-  }, [user])
+    (async () => {
+      try {
+        const list = await getEnrolledCourses()
+        setOfferings(list)
+      } catch (e: any) {
+        setErr(e?.message || 'Failed to load courses')
+      } finally {
+        setLoading(false)
+      }
+    })()
+  }, [])
 
-  const allCourses = useMemo(() => [...mine, ...courses], [mine])
+  const goToOffering = (id: number | string) => navigate(`/courses/${id}`)
 
-  const goToCourse = (id: string) => navigate(`/courses/${id}`)
-
-  const [dialogOpen, setDialogOpen] = useState(false)
-  const [newTitle, setNewTitle] = useState('')
-  const [newDesc, setNewDesc] = useState('')
-
-  const openDialog = () => setDialogOpen(true)
-  const closeDialog = () => { setDialogOpen(false); setNewTitle(''); setNewDesc('') }
-  const submitDialog = () => {
-    if (!user) return
-    const title = newTitle.trim()
-    if (!title) return
-    const description = newDesc.trim() || 'Newly added course'
-    const added = addUserCourse(user.id, { title, description })
-    setMine((prev) => [added, ...prev])
-    closeDialog()
+  // TA/Teacher enroll form (optional)
+  const [enrOpen, setEnrOpen] = useState(false)
+  const [offId, setOffId] = useState('')
+  const [stuId, setStuId] = useState('')
+  const enrollNow = async () => {
+    try {
+      await enrollStudent(Number(offId), Number(stuId || user?.id))
+      setEnrOpen(false); setOffId(''); setStuId('')
+    } catch (e: any) {
+      alert(e?.message || 'Enroll failed')
+    }
   }
+
+  // Quick open by offering ID
+  const [openId, setOpenId] = useState('')
 
   return (
     <div className="container container-wide dashboard-page student-theme">
       <header className="topbar">
-        <h2>Welcome, {user?.name} (Student)</h2>
+        <h2>Welcome, {user?.name} ({user?.role.toUpperCase()})</h2>
         <div className="actions">
-          <button className="btn btn-primary" onClick={openDialog}>+ Add course</button>
+          {(user?.role === 'ta' || user?.role === 'teacher') && (
+            <button className="btn btn-primary" onClick={() => setEnrOpen(true)}>+ Enroll student</button>
+          )}
           <button className="btn btn-ghost" onClick={() => navigate('/')}>Home</button>
           <button className="btn btn-ghost" onClick={logout}>Logout</button>
         </div>
       </header>
-      <h3 className="section-title">Your Enrolled Courses</h3>
-      <div className="grid grid-cards">
-        {allCourses.map((c) => (
-          <CourseCard key={c.id} course={c} onClick={() => goToCourse(c.id)} />
-        ))}
+
+      <div className="card" style={{ marginBottom: 16 }}>
+        <div className="form" style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          <input className="input" placeholder="Open offering by ID (e.g., 101)" value={openId} onChange={(e) => setOpenId(e.target.value)} />
+          <button className="btn btn-primary" onClick={() => openId && goToOffering(openId)}>Open</button>
+        </div>
       </div>
 
-      <Modal
-        open={dialogOpen}
-        onClose={closeDialog}
-        title="Add a new course"
-        actions={(
-          <>
-            <button className="btn" onClick={closeDialog}>Cancel</button>
-            <button className="btn btn-primary" onClick={submitDialog}>Add course</button>
-          </>
-        )}
-      >
+      <h3 className="section-title">Your Enrolled Courses</h3>
+      {err ? <div className="card" style={{ borderColor: '#ef4444', borderWidth: 1 }}>{err}</div> : null}
+      {loading ? <p className="muted">Loading…</p> : (
+        <div className="grid grid-cards">
+          {offerings.map((o) => (
+            <CourseCard key={o.id} course={{ id: String(o.id), title: o.course_title || `Offering #${o.id}`, description: o.course_code || o.term || '' , assignmentsPast:[], assignmentsPresent:[], pyq:[], notes:[] }} onClick={() => goToOffering(o.id)} />
+          ))}
+        </div>
+      )}
+
+      <Modal open={enrOpen} onClose={() => setEnrOpen(false)} title="Enroll Student" actions={(
+        <>
+          <button className="btn" onClick={() => setEnrOpen(false)}>Cancel</button>
+          <button className="btn btn-primary" onClick={enrollNow}>Enroll</button>
+        </>
+      )}>
         <div className="form">
           <label className="field">
-            <span className="label">Course title</span>
-            <input className="input" value={newTitle} onChange={(e) => setNewTitle(e.target.value)} placeholder="e.g., Discrete Mathematics" />
+            <span className="label">Offering ID</span>
+            <input className="input" value={offId} onChange={(e) => setOffId(e.target.value)} placeholder="e.g., 101" />
           </label>
           <label className="field">
-            <span className="label">Description</span>
-            <input className="input" value={newDesc} onChange={(e) => setNewDesc(e.target.value)} placeholder="Short description" />
+            <span className="label">Student ID</span>
+            <input className="input" value={stuId} onChange={(e) => setStuId(e.target.value)} placeholder="Defaults to current user" />
           </label>
         </div>
       </Modal>

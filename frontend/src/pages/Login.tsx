@@ -3,6 +3,7 @@ import type { FormEvent } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import type { Role } from '../context/AuthContext'
 import { getDashboardPathForRole, useAuth } from '../context/AuthContext'
+import { useToast } from '../components/ToastProvider'
 import './Login.css'
 
 export default function Login() {
@@ -13,6 +14,7 @@ export default function Login() {
   const [role, setRole] = useState<Role>('student')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const { push } = useToast()
 
   const verify = async () => {
     // Mock verification: require password to match role keyword or be at least 4 chars
@@ -26,13 +28,22 @@ export default function Login() {
     setError(null)
     setLoading(true)
     const ok = await verify()
-    setLoading(false)
     if (!ok) {
-      setError('Invalid credentials. Use password matching the role (student/teacher/ta) or at least 4 characters.')
+      setLoading(false)
+      setError('Invalid credentials.')
+      push({ kind: 'error', message: 'Login failed' })
       return
     }
-    login(email, password, role)
-    navigate(getDashboardPathForRole(role), { replace: true })
+    try {
+      await login(email, password, role)
+      setLoading(false)
+      push({ kind: 'success', message: 'Login successful' })
+      navigate(getDashboardPathForRole(role), { replace: true })
+    } catch (e: any) {
+      setLoading(false)
+      setError(e?.message || 'Login failed')
+      push({ kind: 'error', message: 'Login failed' })
+    }
   }
 
   return (
