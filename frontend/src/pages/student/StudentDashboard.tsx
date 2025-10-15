@@ -1,9 +1,9 @@
 import { useNavigate } from 'react-router-dom'
-import { courses } from '../../data/mock'
+import type { Course } from '../../data/mock'
 import CourseCard from '../../components/CourseCard'
 import { useAuth } from '../../context/AuthContext'
-import { useEffect, useMemo, useState } from 'react'
-import { addUserCourse, getUserCourses } from '../../data/userCourses'
+import { useEffect, useState } from 'react'
+import {getEnrolledCourses,addUserCourse} from './api'
 import './StudentDashboard.css'
 import Modal from '../../components/Modal'
 
@@ -11,29 +11,28 @@ export default function StudentDashboard() {
   const { user, logout } = useAuth()
   const navigate = useNavigate()
 
-  const [mine, setMine] = useState(() => (user ? getUserCourses(user.id) : []))
+  const [courses, setCourses] = useState<Course[]>([]);
 
   useEffect(() => {
-    if (user) setMine(getUserCourses(user.id))
-  }, [user])
+    getEnrolledCourses()
+      .then((data) => setCourses(data))
+      .catch((err) => console.error(err))
+  }, []);
 
-  const allCourses = useMemo(() => [...mine, ...courses], [mine])
-
+  
+  const allCourses = [...courses]
+  console.log(allCourses)
   const goToCourse = (id: string) => navigate(`/courses/${id}`)
 
   const [dialogOpen, setDialogOpen] = useState(false)
-  const [newTitle, setNewTitle] = useState('')
-  const [newDesc, setNewDesc] = useState('')
+  const [offeringId, setofferingId] = useState('')
 
   const openDialog = () => setDialogOpen(true)
-  const closeDialog = () => { setDialogOpen(false); setNewTitle(''); setNewDesc('') }
+  const closeDialog = () => { setDialogOpen(false); setofferingId('');}
   const submitDialog = () => {
     if (!user) return
-    const title = newTitle.trim()
-    if (!title) return
-    const description = newDesc.trim() || 'Newly added course'
-    const added = addUserCourse(user.id, { title, description })
-    setMine((prev) => [added, ...prev])
+    if (!offeringId) return
+    const added = addUserCourse(parseInt(offeringId,10))
     closeDialog()
   }
 
@@ -68,11 +67,7 @@ export default function StudentDashboard() {
         <div className="form">
           <label className="field">
             <span className="label">Course title</span>
-            <input className="input" value={newTitle} onChange={(e) => setNewTitle(e.target.value)} placeholder="e.g., Discrete Mathematics" />
-          </label>
-          <label className="field">
-            <span className="label">Description</span>
-            <input className="input" value={newDesc} onChange={(e) => setNewDesc(e.target.value)} placeholder="Short description" />
+            <input className="input" value={offeringId} onChange={(e) => setofferingId(e.target.value)} placeholder="e.g. 1" />
           </label>
         </div>
       </Modal>

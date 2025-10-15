@@ -13,7 +13,7 @@ import usersRoutes from './routes/users.js';
 import studentRoutes from './routes/student.js';
 import swaggerSpec from './swagger.js';
 
-export async function startServer(port = 4000) {
+export async function startServer(port = 5000) {
   const app = express();
   app.use(cors());
   app.use(bodyParser.json({ limit: '10mb' }));
