@@ -8,6 +8,7 @@
   --text: #1f2937;
   --muted: #6b7280;
   --border: #e5e7eb;
+  --border-strong: #c7d2fe; /* light indigo border for better contrast */
   --primary: #6366f1;
   --primary-600: #5458ee;
   --ring: rgba(99, 102, 241, 0.35);
@@ -62,7 +63,7 @@ a:hover { color: var(--primary-600); }
 /* Cards */
 .card {
   background: var(--surface);
-  border: 1px solid var(--border);
+  border: 1px solid var(--border-strong);
   border-radius: var(--radius);
   box-shadow: var(--shadow-sm);
   padding: 16px;
@@ -101,7 +102,7 @@ a:hover { color: var(--primary-600); }
 .input, .select {
   width: 100%;
   padding: 10px 12px;
-  border: 1px solid var(--border);
+  border: 1px solid var(--border-strong);
   border-radius: 10px;
   background: #fff;
   color: var(--text);

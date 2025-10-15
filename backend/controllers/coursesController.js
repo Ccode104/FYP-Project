@@ -8,6 +8,12 @@ export async function createCourse(req, res) {
   res.json(r.rows[0]);
 }
 
+export async function listCourses(req, res) {
+  const q = `SELECT id, code, title, description, department_id, credits FROM courses ORDER BY code`;
+  const r = await pool.query(q);
+  res.json(r.rows);
+}
+
 export async function createOffering(req, res) {
   const { course_id, term, section, faculty_id, max_capacity, start_date, end_date } = req.body;
   console.log(req.body);
@@ -19,11 +25,49 @@ export async function createOffering(req, res) {
 
 export async function enroll(req, res) {
   const offeringId = Number(req.params.offeringId);
-  const studentId = Number(req.body.student_id);
-  if (!offeringId || !studentId) return res.status(400).json({ error: 'Missing ids' });
-  const q = `INSERT INTO enrollments (course_offering_id, student_id) VALUES ($1,$2) ON CONFLICT DO NOTHING RETURNING *`;
+  if (!offeringId) return res.status(400).json({ error: 'Missing offering id' });
+
+  let studentId;
+  if (req.user?.role === 'student') {
+    // Students can only enroll themselves
+    studentId = Number(req.user.id);
+  } else {
+    studentId = Number(req.body.student_id);
+    if (!studentId) return res.status(400).json({ error: 'Missing student_id' });
+  }
+
+  const q = `INSERT INTO enrollments (course_offering_id, student_id)
+             VALUES ($1,$2)
+             ON CONFLICT DO NOTHING
+             RETURNING *`;
   const r = await pool.query(q, [offeringId, studentId]);
   res.json({ success: true, row: r.rows[0] || null });
+}
+
+export async function unenroll(req, res) {
+  const offeringId = Number(req.params.offeringId);
+  if (!offeringId) return res.status(400).json({ error: 'Missing offering id' });
+  let studentId;
+  if (req.user?.role === 'student') {
+    studentId = Number(req.user.id);
+  } else {
+    studentId = Number(req.body.student_id);
+    if (!studentId) return res.status(400).json({ error: 'Missing student_id' });
+  }
+  await pool.query(`DELETE FROM enrollments WHERE course_offering_id=$1 AND student_id=$2`, [offeringId, studentId]);
+  res.json({ success: true });
+}
+
+export async function listMyOfferings(req, res) {
+  const facultyId = Number(req.user?.id);
+  if (!facultyId) return res.status(401).json({ error: 'Unauthorized' });
+  const q = `SELECT o.*, c.code as course_code, c.title as course_title
+             FROM course_offerings o
+             JOIN courses c ON o.course_id = c.id
+             WHERE o.faculty_id = $1
+             ORDER BY o.id DESC`;
+  const r = await pool.query(q, [facultyId]);
+  res.json(r.rows);
 }
 
 export async function offeringOverview(req, res) {
