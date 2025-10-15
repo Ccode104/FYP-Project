@@ -11,11 +11,18 @@ export interface User {
 
 interface AuthContextValue {
   user: User | null
-  login: (email: string, _password: string, role: Role) => void
+  login: (email: string, password: string, role: Role) => Promise<User>
   logout: () => void
 }
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined)
+
+function mapBackendRole(r: string): Role {
+  if (r === 'faculty') return 'teacher'
+  if (r === 'admin') return 'ta' // map admin to TA permissions in UI for now
+  if (r === 'ta') return 'ta'
+  return 'student'
+}
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
@@ -31,20 +38,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, [])
 
-  const login: AuthContextValue['login'] = (email, _password, role) => {
-    const u: User = {
-      id: crypto.randomUUID(),
-      name: email.split('@')[0] || 'User',
-      email,
-      role,
-    }
-    setUser(u)
+  const login: AuthContextValue['login'] = async (email, password, role) => {
+    const { loginRequest } = await import('../services/auth')
+    const res = await loginRequest(email, password)
+    const mappedRole = mapBackendRole(res.user.role)
+    const u: User = { id: String(res.user.id), name: res.user.name || email.split('@')[0] || 'User', email: res.user.email, role: mappedRole }
+    localStorage.setItem('auth:token', res.token)
     localStorage.setItem('auth:user', JSON.stringify(u))
+    setUser(u)
+    return u
   }
 
   const logout = () => {
     setUser(null)
     localStorage.removeItem('auth:user')
+    localStorage.removeItem('auth:token')
   }
 
   const value = useMemo(() => ({ user, login, logout }), [user])
