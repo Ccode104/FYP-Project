@@ -85,6 +85,20 @@ function BackendGrading({ assignments, onSave }: { assignments: any[]; onSave: (
   )
 }
 
+function MenuTiny({ onDelete }: { onDelete: () => void }) {
+  const [open, setOpen] = useState(false)
+  return (
+    <div style={{ position: 'relative' }}>
+      <button className="btn" onClick={(e)=>{ e.stopPropagation(); setOpen((v)=>!v) }} aria-label="More">⋮</button>
+      {open && (
+        <div className="card" style={{ position: 'absolute', right: 0, marginTop: 4, zIndex: 10 }}>
+          <button className="btn" onClick={(e)=>{ e.stopPropagation(); setOpen(false); onDelete() }}>Delete</button>
+        </div>
+      )}
+    </div>
+  )
+}
+
 export default function CourseDetails() {
   const { courseId } = useParams()
   const { user, logout } = useAuth()
@@ -106,6 +120,7 @@ export default function CourseDetails() {
   }, [courseId, user])
 
   const [file, setFile] = useState<File | null>(null)
+  const [linkUrl, setLinkUrl] = useState('')
   const submitAssignment = (e: React.FormEvent) => {
     e.preventDefault()
     if (!file || !courseId) return alert('Please choose a file to upload!')
@@ -128,16 +143,30 @@ export default function CourseDetails() {
   const [backendNotes, setBackendNotes] = useState<any[]>([])
 
   const [newAssnTitle, setNewAssnTitle] = useState('')
+  const [newAssnDesc, setNewAssnDesc] = useState('')
+  const [newAssnType, setNewAssnType] = useState<'file'|'code'|'link'>('file')
+  const [newAssnRelease, setNewAssnRelease] = useState('')
   const [newAssnDue, setNewAssnDue] = useState('')
+  const [newAssnMax, setNewAssnMax] = useState('100')
+  const [newAssnMulti, setNewAssnMulti] = useState(false)
   const addAssn = async () => {
     if (!courseId) return
     const title = newAssnTitle.trim()
     if (!title) return
     if (isBackend) {
-      // create real assignment
+      // create real assignment with extended fields
       await apiFetch('/api/assignments', {
         method: 'POST',
-        body: { course_offering_id: Number(courseId), title, description: '', assignment_type: 'file', due_at: newAssnDue || null },
+        body: {
+          course_offering_id: Number(courseId),
+          title,
+          description: newAssnDesc,
+          assignment_type: newAssnType,
+          release_at: newAssnRelease || null,
+          due_at: newAssnDue || null,
+          max_score: Number(newAssnMax) || 100,
+          allow_multiple_submissions: newAssnMulti,
+        },
       })
       const data = await apiFetch<any[]>(`/api/courses/${courseId}/assignments`)
       setBackendAssignments(data)
@@ -146,7 +175,12 @@ export default function CourseDetails() {
       addCustomAssignment(courseId, title, newAssnDue.trim() || undefined)
     }
     setNewAssnTitle('')
+    setNewAssnDesc('')
+    setNewAssnType('file')
+    setNewAssnRelease('')
     setNewAssnDue('')
+    setNewAssnMax('100')
+    setNewAssnMulti(false)
     setTab('present')
   }
 
@@ -225,9 +259,12 @@ export default function CourseDetails() {
         <section className="card">
           <h3>Open Assignments</h3>
           <ul className="list">
-            {presentAssignments.map((a) => (
-              <li key={a.id}>
-                {a.title} {a.dueDate ? `(Due: ${a.dueDate})` : ''}
+            {presentAssignments.map((a: any) => (
+              <li key={a.id} style={{ display: 'flex', alignItems: 'center' }}>
+                <span style={{ flex: 1 }}>{a.title} {a.dueDate ? `(Due: ${a.dueDate})` : ''}</span>
+                {isBackend && user?.role==='teacher' && (
+                  <MenuTiny onDelete={async ()=>{ try { await (await import('../../services/assignments')).deleteAssignmentApi(Number(a.id)); push({ kind: 'success', message: 'Assignment deleted' }); const data = await apiFetch<any[]>(`/api/courses/${courseId}/assignments`); setBackendAssignments(data) } catch(e:any){ push({ kind:'error', message:e?.message||'Failed' }) } }} />
+                )}
               </li>
             ))}
           </ul>
@@ -235,31 +272,33 @@ export default function CourseDetails() {
             <form onSubmit={async (e) => {
               e.preventDefault()
               if (isBackend) {
-                if (!file || !selectedAssignmentId) return alert('Choose a file and assignment')
-                const form = new FormData()
-                form.append('assignment_id', selectedAssignmentId)
-                form.append('files', file)
+                if (!selectedAssignmentId || !linkUrl.trim()) return push({ kind: 'error', message: 'Add assignment and URL' })
                 try {
-                  await apiForm('/api/submissions/submit/files', form)
-                  push({ kind: 'success', message: 'Submission uploaded' })
-                  setFile(null)
+                  await apiFetch('/api/submissions/submit/link', { method: 'POST', body: { assignment_id: Number(selectedAssignmentId), url: linkUrl.trim() } })
+                  push({ kind: 'success', message: 'Link submitted' })
+                  setLinkUrl('')
                 } catch (err: any) {
-                  push({ kind: 'error', message: 'Submission failed' })
+                  push({ kind: 'error', message: err?.message || 'Submission failed' })
                 }
               } else {
                 submitAssignment(e)
               }
-            }} style={{ display: 'flex', gap: 8, alignItems: 'center', marginTop: 12 }}>
+            }} style={{ display: 'flex', gap: 8, alignItems: 'center', marginTop: 12, flexWrap: 'wrap' }}>
               {isBackend && (
-                <select className="select" value={selectedAssignmentId} onChange={(e) => setSelectedAssignmentId(e.target.value)}>
-                  <option value="">Select assignment</option>
-                  {presentAssignments.map((a: any) => (
-                    <option key={a.id} value={a.id}>{a.title}</option>
-                  ))}
-                </select>
+                <>
+                  <select className="select" value={selectedAssignmentId} onChange={(e) => setSelectedAssignmentId(e.target.value)}>
+                    <option value="">Select assignment</option>
+                    {presentAssignments.map((a: any) => (
+                      <option key={a.id} value={a.id}>{a.title}</option>
+                    ))}
+                  </select>
+                  <input className="input" style={{ flex: 1, minWidth: 260 }} placeholder="Submission URL (e.g., Google Drive link)" value={linkUrl} onChange={(e) => setLinkUrl(e.target.value)} />
+                </>
               )}
-              <input className="input" type="file" onChange={(e) => setFile(e.target.files?.[0] ?? null)} />
-              <button className="btn btn-primary" type="submit">Upload & Submit</button>
+              {!isBackend && (
+                <input className="input" type="file" onChange={(e) => setFile(e.target.files?.[0] ?? null)} />
+              )}
+              <button className="btn btn-primary" type="submit">Submit</button>
             </form>
           )}
         </section>
@@ -280,18 +319,46 @@ export default function CourseDetails() {
 
       {user?.role === 'teacher' && tab === 'manage' && (
         <section className="card">
-          <h3>Upload Assignment</h3>
-          <div className="form" style={{ maxWidth: 520 }}>
+          <h3>Create Assignment</h3>
+          <div className="form" style={{ maxWidth: 640 }}>
             <label className="field">
               <span className="label">Title</span>
               <input className="input" value={newAssnTitle} onChange={(e) => setNewAssnTitle(e.target.value)} placeholder="Assignment title" />
             </label>
             <label className="field">
-              <span className="label">Due date</span>
-              <input className="input" value={newAssnDue} onChange={(e) => setNewAssnDue(e.target.value)} placeholder="YYYY-MM-DD (optional)" />
+              <span className="label">Description</span>
+              <input className="input" value={newAssnDesc} onChange={(e) => setNewAssnDesc(e.target.value)} placeholder="Optional details" />
             </label>
+            <label className="field">
+              <span className="label">Type</span>
+              <select className="select" value={newAssnType} onChange={(e) => setNewAssnType(e.target.value as any)}>
+                <option value="file">File</option>
+                <option value="code">Code</option>
+                <option value="link">Link</option>
+              </select>
+            </label>
+            <div className="grid" style={{ gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+              <label className="field">
+                <span className="label">Release at</span>
+                <input className="input" value={newAssnRelease} onChange={(e) => setNewAssnRelease(e.target.value)} placeholder="YYYY-MM-DDTHH:mm" />
+              </label>
+              <label className="field">
+                <span className="label">Due at</span>
+                <input className="input" value={newAssnDue} onChange={(e) => setNewAssnDue(e.target.value)} placeholder="YYYY-MM-DDTHH:mm" />
+              </label>
+            </div>
+            <div className="grid" style={{ gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+              <label className="field">
+                <span className="label">Max score</span>
+                <input className="input" value={newAssnMax} onChange={(e) => setNewAssnMax(e.target.value)} placeholder="100" />
+              </label>
+              <label className="field" style={{ alignItems: 'center' }}>
+                <span className="label">Allow multiple submissions</span>
+                <input type="checkbox" checked={newAssnMulti} onChange={(e) => setNewAssnMulti(e.target.checked)} />
+              </label>
+            </div>
             <div>
-              <button className="btn btn-primary" onClick={addAssn}>Add assignment</button>
+              <button className="btn btn-primary" onClick={addAssn}>Create assignment</button>
             </div>
           </div>
         </section>

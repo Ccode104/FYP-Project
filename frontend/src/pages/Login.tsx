@@ -1,7 +1,6 @@
 import { useState } from 'react'
 import type { FormEvent } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
-import type { Role } from '../context/AuthContext'
 import { getDashboardPathForRole, useAuth } from '../context/AuthContext'
 import { useToast } from '../components/ToastProvider'
 import './Login.css'
@@ -11,16 +10,14 @@ export default function Login() {
   const navigate = useNavigate()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
-  const [role, setRole] = useState<Role>('student')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const { push } = useToast()
 
   const verify = async () => {
-    // Mock verification: require password to match role keyword or be at least 4 chars
-    await new Promise((r) => setTimeout(r, 500))
-    if (password === role || password.length >= 4) return true
-    return false
+    // Basic client-side check; server does real auth
+    await new Promise((r) => setTimeout(r, 300))
+    return password.length >= 4
   }
 
   const onSubmit = async (e: FormEvent) => {
@@ -35,10 +32,10 @@ export default function Login() {
       return
     }
     try {
-      await login(email, password, role)
+      const u = await login(email, password, 'student')
       setLoading(false)
       push({ kind: 'success', message: 'Login successful' })
-      navigate(getDashboardPathForRole(role), { replace: true })
+      navigate(getDashboardPathForRole(u.role), { replace: true })
     } catch (e: any) {
       setLoading(false)
       setError(e?.message || 'Login failed')
@@ -71,14 +68,6 @@ export default function Login() {
               type="password"
               required
             />
-          </label>
-          <label className="field">
-            <span className="label">Role</span>
-          <select className="select" value={role} onChange={(e) => setRole(e.target.value as Role)}>
-              <option value="student">Student</option>
-              <option value="teacher">Teacher</option>
-              <option value="ta">TA</option>
-            </select>
           </label>
           <button className="btn btn-primary" type="submit" disabled={loading}>{loading ? 'Verifying…' : 'Sign in'}</button>
         </form>

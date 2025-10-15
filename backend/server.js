@@ -9,6 +9,7 @@ import quizRoutes from './routes/quizzes.js';
 import extendedRoutes from './routes/extended.js';
 import { logger } from './utils/logger.js';
 import usersRoutes from './routes/users.js';
+import studentRoutes from './routes/student.js';
 
 export async function startServer(port = 4000) {
   const app = express();
@@ -23,6 +24,7 @@ export async function startServer(port = 4000) {
   app.use('/api/quizzes', quizRoutes);
   app.use('/api', extendedRoutes);
   app.use('/api/users', usersRoutes);
+  app.use('/api/student', studentRoutes);
 
 
   app.get('/health', (req, res) => res.json({ ok: true }));

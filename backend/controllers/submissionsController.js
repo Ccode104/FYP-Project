@@ -43,6 +43,23 @@ export async function submitCodeAssignment(req, res) {
   res.json({ submission });
 }
 
+export async function submitLinkAssignment(req, res) {
+  const assignment_id = Number(req.body.assignment_id)
+  const url = String(req.body.url || '')
+  const student_id = Number(req.user?.id)
+  if (!assignment_id || !student_id || !url) return res.status(400).json({ error: 'Missing' })
+  try {
+    const r = await pool.query(`INSERT INTO assignment_submissions (assignment_id, student_id, attempt) VALUES ($1,$2,$3) RETURNING *`, [assignment_id, student_id, 1])
+    const submission = r.rows[0]
+    const filename = url.split('/').pop() || url
+    await pool.query(`INSERT INTO submission_files (submission_id, storage_path, filename) VALUES ($1,$2,$3)`, [submission.id, url, filename])
+    res.json({ submission })
+  } catch (err) {
+    console.error(err)
+    res.status(500).json({ error: 'Failed to submit link' })
+  }
+}
+
 export async function gradeSubmission(req, res) {
   const { submission_id, score, feedback } = req.body;
   const grader_id = req.user?.id;

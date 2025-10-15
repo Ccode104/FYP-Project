@@ -5,13 +5,29 @@ import { useEffect, useState } from 'react'
 import './StudentDashboard.css'
 import Modal from '../../components/Modal'
 import { getEnrolledCourses } from '../../services/student'
-import { enrollStudent } from '../../services/courses'
+import { enrollStudent, unenrollStudent } from '../../services/courses'
+import { useToast } from '../../components/ToastProvider'
+
+function MenuButton({ onDelete, label }: { onDelete: () => void; label: string }) {
+  const [open, setOpen] = useState(false)
+  return (
+    <div style={{ position: 'absolute', top: 8, right: 8 }}>
+      <button className="btn" onClick={(e)=>{ e.stopPropagation(); setOpen((v)=>!v) }} aria-label="More">⋮</button>
+      {open && (
+        <div className="card" style={{ position: 'absolute', right: 0, marginTop: 4, zIndex: 10 }}>
+          <button className="btn" onClick={(e)=>{ e.stopPropagation(); setOpen(false); onDelete() }}>{label}</button>
+        </div>
+      )}
+    </div>
+  )
+}
 
 export default function StudentDashboard() {
   const { user, logout } = useAuth()
   const navigate = useNavigate()
 
   const [loading, setLoading] = useState(true)
+  const { push } = useToast()
   const [offerings, setOfferings] = useState<any[]>([])
   const [err, setErr] = useState<string | null>(null)
 
@@ -37,9 +53,10 @@ export default function StudentDashboard() {
   const enrollNow = async () => {
     try {
       await enrollStudent(Number(offId), Number(stuId || user?.id))
+      push({ kind: 'success', message: 'Enrollment requested' })
       setEnrOpen(false); setOffId(''); setStuId('')
     } catch (e: any) {
-      alert(e?.message || 'Enroll failed')
+      push({ kind: 'error', message: e?.message || 'Enroll failed' })
     }
   }
 
@@ -51,9 +68,7 @@ export default function StudentDashboard() {
       <header className="topbar">
         <h2>Welcome, {user?.name} ({user?.role.toUpperCase()})</h2>
         <div className="actions">
-          {(user?.role === 'ta' || user?.role === 'teacher') && (
-            <button className="btn btn-primary" onClick={() => setEnrOpen(true)}>+ Enroll student</button>
-          )}
+          <button className="btn btn-primary" onClick={() => setEnrOpen(true)}>{(user?.role === 'ta' || user?.role === 'teacher') ? '+ Enroll student' : '+ Enroll in offering'}</button>
           <button className="btn btn-ghost" onClick={() => navigate('/')}>Home</button>
           <button className="btn btn-ghost" onClick={logout}>Logout</button>
         </div>
@@ -71,12 +86,17 @@ export default function StudentDashboard() {
       {loading ? <p className="muted">Loading…</p> : (
         <div className="grid grid-cards">
           {offerings.map((o) => (
-            <CourseCard key={o.id} course={{ id: String(o.id), title: o.course_title || `Offering #${o.id}`, description: o.course_code || o.term || '' , assignmentsPast:[], assignmentsPresent:[], pyq:[], notes:[] }} onClick={() => goToOffering(o.id)} />
+            <div key={o.id} style={{ position: 'relative' }}>
+              <CourseCard course={{ id: String(o.id), title: o.course_title || `Offering #${o.id}`, description: o.course_code || o.term || '' , assignmentsPast:[], assignmentsPresent:[], pyq:[], notes:[] }} onClick={() => goToOffering(o.id)} />
+              <MenuButton onDelete={async () => {
+                try { await unenrollStudent(Number(o.id)); setOfferings((prev)=>prev.filter((x)=>x.id!==o.id)); push({ kind: 'success', message: 'Unenrolled' }) } catch(e:any){ push({ kind: 'error', message: e?.message || 'Failed' }) }
+              }} label="Unenroll" />
+            </div>
           ))}
         </div>
       )}
 
-      <Modal open={enrOpen} onClose={() => setEnrOpen(false)} title="Enroll Student" actions={(
+      <Modal open={enrOpen} onClose={() => setEnrOpen(false)} title={(user?.role==='student')? 'Enroll in Offering' : 'Enroll Student'} actions={(
         <>
           <button className="btn" onClick={() => setEnrOpen(false)}>Cancel</button>
           <button className="btn btn-primary" onClick={enrollNow}>Enroll</button>
@@ -87,10 +107,12 @@ export default function StudentDashboard() {
             <span className="label">Offering ID</span>
             <input className="input" value={offId} onChange={(e) => setOffId(e.target.value)} placeholder="e.g., 101" />
           </label>
-          <label className="field">
-            <span className="label">Student ID</span>
-            <input className="input" value={stuId} onChange={(e) => setStuId(e.target.value)} placeholder="Defaults to current user" />
-          </label>
+          {(user?.role==='ta' || user?.role==='teacher') && (
+            <label className="field">
+              <span className="label">Student ID</span>
+              <input className="input" value={stuId} onChange={(e) => setStuId(e.target.value)} placeholder="Enter student numeric id" />
+            </label>
+          )}
         </div>
       </Modal>
     </div>
