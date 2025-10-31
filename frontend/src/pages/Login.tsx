@@ -8,14 +8,14 @@ import './Login.css'
 export default function Login() {
   const { login } = useAuth()
   const navigate = useNavigate()
+  const { push } = useToast()
+
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const { push } = useToast()
 
   const verify = async () => {
-    // Basic client-side check; server does real auth
     await new Promise((r) => setTimeout(r, 300))
     return password.length >= 4
   }
@@ -26,51 +26,65 @@ export default function Login() {
     setLoading(true)
     const ok = await verify()
     if (!ok) {
-      setLoading(false)
       setError('Invalid credentials.')
       push({ kind: 'error', message: 'Login failed' })
+      setLoading(false)
       return
     }
     try {
       const u = await login(email, password, 'student')
-      setLoading(false)
       push({ kind: 'success', message: 'Login successful' })
       navigate(getDashboardPathForRole(u.role), { replace: true })
     } catch (e: any) {
-      setLoading(false)
       setError(e?.message || 'Login failed')
       push({ kind: 'error', message: 'Login failed' })
+    } finally {
+      setLoading(false)
     }
   }
 
   return (
-    <div className="container auth-page">
-      <div className="card auth-card">
+    <div className="auth-page">
+      <div className="auth-card">
         <h1 className="heading">Login</h1>
+        <p className="subheading">Sign in to continue</p>
+
         <form className="form" onSubmit={onSubmit}>
-          {error ? <div className="card" style={{ borderColor: '#ef4444', borderWidth: 1 }}>{error}</div> : null}
+          {error && <div className="error-box">{error}</div>}
+
           <label className="field">
-            <span className="label">Email</span>
             <input
               className="input"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               type="email"
               required
+              placeholder=" "
             />
+            <span className="label">Email</span>
           </label>
+
           <label className="field">
-            <span className="label">Password</span>
             <input
               className="input"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               type="password"
               required
+              placeholder=" "
             />
+            <span className="label">Password</span>
           </label>
-          <button className="btn btn-primary" type="submit" disabled={loading}>{loading ? 'Verifying…' : 'Sign in'}</button>
+
+          <div className="forgot">
+            <Link to="/forgot">Forgot password?</Link>
+          </div>
+
+          <button className="btn btn-primary" type="submit" disabled={loading}>
+            {loading ? <span className="spinner"></span> : 'Sign in'}
+          </button>
         </form>
+
         <p className="muted mt-sm">
           No account? <Link to="/signup">Sign up</Link>
         </p>

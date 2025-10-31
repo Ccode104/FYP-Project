@@ -1,26 +1,177 @@
 .auth-page {
+  /* Layout */
   min-height: 100vh;
   display: flex;
   align-items: center;
   justify-content: center;
   padding: 40px 24px;
+  font-family: 'Inter', sans-serif;
+
+  /* Subtle, accessible background with soft accents */
   background:
-    radial-gradient(1200px 800px at -10% -10%, rgba(99,102,241,0.18), transparent 60%),
-    radial-gradient(1000px 800px at 110% 10%, rgba(52,211,153,0.12), transparent 60%),
-    linear-gradient(180deg, #f9fafb 0%, #eef2ff 100%);
+    radial-gradient(1200px 600px at 20% -10%, rgba(79, 70, 229, 0.18), transparent 40%),
+    radial-gradient(1000px 500px at 120% 0%, rgba(16, 185, 129, 0.12), transparent 45%),
+    linear-gradient(180deg, #0b1220 0%, #0f172a 100%);
+  color: #e5e7eb;
 }
 
+/* ===== Card ===== */
 .auth-card {
-  border: 1px solid rgba(99,102,241,0.2);
-  background:
-    linear-gradient(180deg, rgba(255,255,255,0.9), rgba(255,255,255,0.86));
-  backdrop-filter: blur(6px);
-  box-shadow: 0 10px 30px rgba(99,102,241,0.12);
+  position: relative;
+  border: 1px solid rgba(148, 163, 184, 0.12);
+  background: rgba(2, 6, 23, 0.55);
+  backdrop-filter: blur(16px);
+  border-radius: 20px;
+  padding: 48px 52px;
+  max-width: 400px;
+  width: 100%;
+  box-shadow:
+    0 10px 30px rgba(0, 0, 0, 0.45),
+    inset 0 1px 0 rgba(255, 255, 255, 0.03);
+  transition: transform 0.25s ease, box-shadow 0.25s ease;
+}
+.auth-card:hover {
+  transform: translateY(-3px);
+  box-shadow:
+    0 20px 50px rgba(0, 0, 0, 0.55),
+    inset 0 1px 0 rgba(255, 255, 255, 0.04);
 }
 
-.auth-card .heading {
-  background: linear-gradient(90deg, #6366f1, #22c55e);
+/* ===== Headings ===== */
+.heading {
+  font-size: 30px;
+  font-weight: 700;
+  background: linear-gradient(90deg, #4f46e5, #22c55e);
   -webkit-background-clip: text;
   background-clip: text;
-  color: transparent;
+  -webkit-text-fill-color: transparent;
+  margin-bottom: 10px;
+  text-align: center;
+}
+.subheading {
+  font-size: 15px;
+  color : black;
+  margin-bottom: 24px;
+  text-align: center;
+}
+
+/* ===== Form ===== */
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+.field {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Inputs: high contrast on light surface */
+.input {
+  padding: 14px 12px;
+  font-size: 15px;
+  border: 1px solid #e5e7eb; /* gray-200 */
+  border-radius: 10px;
+  background: #ffffff;
+  color: #111827; /* gray-900 */
+  outline: none;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
+}
+.input::placeholder {
+  color: #9ca3af; /* gray-400 */
+}
+.input:focus {
+  border-color: #4f46e5; /* indigo-600 */
+  box-shadow: 0 0 0 4px rgba(79, 70, 229, 0.15);
+  background: #ffffff;
+}
+.input:focus-visible {
+  outline: 2px solid #4f46e5;
+  outline-offset: 2px;
+}
+
+/* ===== Floating Labels ===== */
+.label {
+  position: absolute;
+  top: 14px;
+  left: 12px;
+  font-size: 14px;
+  color: black; /* gray-500 */
+  pointer-events: none;
+  transition: all 0.18s ease;
+}
+.input:focus + .label,
+.input:not(:placeholder-shown) + .label {
+  top: -8px;
+  left: 10px;
+  font-size: 12px;
+  background: #ffffff;
+  padding: 0 4px;
+  color: #4f46e5; /* indigo-600 */
+}
+
+/* ===== Button ===== */
+.btn-primary {
+  background: linear-gradient(90deg, #4f46e5, #22c55e);
+  border: none;
+  border-radius: 10px;
+  color: #ffffff;
+  padding: 12px;
+  font-weight: 600;
+  font-size: 15px;
+  cursor: pointer;
+  transition: transform 0.15s ease, box-shadow 0.15s ease, filter 0.15s ease;
+}
+.btn-primary:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 28px rgba(79, 70, 229, 0.35);
+  filter: saturate(1.05);
+}
+.btn-primary:focus-visible {
+  outline: 2px solid #22c55e;
+  outline-offset: 3px;
+}
+.btn-primary:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* ===== Error ===== */
+.error-box {
+  background: #fee2e2; /* red-100 */
+  color: #7f1d1d; /* red-900 */
+  border: 1px solid #fecaca; /* red-200 */
+  padding: 10px;
+  border-radius: 8px;
+  font-size: 14px;
+}
+
+/* ===== Links & Footer ===== */
+.forgot {
+  text-align: center;
+  margin-top: -8px;
+}
+.forgot a {
+  font-size: 13px;
+  color: black;
+  text-decoration: none;
+  text-align: center;
+}
+.forgot a:hover {
+  text-decoration: underline;
+}
+
+.muted {
+  text-align: center;
+  color: black;
+  margin-top: 20px;
+  font-size: 14px;
+}
+.muted a {
+  color:blue;
+  text-decoration: none;
+}
+.muted a:hover {
+  text-decoration: underline;
 }

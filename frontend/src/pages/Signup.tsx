@@ -65,8 +65,9 @@ export default function Signup() {
             />
           </label>
           <label className="field">
-            <span className="label">Role</span>
-            <select className="select" value={role} onChange={(e) => setRole(e.target.value as any)}>
+            
+            <select className="select" value={role} onChange={(e) => setRole(e.target.value as any)} required>
+              <option value="" disabled selected>Role</option>
               <option value="student">Student</option>
               <option value="teacher">Teacher</option>
               <option value="ta">TA</option>

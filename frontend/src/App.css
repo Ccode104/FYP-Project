@@ -107,6 +107,7 @@ body {
   background: #f7f9fa;
   transition: border 0.2s, box-shadow 0.2s;
   outline: none;
+  color : black;
 }
 
 .input:focus, .select:focus {
@@ -134,7 +135,7 @@ body {
 }
 
 .muted {
-  color: #888;
+ 
   font-size: 0.98rem;
 }
 
