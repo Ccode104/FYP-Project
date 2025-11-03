@@ -33,7 +33,7 @@ export default function Login() {
       return
     }
     try {
-      const u = await login(email, password, 'student')
+      const u = await login(email, password)
       push({ kind: 'success', message: 'Login successful' })
       navigate(getDashboardPathForRole(u.role), { replace: true })
     } catch (e: any) {

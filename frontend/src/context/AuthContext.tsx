@@ -11,7 +11,7 @@ export interface User {
 
 interface AuthContextValue {
   user: User | null
-  login: (email: string, password: string, role: Role) => Promise<User>
+  login: (email: string, password: string) => Promise<User>
   logout: () => void
 }
 
@@ -38,7 +38,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, [])
 
-  const login: AuthContextValue['login'] = async (email, password, role) => {
+  const login: AuthContextValue['login'] = async (email, password) => {
     const { loginRequest } = await import('../services/auth')
     const res = await loginRequest(email, password)
     const mappedRole = mapBackendRole(res.user.role)

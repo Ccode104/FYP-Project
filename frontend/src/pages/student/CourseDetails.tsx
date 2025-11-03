@@ -5,7 +5,7 @@ import { useAuth } from '../../context/AuthContext'
 import { getUserCourses } from '../../data/userCourses'
 import { getCustomAssignments, addCustomAssignment } from '../../data/courseOverlays'
 import { addSubmission, getSubmissions, setSubmissionGrade } from '../../data/submissions'
-import { apiFetch, apiForm } from '../../services/api'
+import { apiFetch } from '../../services/api'
 import './CourseDetails.css'
 import { useToast } from '../../components/ToastProvider'
 
