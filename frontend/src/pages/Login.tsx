@@ -3,6 +3,7 @@ import type { FormEvent } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import { getDashboardPathForRole, useAuth } from '../context/AuthContext'
 import { useToast } from '../components/ToastProvider'
+import backgroundImg from '../assets/background.jpg'
 import './Login.css'
 
 export default function Login() {
@@ -44,9 +45,10 @@ export default function Login() {
   }
 
   return (
-    <div className="auth-page">
+    <div className="auth-page" style={{ backgroundImage: `linear-gradient(rgba(0, 0, 0, 0.3), rgba(0, 0, 0, 0.3)), url(${backgroundImg})` }}>
+      <div className="brand-logo">Academic Portal</div>
       <div className="auth-card">
-        <h1 className="heading">Welcome Back</h1>
+        <h1 className="heading">Login</h1>
         <p className="subheading">Sign in to continue</p>
 
         <form className="form" onSubmit={onSubmit} aria-live="polite">

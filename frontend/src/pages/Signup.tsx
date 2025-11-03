@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import type { FormEvent } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
+import backgroundImg from '../assets/background.jpg'
 import './Signup.css'
 import { apiFetch } from '../services/api'
 import { useToast } from '../components/ToastProvider'
@@ -35,9 +36,10 @@ export default function Signup() {
   }
 
   return (
-    <div className="auth-page">
+    <div className="auth-page" style={{ backgroundImage: `linear-gradient(rgba(0, 0, 0, 0.3), rgba(0, 0, 0, 0.3)), url(${backgroundImg})` }}>
+      <div className="brand-logo">Academic Portal</div>
       <div className="auth-card">
-        <h1 className="heading">Create your account</h1>
+        <h1 className="heading">Sign Up</h1>
         <p className="subheading">Start your journey in minutes</p>
         <form className="form" onSubmit={onSubmit} aria-live="polite">
           {error ? <div className="error-box" role="alert">{error}</div> : null}
@@ -84,8 +86,8 @@ export default function Signup() {
             <span className="label">Password</span>
           </label>
 
-          <label className="field">
-            <span className="label">Role</span>
+          <label className="field select-field">
+            <span className="label select-label">Role</span>
             <select className="select" value={role} onChange={(e) => setRole(e.target.value as any)} required aria-label="Role">
               <option value="student">Student</option>
               <option value="teacher">Teacher</option>
