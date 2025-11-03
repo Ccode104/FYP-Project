@@ -35,45 +35,67 @@ export default function Signup() {
   }
 
   return (
-    <div className="container auth-page">
-      <div className="card auth-card">
-        <h1 className="heading">Sign up</h1>
-        <form className="form" onSubmit={onSubmit}>
-          {error ? <div className="card" style={{ borderColor: '#ef4444', borderWidth: 1 }}>{error}</div> : null}
+    <div className="auth-page">
+      <div className="auth-card">
+        <h1 className="heading">Create your account</h1>
+        <p className="subheading">Start your journey in minutes</p>
+        <form className="form" onSubmit={onSubmit} aria-live="polite">
+          {error ? <div className="error-box" role="alert">{error}</div> : null}
+
           <label className="field">
+            <input
+              className="input"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              type="text"
+              autoComplete="name"
+              required
+              placeholder=" "
+              aria-label="Full name"
+            />
             <span className="label">Full name</span>
-            <input className="input" value={name} onChange={(e) => setName(e.target.value)} required />
           </label>
+
           <label className="field">
-            <span className="label">Email</span>
             <input
               className="input"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               type="email"
+              autoComplete="email"
               required
+              placeholder=" "
+              aria-label="Email"
             />
+            <span className="label">Email</span>
           </label>
+
           <label className="field">
-            <span className="label">Password</span>
             <input
               className="input"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               type="password"
+              autoComplete="new-password"
               required
+              placeholder=" "
+              aria-label="Password"
             />
+            <span className="label">Password</span>
           </label>
+
           <label className="field">
-            
-            <select className="select" value={role} onChange={(e) => setRole(e.target.value as any)} required>
-              <option value="" disabled selected>Role</option>
+            <span className="label">Role</span>
+            <select className="select" value={role} onChange={(e) => setRole(e.target.value as any)} required aria-label="Role">
               <option value="student">Student</option>
               <option value="teacher">Teacher</option>
               <option value="ta">TA</option>
             </select>
           </label>
-          <button className="btn btn-primary" type="submit" disabled={loading}>{loading ? 'Creating…' : 'Create account'}</button>
+
+          <button className="btn btn-primary" type="submit" disabled={loading} aria-busy={loading}>
+            {loading ? 'Creating…' : 'Create account'}
+          </button>
         </form>
         <p className="muted mt-sm">
           Already have an account? <Link to="/login">Login</Link>

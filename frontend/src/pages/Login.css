@@ -50,7 +50,7 @@
 }
 .subheading {
   font-size: 15px;
-  color : black;
+  color: #94a3b8; /* slate-400 */
   margin-bottom: 24px;
   text-align: center;
 }
@@ -97,7 +97,7 @@
   top: 14px;
   left: 12px;
   font-size: 14px;
-  color: black; /* gray-500 */
+  color: #6b7280; /* gray-500 */
   pointer-events: none;
   transition: all 0.18s ease;
 }
@@ -149,14 +149,13 @@
 
 /* ===== Links & Footer ===== */
 .forgot {
-  text-align: center;
+  text-align: right;
   margin-top: -8px;
 }
 .forgot a {
   font-size: 13px;
-  color: black;
+  color: #4f46e5; /* indigo-600 */
   text-decoration: none;
-  text-align: center;
 }
 .forgot a:hover {
   text-decoration: underline;
@@ -164,14 +163,28 @@
 
 .muted {
   text-align: center;
-  color: black;
+  color: #94a3b8; /* slate-400 */
   margin-top: 20px;
   font-size: 14px;
 }
 .muted a {
-  color:blue;
+  color: #4f46e5; /* indigo-600 */
   text-decoration: none;
 }
 .muted a:hover {
   text-decoration: underline;
+}
+
+/* ===== Spinner ===== */
+.spinner {
+  width: 18px;
+  height: 18px;
+  border: 2px solid rgba(255,255,255,0.55);
+  border-top-color: #ffffff;
+  border-radius: 50%;
+  display: inline-block;
+  animation: spin 0.8s linear infinite;
+}
+@keyframes spin {
+  to { transform: rotate(360deg); }
 }

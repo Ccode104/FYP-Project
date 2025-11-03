@@ -46,11 +46,11 @@ export default function Login() {
   return (
     <div className="auth-page">
       <div className="auth-card">
-        <h1 className="heading">Login</h1>
+        <h1 className="heading">Welcome Back</h1>
         <p className="subheading">Sign in to continue</p>
 
-        <form className="form" onSubmit={onSubmit}>
-          {error && <div className="error-box">{error}</div>}
+        <form className="form" onSubmit={onSubmit} aria-live="polite">
+          {error && <div className="error-box" role="alert">{error}</div>}
 
           <label className="field">
             <input
@@ -58,8 +58,10 @@ export default function Login() {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               type="email"
+              autoComplete="email"
               required
               placeholder=" "
+              aria-label="Email"
             />
             <span className="label">Email</span>
           </label>
@@ -70,8 +72,10 @@ export default function Login() {
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               type="password"
+              autoComplete="current-password"
               required
               placeholder=" "
+              aria-label="Password"
             />
             <span className="label">Password</span>
           </label>
@@ -80,8 +84,8 @@ export default function Login() {
             <Link to="/forgot">Forgot password?</Link>
           </div>
 
-          <button className="btn btn-primary" type="submit" disabled={loading}>
-            {loading ? <span className="spinner"></span> : 'Sign in'}
+          <button className="btn btn-primary" type="submit" disabled={loading} aria-busy={loading}>
+            {loading ? <span className="spinner" aria-hidden="true"></span> : 'Sign in'}
           </button>
         </form>
 
