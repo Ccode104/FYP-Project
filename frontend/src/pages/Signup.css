@@ -1,26 +1,160 @@
 .auth-page {
+  /* Layout */
   min-height: 100vh;
   display: flex;
   align-items: center;
   justify-content: center;
   padding: 40px 24px;
-  background:
-    radial-gradient(1200px 800px at 110% -10%, rgba(251,146,60,0.18), transparent 60%),
-    radial-gradient(1000px 800px at -10% 10%, rgba(147,197,253,0.14), transparent 60%),
-    linear-gradient(180deg, #fff7ed 0%, #eff6ff 100%);
+  font-family: 'Inter', sans-serif;
+  position: relative;
+
+  /* Background will be set via inline style */
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  color: #ffffff;
+}
+
+/* ===== Brand Logo ===== */
+.brand-logo {
+  position: absolute;
+  top: 32px;
+  left: 40px;
+  font-size: 22px;
+  font-weight: 700;
+  color: #ffffff;
+  letter-spacing: -0.5px;
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
 }
 
 .auth-card {
-  border: 1px solid rgba(251,146,60,0.25);
-  background:
-    linear-gradient(180deg, rgba(255,255,255,0.95), rgba(255,255,255,0.9));
-  backdrop-filter: blur(6px);
-  box-shadow: 0 10px 30px rgba(251,146,60,0.18);
+  position: relative;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(16px);
+  border-radius: 20px;
+  padding: 48px 52px;
+  max-width: 400px;
+  width: 100%;
+  box-shadow:
+    0 10px 30px rgba(0, 0, 0, 0.2),
+    inset 0 1px 0 rgba(255, 255, 255, 0.5);
+  transition: transform 0.25s ease, box-shadow 0.25s ease;
+}
+.auth-card:hover {
+  transform: translateY(-3px);
+  box-shadow:
+    0 20px 50px rgba(0, 0, 0, 0.25),
+    inset 0 1px 0 rgba(255, 255, 255, 0.6);
 }
 
-.auth-card .heading {
-  background: linear-gradient(90deg, #ea580c, #2563eb);
+/* Headings */
+.heading {
+  font-size: 30px;
+  font-weight: 700;
+  background: linear-gradient(90deg, #4f46e5, #22c55e);
   -webkit-background-clip: text;
   background-clip: text;
-  color: transparent;
+  -webkit-text-fill-color: transparent;
+  margin-bottom: 10px;
+  text-align: center;
 }
+.subheading {
+  font-size: 15px;
+  color: #94a3b8;
+  margin-bottom: 24px;
+  text-align: center;
+}
+
+/* Form */
+.form { display: flex; flex-direction: column; gap: 18px; }
+.field { position: relative; display: flex; flex-direction: column; }
+
+.input {
+  padding: 14px 12px;
+  font-size: 15px;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  background: #ffffff;
+  color: #111827;
+  outline: none;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
+}
+.input::placeholder { color: #9ca3af; }
+.input:focus {
+  border-color: #4f46e5;
+  box-shadow: 0 0 0 4px rgba(79, 70, 229, 0.15);
+}
+.input:focus-visible { outline: 2px solid #4f46e5; outline-offset: 2px; }
+
+/* Floating Labels */
+.label {
+  position: absolute;
+  top: 14px;
+  left: 12px;
+  font-size: 14px;
+  color: #6b7280;
+  pointer-events: none;
+  transition: all 0.18s ease;
+}
+.input:focus + .label,
+.input:not(:placeholder-shown) + .label {
+  top: -8px;
+  left: 10px;
+  font-size: 12px;
+  background: #ffffff;
+  padding: 0 4px;
+  color: #4f46e5;
+}
+
+/* Select */
+.select-field {
+  gap: 8px;
+}
+.select-label {
+  position: static;
+  font-size: 14px;
+  color: #374151;
+  font-weight: 500;
+  margin-bottom: 4px;
+}
+.select {
+  padding: 12px;
+  font-size: 15px;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  background: #ffffff;
+  color: #111827;
+}
+.select:focus { outline: 2px solid #4f46e5; outline-offset: 2px; }
+
+/* Button */
+.btn-primary {
+  background: linear-gradient(90deg, #4f46e5, #22c55e);
+  border: none;
+  border-radius: 10px;
+  color: #ffffff;
+  padding: 12px;
+  font-weight: 600;
+  font-size: 15px;
+  cursor: pointer;
+  transition: transform 0.15s ease, box-shadow 0.15s ease, filter 0.15s ease;
+}
+.btn-primary:hover { transform: translateY(-2px); box-shadow: 0 10px 28px rgba(79, 70, 229, 0.35); filter: saturate(1.05); }
+.btn-primary:focus-visible { outline: 2px solid #22c55e; outline-offset: 3px; }
+.btn-primary:disabled { opacity: 0.6; cursor: not-allowed; }
+
+/* Error */
+.error-box {
+  background: #fee2e2;
+  color: #7f1d1d;
+  border: 1px solid #fecaca;
+  padding: 10px;
+  border-radius: 8px;
+  font-size: 14px;
+}
+
+/* Links */
+.muted { text-align: center; color: #94a3b8; margin-top: 20px; font-size: 14px; }
+.muted a { color: #4f46e5; text-decoration: none; }
+.muted a:hover { text-decoration: underline; }

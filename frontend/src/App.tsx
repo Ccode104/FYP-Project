@@ -19,10 +19,16 @@ function App() {
           path="/"
           element={user ? <Navigate to={getDashboardPathForRole(user.role)} replace /> : <Navigate to="/login" replace />}
         />
-
+        {/* 
+        Can be added in future
+        <Route path="/" element={<HomePage />} />
+        <Route path="/about" element={<AboutPage />} />
+        <Route path="/contact" element={<ContactPage />} />
+        */
+        }
         <Route path="/login" element={<Login />} />
         <Route path="/signup" element={<Signup />} />
-
+        
         <Route
           path="/dashboard/student"
           element={

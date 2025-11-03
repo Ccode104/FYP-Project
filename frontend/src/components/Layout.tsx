@@ -1,12 +1,21 @@
 import type { ReactNode } from 'react'
 import './Layout.css'
+import { useLocation } from 'react-router-dom'
 
 export default function Layout({ children }: { children: ReactNode }) {
+  const { pathname } = useLocation()
+  const isAuth = pathname === '/login' || pathname === '/signup' || pathname.startsWith('/forgot')
+
+  // For auth routes, let the page components control their own full-screen layout
+  if (isAuth) {
+    return <>{children}</>
+  }
+
   return (
     <div className="site-layout">
       <header className="site-header">
-        <div className="container site-header__inner">
-          <h1 className="site-title">VNIT COURSE EVALUATION PORTAL</h1>
+        <div className="site-header__inner">
+          <h1 className="site-title">Unified Academic Portal</h1>
         </div>
       </header>
 
@@ -15,9 +24,9 @@ export default function Layout({ children }: { children: ReactNode }) {
       </main>
 
       <footer className="site-footer">
-        <div className="container">
-          <p className="site-footer__text">Created by Shoyam Rai, Manas Jungade, Abhishek Chandurkar and Tanmay Sharnagat</p>
-        </div>
+        <p className="site-footer__text">
+          © 2025 Unified Academic Portal — Created by Shoyam Rai, Manas Jungade, Abhishek Chandurkar, and Tanmay Sharnagat
+        </p>
       </footer>
     </div>
   )
