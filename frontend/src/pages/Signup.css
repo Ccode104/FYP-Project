@@ -114,7 +114,8 @@
 .select-label {
   position: static;
   font-size: 14px;
-  color: #e5e7eb;
+  color: #374151;
+  font-weight: 500;
   margin-bottom: 4px;
 }
 .select {
