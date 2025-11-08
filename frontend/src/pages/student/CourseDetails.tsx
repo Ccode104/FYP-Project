@@ -247,7 +247,7 @@ function CourseProgressEmbed({ offeringId }: { offeringId: string }) {
 export default function CourseDetails() {
   const { courseId } = useParams()
   const { user, logout } = useAuth()
-  const [tab, setTab] = useState<'present' | 'past' | 'pyq' | 'notes' | 'quizzes' | 'manage' | 'submissions' | 'grading' | 'progress' | 'discussion'>('present')
+  const [tab, setTab] = useState<'present' | 'past' | 'pyq' | 'notes' | 'quizzes' | 'quizzes_submitted' | 'manage' | 'submissions' | 'grading' | 'progress' | 'discussion'>('present')
   const [assignmentCreationType, setAssignmentCreationType] = useState<'selection' | 'code' | 'quiz' | 'pdf'>('selection')
   const isBackend = !!courseId && /^\d+$/.test(courseId)
   const { push } = useToast()
@@ -291,6 +291,7 @@ export default function CourseDetails() {
   const [newTopMessage, setNewTopMessage] = useState('')
   const [replyDrafts, setReplyDrafts] = useState<Record<string, string>>({})
   const [backendQuizzes, setBackendQuizzes] = useState<any[]>([])
+  const [myQuizAttempts, setMyQuizAttempts] = useState<any[]>([])
 
   const [newAssnTitle, setNewAssnTitle] = useState('')
   const [newAssnDesc, setNewAssnDesc] = useState('')
@@ -356,13 +357,20 @@ export default function CourseDetails() {
       try { const data = await apiFetch<any[]>(`/api/courses/${courseId}/assignments`); if (!cancelled) setBackendAssignments(data) } catch {}
       try { const pyq = await apiFetch<any[]>(`/api/courses/${courseId}/pyqs`); if (!cancelled) setBackendPYQ(pyq) } catch {}
       try { const notes = await apiFetch<any[]>(`/api/courses/${courseId}/notes`); if (!cancelled) setBackendNotes(notes) } catch {}
-        // quizzes list for offering
-        const quizzes = await (await import('../../services/quizzes')).listCourseQuizzes(Number(courseId))
-        setBackendQuizzes(quizzes)
+        // quizzes list for offering + my attempts
+        try {
+          const quizzesMod = await import('../../services/quizzes')
+          const quizzes = await quizzesMod.listCourseQuizzes(Number(courseId))
+          if (!cancelled) setBackendQuizzes(quizzes)
+          if (!cancelled && user?.role === 'student' && user?.id) {
+            const attempts = await quizzesMod.getQuizAttempts(Number(user.id))
+            if (!cancelled) setMyQuizAttempts(attempts)
+          }
+        } catch {}
       try { const { listDiscussionMessages } = await import('../../services/discussion'); const items = await listDiscussionMessages(courseId!); if (!cancelled) setDiscussion(items) } catch {}
     })()
     return () => { cancelled = true }
-  }, [courseId, isBackend])
+  }, [courseId, isBackend, user?.id, user?.role])
 
   return (
     <div className="course-details-page">
@@ -398,9 +406,16 @@ export default function CourseDetails() {
             Progress
           </button>
         )}
-            <button className={tab === 'quizzes' ? 'active' : ''} onClick={() => setTab('quizzes')} aria-pressed={tab === 'quizzes'}>
-          Quizzes
-        </button>
+            {user?.role === 'student' && (
+              <>
+                <button className={tab === 'quizzes' ? 'active' : ''} onClick={() => setTab('quizzes')} aria-pressed={tab === 'quizzes'}>
+                  Quizzes
+                </button>
+                <button className={tab === 'quizzes_submitted' ? 'active' : ''} onClick={() => setTab('quizzes_submitted')} aria-pressed={tab === 'quizzes_submitted'}>
+                  Submitted Quizzes
+                </button>
+              </>
+            )}
         {user?.role === 'teacher' && (
               <>
                 <button className={tab === 'manage' ? 'active' : ''} onClick={() => setTab('manage')} aria-pressed={tab === 'manage'}>
@@ -485,16 +500,41 @@ export default function CourseDetails() {
         </section>
       )}
 
-      {tab === 'quizzes' && (
+      {user?.role === 'student' && tab === 'quizzes' && (
         <section className="card">
           <h3>Quizzes</h3>
           {isBackend ? (
-            backendQuizzes.length === 0 ? <p className="muted">No quizzes available.</p> : (
+            (() => {
+              const attempted = new Set((myQuizAttempts || []).map((a:any) => a.quiz_id))
+              const openQuizzes = (backendQuizzes || []).filter((q:any) => !attempted.has(q.id))
+              return (
+                openQuizzes.length === 0 ? <p className="muted">No available quizzes. You may have submitted all.</p> : (
+                  <ul className="list">
+                    {openQuizzes.map((q:any) => (
+                      <li key={q.id}>
+                        {q.title} {q.start_at ? `(Opens: ${new Date(q.start_at).toLocaleString()})` : ''}
+                        <button className="btn btn-primary" style={{ marginLeft: 8 }} onClick={() => location.assign(`/quizzes/${q.id}`)}>Start</button>
+                      </li>
+                    ))}
+                  </ul>
+                )
+              )
+            })()
+          ) : (
+            <p className="muted">Local course mode does not support quizzes.</p>
+          )}
+        </section>
+      )}
+
+      {user?.role === 'student' && tab === 'quizzes_submitted' && (
+        <section className="card">
+          <h3>Submitted Quizzes</h3>
+          {isBackend ? (
+            (myQuizAttempts || []).length === 0 ? <p className="muted">You have not submitted any quizzes yet.</p> : (
               <ul className="list">
-                {backendQuizzes.map((q:any) => (
-                  <li key={q.id}>
-                    {q.title} {q.start_at ? `(Opens: ${new Date(q.start_at).toLocaleString()})` : ''}
-                    <button className="btn btn-primary" style={{ marginLeft: 8 }} onClick={() => location.assign(`/quizzes/${q.id}`)}>Start</button>
+                {(myQuizAttempts || []).map((a:any) => (
+                  <li key={a.id}>
+                    {a.quiz_title || `Quiz #${a.quiz_id}`} — {a.finished_at ? new Date(a.finished_at).toLocaleString() : 'Submitted'} — Score: {a.score ?? 'Pending'}
                   </li>
                 ))}
               </ul>

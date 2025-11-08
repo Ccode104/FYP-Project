@@ -168,3 +168,39 @@ export async function enrollInCourse(req, res) {
     res.status(500).json({ error: 'Internal server error' });
   }
 }
+
+// List quiz attempts for the logged-in student (optionally filtered by quizId)
+export async function getStudentQuizAttempts(req, res) {
+  try {
+    const authId = Number(req.user?.id)
+    const { studentId } = req.params
+    const { quizId } = req.query
+
+    if (!authId || Number(studentId) !== authId) {
+      return res.status(403).json({ error: 'Forbidden' })
+    }
+
+    const params = [authId]
+    let q = `
+      SELECT qa.*, q.title AS quiz_title
+      FROM quiz_attempts qa
+      JOIN quizzes q ON qa.quiz_id = q.id
+      WHERE qa.student_id = $1
+    `
+    if (quizId) {
+      params.push(Number(quizId))
+      q += ' AND qa.quiz_id = $2'
+    }
+    q += ' ORDER BY qa.finished_at DESC NULLS LAST, qa.started_at DESC NULLS LAST, qa.id DESC'
+
+    const r = await pool.query(q, params)
+    const attempts = r.rows.map(row => ({
+      ...row,
+      answers: typeof row.answers === 'string' ? JSON.parse(row.answers) : row.answers
+    }))
+    res.json(attempts)
+  } catch (err) {
+    console.error('getStudentQuizAttempts error:', err)
+    res.status(500).json({ error: 'Internal server error' })
+  }
+}

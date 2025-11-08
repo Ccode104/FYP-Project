@@ -9,7 +9,8 @@ import {
   getCourseGrades,
   getCourseQuizzes,
   attemptQuiz,
-  enrollInCourse
+  enrollInCourse,
+  getStudentQuizAttempts
 } from '../controllers/studentController.js';
 
 const router = express.Router();
@@ -240,6 +241,9 @@ router.get('/courses/:offeringId/quizzes', getCourseQuizzes);
  *         description: Quiz not found
  */
 router.post('/quizzes/:quizId/attempt', attemptQuiz);
+
+// List the current student's quiz attempts (optionally filtered by quizId via query param)
+router.get('/:studentId/quiz-attempts', getStudentQuizAttempts);
 
 /**
  * @swagger
