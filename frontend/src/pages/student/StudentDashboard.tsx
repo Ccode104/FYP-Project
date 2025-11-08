@@ -1,6 +1,7 @@
 import { useNavigate } from 'react-router-dom'
+import CourseCard from '../../components/CourseCard'
 import { useAuth } from '../../context/AuthContext'
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 import './StudentDashboard.css'
 import Modal from '../../components/Modal'
 import { getEnrolledCourses, enrollSelf } from '../../services/student'
@@ -29,32 +30,6 @@ export default function StudentDashboard() {
   const { push } = useToast()
   const [offerings, setOfferings] = useState<any[]>([])
   const [err, setErr] = useState<string | null>(null)
-
-  // UI state: search & sort
-  const [query, setQuery] = useState('')
-  const [sortBy, setSortBy] = useState<'recent' | 'title' | 'code'>('recent')
-
-  const filtered = useMemo(() => {
-    const q = query.trim().toLowerCase()
-    let list = offerings
-    if (q) {
-      list = list.filter((o:any) =>
-        String(o.course_title || '').toLowerCase().includes(q) ||
-        String(o.course_code || '').toLowerCase().includes(q) ||
-        String(o.term || '').toLowerCase().includes(q) ||
-        String(o.id).includes(q)
-      )
-    }
-    if (sortBy === 'title') {
-      list = [...list].sort((a:any,b:any)=> String(a.course_title||'').localeCompare(String(b.course_title||'')))
-    } else if (sortBy === 'code') {
-      list = [...list].sort((a:any,b:any)=> String(a.course_code||'').localeCompare(String(b.course_code||'')))
-    } else {
-      // recent = by id desc (already from API) but keep stable copy
-      list = [...list]
-    }
-    return list
-  }, [offerings, query, sortBy])
 
   useEffect(() => {
     (async () => {
@@ -109,67 +84,25 @@ export default function StudentDashboard() {
       </div>
 
       <div className="card" style={{ marginBottom: 16 }}>
-        <div className="dashboard-toolbar">
-          <div className="dashboard-search">
-            <input className="input" placeholder="Search by course code, title, term, or ID" value={query} onChange={(e)=> setQuery(e.target.value)} aria-label="Search courses" />
-            <span className="muted" aria-live="polite" style={{ whiteSpace:'nowrap' }}>{filtered.length} result{filtered.length===1?'':'s'}</span>
-          </div>
-          <div className="dashboard-controls">
-            <label className="field" style={{minWidth:160}}>
-              <span className="label">Sort by</span>
-              <select className="select" value={sortBy} onChange={(e)=> setSortBy(e.target.value as any)}>
-                <option value="recent">Recent</option>
-                <option value="title">Title</option>
-                <option value="code">Course Code</option>
-              </select>
-            </label>
-            <div className="divider-v" />
-            <div className="quick-open">
-              <input className="input" placeholder="Open by ID (e.g., 101)" value={openId} onChange={(e) => setOpenId(e.target.value)} />
-              <button className="btn" onClick={() => openId && goToOffering(openId)}>Open</button>
-            </div>
-          </div>
+        <div className="form" style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          <input className="input" placeholder="Open offering by ID (e.g., 101)" value={openId} onChange={(e) => setOpenId(e.target.value)} />
+          <button className="btn btn-primary" onClick={() => openId && goToOffering(openId)}>Open</button>
         </div>
       </div>
 
       <h3 className="section-title">Your Enrolled Courses</h3>
       {err ? <div className="card" style={{ borderColor: '#ef4444', borderWidth: 1 }}>{err}</div> : null}
-      {loading ? (
+      {loading ? <p className="muted">Loading…</p> : (
         <div className="grid grid-cards">
-          {Array.from({ length: 6 }).map((_,i)=> (
-            <div className="card course-tile skeleton" key={i}>
-              <div className="skeleton-line" style={{width:'60%'}} />
-              <div className="skeleton-line" style={{width:'40%', marginTop:8}} />
-              <div className="skeleton-chip-row">
-                <span className="skeleton-chip" />
-                <span className="skeleton-chip" />
-              </div>
+          {offerings.map((o) => (
+            <div key={o.id} style={{ position: 'relative' }}>
+              <CourseCard course={{ id: String(o.id), title: o.course_title || `Offering #${o.id}`, description: o.course_code || o.term || '' , assignmentsPast:[], assignmentsPresent:[], pyq:[], notes:[] }} onClick={() => goToOffering(o.id)} />
+              <MenuButton onDelete={async () => {
+                try { await unenrollStudent(Number(o.id)); setOfferings((prev)=>prev.filter((x)=>x.id!==o.id)); push({ kind: 'success', message: 'Unenrolled' }) } catch(e:any){ push({ kind: 'error', message: e?.message || 'Failed' }) }
+              }} label="Unenroll" />
             </div>
           ))}
         </div>
-      ) : (
-        filtered.length === 0 ? (
-          <div className="card">
-            <div className="muted">No courses found. Try clearing search or enroll in a course.</div>
-          </div>
-        ) : (
-          <div className="grid grid-cards">
-            {filtered.map((o) => (
-              <div key={o.id} style={{ position: 'relative' }}>
-                <section className="card card-hover course-tile" role="button" tabIndex={0} onClick={() => goToOffering(o.id)} onKeyDown={(e)=>{ if(e.key==='Enter'||e.key===' ') goToOffering(o.id) }}>
-                  <div className="course-tile__title">{o.course_code || 'COURSE'} — {o.course_title || `Offering #${o.id}`}</div>
-                  <div className="course-tile__meta">
-                    {o.term ? <span className="chip">{o.term}{o.section?`-${o.section}`:''}</span> : null}
-                    <span className="chip chip-muted">ID: {o.id}</span>
-                  </div>
-                </section>
-                <MenuButton onDelete={async () => {
-                  try { await unenrollStudent(Number(o.id)); setOfferings((prev)=>prev.filter((x)=>x.id!==o.id)); push({ kind: 'success', message: 'Unenrolled' }) } catch(e:any){ push({ kind: 'error', message: e?.message || 'Failed' }) }
-                }} label="Unenroll" />
-              </div>
-            ))}
-          </div>
-        )
       )}
 
       <Modal open={enrOpen} onClose={() => setEnrOpen(false)} title={(user?.role==='student')? 'Enroll in Offering' : 'Enroll Student'} actions={(

@@ -91,27 +91,3 @@
     flex: 1;
   }
 }
-
-/* Toolbar */
-.dashboard-toolbar { display:flex; gap:16px; align-items:center; justify-content:space-between; flex-wrap:wrap; }
-.dashboard-search { display:flex; gap:8px; align-items:center; flex: 1 1 360px; }
-.dashboard-controls { display:flex; gap:12px; align-items:flex-end; justify-content:flex-end; flex: 1 1 320px; }
-.quick-open { display:flex; gap:8px; align-items:center; }
-.divider-v { width:1px; height:28px; background: rgba(0,0,0,0.08); border-radius:1px; }
-
-/* Course tiles */
-.course-tile { position:relative; overflow:hidden; }
-.course-tile__title { font-weight: 600; margin: 0 0 8px; }
-.course-tile__meta { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
-
-/* Chips */
-.chip { display:inline-flex; align-items:center; gap:6px; border:1px solid var(--border-strong); background:#fff; color:var(--text); padding:4px 8px; border-radius:999px; font-size:12px; }
-.chip-muted { opacity: .8; }
-
-/* Skeletons */
-.skeleton { position: relative; }
-.skeleton-line { height: 12px; background: linear-gradient(90deg, #eee, #f6f6f6, #eee); border-radius: 6px; animation: shimmer 1.2s infinite; }
-.skeleton-chip-row { display:flex; gap:8px; margin-top: 12px; }
-.skeleton-chip { display:inline-block; width:80px; height:20px; border-radius:999px; background: linear-gradient(90deg, #eee, #f6f6f6, #eee); animation: shimmer 1.2s infinite; }
-
-@keyframes shimmer { 0% { background-position: -200px 0; } 100% { background-position: 200px 0; } }
