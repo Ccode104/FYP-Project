@@ -5,10 +5,11 @@ import { useAuth } from '../../context/AuthContext'
 import { getUserCourses } from '../../data/userCourses'
 import { getCustomAssignments, addCustomAssignment } from '../../data/courseOverlays'
 import { addSubmission, getSubmissions, setSubmissionGrade } from '../../data/submissions'
-import { apiFetch } from '../../services/api'
+// ...existing code...
 import './CourseDetails.css'
 import { useToast } from '../../components/ToastProvider'
-import { getCourseProgress, getStudentProgress, type ProgressRow } from '../../services/progress'
+import { apiFetch } from '../../services/api'
+import { type ProgressRow } from '../../services/progress'
 
 function BackendSubmissions({ assignments }: { assignments: any[] }) {
   const [assignmentId, setAssignmentId] = useState<string>('')
@@ -109,11 +110,20 @@ function groupBy<T, K extends keyof any>(list: T[], getKey: (item: T) => K): Rec
   }, {} as Record<K, T[]>)
 }
 
-function StudentProgressEmbed({ offeringId, userId }: { offeringId: string; userId: string }) {
+function StudentProgressEmbed() {
   const [rows, setRows] = useState<ProgressRow[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  useEffect(() => { (async () => { try { const r = await getStudentProgress(userId, offeringId); setRows(r.rows || []) } catch(e:any){ setError(e?.message||'Failed to load') } finally { setLoading(false) } })() }, [offeringId, userId])
+  useEffect(() => {
+    (async () => {
+      try {
+        // Student progress: call /api/progress/me
+        const r = await apiFetch<{ rows: ProgressRow[] }>('/api/progress/me')
+        setRows(r.rows || [])
+      } catch(e:any){ setError(e?.message||'Failed to load') }
+      finally { setLoading(false) }
+    })()
+  }, [])
   const totalMax = rows.reduce((s, r)=> s + (r.max_score||0), 0)
   const totalScore = rows.reduce((s, r)=> s + (r.score||0), 0)
   const pct = totalMax>0 ? Math.round((totalScore/totalMax)*100) : 0
@@ -165,7 +175,16 @@ function CourseProgressEmbed({ offeringId }: { offeringId: string }) {
   const [rows, setRows] = useState<ProgressRow[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  useEffect(() => { (async () => { try { const r = await getCourseProgress(offeringId); setRows(r.rows || []) } catch(e:any){ setError(e?.message||'Failed to load') } finally { setLoading(false) } })() }, [offeringId])
+  useEffect(() => {
+    (async () => {
+      try {
+        // Staff progress: call /api/progress/course/:offeringId
+        const r = await apiFetch<{ rows: ProgressRow[] }>(`/api/progress/course/${offeringId}`)
+        setRows(r.rows || [])
+      } catch(e:any){ setError(e?.message||'Failed to load') }
+      finally { setLoading(false) }
+    })()
+  }, [offeringId])
   const byStudent = useMemo(() => groupBy(rows, (r)=> String(r.student_id||'unknown')), [rows])
   return (
     <div>
@@ -326,28 +345,38 @@ export default function CourseDetails() {
     }
   }
 
-  // Load backend assignments if in backend mode
-  if (isBackend) {
-    // fire-and-forget fetch
-    void (async () => {
+  // Load backend assignments, pyqs, notes and discussion when in backend mode
+  useEffect(() => {
+    if (!isBackend) return;
+    let mounted = true;
+
+    (async () => {
       try {
         const data = await apiFetch<any[]>(`/api/courses/${courseId}/assignments`)
-        setBackendAssignments(data)
         const pyq = await apiFetch<any[]>(`/api/courses/${courseId}/pyqs`)
-        setBackendPYQ(pyq)
         const notes = await apiFetch<any[]>(`/api/courses/${courseId}/notes`)
+        if (!mounted) return;
+        setBackendAssignments(data)
+        setBackendPYQ(pyq)
         setBackendNotes(notes)
-      } catch {}
-    })()
-    // load discussion
-    void (async () => {
+      } catch (err) {
+        // ignore transient errors for now
+      }
+    })();
+
+    (async () => {
       try {
         const { listDiscussionMessages } = await import('../../services/discussion')
         const items = await listDiscussionMessages(courseId!)
+        if (!mounted) return;
         setDiscussion(items)
-      } catch {}
-    })()
-  }
+      } catch (err) {
+        // ignore
+      }
+    })();
+
+    return () => { mounted = false }
+  }, [isBackend, courseId])
 
   return (
     <div className="course-details-page">
@@ -612,7 +641,6 @@ export default function CourseDetails() {
                 setNewTopMessage('')
                 const items = await listDiscussionMessages(courseId!)
                 setDiscussion(items)
-                try { const { useToast } = await import('../../components/ToastProvider'); } catch {}
                 push({ kind: 'success', message: 'Posted' })
               } catch (err:any) {
                 push({ kind: 'error', message: err?.message || 'Failed to post' })
@@ -668,7 +696,7 @@ export default function CourseDetails() {
         <section className="card">
           <h3>Progress</h3>
           {user?.role === 'student' ? (
-            <StudentProgressEmbed offeringId={courseId!} userId={user!.id} />
+            <StudentProgressEmbed />
           ) : (
             <CourseProgressEmbed offeringId={courseId!} />
           )}
