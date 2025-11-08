@@ -1,5 +1,5 @@
 import { useParams } from 'react-router-dom'
-import { useMemo, useState } from 'react'
+import { useMemo, useState, useEffect } from 'react'
 import { courses } from '../../data/mock'
 import { useAuth } from '../../context/AuthContext'
 import { getUserCourses } from '../../data/userCourses'
@@ -8,6 +8,7 @@ import { addSubmission, getSubmissions, setSubmissionGrade } from '../../data/su
 import { apiFetch } from '../../services/api'
 import './CourseDetails.css'
 import { useToast } from '../../components/ToastProvider'
+import { getCourseProgress, getStudentProgress, type ProgressRow } from '../../services/progress'
 
 function BackendSubmissions({ assignments }: { assignments: any[] }) {
   const [assignmentId, setAssignmentId] = useState<string>('')
@@ -92,7 +93,131 @@ function MenuTiny({ onDelete }: { onDelete: () => void }) {
       <button className="btn" onClick={(e)=>{ e.stopPropagation(); setOpen((v)=>!v) }} aria-label="More">⋮</button>
       {open && (
         <div className="card" style={{ position: 'absolute', right: 0, marginTop: 4, zIndex: 10 }}>
-          <button className="btn" onClick={(e)=>{ e.stopPropagation(); setOpen(false); onDelete() }}>Delete</button>
+          <button className="btn" onClick={(e) => { e.stopPropagation(); setOpen(false); onDelete() }}>Delete</button>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function groupBy<T, K extends keyof any>(list: T[], getKey: (item: T) => K): Record<K, T[]> {
+  return list.reduce((acc, item) => {
+    const k = getKey(item)
+    ;(acc as any)[k] ||= []
+    ;(acc as any)[k].push(item)
+    return acc
+  }, {} as Record<K, T[]>)
+}
+
+function StudentProgressEmbed({ offeringId, userId }: { offeringId: string; userId: string }) {
+  const [rows, setRows] = useState<ProgressRow[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  useEffect(() => { (async () => { try { const r = await getStudentProgress(userId, offeringId); setRows(r.rows || []) } catch(e:any){ setError(e?.message||'Failed to load') } finally { setLoading(false) } })() }, [offeringId, userId])
+  const totalMax = rows.reduce((s, r)=> s + (r.max_score||0), 0)
+  const totalScore = rows.reduce((s, r)=> s + (r.score||0), 0)
+  const pct = totalMax>0 ? Math.round((totalScore/totalMax)*100) : 0
+  const byType = groupBy(rows, (r)=> r.activity_type)
+  return (
+    <div>
+      {loading ? <p className="muted">Loading…</p> : null}
+      {error ? <div className="card" style={{ borderColor: '#ef4444', borderWidth: 1 }}>{error}</div> : null}
+      {!loading && rows.length===0 ? <p className="muted">No progress yet.</p> : (
+        <>
+          <div className="muted" style={{ marginBottom: 8 }}>Overall: {totalScore} / {totalMax} ({pct}%)</div>
+          <div style={{ overflowX: 'auto' }}>
+            <table className="table">
+              <thead>
+                <tr>
+                  <th style={{minWidth:240}}>Title</th>
+                  <th>Type</th>
+                  <th>Status</th>
+                  <th>Score</th>
+                  <th>Max</th>
+                  <th>Due</th>
+                  <th>Submitted</th>
+                </tr>
+              </thead>
+              <tbody>
+                {Object.entries(byType).map(([type, list]) => (
+                  list.map((r) => (
+                    <tr key={`${type}-${r.activity_id}`}>
+                      <td>{r.activity_title || `#${r.activity_id}`}</td>
+                      <td>{type}</td>
+                      <td>{r.status || (r.score!=null ? 'Submitted' : 'Pending')}</td>
+                      <td>{r.score ?? '-'}</td>
+                      <td>{r.max_score ?? '-'}</td>
+                      <td>{r.due_at ? new Date(r.due_at).toLocaleString() : '-'}</td>
+                      <td>{r.submitted_at ? new Date(r.submitted_at).toLocaleString() : '-'}</td>
+                    </tr>
+                  ))
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </>
+      )}
+    </div>
+  )
+}
+
+function CourseProgressEmbed({ offeringId }: { offeringId: string }) {
+  const [rows, setRows] = useState<ProgressRow[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  useEffect(() => { (async () => { try { const r = await getCourseProgress(offeringId); setRows(r.rows || []) } catch(e:any){ setError(e?.message||'Failed to load') } finally { setLoading(false) } })() }, [offeringId])
+  const byStudent = useMemo(() => groupBy(rows, (r)=> String(r.student_id||'unknown')), [rows])
+  return (
+    <div>
+      {loading ? <p className="muted">Loading…</p> : null}
+      {error ? <div className="card" style={{ borderColor: '#ef4444', borderWidth: 1 }}>{error}</div> : null}
+      {Object.keys(byStudent).length===0 && !loading ? <p className="muted">No data.</p> : (
+        <div className="grid" style={{ gridTemplateColumns: '1fr', gap: 12 }}>
+          {Object.entries(byStudent).map(([sid, items]) => {
+            const name = items[0]?.student_name || items[0]?.student_email || `Student #${sid}`
+            const totalMax = items.reduce((s, r) => s + (r.max_score || 0), 0)
+            const totalScore = items.reduce((s, r) => s + (r.score || 0), 0)
+            const pct = totalMax > 0 ? Math.round((totalScore / totalMax) * 100) : 0
+            const byType = groupBy(items, (r)=> r.activity_type)
+            return (
+              <section key={sid} className="card">
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <h4 style={{ margin: 0 }}>{name}</h4>
+                  <div className="muted">{totalScore} / {totalMax} ({pct}%)</div>
+                </div>
+                <div style={{ overflowX: 'auto' }}>
+                  <table className="table">
+                    <thead>
+                      <tr>
+                        <th style={{minWidth:240}}>Title</th>
+                        <th>Type</th>
+                        <th>Status</th>
+                        <th>Score</th>
+                        <th>Max</th>
+                        <th>Due</th>
+                        <th>Submitted</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {Object.entries(byType).map(([type, list]) => (
+                        list.map((r) => (
+                          <tr key={`${sid}-${type}-${r.activity_id}`}>
+                            <td>{r.activity_title || `#${r.activity_id}`}</td>
+                            <td>{type}</td>
+                            <td>{r.status || (r.score!=null ? 'Submitted' : 'Pending')}</td>
+                            <td>{r.score ?? '-'}</td>
+                            <td>{r.max_score ?? '-'}</td>
+                            <td>{r.due_at ? new Date(r.due_at).toLocaleString() : '-'}</td>
+                            <td>{r.submitted_at ? new Date(r.submitted_at).toLocaleString() : '-'}</td>
+                          </tr>
+                        ))
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </section>
+            )
+          })}
         </div>
       )}
     </div>
@@ -102,7 +227,7 @@ function MenuTiny({ onDelete }: { onDelete: () => void }) {
 export default function CourseDetails() {
   const { courseId } = useParams()
   const { user, logout } = useAuth()
-  const [tab, setTab] = useState<'present' | 'past' | 'pyq' | 'notes' | 'manage' | 'submissions' | 'grading'>('present')
+  const [tab, setTab] = useState<'present' | 'past' | 'pyq' | 'notes' | 'manage' | 'submissions' | 'grading' | 'progress'>('present')
   const isBackend = !!courseId && /^\d+$/.test(courseId)
   const { push } = useToast()
 
@@ -144,7 +269,7 @@ export default function CourseDetails() {
 
   const [newAssnTitle, setNewAssnTitle] = useState('')
   const [newAssnDesc, setNewAssnDesc] = useState('')
-  const [newAssnType, setNewAssnType] = useState<'file'|'code'|'link'>('file')
+  const [newAssnType, setNewAssnType] = useState<'file' | 'code' | 'link'>('file')
   const [newAssnRelease, setNewAssnRelease] = useState('')
   const [newAssnDue, setNewAssnDue] = useState('')
   const [newAssnMax, setNewAssnMax] = useState('100')
@@ -214,109 +339,116 @@ export default function CourseDetails() {
   }
 
   return (
-    <div className="course-details-page">
-    <div className="container">
-      <header className="topbar">
-        <h2>
-          {course.title} — {user?.role.toUpperCase()}
-        </h2>
-        <div className="actions">
-          <button className="btn btn-ghost" onClick={() => history.back()}>Back</button>
-          <button className="btn btn-ghost" onClick={logout}>Logout</button>
-        </div>
-      </header>
+    <>
+      <div className="course-details-page">
+        <div className="container">
+          <header className="topbar">
+            <h2>
+              {course.title} — {user?.role.toUpperCase()}
+            </h2>
+            <div className="actions">
+              <button className="btn btn-ghost" onClick={() => history.back()}>Back</button>
+              <button className="btn btn-ghost" onClick={logout}>Logout</button>
+            </div>
+            <button className="btn btn-ghost" onClick={logout}>Logout</button>
+          </header>
 
-      <nav className="tabs">
-        <button className={tab === 'present' ? 'active' : ''} onClick={() => setTab('present')} aria-pressed={tab === 'present'}>
-          Assignments (Present)
-        </button>
-        <button className={tab === 'past' ? 'active' : ''} onClick={() => setTab('past')} aria-pressed={tab === 'past'}>
-          Assignments (Past)
-        </button>
-        <button className={tab === 'pyq' ? 'active' : ''} onClick={() => setTab('pyq')} aria-pressed={tab === 'pyq'}>
-          PYQ
-        </button>
+          <nav className="tabs">
+            <button className={tab === 'present' ? 'active' : ''} onClick={() => setTab('present')} aria-pressed={tab === 'present'}>
+              Assignments (Present)
+            </button>
+            <button className={tab === 'past' ? 'active' : ''} onClick={() => setTab('past')} aria-pressed={tab === 'past'}>
+              Assignments (Past)
+            </button>
+            <button className={tab === 'pyq' ? 'active' : ''} onClick={() => setTab('pyq')} aria-pressed={tab === 'pyq'}>
+              PYQ
+            </button>
         <button className={tab === 'notes' ? 'active' : ''} onClick={() => setTab('notes')} aria-pressed={tab === 'notes'}>
           Notes
         </button>
-        {user?.role === 'teacher' && (
-          <>
-            <button className={tab === 'manage' ? 'active' : ''} onClick={() => setTab('manage')} aria-pressed={tab === 'manage'}>
-              Upload Assignment
-            </button>
-            <button className={tab === 'submissions' ? 'active' : ''} onClick={() => setTab('submissions')} aria-pressed={tab === 'submissions'}>
-              Submissions
-            </button>
-          </>
-        )}
-        {user?.role === 'ta' && (
-          <button className={tab === 'grading' ? 'active' : ''} onClick={() => setTab('grading')} aria-pressed={tab === 'grading'}>
-            Grading
+        {isBackend && (
+          <button className={tab === 'progress' ? 'active' : ''} onClick={() => setTab('progress')} aria-pressed={tab === 'progress'}>
+            Progress
           </button>
         )}
-      </nav>
+            {user?.role === 'teacher' && (
+              <>
+                <button className={tab === 'manage' ? 'active' : ''} onClick={() => setTab('manage')} aria-pressed={tab === 'manage'}>
+                  Upload Assignment
+                </button>
+                <button className={tab === 'submissions' ? 'active' : ''} onClick={() => setTab('submissions')} aria-pressed={tab === 'submissions'}>
+                  Submissions
+                </button>
+              </>
+            )}
+            {user?.role === 'ta' && (
+              <button className={tab === 'grading' ? 'active' : ''} onClick={() => setTab('grading')} aria-pressed={tab === 'grading'}>
+                Grading
+              </button>
+            )}
+          </nav>
 
-      {tab === 'present' && (
-        <section className="card">
-          <h3>Open Assignments</h3>
-          <ul className="list">
-            {presentAssignments.map((a: any) => (
-              <li key={a.id} style={{ display: 'flex', alignItems: 'center' }}>
-                <span style={{ flex: 1 }}>{a.title} {a.dueDate ? `(Due: ${a.dueDate})` : ''}</span>
-                {isBackend && user?.role==='teacher' && (
-                  <MenuTiny onDelete={async ()=>{ try { await (await import('../../services/assignments')).deleteAssignmentApi(Number(a.id)); push({ kind: 'success', message: 'Assignment deleted' }); const data = await apiFetch<any[]>(`/api/courses/${courseId}/assignments`); setBackendAssignments(data) } catch(e:any){ push({ kind:'error', message:e?.message||'Failed' }) } }} />
-                )}
-              </li>
-            ))}
-          </ul>
-          {user?.role === 'student' && (
-            <form onSubmit={async (e) => {
-              e.preventDefault()
-              if (isBackend) {
-                if (!selectedAssignmentId || !linkUrl.trim()) return push({ kind: 'error', message: 'Add assignment and URL' })
-                try {
-                  await apiFetch('/api/submissions/submit/link', { method: 'POST', body: { assignment_id: Number(selectedAssignmentId), url: linkUrl.trim() } })
-                  push({ kind: 'success', message: 'Link submitted' })
-                  setLinkUrl('')
-                } catch (err: any) {
-                  push({ kind: 'error', message: err?.message || 'Submission failed' })
-                }
-              } else {
-                submitAssignment(e)
-              }
-            }} style={{ display: 'flex', gap: 8, alignItems: 'center', marginTop: 12, flexWrap: 'wrap' }}>
-              {isBackend && (
-                <>
-                  <select className="select" value={selectedAssignmentId} onChange={(e) => setSelectedAssignmentId(e.target.value)}>
-                    <option value="">Select assignment</option>
-                    {presentAssignments.map((a: any) => (
-                      <option key={a.id} value={a.id}>{a.title}</option>
-                    ))}
-                  </select>
-                  <input className="input" style={{ flex: 1, minWidth: 260 }} placeholder="Submission URL (e.g., Google Drive link)" value={linkUrl} onChange={(e) => setLinkUrl(e.target.value)} />
-                </>
+          {tab === 'present' && (
+            <section className="card">
+              <h3>Open Assignments</h3>
+              <ul className="list">
+                {presentAssignments.map((a: any) => (
+                  <li key={a.id} style={{ display: 'flex', alignItems: 'center' }}>
+                    <span style={{ flex: 1 }}>{a.title} {a.dueDate ? `(Due: ${a.dueDate})` : ''}</span>
+                    {isBackend && user?.role === 'teacher' && (
+                      <MenuTiny onDelete={async () => { try { await (await import('../../services/assignments')).deleteAssignmentApi(Number(a.id)); push({ kind: 'success', message: 'Assignment deleted' }); const data = await apiFetch<any[]>(`/api/courses/${courseId}/assignments`); setBackendAssignments(data) } catch (e: any) { push({ kind: 'error', message: e?.message || 'Failed' }) } }} />
+                    )}
+                  </li>
+                ))}
+              </ul>
+              {user?.role === 'student' && (
+                <form onSubmit={async (e) => {
+                  e.preventDefault()
+                  if (isBackend) {
+                    if (!selectedAssignmentId || !linkUrl.trim()) return push({ kind: 'error', message: 'Add assignment and URL' })
+                    try {
+                      await apiFetch('/api/submissions/submit/link', { method: 'POST', body: { assignment_id: Number(selectedAssignmentId), url: linkUrl.trim() } })
+                      push({ kind: 'success', message: 'Link submitted' })
+                      setLinkUrl('')
+                    } catch (err: any) {
+                      push({ kind: 'error', message: err?.message || 'Submission failed' })
+                    }
+                  } else {
+                    submitAssignment(e)
+                  }
+                }} style={{ display: 'flex', gap: 8, alignItems: 'center', marginTop: 12, flexWrap: 'wrap' }}>
+                  {isBackend && (
+                    <>
+                      <select className="select" value={selectedAssignmentId} onChange={(e) => setSelectedAssignmentId(e.target.value)}>
+                        <option value="">Select assignment</option>
+                        {presentAssignments.map((a: any) => (
+                          <option key={a.id} value={a.id}>{a.title}</option>
+                        ))}
+                      </select>
+                      <input className="input" style={{ flex: 1, minWidth: 260 }} placeholder="Submission URL (e.g., Google Drive link)" value={linkUrl} onChange={(e) => setLinkUrl(e.target.value)} />
+                    </>
+                  )}
+                  {!isBackend && (
+                    <input className="input" type="file" onChange={(e) => setFile(e.target.files?.[0] ?? null)} />
+                  )}
+                  <button className="btn btn-primary" type="submit">Submit</button>
+                </form>
               )}
-              {!isBackend && (
-                <input className="input" type="file" onChange={(e) => setFile(e.target.files?.[0] ?? null)} />
-              )}
-              <button className="btn btn-primary" type="submit">Submit</button>
-            </form>
+            </section>
           )}
-        </section>
-      )}
 
-      {tab === 'past' && (
-        <section className="card">
-          <h3>Past Assignments</h3>
-          <ul className="list">
-            {course.assignmentsPast.map((a) => (
-              <li key={a.id}>
-                {a.title} {a.submitted ? '✓ Submitted' : ''}
-              </li>
-            ))}
-          </ul>
-        </section>
-      )}
+          {tab === 'past' && (
+            <section className="card">
+              <h3>Past Assignments</h3>
+              <ul className="list">
+                {course.assignmentsPast.map((a) => (
+                  <li key={a.id}>
+                    {a.title} {a.submitted ? '✓ Submitted' : ''}
+                  </li>
+                ))}
+              </ul>
+            </section>
+          )}
 
       {user?.role === 'teacher' && tab === 'manage' && (
         <section className="card">
@@ -448,7 +580,20 @@ export default function CourseDetails() {
           </ul>
         </section>
       )}
-    </div>
-    </div>
+
+      {tab === 'progress' && isBackend && (
+        <section className="card">
+          <h3>Progress</h3>
+          {user?.role === 'student' ? (
+            <StudentProgressEmbed offeringId={courseId!} userId={user!.id} />
+          ) : (
+            <CourseProgressEmbed offeringId={courseId!} />
+          )}
+        </section>
+      )}
+        </div>
+      </div>
+
+    </>
   )
 }

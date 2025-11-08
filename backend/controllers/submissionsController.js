@@ -70,3 +70,51 @@ export async function gradeSubmission(req, res) {
 
   res.json({ success: true });
 }
+
+export async function getSubmissionById(req, res) {
+  try {
+    const submissionId = Number(req.params.submissionId || req.params.id);
+    if (!submissionId) return res.status(400).json({ error: 'Missing submission id' });
+
+    // Fetch submission with assignment and offering info
+    const q = `
+      SELECT s.*, a.id AS assignment_id, a.course_offering_id, o.faculty_id, u.name as student_name, u.email as student_email
+      FROM assignment_submissions s
+      JOIN assignments a ON s.assignment_id = a.id
+      JOIN course_offerings o ON a.course_offering_id = o.id
+      JOIN users u ON s.student_id = u.id
+      WHERE s.id = $1
+      LIMIT 1
+    `;
+    const r = await pool.query(q, [submissionId]);
+    if (r.rowCount === 0) return res.status(404).json({ error: 'Submission not found' });
+
+    const submission = r.rows[0];
+
+    // Authorization: faculty can only view submissions for their own offerings
+    if (req.user?.role === 'faculty' && req.user.id !== submission.faculty_id) {
+      return res.status(403).json({ error: 'Not authorized - you can only view submissions in your own courses' });
+    }
+
+    // Fetch files, code and grades
+    const filesQ = `SELECT id, storage_path, filename, mime_type FROM submission_files WHERE submission_id = $1`;
+    const filesR = await pool.query(filesQ, [submissionId]);
+
+    const codeQ = `SELECT * FROM code_submissions WHERE submission_id = $1`;
+    const codeR = await pool.query(codeQ, [submissionId]);
+
+    const gradesQ = `SELECT * FROM submission_grades WHERE submission_id = $1 ORDER BY created_at DESC`;
+    const gradesR = await pool.query(gradesQ, [submissionId]);
+
+    const result = Object.assign({}, submission, {
+      files: filesR.rows || [],
+      code: codeR.rows || [],
+      grades: gradesR.rows || []
+    });
+
+    return res.json({ submission: result });
+  } catch (err) {
+    console.error('getSubmissionById error', err);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
+}

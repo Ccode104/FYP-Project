@@ -1,7 +1,7 @@
 import express from 'express';
 import { requireAuth, requireRole } from '../middleware/auth.js';
 import { upload } from '../middleware/upload.js';
-import { submitFileAssignment, submitCodeAssignment, gradeSubmission, submitLinkAssignment } from '../controllers/submissionsController.js';
+import { submitFileAssignment, submitCodeAssignment, gradeSubmission, submitLinkAssignment, getSubmissionById } from '../controllers/submissionsController.js';
 
 const router = express.Router();
 
@@ -115,6 +115,9 @@ router.post('/submit/code', requireAuth, requireRole('student'), submitCodeAssig
  *         description: Submission not found
  */
 router.post('/grade', requireAuth, requireRole('ta','faculty','admin'), gradeSubmission);
+
+// Get a single submission by id (view by faculty/ta/admin)
+router.get('/:submissionId', requireAuth, requireRole('ta','faculty','admin'), getSubmissionById);
 
 // /**
 //  * @swagger

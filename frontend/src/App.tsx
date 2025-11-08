@@ -8,6 +8,8 @@ import CourseDetails from './pages/student/CourseDetails'
 import ProtectedRoute from './routes/ProtectedRoute'
 import { useAuth, getDashboardPathForRole } from './context/AuthContext'
 import Layout from './components/Layout'
+import StudentProgress from './pages/progress/StudentProgress'
+import CourseProgress from './pages/progress/CourseProgress'
 
 function App() {
   const { user } = useAuth()
@@ -61,6 +63,24 @@ function App() {
           element={
             <ProtectedRoute roles={["student", "teacher", "ta"]}>
               <CourseDetails />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/progress"
+          element={
+            <ProtectedRoute roles={["student"]}>
+              <StudentProgress />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/progress/course/:offeringId"
+          element={
+            <ProtectedRoute roles={["teacher", "ta"]}>
+              <CourseProgress />
             </ProtectedRoute>
           }
         />

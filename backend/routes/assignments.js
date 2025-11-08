@@ -115,5 +115,6 @@ router.post('/:id/publish', requireAuth, requireRole('faculty','admin'), publish
  *         description: Assignment not found
  */
 router.get('/:id/submissions', requireAuth, requireRole('faculty','ta','admin'), listAssignmentSubmissions);
+
 router.delete('/:id', requireAuth, requireRole('faculty','admin'), deleteAssignment);
 export default router;
