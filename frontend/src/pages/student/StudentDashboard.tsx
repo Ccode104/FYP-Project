@@ -4,7 +4,7 @@ import { useAuth } from '../../context/AuthContext'
 import { useEffect, useState } from 'react'
 import './StudentDashboard.css'
 import Modal from '../../components/Modal'
-import { getEnrolledCourses } from '../../services/student'
+import { getEnrolledCourses, enrollSelf } from '../../services/student'
 import { enrollStudent, unenrollStudent } from '../../services/courses'
 import { useToast } from '../../components/ToastProvider'
 
@@ -52,7 +52,11 @@ export default function StudentDashboard() {
   const [stuId, setStuId] = useState('')
   const enrollNow = async () => {
     try {
-      await enrollStudent(Number(offId), Number(stuId || user?.id))
+      if (user?.role === 'student') {
+        await enrollSelf(Number(offId))
+      } else {
+        await enrollStudent(Number(offId), Number(stuId || user?.id))
+      }
       const list = await getEnrolledCourses()
       setOfferings(list)
       push({ kind: 'success', message: 'Enrolled' })

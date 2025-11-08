@@ -15,3 +15,7 @@ export async function getEnrolledCourses(): Promise<EnrolledOffering[]> {
   if (Array.isArray((data as any).offerings)) return (data as any).offerings as EnrolledOffering[]
   return []
 }
+
+export async function enrollSelf(offeringId: number) {
+  return apiFetch(`/api/student/enroll`, { method: 'POST', body: { offeringId } })
+}
