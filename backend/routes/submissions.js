@@ -116,41 +116,41 @@ router.post('/submit/code', requireAuth, requireRole('student'), submitCodeAssig
  */
 router.post('/grade', requireAuth, requireRole('ta','faculty','admin'), gradeSubmission);
 
-/**
- * @swagger
- * /api/submissions/submit/link:
- *   post:
- *     summary: Submit a link-based assignment
- *     tags: [Submissions]
- *     security:
- *       - bearerAuth: []
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             required:
- *               - link
- *               - assignmentId
- *             properties:
- *               link:
- *                 type: string
- *                 format: uri
- *               assignmentId:
- *                 type: string
- *               description:
- *                 type: string
- *     responses:
- *       201:
- *         description: Link submitted successfully
- *       401:
- *         description: Unauthorized
- *       403:
- *         description: Forbidden - Requires student role
- *       404:
- *         description: Assignment not found
- */
-router.post('/submit/link', requireAuth, requireRole('student'), submitLinkAssignment);
+// /**
+//  * @swagger
+//  * /api/submissions/submit/link:
+//  *   post:
+//  *     summary: Submit a link-based assignment
+//  *     tags: [Submissions]
+//  *     security:
+//  *       - bearerAuth: []
+//  *     requestBody:
+//  *       required: true
+//  *       content:
+//  *         application/json:
+//  *           schema:
+//  *             type: object
+//  *             required:
+//  *               - link
+//  *               - assignmentId
+//  *             properties:
+//  *               link:
+//  *                 type: string
+//  *                 format: uri
+//  *               assignmentId:
+//  *                 type: string
+//  *               description:
+//  *                 type: string
+//  *     responses:
+//  *       201:
+//  *         description: Link submitted successfully
+//  *       401:
+//  *         description: Unauthorized
+//  *       403:
+//  *         description: Forbidden - Requires student role
+//  *       404:
+//  *         description: Assignment not found
+//  */
+// router.post('/submit/link', requireAuth, requireRole('student'), submitLinkAssignment);
 
 export default router;
