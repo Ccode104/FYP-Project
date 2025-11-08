@@ -25,18 +25,14 @@ function mapBackendRole(r: string): Role {
 }
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [user, setUser] = useState<User | null>(null)
-
-  useEffect(() => {
-    const raw = localStorage.getItem('auth:user')
-    if (raw) {
-      try {
-        setUser(JSON.parse(raw))
-      } catch {
-        // ignore
-      }
+  const [user, setUser] = useState<User | null>(() => {
+    try {
+      const raw = localStorage.getItem('auth:user')
+      return raw ? (JSON.parse(raw) as User) : null
+    } catch {
+      return null
     }
-  }, [])
+  })
 
   const login: AuthContextValue['login'] = async (email, password) => {
     const { loginRequest } = await import('../services/auth')
