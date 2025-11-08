@@ -1,24 +1,53 @@
 .course-card {
-  --accent-a: #6366f1;
-  --accent-b: #22c55e;
-  background:
-    linear-gradient(#ffffff, #ffffff) padding-box,
-    linear-gradient(135deg, var(--accent-a), var(--accent-b)) border-box;
-  border: 1px solid transparent;
+  --accent-a: #4f46e5;
+  --accent-b: #10b981;
+  position: relative;
+  overflow: hidden;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  transition: all 0.3s ease;
+}
+
+.course-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 4px;
+  background: linear-gradient(90deg, var(--accent-a), var(--accent-b));
+  transform: scaleX(0);
+  transform-origin: left;
+  transition: transform 0.3s ease;
+}
+
+.course-card:hover::before {
+  transform: scaleX(1);
 }
 
 /* Accent palettes */
-.accent-blue  { --accent-a: #60a5fa; --accent-b: #6366f1; }
-.accent-green { --accent-a: #34d399; --accent-b: #22c55e; }
-.accent-purple{ --accent-a: #a78bfa; --accent-b: #8b5cf6; }
-.accent-orange{ --accent-a: #fb923c; --accent-b: #f97316; }
-.accent-pink  { --accent-a: #f472b6; --accent-b: #ec4899; }
-.accent-cyan  { --accent-a: #22d3ee; --accent-b: #06b6d4; }
+.accent-blue  { --accent-a: #3b82f6; --accent-b: #6366f1; }
+.accent-green { --accent-a: #10b981; --accent-b: #22c55e; }
+.accent-purple{ --accent-a: #8b5cf6; --accent-b: #a78bfa; }
+.accent-orange{ --accent-a: #f59e0b; --accent-b: #f97316; }
+.accent-pink  { --accent-a: #ec4899; --accent-b: #f472b6; }
+.accent-cyan  { --accent-a: #06b6d4; --accent-b: #22d3ee; }
 
 .course-card h4 {
-  color: #1f2937;
+  color: var(--text);
+  font-size: 18px;
+  font-weight: 600;
+  margin: 0 0 8px;
+  letter-spacing: -0.01em;
+  transition: color 0.2s ease;
 }
 
 .course-card:hover h4 {
-  color: #111827;
+  color: var(--primary);
+}
+
+.course-card .muted {
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 1.5;
 }

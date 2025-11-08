@@ -13,6 +13,7 @@ import { logger } from './utils/logger.js';
 import usersRoutes from './routes/users.js';
 import studentRoutes from './routes/student.js';
 import discussionsRoutes from './routes/discussions.js';
+import adminRoutes from './routes/admin.js';
 import codeQuestionsRoutes from './routes/codeQuestions.js';
 import swaggerSpec from './swagger.js';
 
@@ -41,6 +42,7 @@ export async function startServer(port = 4000) {
   app.use('/api/users', usersRoutes);
   app.use('/api/student', studentRoutes);
   app.use('/api/discussions', discussionsRoutes);
+  app.use('/api/admin', adminRoutes);
   app.use('/api/code-questions', codeQuestionsRoutes);
 
   app.get('/health', (req, res) => res.json({ ok: true }));

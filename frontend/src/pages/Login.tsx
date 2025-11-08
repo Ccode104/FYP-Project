@@ -41,7 +41,6 @@ export default function Login() {
 
   return (
     <div className="auth-page" style={{ backgroundImage: `linear-gradient(rgba(0, 0, 0, 0.3), rgba(0, 0, 0, 0.3)), url(${backgroundImg})` }}>
-      <div className="brand-logo">Unified Academic Portal</div>
       <div className="auth-card">
         <h1 className="heading">Login</h1>
         <p className="subheading">Sign in to continue</p>

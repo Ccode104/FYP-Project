@@ -1,4 +1,5 @@
 import { Navigate, Route, Routes } from 'react-router-dom'
+import Landing from './pages/Landing'
 import Login from './pages/Login'
 import Signup from './pages/Signup'
 import StudentDashboard from './pages/student/StudentDashboard'
@@ -19,16 +20,9 @@ function App() {
   return (
     <Layout>
       <Routes>
-        {/* Show Login page on root so frontend opens to the login screen */}
-        <Route path="/" element={user ? <Navigate to={getDashboardPathForRole(user.role)} replace /> : <Navigate to="/login" replace />} />
-
-        {/* 
-        Can be added in future
-        <Route path="/" element={<HomePage />} />
-        <Route path="/about" element={<AboutPage />} />
-        <Route path="/contact" element={<ContactPage />} />
-        */
-        }
+        {/* Landing page - redirects to dashboard if logged in */}
+        <Route path="/" element={<Landing />} />
+        
         <Route path="/login" element={<Login />} />
         <Route path="/signup" element={<Signup />} />
         
@@ -54,6 +48,15 @@ function App() {
           path="/dashboard/ta"
           element={
             <ProtectedRoute roles={["ta"]}>
+              <AdminDashboard />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/dashboard/admin"
+          element={
+            <ProtectedRoute roles={["admin"]}>
               <AdminDashboard />
             </ProtectedRoute>
           }

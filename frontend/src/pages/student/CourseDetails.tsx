@@ -32,6 +32,408 @@ interface CodeQuestion {
   }>
 }
 
+// Teacher Code Submission Viewer Component
+function TeacherCodeSubmissionViewer({ submission, onGrade, push }: { submission: any; onGrade: (score: number, feedback: string) => void; push: any }) {
+  const [showGradingForm, setShowGradingForm] = useState(false)
+  const [score, setScore] = useState('')
+  const [feedback, setFeedback] = useState('')
+  const [runningTestCases, setRunningTestCases] = useState<Record<string, boolean>>({})
+  const [testCaseResults, setTestCaseResults] = useState<Record<string, any>>({})
+  const [questionDetails, setQuestionDetails] = useState<Record<string, any>>({})
+
+  // Load question details for each code submission
+  useEffect(() => {
+    const loadQuestionDetails = async () => {
+      const details: Record<string, any> = {}
+      
+      // First, get all questions for this assignment
+      let assignmentQuestions: any[] = []
+      try {
+        assignmentQuestions = await apiFetch(`/api/assignments/${submission.assignment_id}/questions`)
+      } catch (err) {
+        console.error('Failed to load assignment questions:', err)
+      }
+
+      for (const codeSub of submission.code || []) {
+        // question_id should now be available from the backend response
+        const questionId = codeSub.question_id
+        
+        if (questionId) {
+          try {
+            const questionData = await apiFetch(`/api/code-questions/${questionId}`)
+            details[codeSub.id] = questionData
+          } catch (err) {
+            console.error('Failed to load question details:', err)
+          }
+        }
+      }
+      setQuestionDetails(details)
+    }
+    if (submission.code && submission.code.length > 0 && submission.assignment_id) {
+      loadQuestionDetails()
+    }
+  }, [submission])
+
+  const runHiddenTestCases = async (codeSub: any, questionId: number) => {
+    if (!codeSub.code || !codeSub.language) {
+      push({ kind: 'error', message: 'No code found for this question' })
+      return
+    }
+
+    setRunningTestCases(prev => ({ ...prev, [codeSub.id]: true }))
+    try {
+      // Fetch all test cases for this question (including hidden ones)
+      const question = await apiFetch(`/api/code-questions/${questionId}`)
+      const allTestCases = question.test_cases || []
+      const hiddenTestCases = allTestCases.filter((tc: any) => !tc.is_sample)
+
+      if (hiddenTestCases.length === 0) {
+        push({ kind: 'info', message: 'No hidden test cases found for this question' })
+        setRunningTestCases(prev => ({ ...prev, [codeSub.id]: false }))
+        return
+      }
+
+      // Run each hidden test case
+      const results: any[] = []
+      for (const testCase of hiddenTestCases) {
+        try {
+          const result = await apiFetch('/api/judge', {
+            method: 'POST',
+            body: {
+              source_code: codeSub.code,
+              language: codeSub.language,
+              stdin: testCase.input_text || '',
+              expected_output: testCase.expected_text || ''
+            }
+          })
+
+          const passed = result.stdout && testCase.expected_text && 
+                        result.stdout.trim() === testCase.expected_text.trim()
+
+          results.push({
+            ...testCase,
+            passed,
+            student_output: result.stdout || '',
+            error_output: result.stderr || result.compile_output || '',
+            execution_time_ms: result.time ? Math.round(result.time * 1000) : null,
+            status: result.status
+          })
+        } catch (err: any) {
+          results.push({
+            ...testCase,
+            passed: false,
+            error: err?.message || 'Execution failed'
+          })
+        }
+      }
+
+      setTestCaseResults(prev => ({ ...prev, [codeSub.id]: results }))
+      const passedCount = results.filter(r => r.passed).length
+      push({ kind: 'success', message: `Ran ${results.length} hidden test cases. ${passedCount}/${results.length} passed.` })
+    } catch (err: any) {
+      push({ kind: 'error', message: err?.message || 'Failed to run hidden test cases' })
+    } finally {
+      setRunningTestCases(prev => ({ ...prev, [codeSub.id]: false }))
+    }
+  }
+
+  const handleGradeSubmit = (e: React.FormEvent) => {
+    e.preventDefault()
+    const numScore = parseFloat(score)
+    if (isNaN(numScore) || numScore < 0 || numScore > 100) {
+      push({ kind: 'error', message: 'Please enter a valid score between 0 and 100' })
+      return
+    }
+    onGrade(numScore, feedback)
+    setShowGradingForm(false)
+    setScore('')
+    setFeedback('')
+  }
+
+  return (
+    <div>
+      {/* Grading Form */}
+      {showGradingForm && (
+        <div style={{ 
+          padding: '16px', 
+          backgroundColor: '#f9fafb', 
+          border: '1px solid #e5e7eb', 
+          borderRadius: '8px',
+          marginBottom: '24px'
+        }}>
+          <h4 style={{ marginTop: 0, marginBottom: '12px' }}>Grade Assignment</h4>
+          <form onSubmit={handleGradeSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+            <div>
+              <label style={{ display: 'block', marginBottom: '4px', fontWeight: 500 }}>
+                Score (0-100):
+              </label>
+              <input
+                type="number"
+                min="0"
+                max="100"
+                step="0.1"
+                value={score}
+                onChange={(e) => setScore(e.target.value)}
+                required
+                style={{
+                  width: '100%',
+                  padding: '8px',
+                  border: '1px solid #d1d5db',
+                  borderRadius: '4px',
+                  fontSize: '14px'
+                }}
+              />
+            </div>
+            <div>
+              <label style={{ display: 'block', marginBottom: '4px', fontWeight: 500 }}>
+                Feedback (optional):
+              </label>
+              <textarea
+                value={feedback}
+                onChange={(e) => setFeedback(e.target.value)}
+                rows={4}
+                style={{
+                  width: '100%',
+                  padding: '8px',
+                  border: '1px solid #d1d5db',
+                  borderRadius: '4px',
+                  fontSize: '14px',
+                  fontFamily: 'inherit',
+                  resize: 'vertical'
+                }}
+                placeholder="Provide feedback to the student..."
+              />
+            </div>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button type="submit" className="btn btn-primary">
+                Submit Grade
+              </button>
+              <button type="button" className="btn" onClick={() => setShowGradingForm(false)}>
+                Cancel
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {/* Grade Button */}
+      {!showGradingForm && (
+        <div style={{ marginBottom: '24px', display: 'flex', justifyContent: 'flex-end' }}>
+          <button className="btn btn-primary" onClick={() => setShowGradingForm(true)}>
+            Grade Assignment
+          </button>
+        </div>
+      )}
+
+      {/* Display all questions */}
+      {submission.code.map((codeSub: any, idx: number) => {
+        const question = questionDetails[codeSub.id]
+        const hiddenTestResults = testCaseResults[codeSub.id] || []
+        const existingTestResults = codeSub.test_case_results || []
+        const allTestResults = [...existingTestResults, ...hiddenTestResults]
+
+        return (
+          <div key={codeSub.id || idx} style={{ 
+            marginBottom: '32px', 
+            padding: '20px', 
+            border: '1px solid #e5e7eb', 
+            borderRadius: '8px',
+            backgroundColor: '#ffffff'
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '16px' }}>
+              <h4 style={{ margin: 0 }}>Question {idx + 1}</h4>
+              <div style={{ display: 'flex', gap: 8 }}>
+                {question && (
+                  <button
+                    className="btn"
+                    onClick={() => runHiddenTestCases(codeSub, question.id)}
+                    disabled={runningTestCases[codeSub.id]}
+                  >
+                    {runningTestCases[codeSub.id] ? (
+                      <>
+                        <span className="spinner" style={{ marginRight: 8, display: 'inline-block' }}></span>
+                        Running...
+                      </>
+                    ) : (
+                      'Run Hidden Test Cases'
+                    )}
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {/* Question Description */}
+            {question && (
+              <div style={{ marginBottom: '16px', padding: '12px', backgroundColor: '#f9fafb', borderRadius: '4px' }}>
+                <strong>Question:</strong>
+                <div style={{ marginTop: '8px', whiteSpace: 'pre-wrap' }}>{question.description}</div>
+                {question.constraints && (
+                  <div style={{ marginTop: '8px', padding: '8px', backgroundColor: '#fff3cd', borderRadius: '4px' }}>
+                    <strong>Constraints:</strong> {question.constraints}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Code Display */}
+            <div style={{ marginBottom: '16px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                <strong>Submitted Code</strong>
+                <span style={{ fontSize: '0.9em', color: '#6b7280' }}>Language: {codeSub.language}</span>
+              </div>
+              <pre style={{
+                margin: 0,
+                padding: '16px',
+                backgroundColor: '#1e293b',
+                color: '#e2e8f0',
+                borderRadius: '4px',
+                overflow: 'auto',
+                fontSize: '14px',
+                fontFamily: 'monospace',
+                whiteSpace: 'pre-wrap',
+                wordBreak: 'break-word'
+              }}>
+                {codeSub.code}
+              </pre>
+              <button 
+                className="btn" 
+                style={{ marginTop: '8px' }}
+                onClick={() => {
+                  navigator.clipboard.writeText(codeSub.code)
+                  push({ kind: 'success', message: 'Code copied to clipboard' })
+                }}
+              >
+                Copy Code
+              </button>
+            </div>
+
+            {/* Test Case Results */}
+            {allTestResults.length > 0 && (
+              <div style={{ marginTop: '16px' }}>
+                <h5 style={{ marginBottom: '12px' }}>Test Case Results</h5>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                  {allTestResults.map((testCase: any, tcIdx: number) => (
+                    <div
+                      key={testCase.id || tcIdx}
+                      style={{
+                        padding: '16px',
+                        border: `2px solid ${testCase.passed ? '#10b981' : '#ef4444'}`,
+                        borderRadius: '8px',
+                        backgroundColor: testCase.passed ? '#f0fdf4' : '#fef2f2'
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
+                        <span style={{ fontSize: '20px', fontWeight: 'bold' }}>
+                          {testCase.passed ? '✓' : '✗'}
+                        </span>
+                        <strong style={{ fontSize: '16px' }}>
+                          Test Case {tcIdx + 1}
+                          {testCase.is_sample && <span style={{ color: '#6b7280', fontSize: '14px', marginLeft: '8px' }}>(Sample)</span>}
+                          {!testCase.is_sample && <span style={{ color: '#6366f1', fontSize: '14px', marginLeft: '8px' }}>(Hidden)</span>}
+                        </strong>
+                        {testCase.execution_time_ms !== null && testCase.execution_time_ms !== undefined && (
+                          <span style={{ color: '#6b7280', fontSize: '14px', marginLeft: 'auto' }}>
+                            {testCase.execution_time_ms}ms
+                          </span>
+                        )}
+                      </div>
+
+                      {testCase.input_text && (
+                        <div style={{ marginBottom: '8px' }}>
+                          <strong style={{ display: 'block', marginBottom: '4px', fontSize: '14px' }}>Input:</strong>
+                          <pre style={{
+                            margin: 0,
+                            padding: '8px',
+                            backgroundColor: '#ffffff',
+                            border: '1px solid #e5e7eb',
+                            borderRadius: '4px',
+                            fontSize: '13px',
+                            whiteSpace: 'pre-wrap',
+                            fontFamily: 'monospace',
+                            overflowX: 'auto'
+                          }}>
+                            {testCase.input_text || '(empty)'}
+                          </pre>
+                        </div>
+                      )}
+
+                      {testCase.expected_text && (
+                        <div style={{ marginBottom: '8px' }}>
+                          <strong style={{ display: 'block', marginBottom: '4px', fontSize: '14px' }}>Expected Output:</strong>
+                          <pre style={{
+                            margin: 0,
+                            padding: '8px',
+                            backgroundColor: '#ffffff',
+                            border: '1px solid #e5e7eb',
+                            borderRadius: '4px',
+                            fontSize: '13px',
+                            whiteSpace: 'pre-wrap',
+                            fontFamily: 'monospace',
+                            overflowX: 'auto'
+                          }}>
+                            {testCase.expected_text || '(empty)'}
+                          </pre>
+                        </div>
+                      )}
+
+                      {testCase.student_output !== undefined && (
+                        <div style={{ marginBottom: '8px' }}>
+                          <strong style={{ display: 'block', marginBottom: '4px', fontSize: '14px' }}>Student Output:</strong>
+                          <pre style={{
+                            margin: 0,
+                            padding: '8px',
+                            backgroundColor: '#ffffff',
+                            border: `1px solid ${testCase.passed ? '#10b981' : '#ef4444'}`,
+                            borderRadius: '4px',
+                            fontSize: '13px',
+                            whiteSpace: 'pre-wrap',
+                            fontFamily: 'monospace',
+                            overflowX: 'auto'
+                          }}>
+                            {testCase.student_output || '(empty)'}
+                          </pre>
+                        </div>
+                      )}
+
+                      {testCase.error_output && testCase.error_output.trim() !== '' && (
+                        <div style={{ marginTop: '8px' }}>
+                          <strong style={{ display: 'block', marginBottom: '4px', fontSize: '14px', color: '#ef4444' }}>Error:</strong>
+                          <pre style={{
+                            margin: 0,
+                            padding: '8px',
+                            backgroundColor: '#fff5f5',
+                            border: '1px solid #fecaca',
+                            borderRadius: '4px',
+                            fontSize: '13px',
+                            whiteSpace: 'pre-wrap',
+                            fontFamily: 'monospace',
+                            color: '#dc2626',
+                            overflowX: 'auto'
+                          }}>
+                            {testCase.error_output}
+                          </pre>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Summary */}
+            {allTestResults.length > 0 && (
+              <div style={{ marginTop: '16px', padding: '12px', backgroundColor: '#f9fafb', borderRadius: '4px' }}>
+                <strong>Summary: </strong>
+                {allTestResults.filter((tc: any) => tc.passed).length} / {allTestResults.length} test cases passed
+              </div>
+            )}
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
 function loadLocalCodeQuestions(courseId: string) : CodeQuestion[] {
   try {
     const raw = localStorage.getItem(`codeQuestions:${courseId}`)
@@ -288,8 +690,8 @@ function CourseProgressEmbed({ offeringId }: { offeringId: string }) {
 
 export default function CourseDetails() {
   const { courseId } = useParams()
-  const navigate = useNavigate()
   const { user, logout } = useAuth()
+  const navigate = useNavigate()
   const [tab, setTab] = useState<'present' | 'past' | 'pyq' | 'notes' | 'quizzes' | 'quizzes_submitted' | 'manage' | 'submissions' | 'grading' | 'progress' | 'discussion'>('present')
   const [assignmentCreationType, setAssignmentCreationType] = useState<'selection' | 'code' | 'quiz' | 'pdf'>('selection')
   const isBackend = !!courseId && /^\d+$/.test(courseId)
@@ -308,6 +710,7 @@ export default function CourseDetails() {
   const [backendNotes, setBackendNotes] = useState<any[]>([])
   const [backendQuizzes, setBackendQuizzes] = useState<any[]>([])
   const [myQuizAttempts, setMyQuizAttempts] = useState<any[]>([])
+  const [mySubmissions, setMySubmissions] = useState<any[]>([]) // Track student's submissions
   const [selectedAssignmentId, setSelectedAssignmentId] = useState<string>('')
 
   const course = useMemo(() => {
@@ -323,8 +726,8 @@ export default function CourseDetails() {
     return mine.find((c) => c.id === courseId)
   }, [courseId, user])
 
-  // Compute present assignments
-  const presentAssignments = useMemo(() => {
+  // Compute present assignments (not past due date)
+  const allPresentAssignments = useMemo(() => {
     if (isBackend) {
       return backendAssignments.filter((a: any) => {
         if (!a.due_at) return true
@@ -333,6 +736,49 @@ export default function CourseDetails() {
     }
     return course?.assignmentsPresent || []
   }, [isBackend, backendAssignments, course])
+
+  // For students: filter out submitted assignments and combine with unsubmitted quizzes
+  const presentAssignments = useMemo(() => {
+    if (user?.role !== 'student') {
+      return allPresentAssignments
+    }
+
+    if (!isBackend) {
+      return allPresentAssignments
+    }
+
+    // Get set of submitted assignment IDs
+    const submittedAssignmentIds = new Set(
+      mySubmissions.map((s: any) => String(s.assignment_id))
+    )
+
+    // Get set of attempted quiz IDs
+    const attemptedQuizIds = new Set(
+      (myQuizAttempts || []).map((a: any) => String(a.quiz_id))
+    )
+
+    // Filter assignments: only show unsubmitted ones
+    const unsubmittedAssignments = allPresentAssignments.filter((a: any) => {
+      return !submittedAssignmentIds.has(String(a.id))
+    })
+
+    // Get unsubmitted quizzes and convert them to assignment-like objects
+    const unsubmittedQuizzes = (backendQuizzes || [])
+      .filter((q: any) => !attemptedQuizIds.has(String(q.id)))
+      .map((q: any) => ({
+        id: `quiz_${q.id}`, // Prefix to avoid ID conflicts
+        title: q.title,
+        assignment_type: 'quiz',
+        due_at: q.end_at || q.due_at,
+        release_at: q.start_at,
+        is_quiz: true,
+        quiz_id: q.id,
+        quiz_data: q
+      }))
+
+    // Combine unsubmitted assignments and quizzes
+    return [...unsubmittedAssignments, ...unsubmittedQuizzes]
+  }, [allPresentAssignments, mySubmissions, myQuizAttempts, backendQuizzes, user?.role, isBackend])
 
   const [file, setFile] = useState<File | null>(null)
   const [linkUrl, setLinkUrl] = useState('')
@@ -363,6 +809,8 @@ export default function CourseDetails() {
   const [codeLang, setCodeLang] = useState<Record<string, string>>({})
   const [runResults, setRunResults] = useState<Record<string, any>>({})
   const [isRunningCode, setIsRunningCode] = useState<Record<string, boolean>>({})
+  const [savedQuestions, setSavedQuestions] = useState<Record<string, boolean>>({}) // Track which questions have been saved
+  const [isSavingCode, setIsSavingCode] = useState<Record<string, boolean>>({}) // Track saving state per question
   const [tabInternal, setTabInternal] = useState<string>('')
 
   // Load code questions from backend or local storage
@@ -406,6 +854,13 @@ export default function CourseDetails() {
         })
         push({ kind: 'success', message: 'Code submitted' })
         setShowCodeEditor(false)
+        // Reload submissions to update the list
+        if (user?.role === 'student' && user?.id && courseId) {
+          try {
+            const submissions = await apiFetch<any[]>(`/api/student/courses/${courseId}/submissions`)
+            setMySubmissions(submissions || [])
+          } catch {}
+        }
       } catch (err: any) {
         push({ kind: 'error', message: err?.message || 'Submission failed' })
       }
@@ -691,6 +1146,7 @@ export default function CourseDetails() {
     setCodeEditor(editors)
     setCodeLang(langs)
     setRunResults({})
+    setSavedQuestions({}) // Reset saved questions when starting new attempt
     setTabInternal('code_attempt')
     setTab('quizzes') // keep outer tab consistent (optional)
   }
@@ -825,6 +1281,16 @@ export default function CourseDetails() {
             if (!cancelled) setMyQuizAttempts(attempts)
           }
         } catch {}
+      // Load student's submissions to track which assignments have been submitted
+      if (user?.role === 'student' && user?.id) {
+        try {
+          const submissions = await apiFetch<any[]>(`/api/student/courses/${courseId}/submissions`)
+          if (!cancelled) setMySubmissions(submissions || [])
+        } catch (err) {
+          console.error('Failed to load student submissions:', err)
+          if (!cancelled) setMySubmissions([])
+        }
+      }
       // Discussion loading can be added here if needed
     })()
     return () => { cancelled = true }
@@ -913,7 +1379,8 @@ export default function CourseDetails() {
           order: 0 !important;
         }
       `}</style>
-       <div className="course-details-page">
+       
+      <div className="course-details-page">
        <div className="container">
       <header className="topbar">
         <h2>
@@ -929,31 +1396,47 @@ export default function CourseDetails() {
       </header>
 
           <nav className="tabs">
-            <button className={tab === 'present' ? 'active' : ''} onClick={() => setTab('present')} aria-pressed={tab === 'present'}>
-              Assignments (Present)
-            </button>
-            <button className={tab === 'past' ? 'active' : ''} onClick={() => setTab('past')} aria-pressed={tab === 'past'}>
-              Assignments (Past)
-            </button>
-            <button className={tab === 'pyq' ? 'active' : ''} onClick={() => setTab('pyq')} aria-pressed={tab === 'pyq'}>
-              PYQ
-            </button>
-        <button className={tab === 'notes' ? 'active' : ''} onClick={() => setTab('notes')} aria-pressed={tab === 'notes'}>
-          Notes
-        </button>
-        {isBackend && (
-          <button className={tab === 'progress' ? 'active' : ''} onClick={() => setTab('progress')} aria-pressed={tab === 'progress'}>
-            Progress
-          </button>
-        )}
-            {user?.role === 'student' && (
+            {user?.role === 'student' ? (
               <>
-                <button className={tab === 'quizzes' ? 'active' : ''} onClick={() => setTab('quizzes')} aria-pressed={tab === 'quizzes'}>
-                  Quizzes
+                <button className={tab === 'present' ? 'active' : ''} onClick={() => setTab('present')} aria-pressed={tab === 'present'}>
+                  Assignments
                 </button>
-                <button className={tab === 'quizzes_submitted' ? 'active' : ''} onClick={() => setTab('quizzes_submitted')} aria-pressed={tab === 'quizzes_submitted'}>
-                  Submitted Quizzes
+                <button className={tab === 'pyq' ? 'active' : ''} onClick={() => setTab('pyq')} aria-pressed={tab === 'pyq'}>
+                  PYQ
                 </button>
+                <button className={tab === 'notes' ? 'active' : ''} onClick={() => setTab('notes')} aria-pressed={tab === 'notes'}>
+                  Notes
+                </button>
+                {isBackend && (
+                  <button className={tab === 'progress' ? 'active' : ''} onClick={() => setTab('progress')} aria-pressed={tab === 'progress'}>
+                    Progress
+                  </button>
+                )}
+                {isBackend && (
+                  <button className={tab === 'discussion' ? 'active' : ''} onClick={() => setTab('discussion')} aria-pressed={tab === 'discussion'}>
+                    Discussion
+                  </button>
+                )}
+              </>
+            ) : (
+              <>
+                <button className={tab === 'present' ? 'active' : ''} onClick={() => setTab('present')} aria-pressed={tab === 'present'}>
+                  Assignments (Present)
+                </button>
+                <button className={tab === 'past' ? 'active' : ''} onClick={() => setTab('past')} aria-pressed={tab === 'past'}>
+                  Assignments (Past)
+                </button>
+                <button className={tab === 'pyq' ? 'active' : ''} onClick={() => setTab('pyq')} aria-pressed={tab === 'pyq'}>
+                  PYQ
+                </button>
+                <button className={tab === 'notes' ? 'active' : ''} onClick={() => setTab('notes')} aria-pressed={tab === 'notes'}>
+                  Notes
+                </button>
+                {isBackend && (
+                  <button className={tab === 'progress' ? 'active' : ''} onClick={() => setTab('progress')} aria-pressed={tab === 'progress'}>
+                    Progress
+                  </button>
+                )}
               </>
             )}
         {user?.role === 'teacher' && (
@@ -980,11 +1463,27 @@ export default function CourseDetails() {
 
           {tab === 'present' && (
             <section className="card">
-              <h3>Open Assignments</h3>
+              <h3>{user?.role === 'student' ? 'Assignments & Quizzes' : 'Open Assignments'}</h3>
+              {user?.role === 'student' && presentAssignments.length === 0 && (
+                <p className="muted">No unsubmitted assignments or quizzes available.</p>
+              )}
               <ul className="list">
                 {presentAssignments.map((a: any) => (
-                  <li key={a.id} style={{ display: 'flex', alignItems: 'center' }}>
-                    <span style={{ flex: 1 }}>{a.title} {a.due_at ? `(Due: ${new Date(a.due_at).toLocaleString()})` : ''}</span>
+                  <li key={a.id} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <span style={{ flex: 1 }}>
+                      {a.title} 
+                      {a.due_at ? ` (Due: ${new Date(a.due_at).toLocaleString()})` : ''}
+                      {a.assignment_type && (
+                        <span style={{ marginLeft: 8, fontSize: '0.9em', color: '#6b7280' }}>
+                          [{a.assignment_type === 'code' ? '💻 Code' : a.assignment_type === 'quiz' ? '📝 Quiz' : a.assignment_type === 'file' ? '📄 PDF' : a.assignment_type}]
+                        </span>
+                      )}
+                      {a.is_quiz && (
+                        <span style={{ marginLeft: 8, fontSize: '0.9em', color: '#6b7280' }}>
+                          [📝 Quiz-based]
+                        </span>
+                      )}
+                    </span>
                     {isBackend && user?.role === 'teacher' && (
                       <MenuTiny onDelete={async () => { 
                         try { 
@@ -997,44 +1496,98 @@ export default function CourseDetails() {
                         } 
                       }} />
                     )}
-                    {a.assignment_type === 'code' && user?.role === 'student' && (
-                      <button className="btn btn-primary" style={{ marginLeft: 8 }} onClick={() => void startCodeAttempt(a)}>Attempt</button>
+                    {user?.role === 'student' && (
+                      <>
+                        {a.is_quiz ? (
+                          <button 
+                            className="btn btn-primary" 
+                            style={{ marginLeft: 8 }} 
+                            onClick={() => location.assign(`/quizzes/${a.quiz_id}`)}
+                          >
+                            Attempt Quiz
+                          </button>
+                        ) : a.assignment_type === 'code' ? (
+                          <button 
+                            className="btn btn-primary" 
+                            style={{ marginLeft: 8 }} 
+                            onClick={() => void startCodeAttempt(a)}
+                          >
+                            Attempt Code
+                          </button>
+                        ) : a.assignment_type === 'file' || a.assignment_type === 'pdf' ? (
+                          <button 
+                            className="btn btn-primary" 
+                            style={{ marginLeft: 8 }} 
+                            onClick={() => {
+                              setSelectedAssignmentId(String(a.id))
+                              // Scroll to submission form
+                              setTimeout(() => {
+                                const form = document.querySelector('form[style*="marginTop"]')
+                                if (form) form.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+                              }, 100)
+                            }}
+                          >
+                            Submit PDF
+                          </button>
+                        ) : null}
+                      </>
                     )}
                   </li>
                 ))}
               </ul>
-              {user?.role === 'student' && (
-                <form onSubmit={async (e) => {
-                  e.preventDefault()
-                  if (isBackend) {
-                    if (!selectedAssignmentId || !linkUrl.trim()) return push({ kind: 'error', message: 'Add assignment and URL' })
+              {user?.role === 'student' && isBackend && (
+                <div style={{ marginTop: 24, paddingTop: 24, borderTop: '1px solid var(--border-color, #ddd)' }}>
+                  <h4>Submit PDF Assignment</h4>
+                  <form onSubmit={async (e) => {
+                    e.preventDefault()
+                    if (!selectedAssignmentId || !linkUrl.trim()) {
+                      return push({ kind: 'error', message: 'Please select an assignment and provide a URL' })
+                    }
                     try {
-                      await apiFetch('/api/submissions/submit/link', { method: 'POST', body: { assignment_id: Number(selectedAssignmentId), url: linkUrl.trim() } })
-                      push({ kind: 'success', message: 'Link submitted' })
+                      await apiFetch('/api/submissions/submit/link', { 
+                        method: 'POST', 
+                        body: { assignment_id: Number(selectedAssignmentId), url: linkUrl.trim() } 
+                      })
+                      push({ kind: 'success', message: 'Assignment submitted successfully' })
                       setLinkUrl('')
+                      setSelectedAssignmentId('')
+                      // Reload submissions to update the list
+                      if (user?.id) {
+                        try {
+                          const submissions = await apiFetch<any[]>(`/api/student/courses/${courseId}/submissions`)
+                          setMySubmissions(submissions || [])
+                        } catch {}
+                      }
                     } catch (err: any) {
                       push({ kind: 'error', message: err?.message || 'Submission failed' })
                     }
-                  } else {
-                    submitAssignment(e)
-                  }
-                }} style={{ display: 'flex', gap: 8, alignItems: 'center', marginTop: 12, flexWrap: 'wrap' }}>
-                  {isBackend && (
-                    <>
-                      <select className="select" value={selectedAssignmentId} onChange={(e) => setSelectedAssignmentId(e.target.value)}>
-                        <option value="">Select assignment</option>
-                        {presentAssignments.map((a: any) => (
+                  }} style={{ display: 'flex', gap: 8, alignItems: 'center', marginTop: 12, flexWrap: 'wrap' }}>
+                    <select 
+                      className="select" 
+                      value={selectedAssignmentId} 
+                      onChange={(e) => setSelectedAssignmentId(e.target.value)}
+                      style={{ minWidth: 200 }}
+                    >
+                      <option value="">Select PDF assignment</option>
+                      {allPresentAssignments
+                        .filter((a: any) => (a.assignment_type === 'file' || a.assignment_type === 'pdf') && !mySubmissions.some((s: any) => String(s.assignment_id) === String(a.id)))
+                        .map((a: any) => (
                           <option key={a.id} value={a.id}>{a.title}</option>
                         ))}
-                      </select>
-                      <input className="input" style={{ flex: 1, minWidth: 260 }} placeholder="Submission URL (e.g., Google Drive link)" value={linkUrl} onChange={(e) => setLinkUrl(e.target.value)} />
-                    </>
-                  )}
-                  {!isBackend && (
-                    <input className="input" type="file" onChange={(e) => setFile(e.target.files?.[0] ?? null)} />
-                  )}
-                  <button className="btn btn-primary" type="submit">Submit</button>
-                </form>
+                    </select>
+                    <input 
+                      className="input" 
+                      style={{ flex: 1, minWidth: 260 }} 
+                      placeholder="Submission URL (e.g., Google Drive link)" 
+                      value={linkUrl} 
+                      onChange={(e) => setLinkUrl(e.target.value)} 
+                      required
+                    />
+                    <button className="btn btn-primary" type="submit" disabled={!selectedAssignmentId || !linkUrl.trim()}>
+                      Submit
+                    </button>
+                  </form>
+                </div>
               )}
               {user?.role === 'student' && isBackend && (
                 <div style={{ marginTop: 24, paddingTop: 24, borderTop: '1px solid var(--border-color, #ddd)' }}>
@@ -1094,50 +1647,6 @@ export default function CourseDetails() {
         </section>
       )}
 
-      {user?.role === 'student' && tab === 'quizzes' && (
-        <section className="card">
-          <h3>Quizzes</h3>
-          {isBackend ? (
-            (() => {
-              const attempted = new Set((myQuizAttempts || []).map((a:any) => a.quiz_id))
-              const openQuizzes = (backendQuizzes || []).filter((q:any) => !attempted.has(q.id))
-              return (
-                openQuizzes.length === 0 ? <p className="muted">No available quizzes. You may have submitted all.</p> : (
-                  <ul className="list">
-                    {openQuizzes.map((q:any) => (
-                      <li key={q.id}>
-                        {q.title} {q.start_at ? `(Opens: ${new Date(q.start_at).toLocaleString()})` : ''}
-                        <button className="btn btn-primary" style={{ marginLeft: 8 }} onClick={() => location.assign(`/quizzes/${q.id}`)}>Start</button>
-                      </li>
-                    ))}
-                  </ul>
-                )
-              )
-            })()
-          ) : (
-            <p className="muted">Local course mode does not support quizzes.</p>
-          )}
-        </section>
-      )}
-
-      {user?.role === 'student' && tab === 'quizzes_submitted' && (
-        <section className="card">
-          <h3>Submitted Quizzes</h3>
-          {isBackend ? (
-            (myQuizAttempts || []).length === 0 ? <p className="muted">You have not submitted any quizzes yet.</p> : (
-              <ul className="list">
-                {(myQuizAttempts || []).map((a:any) => (
-                  <li key={a.id}>
-                    {a.quiz_title || `Quiz #${a.quiz_id}`} — {a.finished_at ? new Date(a.finished_at).toLocaleString() : 'Submitted'} — Score: {a.score ?? 'Pending'}
-                  </li>
-                ))}
-              </ul>
-            )
-          ) : (
-            <p className="muted">Local course mode does not support quizzes.</p>
-          )}
-        </section>
-      )}
 
       {user?.role === 'teacher' && tab === 'manage' && (
         <section className="card">
@@ -1379,6 +1888,24 @@ export default function CourseDetails() {
         </section>
       )}
 
+      {tab === 'progress' && isBackend && (
+        <section className="card">
+          <h3>Progress</h3>
+          {user?.role === 'student' ? (
+            <StudentProgressEmbed />
+          ) : (
+            <CourseProgressEmbed offeringId={courseId || ''} />
+          )}
+        </section>
+      )}
+
+      {tab === 'discussion' && isBackend && (
+        <section className="card">
+          <h3>Discussion</h3>
+          <p className="muted">Discussion forum (implementation needed)</p>
+        </section>
+      )}
+
       {user?.role === 'teacher' && tab === 'manage' && assignmentCreationType === 'quiz' && (
         <section className="card">
           <div style={{ display: 'flex', alignItems: 'center', marginBottom: 16 }}>
@@ -1476,27 +2003,48 @@ export default function CourseDetails() {
                         'Run Code'
                       )}
                     </button>
-                    <button className="btn btn-primary" onClick={async () => {
-                      if (!codeEditor[q.id]?.trim()) {
-                        push({ kind: 'error', message: 'Write your code first' })
-                        return
-                      }
-                      try {
-                        await apiFetch('/api/submissions/submit/code', {
-                          method: 'POST',
-                          body: {
-                            assignment_id: Number(selectedCodeAssignment.id),
-                            question_id: Number(q.id),
-                            language: codeLang[q.id] || 'python',
-                            code: codeEditor[q.id]
-                          }
-                        })
-                        push({ kind: 'success', message: 'Code submitted successfully' })
-                      } catch (err: any) {
-                        push({ kind: 'error', message: err?.message || 'Submission failed' })
-                      }
-                    }} disabled={!codeEditor[q.id]?.trim()}>
-                      Submit
+                    <button 
+                      className="btn" 
+                      onClick={async () => {
+                        if (!codeEditor[q.id]?.trim()) {
+                          push({ kind: 'error', message: 'Write your code first' })
+                          return
+                        }
+                        setIsSavingCode(prev => ({ ...prev, [q.id]: true }))
+                        try {
+                          await apiFetch('/api/submissions/submit/code', {
+                            method: 'POST',
+                            body: {
+                              assignment_id: Number(selectedCodeAssignment.id),
+                              question_id: Number(q.id),
+                              language: codeLang[q.id] || 'python',
+                              code: codeEditor[q.id]
+                            }
+                          })
+                          setSavedQuestions(prev => ({ ...prev, [q.id]: true }))
+                          push({ kind: 'success', message: `Question ${idx + 1} code saved successfully` })
+                        } catch (err: any) {
+                          push({ kind: 'error', message: err?.message || 'Failed to save code' })
+                        } finally {
+                          setIsSavingCode(prev => ({ ...prev, [q.id]: false }))
+                        }
+                      }} 
+                      disabled={!codeEditor[q.id]?.trim() || isSavingCode[q.id]}
+                      style={{ 
+                        backgroundColor: savedQuestions[q.id] ? '#10b981' : undefined,
+                        color: savedQuestions[q.id] ? 'white' : undefined
+                      }}
+                    >
+                      {isSavingCode[q.id] ? (
+                        <>
+                          <span className="spinner" style={{ marginRight: 8, display: 'inline-block' }}></span>
+                          Saving...
+                        </>
+                      ) : savedQuestions[q.id] ? (
+                        '✓ Saved'
+                      ) : (
+                        'Save Code'
+                      )}
                     </button>
                   </div>
                   {isRunningCode[q.id] && (
@@ -1516,7 +2064,7 @@ export default function CourseDetails() {
                           <pre style={{ marginTop: 4, fontSize: '0.9em', backgroundColor: '#f8f9fa', padding: 8, borderRadius: 4, whiteSpace: 'pre-wrap' }}>
                             {runResults[q.id].stdout || '(empty)'}
                           </pre>
-                        </div>
+                                               </div>
                       )}
                       {runResults[q.id].expected && (
                         <div style={{ marginTop: 8 }}>
@@ -1547,23 +2095,149 @@ export default function CourseDetails() {
           ) : (
             <p className="muted">No questions found for this assignment.</p>
           )}
+          {selectedCodeAssignment.questions && selectedCodeAssignment.questions.length > 0 && (
+            <div style={{ 
+              marginTop: 24, 
+              padding: 16, 
+              backgroundColor: '#f9fafb', 
+              border: '2px solid #6366f1', 
+              borderRadius: 8,
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center'
+            }}>
+              <div>
+                <h4 style={{ margin: 0, marginBottom: 4 }}>Final Submission</h4>
+                <p style={{ margin: 0, fontSize: '0.9em', color: '#6b7280' }}>
+                  {(() => {
+                    const savedCount = selectedCodeAssignment.questions.filter((q: CodeQuestion) => savedQuestions[q.id]).length
+                    const totalCount = selectedCodeAssignment.questions.length
+                    return `Saved ${savedCount} of ${totalCount} questions`
+                  })()}
+                </p>
+              </div>
+              <button
+                className="btn btn-primary"
+                style={{ 
+                  fontSize: '16px',
+                  padding: '12px 24px',
+                  fontWeight: 600
+                }}
+                onClick={async () => {
+                  // Check if all questions have code
+                  const allHaveCode = selectedCodeAssignment.questions.every((q: CodeQuestion) => {
+                    return codeEditor[q.id]?.trim()
+                  })
+
+                  if (!allHaveCode) {
+                    push({ kind: 'error', message: 'Please write code for all questions before final submission' })
+                    return
+                  }
+
+                  // Check if all questions are saved
+                  const allSaved = selectedCodeAssignment.questions.every((q: CodeQuestion) => {
+                    return savedQuestions[q.id]
+                  })
+
+                  if (!allSaved) {
+                    const confirmSave = confirm('Some questions are not saved. Do you want to save all questions and submit?')
+                    if (!confirmSave) return
+
+                    // Save all unsaved questions first
+                    for (const q of selectedCodeAssignment.questions) {
+                      if (!savedQuestions[q.id] && codeEditor[q.id]?.trim()) {
+                        try {
+                          await apiFetch('/api/submissions/submit/code', {
+                            method: 'POST',
+                            body: {
+                              assignment_id: Number(selectedCodeAssignment.id),
+                              question_id: Number(q.id),
+                              language: codeLang[q.id] || 'python',
+                              code: codeEditor[q.id]
+                            }
+                          })
+                          setSavedQuestions(prev => ({ ...prev, [q.id]: true }))
+                        } catch (err: any) {
+                          push({ kind: 'error', message: `Failed to save question ${q.id}: ${err?.message}` })
+                          return
+                        }
+                      }
+                    }
+                  }
+
+                  // Final submission - ensure all questions are saved, then mark as complete
+                  try {
+                    // Ensure all questions are saved (submit any unsaved ones)
+                    for (const q of selectedCodeAssignment.questions) {
+                      if (codeEditor[q.id]?.trim() && !savedQuestions[q.id]) {
+                        try {
+                          await apiFetch('/api/submissions/submit/code', {
+                            method: 'POST',
+                            body: {
+                              assignment_id: Number(selectedCodeAssignment.id),
+                              question_id: Number(q.id),
+                              language: codeLang[q.id] || 'python',
+                              code: codeEditor[q.id]
+                            }
+                          })
+                          setSavedQuestions(prev => ({ ...prev, [q.id]: true }))
+                        } catch (err: any) {
+                          push({ kind: 'error', message: `Failed to save question ${q.id}: ${err?.message}` })
+                          return
+                        }
+                      }
+                    }
+
+                    // All questions are now saved. The submission is complete.
+                    // The backend creates/updates the submission when code is saved,
+                    // so all questions are already stored in the database.
+                    
+                    push({ kind: 'success', message: 'Assignment submitted successfully! All questions have been saved and submitted.' })
+                    
+                    // Reload submissions to update the list
+                    if (user?.role === 'student' && user?.id && courseId) {
+                      try {
+                        const submissions = await apiFetch<any[]>(`/api/student/courses/${courseId}/submissions`)
+                        setMySubmissions(submissions || [])
+                      } catch {}
+                    }
+
+                    // Close the code attempt view and go back
+                    setTabInternal('')
+                    setSelectedCodeAssignment(null)
+                    setCodeEditor({})
+                    setCodeLang({})
+                    setSavedQuestions({})
+                    setRunResults({})
+                  } catch (err: any) {
+                    push({ kind: 'error', message: err?.message || 'Final submission failed' })
+                  }
+                }}
+                disabled={selectedCodeAssignment.questions.some((q: CodeQuestion) => !codeEditor[q.id]?.trim())}
+              >
+                Final Submit Assignment
+              </button>
+            </div>
+          )}
         </section>
       )}
 
       {showCodeEditor && viewingCodeSubmission && (
         <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <div className="card" style={{ maxWidth: '90%', maxHeight: '90%', overflow: 'auto' }}>
+          <div className="card" style={{ maxWidth: '95%', maxHeight: '95%', overflow: 'auto', width: '100%' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-              <h3>Code Submission</h3>
+              <div>
+                <h3 style={{ margin: 0 }}>Code Submission - {viewingCodeSubmission.student_name || viewingCodeSubmission.student_email}</h3>
+                <p style={{ margin: '4px 0 0 0', color: '#6b7280', fontSize: '0.9em' }}>
+                  Submitted: {viewingCodeSubmission.submitted_at ? new Date(viewingCodeSubmission.submitted_at).toLocaleString() : 'N/A'}
+                </p>
+              </div>
               <button className="btn" onClick={() => { setShowCodeEditor(false); setViewingCodeSubmission(null) }}>Close</button>
             </div>
-            {viewingCodeSubmission.code && viewingCodeSubmission.code.length > 0 && (
-              <CodeViewer
-                code={viewingCodeSubmission.code[0].code}
-                language={viewingCodeSubmission.code[0].language}
-                studentName={viewingCodeSubmission.student_name}
-                studentEmail={viewingCodeSubmission.student_email}
-                submittedAt={viewingCodeSubmission.submitted_at}
+            
+            {viewingCodeSubmission.code && viewingCodeSubmission.code.length > 0 ? (
+              <TeacherCodeSubmissionViewer 
+                submission={viewingCodeSubmission}
                 onGrade={async (score, feedback) => {
                   try {
                     await apiFetch('/api/submissions/grade', {
@@ -1581,7 +2255,10 @@ export default function CourseDetails() {
                     push({ kind: 'error', message: err?.message || 'Grading failed' })
                   }
                 }}
+                push={push}
               />
+            ) : (
+              <p className="muted">No code submissions found.</p>
             )}
           </div>
         </div>

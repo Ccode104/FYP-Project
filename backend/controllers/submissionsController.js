@@ -293,15 +293,47 @@ export async function getSubmissionById(req, res) {
     const filesQ = `SELECT id, storage_path, filename, mime_type FROM submission_files WHERE submission_id = $1`;
     const filesR = await pool.query(filesQ, [submissionId]);
 
-    const codeQ = `SELECT * FROM code_submissions WHERE submission_id = $1`;
+    // Fetch code submissions with question_id from assignment_questions
+    const codeQ = `
+      SELECT cs.*, aq.question_id
+      FROM code_submissions cs
+      LEFT JOIN assignment_questions aq ON cs.assignment_question_id = aq.id
+      WHERE cs.submission_id = $1
+    `;
     const codeR = await pool.query(codeQ, [submissionId]);
 
     const gradesQ = `SELECT * FROM submission_grades WHERE submission_id = $1 ORDER BY created_at DESC`;
     const gradesR = await pool.query(gradesQ, [submissionId]);
 
+    // Fetch test case results for each code submission
+    const codeWithTestResults = await Promise.all(
+      (codeR.rows || []).map(async (codeSub) => {
+        // Get test case results for this code submission
+        const testResultsQ = `
+          SELECT 
+            csr.*,
+            cqt.input_text,
+            cqt.expected_text,
+            cqt.is_sample
+          FROM code_submission_results csr
+          LEFT JOIN code_question_testcases cqt ON csr.code_testcase_id = cqt.id
+          WHERE csr.code_submission_id = $1
+          ORDER BY csr.created_at ASC
+        `;
+        const testResultsR = await pool.query(testResultsQ, [codeSub.id]);
+        
+        return {
+          ...codeSub,
+          test_case_results: testResultsR.rows || [],
+          // Parse test_results JSONB if it exists
+          test_results: codeSub.test_results ? (typeof codeSub.test_results === 'string' ? JSON.parse(codeSub.test_results) : codeSub.test_results) : null
+        };
+      })
+    );
+
     const result = Object.assign({}, submission, {
       files: filesR.rows || [],
-      code: codeR.rows || [],
+      code: codeWithTestResults,
       grades: gradesR.rows || []
     });
 

@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useMemo, useState } from 'react'
 
-export type Role = 'student' | 'teacher' | 'ta'
+export type Role = 'student' | 'teacher' | 'ta' | 'admin'
 
 export interface User {
   id: string
@@ -19,7 +19,7 @@ const AuthContext = createContext<AuthContextValue | undefined>(undefined)
 
 function mapBackendRole(r: string): Role {
   if (r === 'faculty') return 'teacher'
-  if (r === 'admin') return 'ta' // map admin to TA permissions in UI for now
+  if (r === 'admin') return 'admin'
   if (r === 'ta') return 'ta'
   return 'student'
 }
@@ -85,6 +85,8 @@ export function getDashboardPathForRole(role: Role) {
       return '/dashboard/teacher'
     case 'ta':
       return '/dashboard/ta'
+    case 'admin':
+      return '/dashboard/admin'
     default:
       return '/login'
   }

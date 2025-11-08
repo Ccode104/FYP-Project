@@ -22,7 +22,7 @@ function MenuButton({ onDelete, label }: { onDelete: () => void; label: string }
 }
 
 export default function StudentDashboard() {
-  const { user, logout } = useAuth()
+  const { user } = useAuth()
   const navigate = useNavigate()
 
   const [loading, setLoading] = useState(true)
@@ -96,14 +96,17 @@ export default function StudentDashboard() {
 
   return (
     <div className="container container-wide dashboard-page student-theme">
-      <header className="topbar">
-        <h2>Welcome, {user?.name} ({user?.role.toUpperCase()})</h2>
-        <div className="actions">
-          <button className="btn btn-primary" onClick={() => setEnrOpen(true)}>{(user?.role === 'ta' || user?.role === 'teacher') ? ' Enroll Student' : ' Enroll Course '}</button>
-          <button className="btn btn-ghost" onClick={() => navigate('/')}>Home</button>
-          <button className="btn btn-ghost" onClick={logout}>Logout</button>
+      <div className="dashboard-header">
+        <div className="welcome-section">
+          <h1 className="dashboard-title">Welcome back, {user?.name}!</h1>
+          <p className="dashboard-subtitle">Manage your courses and track your progress</p>
         </div>
-      </header>
+        <div className="dashboard-actions">
+          <button className="btn btn-primary" onClick={() => setEnrOpen(true)}>
+            {(user?.role === 'ta' || user?.role === 'teacher') ? ' Enroll Student' : ' Enroll Course '}
+          </button>
+        </div>
+      </div>
 
       <div className="card" style={{ marginBottom: 16 }}>
         <div className="dashboard-toolbar">

@@ -92,7 +92,11 @@ export async function loginUser(req, res) {
     });
   } catch (err) {
     console.error('Error in loginUser:', err);
-    res.status(500).json({ error: 'Internal server error' });
+    // Provide more detailed error message in development
+    const errorMessage = process.env.NODE_ENV === 'development' 
+      ? `Internal server error: ${err.message}` 
+      : 'Internal server error';
+    res.status(500).json({ error: errorMessage });
   }
 }
 

@@ -11,7 +11,7 @@ export default function Signup() {
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
-  const [role, setRole] = useState<'student'|'teacher'|'ta'>('student')
+  const [role, setRole] = useState<'student'|'teacher'|'ta'|'admin'>('student')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const { push } = useToast()
@@ -37,7 +37,6 @@ export default function Signup() {
 
   return (
     <div className="auth-page" style={{ backgroundImage: `linear-gradient(rgba(0, 0, 0, 0.3), rgba(0, 0, 0, 0.3)), url(${backgroundImg})` }}>
-      <div className="brand-logo">Unified Academic Portal</div>
       <div className="auth-card">
         <h1 className="heading">Sign Up</h1>
         <p className="subheading">Start your journey in minutes</p>
@@ -92,6 +91,7 @@ export default function Signup() {
               <option value="student">Student</option>
               <option value="teacher">Teacher</option>
               <option value="ta">TA</option>
+              <option value="admin">Admin</option>
             </select>
           </label>
 
