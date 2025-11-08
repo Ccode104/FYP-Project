@@ -7,20 +7,20 @@ import './AdminDashboard.css'
 import { listUsers, getUserOverview, getCoursesByDepartment, getCourseDetails, getAssignmentsByOffering, getAssignmentsByFaculty, getSubmissionsByAssignment } from '../../services/admin'
 
 export default function AdminDashboard() {
-  const { user } = useAuth()
+  const { user, logout} = useAuth()
   const navigate = useNavigate()
 
   const isAdmin = user?.role === 'admin'
   const [tab, setTab] = useState<'explorer'>('explorer')
 
   // Users state
-  const [roleFilter, setRoleFilter] = useState<'student'|'faculty'|'ta'|'admin'|''>('student')
+  const [roleFilter, setRoleFilter] = useState<'student' | 'faculty' | 'ta' | 'admin' | ''>('student')
   const [usersList, setUsersList] = useState<any[]>([])
   const [selectedUser, setSelectedUser] = useState<any>(null)
   const [selectedOverview, setSelectedOverview] = useState<any>(null)
   const [loadError, setLoadError] = useState<string>('')
   const [isLoading, setIsLoading] = useState(false)
-  
+
   const loadUsers = async () => {
     try {
       setIsLoading(true)
@@ -39,8 +39,8 @@ export default function AdminDashboard() {
       setIsLoading(false)
     }
   }
-  
-  useEffect(() => { 
+
+  useEffect(() => {
     if (isAdmin) {
       console.log('Effect triggered - loading users')
       void loadUsers()
@@ -176,9 +176,9 @@ export default function AdminDashboard() {
             <div>
               <div className="form" style={{ marginBottom: 12 }}>
                 <div className="grid" style={{ gridTemplateColumns: '1fr', gap: 8 }}>
-                  <button className={`btn ${roleFilter==='student'?'btn-primary':''}`} onClick={()=> setRoleFilter('student')}>Students</button>
-                  <button className={`btn ${roleFilter==='faculty'?'btn-primary':''}`} onClick={()=> setRoleFilter('faculty')}>Teachers</button>
-                  <button className={`btn ${roleFilter==='ta'?'btn-primary':''}`} onClick={()=> setRoleFilter('ta')}>TAs</button>
+                  <button className={`btn ${roleFilter === 'student' ? 'btn-primary' : ''}`} onClick={() => setRoleFilter('student')}>Students</button>
+                  <button className={`btn ${roleFilter === 'faculty' ? 'btn-primary' : ''}`} onClick={() => setRoleFilter('faculty')}>Teachers</button>
+                  <button className={`btn ${roleFilter === 'ta' ? 'btn-primary' : ''}`} onClick={() => setRoleFilter('ta')}>TAs</button>
                 </div>
               </div>
               {isLoading && (
@@ -195,9 +195,9 @@ export default function AdminDashboard() {
                 </div>
               )}
               <ul className="list" style={{ maxHeight: 500, overflowY: 'auto' }}>
-                {usersList.map((u)=> (
+                {usersList.map((u) => (
                   <li key={u.id}>
-                    <button className="btn" onClick={async ()=> {
+                    <button className="btn" onClick={async () => {
                       setSelectedUser(u)
                       setSelectedOverview(null)
                       const ov = await getUserOverview(u.id)
@@ -223,8 +223,8 @@ export default function AdminDashboard() {
                     <>
                       <h5>Enrolled Courses</h5>
                       <ul className="list">
-                        {selectedOverview.student.enrollments.map((e:any)=> (
-                          <li key={e.offering_id}>{e.course_code} — {e.course_title} [{e.term}{e.section?'-'+e.section:''}] · Faculty: {e.faculty_name}</li>
+                        {selectedOverview.student.enrollments.map((e: any) => (
+                          <li key={e.offering_id}>{e.course_code} — {e.course_title} [{e.term}{e.section ? '-' + e.section : ''}] · Faculty: {e.faculty_name}</li>
                         ))}
                       </ul>
                     </>
@@ -233,16 +233,16 @@ export default function AdminDashboard() {
                     <>
                       <h5>Offerings</h5>
                       <ul className="list">
-                        {selectedOverview.faculty.offerings.map((o:any)=> (
+                        {selectedOverview.faculty.offerings.map((o: any) => (
                           <li key={o.offering_id}>
-                            {o.course_code} — {o.course_title} [{o.term}{o.section?'-'+o.section:''}]
-                            {o.students?.length? (
+                            {o.course_code} — {o.course_title} [{o.term}{o.section ? '-' + o.section : ''}]
+                            {o.students?.length ? (
                               <ul className="list" style={{ marginTop: 6 }}>
-                                {o.students.map((s:any)=> (
+                                {o.students.map((s: any) => (
                                   <li key={s.id}>{s.name || s.email} <span className="muted">({s.email})</span></li>
                                 ))}
                               </ul>
-                            ): <div className="muted">No enrolled students yet.</div>}
+                            ) : <div className="muted">No enrolled students yet.</div>}
                           </li>
                         ))}
                       </ul>
@@ -252,8 +252,8 @@ export default function AdminDashboard() {
                     <>
                       <h5>TA Assignments</h5>
                       <ul className="list">
-                        {selectedOverview.ta.assignments.map((a:any)=> (
-                          <li key={a.offering_id}>{a.course_code} — {a.course_title} [{a.term}{a.section?'-'+a.section:''}]</li>
+                        {selectedOverview.ta.assignments.map((a: any) => (
+                          <li key={a.offering_id}>{a.course_code} — {a.course_title} [{a.term}{a.section ? '-' + a.section : ''}]</li>
                         ))}
                       </ul>
                     </>
@@ -279,7 +279,7 @@ export default function AdminDashboard() {
       {tab === 'explorer' && (
         <section style={{ padding: '24px' }}>
           {/* Breadcrumb Navigation */}
-          <div style={{ 
+          <div style={{
             background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
             padding: '20px 24px',
             borderRadius: '12px',
