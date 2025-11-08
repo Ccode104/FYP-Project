@@ -141,6 +141,9 @@ export default function CourseDetails() {
   const submissions = courseId && !isBackend ? getSubmissions(courseId) : []
   const [backendPYQ, setBackendPYQ] = useState<any[]>([])
   const [backendNotes, setBackendNotes] = useState<any[]>([])
+  const [discussion, setDiscussion] = useState<any[]>([])
+  const [newTopMessage, setNewTopMessage] = useState('')
+  const [replyDrafts, setReplyDrafts] = useState<Record<string, string>>({})
 
   const [newAssnTitle, setNewAssnTitle] = useState('')
   const [newAssnDesc, setNewAssnDesc] = useState('')
@@ -211,6 +214,14 @@ export default function CourseDetails() {
         setBackendNotes(notes)
       } catch {}
     })()
+    // load discussion
+    void (async () => {
+      try {
+        const { listDiscussionMessages } = await import('../../services/discussion')
+        const items = await listDiscussionMessages(courseId!)
+        setDiscussion(items)
+      } catch {}
+    })()
   }
 
   return (
@@ -221,6 +232,9 @@ export default function CourseDetails() {
           {course.title} — {user?.role.toUpperCase()}
         </h2>
         <div className="actions">
+          {isBackend && (
+            <button className="btn" onClick={() => setTab('discussion')}>Discussion</button>
+          )}
           <button className="btn btn-ghost" onClick={() => history.back()}>Back</button>
           <button className="btn btn-ghost" onClick={logout}>Logout</button>
         </div>
@@ -252,6 +266,11 @@ export default function CourseDetails() {
         {user?.role === 'ta' && (
           <button className={tab === 'grading' ? 'active' : ''} onClick={() => setTab('grading')} aria-pressed={tab === 'grading'}>
             Grading
+          </button>
+        )}
+        {isBackend && (
+          <button className={tab === 'discussion' ? 'active' : ''} onClick={() => setTab('discussion')} aria-pressed={tab === 'discussion'}>
+            Discussion
           </button>
         )}
       </nav>
@@ -446,6 +465,72 @@ export default function CourseDetails() {
               </li>
             ))}
           </ul>
+        </section>
+      )}
+
+      {isBackend && tab === 'discussion' && (
+        <section className="card">
+          <h3>Discussion Forum</h3>
+          {(user?.role === 'teacher' || user?.role === 'ta') && (
+            <form onSubmit={async (e) => {
+              e.preventDefault();
+              const msg = newTopMessage.trim();
+              if (!msg) return;
+              try {
+                const { postDiscussionMessage, listDiscussionMessages } = await import('../../services/discussion')
+                await postDiscussionMessage(courseId!, msg)
+                setNewTopMessage('')
+                const items = await listDiscussionMessages(courseId!)
+                setDiscussion(items)
+                try { const { useToast } = await import('../../components/ToastProvider'); } catch {}
+                push({ kind: 'success', message: 'Posted' })
+              } catch (err:any) {
+                push({ kind: 'error', message: err?.message || 'Failed to post' })
+              }
+            }} style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
+              <input className="input" placeholder="New announcement" value={newTopMessage} onChange={(e) => setNewTopMessage(e.target.value)} />
+              <button className="btn btn-primary" type="submit">Post</button>
+            </form>
+          )}
+
+          {discussion.length === 0 ? <p className="muted">No messages yet.</p> : (
+            <ul className="list">
+              {discussion.filter((m:any)=>!m.parent_id).map((m:any)=> (
+                <li key={m.id}>
+                  <div><strong>{m.author_name || 'User'}</strong> <span className="muted">• {new Date(m.created_at).toLocaleString()}</span></div>
+                  <div style={{ whiteSpace: 'pre-wrap' }}>{m.content}</div>
+                  <div style={{ marginTop: 6, paddingLeft: 12, borderLeft: '2px solid #e5e7eb' }}>
+                    {discussion.filter((x:any)=>x.parent_id===m.id).map((r:any)=> (
+                      <div key={r.id} style={{ margin: '6px 0' }}>
+                        <strong>{r.author_name || 'User'}</strong> <span className="muted">• {new Date(r.created_at).toLocaleString()}</span>
+                        <div style={{ whiteSpace: 'pre-wrap' }}>{r.content}</div>
+                      </div>
+                    ))}
+                    {user?.role === 'student' && (
+                      <form onSubmit={async (e)=>{
+                        e.preventDefault();
+                        const text = (replyDrafts[m.id]||'').trim();
+                        if (!text) return;
+                        try {
+                          const { postDiscussionMessage, listDiscussionMessages } = await import('../../services/discussion')
+                          await postDiscussionMessage(courseId!, text, m.id)
+                          setReplyDrafts((d)=>({ ...d, [m.id]: '' }))
+                          const items = await listDiscussionMessages(courseId!)
+                          setDiscussion(items)
+                          push({ kind: 'success', message: 'Replied' })
+                        } catch (err:any) {
+                          push({ kind: 'error', message: err?.message || 'Reply failed' })
+                        }
+                      }} style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+                        <input className="input" placeholder="Reply" value={replyDrafts[m.id]||''} onChange={(e)=> setReplyDrafts((d)=>({ ...d, [m.id]: e.target.value }))} />
+                        <button className="btn" type="submit">Reply</button>
+                      </form>
+                    )}
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
         </section>
       )}
     </div>
