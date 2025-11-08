@@ -65,9 +65,14 @@ export default function CourseProgress() {
             const byType = groupBy(items, (r) => r.activity_type)
             return (
               <section key={sid} className="card">
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16 }}>
                   <h3>{name}</h3>
-                  <div className="muted">Overall: {totalScore} / {totalMax} ({pct}%)</div>
+                  <div style={{ minWidth: 220 }}>
+                    <div className="muted">Overall: {totalScore} / {totalMax} ({pct}%)</div>
+                    <div style={{ height: 8, background: '#e5e7eb', borderRadius: 4, overflow: 'hidden', marginTop: 6, minWidth: 160 }}>
+                      <div style={{ width: `${pct}%`, height: '100%', background: '#10b981' }} />
+                    </div>
+                  </div>
                 </div>
                 <div style={{ overflowX: 'auto' }}>
                   <table className="table">
