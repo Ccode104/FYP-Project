@@ -16,9 +16,10 @@
   position: sticky;
   top: 0;
   width: 100%;
-  background: rgba(255, 255, 255, 0.9);
+  background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
   backdrop-filter: blur(12px);
-  border-bottom: 1px solid rgba(229, 231, 235, 0.8);
+  border-bottom: 1px solid rgba(148, 163, 184, 0.2);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
   z-index: 100;
 }
 
