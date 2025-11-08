@@ -229,7 +229,7 @@ export default function CourseDetails() {
     <div className="container">
       <header className="topbar">
         <h2>
-          {course.title} — {user?.role.toUpperCase()}
+          {course.title} - {user?.role.toUpperCase()}
         </h2>
         <div className="actions">
           {isBackend && (
