@@ -323,15 +323,15 @@ export default function CourseDetails() {
           <h3>Create Assignment</h3>
           <div className="form" style={{ maxWidth: 640 }}>
             <label className="field">
-              <span className="label">Title</span>
+              <span className="label"></span>
               <input className="input" value={newAssnTitle} onChange={(e) => setNewAssnTitle(e.target.value)} placeholder="Assignment title" />
             </label>
             <label className="field">
-              <span className="label">Description</span>
+              <span className="label"></span>
               <input className="input" value={newAssnDesc} onChange={(e) => setNewAssnDesc(e.target.value)} placeholder="Optional details" />
             </label>
             <label className="field">
-              <span className="label">Type</span>
+              <span className="label"></span>
               <select className="select" value={newAssnType} onChange={(e) => setNewAssnType(e.target.value as any)}>
                 <option value="file">File</option>
                 <option value="code">Code</option>
@@ -340,18 +340,18 @@ export default function CourseDetails() {
             </label>
             <div className="grid" style={{ gridTemplateColumns: '1fr 1fr', gap: 8 }}>
               <label className="field">
-                <span className="label">Release at</span>
-                <input className="input" value={newAssnRelease} onChange={(e) => setNewAssnRelease(e.target.value)} placeholder="YYYY-MM-DDTHH:mm" />
+                <span className="label"></span>
+                <input className="input" value={newAssnRelease} onChange={(e) => setNewAssnRelease(e.target.value)} placeholder="Release at (YYYY-MM-DDTHH:mm)" />
               </label>
               <label className="field">
-                <span className="label">Due at</span>
-                <input className="input" value={newAssnDue} onChange={(e) => setNewAssnDue(e.target.value)} placeholder="YYYY-MM-DDTHH:mm" />
+                <span className="label"></span>
+                <input className="input" value={newAssnDue} onChange={(e) => setNewAssnDue(e.target.value)} placeholder="Due at (YYYY-MM-DDTHH:mm)" />
               </label>
             </div>
             <div className="grid" style={{ gridTemplateColumns: '1fr 1fr', gap: 8 }}>
               <label className="field">
-                <span className="label">Max score</span>
-                <input className="input" value={newAssnMax} onChange={(e) => setNewAssnMax(e.target.value)} placeholder="100" />
+                <span className="label"></span>
+                <input className="input" value={newAssnMax} onChange={(e) => setNewAssnMax(e.target.value)} placeholder="Max score (e.g 100)" />
               </label>
               <label className="field" style={{ alignItems: 'center' }}>
                 <span className="label">Allow multiple submissions</span>
