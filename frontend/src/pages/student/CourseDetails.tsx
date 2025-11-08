@@ -227,7 +227,7 @@ function CourseProgressEmbed({ offeringId }: { offeringId: string }) {
 export default function CourseDetails() {
   const { courseId } = useParams()
   const { user, logout } = useAuth()
-  const [tab, setTab] = useState<'present' | 'past' | 'pyq' | 'notes' | 'manage' | 'submissions' | 'grading' | 'progress'>('present')
+  const [tab, setTab] = useState<'present' | 'past' | 'pyq' | 'notes' | 'manage' | 'submissions' | 'grading' | 'progress' | 'discussion'>('present')
   const isBackend = !!courseId && /^\d+$/.test(courseId)
   const { push } = useToast()
 
@@ -676,7 +676,5 @@ export default function CourseDetails() {
       )}
         </div>
       </div>
-
-    </>
   )
 }
