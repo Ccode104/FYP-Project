@@ -10,7 +10,8 @@ import { useToast } from '../../components/ToastProvider'
 import { apiFetch } from '../../services/api'
 import { type ProgressRow } from '../../services/progress'
 import QuizCreator from '../../components/QuizCreator'
-import CodeViewer from '../../components/CodeViewer'
+import Chatbot from '../../components/Chatbot'
+import { listDiscussionMessages, postDiscussionMessage, type DiscussionMessage } from '../../services/discussion'
 
 // Add CodeQuestion type for frontend usage
 interface CodeQuestion {
@@ -45,14 +46,6 @@ function TeacherCodeSubmissionViewer({ submission, onGrade, push }: { submission
   useEffect(() => {
     const loadQuestionDetails = async () => {
       const details: Record<string, any> = {}
-      
-      // First, get all questions for this assignment
-      let assignmentQuestions: any[] = []
-      try {
-        assignmentQuestions = await apiFetch(`/api/assignments/${submission.assignment_id}/questions`)
-      } catch (err) {
-        console.error('Failed to load assignment questions:', err)
-      }
 
       for (const codeSub of submission.code || []) {
         // question_id should now be available from the backend response
@@ -692,7 +685,7 @@ export default function CourseDetails() {
   const { courseId } = useParams()
   const { user, logout } = useAuth()
   const navigate = useNavigate()
-  const [tab, setTab] = useState<'present' | 'past' | 'pyq' | 'notes' | 'quizzes' | 'quizzes_submitted' | 'manage' | 'submissions' | 'grading' | 'progress' | 'discussion'>('present')
+  const [tab, setTab] = useState<'present' | 'past' | 'pyq' | 'notes' | 'quizzes' | 'quizzes_submitted' | 'manage' | 'submissions' | 'grading' | 'progress' | 'discussion' | 'chatbot' | 'pdfchat'>('present')
   const [assignmentCreationType, setAssignmentCreationType] = useState<'selection' | 'code' | 'quiz' | 'pdf'>('selection')
   const isBackend = !!courseId && /^\d+$/.test(courseId)
   const toast = useToast()
@@ -712,6 +705,11 @@ export default function CourseDetails() {
   const [myQuizAttempts, setMyQuizAttempts] = useState<any[]>([])
   const [mySubmissions, setMySubmissions] = useState<any[]>([]) // Track student's submissions
   const [selectedAssignmentId, setSelectedAssignmentId] = useState<string>('')
+  const [discussionMessages, setDiscussionMessages] = useState<DiscussionMessage[]>([])
+  const [discussionLoading, setDiscussionLoading] = useState(false)
+  const [newPostContent, setNewPostContent] = useState('')
+  const [replyingTo, setReplyingTo] = useState<number | null>(null)
+  const [replyContent, setReplyContent] = useState('')
 
   const course = useMemo(() => {
     if (!courseId) return undefined
@@ -1291,10 +1289,106 @@ export default function CourseDetails() {
           if (!cancelled) setMySubmissions([])
         }
       }
-      // Discussion loading can be added here if needed
+      // Load discussion messages
+      if (isBackend && courseId) {
+        try {
+          const messages = await listDiscussionMessages(courseId)
+          if (!cancelled) setDiscussionMessages(messages || [])
+        } catch (err) {
+          console.error('Failed to load discussion messages:', err)
+          if (!cancelled) setDiscussionMessages([])
+        }
+      }
     })()
     return () => { cancelled = true }
   }, [courseId, isBackend, user?.id, user?.role])
+
+  // Load discussion messages when tab is active
+  useEffect(() => {
+    if (tab === 'discussion' && isBackend && courseId) {
+      setDiscussionLoading(true)
+      listDiscussionMessages(courseId)
+        .then(messages => {
+          setDiscussionMessages(messages || [])
+        })
+        .catch(err => {
+          console.error('Failed to load discussion messages:', err)
+          push({ kind: 'error', message: 'Failed to load discussion messages' })
+        })
+        .finally(() => {
+          setDiscussionLoading(false)
+        })
+    }
+  }, [tab, isBackend, courseId])
+
+  // Handle posting a new discussion message
+  const handlePostMessage = async () => {
+    if (!newPostContent.trim() || !courseId || !isBackend) return
+    
+    setDiscussionLoading(true)
+    try {
+      const result = await postDiscussionMessage(courseId, newPostContent.trim())
+      if (result.message) {
+        setDiscussionMessages(prev => [result.message, ...prev])
+        setNewPostContent('')
+        push({ kind: 'success', message: 'Message posted successfully' })
+      }
+    } catch (err: any) {
+      console.error('Failed to post message:', err)
+      push({ kind: 'error', message: err.message || 'Failed to post message' })
+    } finally {
+      setDiscussionLoading(false)
+    }
+  }
+
+  // Handle posting a reply
+  const handlePostReply = async (parentId: number) => {
+    if (!replyContent.trim() || !courseId || !isBackend) return
+    
+    setDiscussionLoading(true)
+    try {
+      const result = await postDiscussionMessage(courseId, replyContent.trim(), parentId)
+      if (result.message) {
+        setDiscussionMessages(prev => [result.message, ...prev])
+        setReplyContent('')
+        setReplyingTo(null)
+        push({ kind: 'success', message: 'Reply posted successfully' })
+      }
+    } catch (err: any) {
+      console.error('Failed to post reply:', err)
+      push({ kind: 'error', message: err.message || 'Failed to post reply' })
+    } finally {
+      setDiscussionLoading(false)
+    }
+  }
+
+  // Organize messages into threads (top-level messages with their replies)
+  const discussionThreads = useMemo(() => {
+    const threads: DiscussionMessage[] = []
+    const repliesMap = new Map<number, DiscussionMessage[]>()
+    
+    // Separate top-level messages from replies
+    discussionMessages.forEach(msg => {
+      if (msg.parent_id === null) {
+        threads.push(msg)
+      } else {
+        if (!repliesMap.has(msg.parent_id)) {
+          repliesMap.set(msg.parent_id, [])
+        }
+        repliesMap.get(msg.parent_id)!.push(msg)
+      }
+    })
+    
+    // Sort threads by created_at (newest first)
+    threads.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+    
+    // Sort replies by created_at (oldest first)
+    repliesMap.forEach(replies => {
+      replies.sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
+    })
+    
+    return { threads, repliesMap }
+  }, [discussionMessages])
 
   return (
     <>
@@ -1387,9 +1481,6 @@ export default function CourseDetails() {
           {course?.title || 'Course'} - {user?.role.toUpperCase()}
         </h2>
         <div className="actions">
-          {isBackend && (
-            <button className="btn" onClick={() => setTab('discussion')}>Discussion</button>
-          )}
           <button className="btn btn-ghost" onClick={() => navigate(-1)}>Back</button>
           <button className="btn btn-ghost" onClick={logout}>Logout</button>
         </div>
@@ -1417,6 +1508,16 @@ export default function CourseDetails() {
                     Discussion
                   </button>
                 )}
+                {isBackend && (
+                  <button className={tab === 'chatbot' ? 'active' : ''} onClick={() => setTab('chatbot')} aria-pressed={tab === 'chatbot'}>
+                    AI Assistant
+                  </button>
+                )}
+                {isBackend && (
+                  <button className={tab === 'pdfchat' ? 'active' : ''} onClick={() => setTab('pdfchat')} aria-pressed={tab === 'pdfchat'}>
+                    PDF Q&A
+                  </button>
+                )}
               </>
             ) : (
               <>
@@ -1437,6 +1538,21 @@ export default function CourseDetails() {
                     Progress
                   </button>
                 )}
+                {isBackend && (
+                  <button className={tab === 'discussion' ? 'active' : ''} onClick={() => setTab('discussion')} aria-pressed={tab === 'discussion'}>
+                    Discussion
+                  </button>
+                )}
+                {isBackend && (
+                  <button className={tab === 'chatbot' ? 'active' : ''} onClick={() => setTab('chatbot')} aria-pressed={tab === 'chatbot'}>
+                    AI Assistant
+                  </button>
+                )}
+                {isBackend && (
+                  <button className={tab === 'pdfchat' ? 'active' : ''} onClick={() => setTab('pdfchat')} aria-pressed={tab === 'pdfchat'}>
+                    PDF Q&A
+                  </button>
+                )}
               </>
             )}
         {user?.role === 'teacher' && (
@@ -1454,11 +1570,6 @@ export default function CourseDetails() {
                 Grading
               </button>
             )}
-            {isBackend && (
-          <button className={tab === 'discussion' ? 'active' : ''} onClick={() => setTab('discussion')} aria-pressed={tab === 'discussion'}>
-            Discussion
-          </button>
-        )}
       </nav>
 
           {tab === 'present' && (
@@ -1845,8 +1956,108 @@ export default function CourseDetails() {
 
       {tab === 'discussion' && isBackend && (
         <section className="card">
-          <h3>Discussion</h3>
-          <p className="muted">Discussion forum (implementation needed)</p>
+          <h3>Discussion Forum</h3>
+          <div className="discussion-wrap">
+            {/* New Post Form */}
+            <div className="discussion-new">
+              <textarea
+                className="input"
+                placeholder="Start a new discussion..."
+                value={newPostContent}
+                onChange={(e) => setNewPostContent(e.target.value)}
+                rows={3}
+                disabled={discussionLoading}
+              />
+              <button
+                className="btn btn-primary"
+                onClick={handlePostMessage}
+                disabled={!newPostContent.trim() || discussionLoading}
+              >
+                {discussionLoading ? 'Posting...' : 'Post'}
+              </button>
+            </div>
+
+            {/* Discussion Threads */}
+            {discussionLoading && discussionThreads.threads.length === 0 ? (
+              <p className="muted">Loading discussions...</p>
+            ) : discussionThreads.threads.length === 0 ? (
+              <p className="muted">No discussions yet. Be the first to start one!</p>
+            ) : (
+              <ul className="discussion-list">
+                {discussionThreads.threads.map((thread) => {
+                  const replies = discussionThreads.repliesMap.get(thread.id) || []
+                  return (
+                    <li key={thread.id} className="discussion-thread">
+                      <div className="discussion-meta">
+                        <strong>{thread.author_name || 'Anonymous'}</strong>
+                        {thread.author_role && ` (${thread.author_role})`}
+                        {' • '}
+                        {new Date(thread.created_at).toLocaleString()}
+                      </div>
+                      <div className="discussion-content">{thread.content}</div>
+                      
+                      {/* Replies */}
+                      {replies.length > 0 && (
+                        <div className="discussion-replies">
+                          {replies.map((reply) => (
+                            <div key={reply.id} className="discussion-reply">
+                              <div className="discussion-meta">
+                                <strong>{reply.author_name || 'Anonymous'}</strong>
+                                {reply.author_role && ` (${reply.author_role})`}
+                                {' • '}
+                                {new Date(reply.created_at).toLocaleString()}
+                              </div>
+                              <div className="discussion-content">{reply.content}</div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+
+                      {/* Reply Form */}
+                      {replyingTo === thread.id ? (
+                        <div className="discussion-reply-form">
+                          <textarea
+                            className="input"
+                            placeholder="Write a reply..."
+                            value={replyContent}
+                            onChange={(e) => setReplyContent(e.target.value)}
+                            rows={2}
+                            disabled={discussionLoading}
+                          />
+                          <div style={{ display: 'flex', gap: '8px' }}>
+                            <button
+                              className="btn btn-primary"
+                              onClick={() => handlePostReply(thread.id)}
+                              disabled={!replyContent.trim() || discussionLoading}
+                            >
+                              {discussionLoading ? 'Posting...' : 'Reply'}
+                            </button>
+                            <button
+                              className="btn btn-ghost"
+                              onClick={() => {
+                                setReplyingTo(null)
+                                setReplyContent('')
+                              }}
+                            >
+                              Cancel
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <button
+                          className="btn btn-ghost"
+                          onClick={() => setReplyingTo(thread.id)}
+                          style={{ marginTop: '12px' }}
+                        >
+                          Reply
+                        </button>
+                      )}
+                    </li>
+                  )
+                })}
+              </ul>
+            )}
+          </div>
         </section>
       )}
 
@@ -1896,13 +2107,6 @@ export default function CourseDetails() {
           ) : (
             <CourseProgressEmbed offeringId={courseId || ''} />
           )}
-        </section>
-      )}
-
-      {tab === 'discussion' && isBackend && (
-        <section className="card">
-          <h3>Discussion</h3>
-          <p className="muted">Discussion forum (implementation needed)</p>
         </section>
       )}
 
@@ -2263,8 +2467,27 @@ export default function CourseDetails() {
           </div>
         </div>
       )}
-    </div>
-    </div>
+
+      {tab === 'chatbot' && isBackend && (
+        <section className="card">
+          <h3>AI Assistant — Course</h3>
+          <p className="muted" style={{ marginTop: 4 }}>Ask questions about this course and get AI-powered answers.</p>
+          <div style={{ marginTop: 12 }}>
+            <Chatbot type="course" offeringId={Number(courseId)} />
+          </div>
+        </section>
+      )}
+      {tab === 'pdfchat' && isBackend && (
+        <section className="card">
+          <h3>AI Assistant — PDF</h3>
+          <p className="muted" style={{ marginTop: 4 }}>Upload a PDF, then ask questions about its content.</p>
+          <div style={{ marginTop: 12 }}>
+            <Chatbot type="pdf" />
+          </div>
+        </section>
+      )}
+        </div>
+      </div>
     </>
   )
 }
