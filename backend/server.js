@@ -12,6 +12,7 @@ import extendedRoutes from './routes/extended.js';
 import { logger } from './utils/logger.js';
 import usersRoutes from './routes/users.js';
 import studentRoutes from './routes/student.js';
+import discussionsRoutes from './routes/discussions.js';
 import swaggerSpec from './swagger.js';
 
 export async function startServer(port = 4000) {
@@ -32,7 +33,7 @@ export async function startServer(port = 4000) {
   app.use('/api', extendedRoutes);
   app.use('/api/users', usersRoutes);
   app.use('/api/student', studentRoutes);
-
+  app.use('/api/discussions', discussionsRoutes);
 
   app.get('/health', (req, res) => res.json({ ok: true }));
 
