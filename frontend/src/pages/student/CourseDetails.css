@@ -65,3 +65,42 @@
   color: #4b5563;
   font-weight: 500;
 }
+
+/* Table styling for progress and lists */
+.course-details-page .table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 8px 0;
+  font-size: 14px;
+}
+
+.course-details-page .table th,
+.course-details-page .table td {
+  border: 1px solid #e6edf3;
+  padding: 10px 12px;
+  text-align: left;
+  vertical-align: middle;
+}
+
+.course-details-page .table thead th {
+  background: #f8fafc;
+  color: #111827;
+  font-weight: 600;
+}
+
+.course-details-page .table tbody tr:nth-child(odd) {
+  background: #ffffff;
+}
+
+.course-details-page .table tbody tr:nth-child(even) {
+  background: #fbfdff;
+}
+
+.course-details-page .table td:last-child,
+.course-details-page .table th:last-child {
+  white-space: nowrap;
+}
+
+.course-details-page .muted {
+  color: #6b7280;
+}
