@@ -72,11 +72,7 @@ export async function postMessage(req, res) {
     let parentId = parent_id ? Number(parent_id) : null;
     if (Number.isNaN(parentId)) parentId = null;
 
-    // Students can only reply; teachers/TAs/admin can create top-level
-    if (!parentId && user.role === 'student') {
-      return res.status(403).json({ error: 'Students can only reply to a thread' });
-    }
-
+    // Anyone with access can create a top-level message or reply
     if (parentId) {
       // Validate parent exists and belongs to same offering
       const p = await pool.query('SELECT id FROM discussion_messages WHERE id=$1 AND course_offering_id=$2', [parentId, offeringId]);
