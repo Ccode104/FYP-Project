@@ -1,0 +1,66 @@
+.assignment-progress {
+  padding: 1rem 0;
+}
+
+.progress-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 1rem;
+}
+
+.progress-card {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 1rem;
+  background: var(--surface);
+}
+
+.progress-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1rem;
+}
+
+.progress-header h4 {
+  margin: 0;
+}
+
+.status-badge {
+  padding: 0.25rem 0.75rem;
+  border-radius: 999px;
+  font-size: 0.875rem;
+  font-weight: 500;
+}
+
+.status-badge.submitted {
+  background-color: #10b981;
+  color: white;
+}
+
+.status-badge.pending {
+  background-color: #f59e0b;
+  color: white;
+}
+
+.progress-details {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.late-badge {
+  margin-left: 0.5rem;
+  padding: 0.125rem 0.5rem;
+  background-color: #ef4444;
+  color: white;
+  border-radius: 999px;
+  font-size: 0.75rem;
+}
+
+.feedback {
+  margin-top: 0.5rem;
+  padding: 0.5rem;
+  background-color: var(--bg-secondary);
+  border-radius: 4px;
+}

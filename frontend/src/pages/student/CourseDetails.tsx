@@ -8,9 +8,18 @@ import { addSubmission } from '../../data/submissions'
 import './CourseDetails.css'
 import { useToast } from '../../components/ToastProvider'
 import { apiFetch } from '../../services/api'
-import { type ProgressRow } from '../../services/progress'
 import QuizCreator from '../../components/QuizCreator'
 import Chatbot from '../../components/Chatbot'
+import TeacherCodeSubmissionViewer from '../../components/course/TeacherCodeSubmissionViewer'
+import BackendSubmissions from '../../components/course/BackendSubmissions'
+import BackendGrading from '../../components/course/BackendGrading'
+import StudentProgressEmbed from '../../components/course/StudentProgressEmbed'
+import CourseProgressEmbed from '../../components/course/CourseProgressEmbed'
+import MenuTiny from '../../components/course/MenuTiny'
+import PyqList from '../../components/course/PyqList'
+import NotesList from '../../components/course/NotesList'
+import DiscussionForum from '../../components/course/DiscussionForum'
+import PresentAssignmentsSection from '../../components/course/PresentAssignmentsSection'
 import { listDiscussionMessages, postDiscussionMessage, type DiscussionMessage } from '../../services/discussion'
 
 // Add CodeQuestion type for frontend usage
@@ -33,400 +42,6 @@ interface CodeQuestion {
   }>
 }
 
-// Teacher Code Submission Viewer Component
-function TeacherCodeSubmissionViewer({ submission, onGrade, push }: { submission: any; onGrade: (score: number, feedback: string) => void; push: any }) {
-  const [showGradingForm, setShowGradingForm] = useState(false)
-  const [score, setScore] = useState('')
-  const [feedback, setFeedback] = useState('')
-  const [runningTestCases, setRunningTestCases] = useState<Record<string, boolean>>({})
-  const [testCaseResults, setTestCaseResults] = useState<Record<string, any>>({})
-  const [questionDetails, setQuestionDetails] = useState<Record<string, any>>({})
-
-  // Load question details for each code submission
-  useEffect(() => {
-    const loadQuestionDetails = async () => {
-      const details: Record<string, any> = {}
-
-      for (const codeSub of submission.code || []) {
-        // question_id should now be available from the backend response
-        const questionId = codeSub.question_id
-        
-        if (questionId) {
-          try {
-            const questionData = await apiFetch(`/api/code-questions/${questionId}`)
-            details[codeSub.id] = questionData
-          } catch (err) {
-            console.error('Failed to load question details:', err)
-          }
-        }
-      }
-      setQuestionDetails(details)
-    }
-    if (submission.code && submission.code.length > 0 && submission.assignment_id) {
-      loadQuestionDetails()
-    }
-  }, [submission])
-
-  const runHiddenTestCases = async (codeSub: any, questionId: number) => {
-    if (!codeSub.code || !codeSub.language) {
-      push({ kind: 'error', message: 'No code found for this question' })
-      return
-    }
-
-    setRunningTestCases(prev => ({ ...prev, [codeSub.id]: true }))
-    try {
-      // Fetch all test cases for this question (including hidden ones)
-      const question = await apiFetch(`/api/code-questions/${questionId}`)
-      const allTestCases = question.test_cases || []
-      const hiddenTestCases = allTestCases.filter((tc: any) => !tc.is_sample)
-
-      if (hiddenTestCases.length === 0) {
-        push({ kind: 'info', message: 'No hidden test cases found for this question' })
-        setRunningTestCases(prev => ({ ...prev, [codeSub.id]: false }))
-        return
-      }
-
-      // Run each hidden test case
-      const results: any[] = []
-      for (const testCase of hiddenTestCases) {
-        try {
-          const result = await apiFetch('/api/judge', {
-            method: 'POST',
-            body: {
-              source_code: codeSub.code,
-              language: codeSub.language,
-              stdin: testCase.input_text || '',
-              expected_output: testCase.expected_text || ''
-            }
-          })
-
-          const passed = result.stdout && testCase.expected_text && 
-                        result.stdout.trim() === testCase.expected_text.trim()
-
-          results.push({
-            ...testCase,
-            passed,
-            student_output: result.stdout || '',
-            error_output: result.stderr || result.compile_output || '',
-            execution_time_ms: result.time ? Math.round(result.time * 1000) : null,
-            status: result.status
-          })
-        } catch (err: any) {
-          results.push({
-            ...testCase,
-            passed: false,
-            error: err?.message || 'Execution failed'
-          })
-        }
-      }
-
-      setTestCaseResults(prev => ({ ...prev, [codeSub.id]: results }))
-      const passedCount = results.filter(r => r.passed).length
-      push({ kind: 'success', message: `Ran ${results.length} hidden test cases. ${passedCount}/${results.length} passed.` })
-    } catch (err: any) {
-      push({ kind: 'error', message: err?.message || 'Failed to run hidden test cases' })
-    } finally {
-      setRunningTestCases(prev => ({ ...prev, [codeSub.id]: false }))
-    }
-  }
-
-  const handleGradeSubmit = (e: React.FormEvent) => {
-    e.preventDefault()
-    const numScore = parseFloat(score)
-    if (isNaN(numScore) || numScore < 0 || numScore > 100) {
-      push({ kind: 'error', message: 'Please enter a valid score between 0 and 100' })
-      return
-    }
-    onGrade(numScore, feedback)
-    setShowGradingForm(false)
-    setScore('')
-    setFeedback('')
-  }
-
-  return (
-    <div>
-      {/* Grading Form */}
-      {showGradingForm && (
-        <div style={{ 
-          padding: '16px', 
-          backgroundColor: '#f9fafb', 
-          border: '1px solid #e5e7eb', 
-          borderRadius: '8px',
-          marginBottom: '24px'
-        }}>
-          <h4 style={{ marginTop: 0, marginBottom: '12px' }}>Grade Assignment</h4>
-          <form onSubmit={handleGradeSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-            <div>
-              <label style={{ display: 'block', marginBottom: '4px', fontWeight: 500 }}>
-                Score (0-100):
-              </label>
-              <input
-                type="number"
-                min="0"
-                max="100"
-                step="0.1"
-                value={score}
-                onChange={(e) => setScore(e.target.value)}
-                required
-                style={{
-                  width: '100%',
-                  padding: '8px',
-                  border: '1px solid #d1d5db',
-                  borderRadius: '4px',
-                  fontSize: '14px'
-                }}
-              />
-            </div>
-            <div>
-              <label style={{ display: 'block', marginBottom: '4px', fontWeight: 500 }}>
-                Feedback (optional):
-              </label>
-              <textarea
-                value={feedback}
-                onChange={(e) => setFeedback(e.target.value)}
-                rows={4}
-                style={{
-                  width: '100%',
-                  padding: '8px',
-                  border: '1px solid #d1d5db',
-                  borderRadius: '4px',
-                  fontSize: '14px',
-                  fontFamily: 'inherit',
-                  resize: 'vertical'
-                }}
-                placeholder="Provide feedback to the student..."
-              />
-            </div>
-            <div style={{ display: 'flex', gap: 8 }}>
-              <button type="submit" className="btn btn-primary">
-                Submit Grade
-              </button>
-              <button type="button" className="btn" onClick={() => setShowGradingForm(false)}>
-                Cancel
-              </button>
-            </div>
-          </form>
-        </div>
-      )}
-
-      {/* Grade Button */}
-      {!showGradingForm && (
-        <div style={{ marginBottom: '24px', display: 'flex', justifyContent: 'flex-end' }}>
-          <button className="btn btn-primary" onClick={() => setShowGradingForm(true)}>
-            Grade Assignment
-          </button>
-        </div>
-      )}
-
-      {/* Display all questions */}
-      {submission.code.map((codeSub: any, idx: number) => {
-        const question = questionDetails[codeSub.id]
-        const hiddenTestResults = testCaseResults[codeSub.id] || []
-        const existingTestResults = codeSub.test_case_results || []
-        const allTestResults = [...existingTestResults, ...hiddenTestResults]
-
-        return (
-          <div key={codeSub.id || idx} style={{ 
-            marginBottom: '32px', 
-            padding: '20px', 
-            border: '1px solid #e5e7eb', 
-            borderRadius: '8px',
-            backgroundColor: '#ffffff'
-          }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '16px' }}>
-              <h4 style={{ margin: 0 }}>Question {idx + 1}</h4>
-              <div style={{ display: 'flex', gap: 8 }}>
-                {question && (
-                  <button
-                    className="btn"
-                    onClick={() => runHiddenTestCases(codeSub, question.id)}
-                    disabled={runningTestCases[codeSub.id]}
-                  >
-                    {runningTestCases[codeSub.id] ? (
-                      <>
-                        <span className="spinner" style={{ marginRight: 8, display: 'inline-block' }}></span>
-                        Running...
-                      </>
-                    ) : (
-                      'Run Hidden Test Cases'
-                    )}
-                  </button>
-                )}
-              </div>
-            </div>
-
-            {/* Question Description */}
-            {question && (
-              <div style={{ marginBottom: '16px', padding: '12px', backgroundColor: '#f9fafb', borderRadius: '4px' }}>
-                <strong>Question:</strong>
-                <div style={{ marginTop: '8px', whiteSpace: 'pre-wrap' }}>{question.description}</div>
-                {question.constraints && (
-                  <div style={{ marginTop: '8px', padding: '8px', backgroundColor: '#fff3cd', borderRadius: '4px' }}>
-                    <strong>Constraints:</strong> {question.constraints}
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* Code Display */}
-            <div style={{ marginBottom: '16px' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-                <strong>Submitted Code</strong>
-                <span style={{ fontSize: '0.9em', color: '#6b7280' }}>Language: {codeSub.language}</span>
-              </div>
-              <pre style={{
-                margin: 0,
-                padding: '16px',
-                backgroundColor: '#1e293b',
-                color: '#e2e8f0',
-                borderRadius: '4px',
-                overflow: 'auto',
-                fontSize: '14px',
-                fontFamily: 'monospace',
-                whiteSpace: 'pre-wrap',
-                wordBreak: 'break-word'
-              }}>
-                {codeSub.code}
-              </pre>
-              <button 
-                className="btn" 
-                style={{ marginTop: '8px' }}
-                onClick={() => {
-                  navigator.clipboard.writeText(codeSub.code)
-                  push({ kind: 'success', message: 'Code copied to clipboard' })
-                }}
-              >
-                Copy Code
-              </button>
-            </div>
-
-            {/* Test Case Results */}
-            {allTestResults.length > 0 && (
-              <div style={{ marginTop: '16px' }}>
-                <h5 style={{ marginBottom: '12px' }}>Test Case Results</h5>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                  {allTestResults.map((testCase: any, tcIdx: number) => (
-                    <div
-                      key={testCase.id || tcIdx}
-                      style={{
-                        padding: '16px',
-                        border: `2px solid ${testCase.passed ? '#10b981' : '#ef4444'}`,
-                        borderRadius: '8px',
-                        backgroundColor: testCase.passed ? '#f0fdf4' : '#fef2f2'
-                      }}
-                    >
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
-                        <span style={{ fontSize: '20px', fontWeight: 'bold' }}>
-                          {testCase.passed ? '✓' : '✗'}
-                        </span>
-                        <strong style={{ fontSize: '16px' }}>
-                          Test Case {tcIdx + 1}
-                          {testCase.is_sample && <span style={{ color: '#6b7280', fontSize: '14px', marginLeft: '8px' }}>(Sample)</span>}
-                          {!testCase.is_sample && <span style={{ color: '#6366f1', fontSize: '14px', marginLeft: '8px' }}>(Hidden)</span>}
-                        </strong>
-                        {testCase.execution_time_ms !== null && testCase.execution_time_ms !== undefined && (
-                          <span style={{ color: '#6b7280', fontSize: '14px', marginLeft: 'auto' }}>
-                            {testCase.execution_time_ms}ms
-                          </span>
-                        )}
-                      </div>
-
-                      {testCase.input_text && (
-                        <div style={{ marginBottom: '8px' }}>
-                          <strong style={{ display: 'block', marginBottom: '4px', fontSize: '14px' }}>Input:</strong>
-                          <pre style={{
-                            margin: 0,
-                            padding: '8px',
-                            backgroundColor: '#ffffff',
-                            border: '1px solid #e5e7eb',
-                            borderRadius: '4px',
-                            fontSize: '13px',
-                            whiteSpace: 'pre-wrap',
-                            fontFamily: 'monospace',
-                            overflowX: 'auto'
-                          }}>
-                            {testCase.input_text || '(empty)'}
-                          </pre>
-                        </div>
-                      )}
-
-                      {testCase.expected_text && (
-                        <div style={{ marginBottom: '8px' }}>
-                          <strong style={{ display: 'block', marginBottom: '4px', fontSize: '14px' }}>Expected Output:</strong>
-                          <pre style={{
-                            margin: 0,
-                            padding: '8px',
-                            backgroundColor: '#ffffff',
-                            border: '1px solid #e5e7eb',
-                            borderRadius: '4px',
-                            fontSize: '13px',
-                            whiteSpace: 'pre-wrap',
-                            fontFamily: 'monospace',
-                            overflowX: 'auto'
-                          }}>
-                            {testCase.expected_text || '(empty)'}
-                          </pre>
-                        </div>
-                      )}
-
-                      {testCase.student_output !== undefined && (
-                        <div style={{ marginBottom: '8px' }}>
-                          <strong style={{ display: 'block', marginBottom: '4px', fontSize: '14px' }}>Student Output:</strong>
-                          <pre style={{
-                            margin: 0,
-                            padding: '8px',
-                            backgroundColor: '#ffffff',
-                            border: `1px solid ${testCase.passed ? '#10b981' : '#ef4444'}`,
-                            borderRadius: '4px',
-                            fontSize: '13px',
-                            whiteSpace: 'pre-wrap',
-                            fontFamily: 'monospace',
-                            overflowX: 'auto'
-                          }}>
-                            {testCase.student_output || '(empty)'}
-                          </pre>
-                        </div>
-                      )}
-
-                      {testCase.error_output && testCase.error_output.trim() !== '' && (
-                        <div style={{ marginTop: '8px' }}>
-                          <strong style={{ display: 'block', marginBottom: '4px', fontSize: '14px', color: '#ef4444' }}>Error:</strong>
-                          <pre style={{
-                            margin: 0,
-                            padding: '8px',
-                            backgroundColor: '#fff5f5',
-                            border: '1px solid #fecaca',
-                            borderRadius: '4px',
-                            fontSize: '13px',
-                            whiteSpace: 'pre-wrap',
-                            fontFamily: 'monospace',
-                            color: '#dc2626',
-                            overflowX: 'auto'
-                          }}>
-                            {testCase.error_output}
-                          </pre>
-                        </div>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* Summary */}
-            {allTestResults.length > 0 && (
-              <div style={{ marginTop: '16px', padding: '12px', backgroundColor: '#f9fafb', borderRadius: '4px' }}>
-                <strong>Summary: </strong>
-                {allTestResults.filter((tc: any) => tc.passed).length} / {allTestResults.length} test cases passed
-              </div>
-            )}
-          </div>
-        )
-      })}
-    </div>
-  )
-}
-
 function loadLocalCodeQuestions(courseId: string) : CodeQuestion[] {
   try {
     const raw = localStorage.getItem(`codeQuestions:${courseId}`)
@@ -435,345 +50,6 @@ function loadLocalCodeQuestions(courseId: string) : CodeQuestion[] {
 }
 function saveLocalCodeQuestions(courseId: string, items: CodeQuestion[]) {
   try { localStorage.setItem(`codeQuestions:${courseId}`, JSON.stringify(items)) } catch {}
-}
-
-function BackendSubmissions({ assignments, onViewCode }: { assignments: any[]; onViewCode?: (submission: any) => void }) {
-  const [assignmentId, setAssignmentId] = useState<string>('')
-  const [items, setItems] = useState<any[]>([])
-  const [selectedAssignment, setSelectedAssignment] = useState<any>(null)
-  const load = async (id: string) => {
-    if (!id) { setItems([]); setSelectedAssignment(null); return }
-    const data = await apiFetch<{ submissions: any[] }>(`/api/assignments/${id}/submissions`)
-    setItems(data.submissions || [])
-    const assn = assignments.find((a: any) => String(a.id) === String(id))
-    setSelectedAssignment(assn)
-  }
-  return (
-    <div>
-      <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 8 }}>
-        <select className="select" value={assignmentId} onChange={(e) => { setAssignmentId(e.target.value); void load(e.target.value) }}>
-          <option value="">Select assignment</option>
-          {assignments.map((a: any) => (<option key={a.id} value={a.id}>{a.title} ({a.assignment_type || 'file'})</option>))}
-        </select>
-      </div>
-      {items.length === 0 ? <p className="muted">No submissions yet.</p> : (
-        <ul className="list">
-          {items.map((s) => (
-            <li key={s.id} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <span style={{ flex: 1 }}>
-                {selectedAssignment?.assignment_type === 'code' ? '💻 Code submission' : (s.files?.[0]?.filename || 'file')} — {s.student_name || s.student_email}
-              </span>
-              {selectedAssignment?.assignment_type === 'code' && onViewCode && (
-                <button className="btn btn-primary" onClick={async () => {
-                  // Fetch full submission details including code
-                  const detail = await apiFetch<{ submission: any }>(`/api/submissions/${s.id}`)
-                  onViewCode(detail.submission)
-                }}>View Code</button>
-              )}
-            </li>
-          ))}
-        </ul>
-      )}
-    </div>
-  )
-}
-
-function BackendGrading({ assignments, onSave }: { assignments: any[]; onSave: (sid: string, letter: string) => void }) {
-  const [assignmentId, setAssignmentId] = useState<string>('')
-  const [items, setItems] = useState<any[]>([])
-  const [grades, setGrades] = useState<Record<string, string>>({})
-  const load = async (id: string) => {
-    if (!id) { setItems([]); return }
-    const data = await apiFetch<{ submissions: any[] }>(`/api/assignments/${id}/submissions`)
-    setItems(data.submissions || [])
-  }
-  const save = async (sid: string) => {
-    const letter = grades[sid]
-    if (!letter) return
-    const map: Record<string, number> = { A: 95, B: 85, C: 75, D: 65, E: 55, F: 45 }
-    await apiFetch('/api/submissions/grade', { method: 'POST', body: { submission_id: Number(sid), score: map[letter] ?? 0, feedback: null } })
-    onSave(sid, letter)
-  }
-  return (
-    <div>
-      <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 8 }}>
-        <select className="select" value={assignmentId} onChange={(e) => { setAssignmentId(e.target.value); void load(e.target.value) }}>
-          <option value="">Select assignment</option>
-          {assignments.map((a: any) => (<option key={a.id} value={a.id}>{a.title}</option>))}
-        </select>
-      </div>
-      {items.length === 0 ? <p className="muted">No submissions to grade.</p> : (
-        <ul className="list">
-          {items.map((s) => (
-            <li key={s.id}>
-              {s.files?.[0]?.filename || 'file'} — {s.student_name || s.student_email}
-              <select className="select" style={{ marginLeft: 8 }} value={grades[s.id] ?? ''} onChange={(e) => setGrades((m) => ({ ...m, [s.id]: e.target.value }))}>
-                <option value="">Select grade</option>
-                <option value="A">A</option>
-                <option value="B">B</option>
-                <option value="C">C</option>
-                <option value="D">D</option>
-                <option value="E">E</option>
-                <option value="F">F</option>
-              </select>
-              <button className="btn btn-primary" style={{ marginLeft: 8 }} onClick={() => void save(s.id)}>Save</button>
-            </li>
-          ))}
-        </ul>
-      )}
-    </div>
-  )
-}
-
-function MenuTiny({ onDelete }: { onDelete: () => void }) {
-  const [open, setOpen] = useState(false)
-  return (
-    <div style={{ position: 'relative' }}>
-      <button className="btn" onClick={(e)=>{ e.stopPropagation(); setOpen((v)=>!v) }} aria-label="More">⋮</button>
-      {open && (
-        <div className="card" style={{ position: 'absolute', right: 0, marginTop: 4, zIndex: 10 }}>
-          <button className="btn" onClick={(e) => { e.stopPropagation(); setOpen(false); onDelete() }}>Delete</button>
-        </div>
-      )}
-    </div>
-  )
-}
-
-function groupBy<T, K extends keyof any>(list: T[], getKey: (item: T) => K): Record<K, T[]> {
-  return list.reduce((acc, item) => {
-    const k = getKey(item)
-    ;(acc as any)[k] ||= []
-    ;(acc as any)[k].push(item)
-    return acc
-  }, {} as Record<K, T[]>)
-}
-
-function StudentProgressEmbed({ offeringId, assignmentTotal }: { offeringId?: string; assignmentTotal?: number }) {
-  const [rows, setRows] = useState<ProgressRow[]>([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-  useEffect(() => {
-    (async () => {
-      try {
-        // Student progress: call /api/progress/me, then filter to this course and to submitted/graded only
-        const r = await apiFetch<{ rows: ProgressRow[] }>('/api/progress/me')
-        const filtered = (r.rows || [])
-          .filter(row => (!offeringId || String(row.course_offering_id) === String(offeringId)))
-          .filter(row => row.submitted_at != null || row.score != null)
-        setRows(filtered)
-      } catch(e:any){ setError(e?.message||'Failed to load') }
-      finally { setLoading(false) }
-    })()
-  }, [offeringId])
-  const totalMax = rows.reduce((s, r)=> s + (r.max_score||0), 0)
-  const totalScore = rows.reduce((s, r)=> s + (r.score||0), 0)
-  const avgPct = totalMax>0 ? Math.round((totalScore/totalMax)*100) : 0
-  const byType = groupBy(rows, (r)=> r.activity_type)
-  const assignmentRows = rows.filter(r => r.activity_type === 'assignment')
-  const completedCount = assignmentRows.filter(r => !!r.submitted_at).length
-  const totalAssignments = assignmentTotal ?? completedCount
-  const onTime = assignmentRows.filter(r => r.submitted_at && r.due_at && new Date(r.submitted_at) <= new Date(r.due_at)).length
-  const late = assignmentRows.filter(r => r.submitted_at && r.due_at && new Date(r.submitted_at) > new Date(r.due_at)).length
-  const onTimePct = (onTime+late)>0 ? Math.round((onTime/(onTime+late))*100) : 0
-  return (
-    <div>
-      {loading ? <p className="muted">Loading…</p> : null}
-      {error ? <div className="card" style={{ borderColor: '#ef4444', borderWidth: 1 }}>{error}</div> : null}
-      {!loading && rows.length===0 ? <p className="muted">No progress yet.</p> : (
-        <>
-
-          {/* KPI row: Total, Completed, Avg Score, On-time */}
-          <div className="grid" style={{ gridTemplateColumns: 'repeat(4, minmax(0,1fr))', gap: 12, marginBottom: 12 }}>
-            <div className="card"><div className="muted">Total Assignments</div><div style={{ fontSize: 20, fontWeight: 600 }}>{totalAssignments}</div></div>
-            <div className="card"><div className="muted">Completed</div><div style={{ fontSize: 20, fontWeight: 600 }}>{completedCount}</div></div>
-            <div className="card"><div className="muted">Avg Score</div><div style={{ fontSize: 20, fontWeight: 600 }}>{avgPct}%</div></div>
-            <div className="card"><div className="muted">On‑time Rate</div><div style={{ fontSize: 20, fontWeight: 600 }}>{onTimePct}%</div></div>
-          </div>
-
-          {/* Charts: Completion line + On-time vs Late bar */}
-          <div className="grid" style={{ gridTemplateColumns: '2fr 1fr', gap: 12, alignItems: 'stretch', marginBottom: 8 }}>
-            <div className="card" style={{ padding: 12 }}>
-              {(() => {
-                const done = assignmentRows.filter(r => r.submitted_at)
-                const buckets = new Map<string, number>()
-                done.forEach(r => {
-                  const d = new Date(r.submitted_at as string)
-                  const key = `${d.getFullYear()}-${(d.getMonth()+1).toString().padStart(2,'0')}-${d.getDate().toString().padStart(2,'0')}`
-                  buckets.set(key, (buckets.get(key) || 0) + 1)
-                })
-                const series = Array.from(buckets.entries()).sort(([a],[b])=> a.localeCompare(b)).map(([k,v])=>({ date: k, inc: v }))
-                let cum = 0
-                const points = series.map(s => ({ date: s.date, value: (cum += s.inc) }))
-                const W = 360, H = 140, m = { t: 18, r: 10, b: 26, l: 28 }
-                const cw = W - m.l - m.r, ch = H - m.t - m.b
-                const n = Math.max(points.length, 1)
-                const maxY = Math.max(totalAssignments, points.reduce((mx,p)=> Math.max(mx, p.value), 0)) || 1
-                const xs = (i:number) => (n===1 ? cw/2 : (i*(cw/(n-1))))
-                const ys = (v:number) => ch - (v/maxY)*ch
-                const path = points.map((p,i)=> `${i===0?'M':'L'} ${xs(i)} ${ys(p.value)}`).join(' ')
-                const labels = points.length>0 ? [points[0].date, points[Math.floor((points.length-1)/2)].date, points[points.length-1].date] : []
-                return (
-                  <div>
-                    <div style={{ fontWeight: 600, marginBottom: 6 }}>Assignments completed</div>
-                    <svg width={W} height={H}>
-                      <g transform={`translate(${m.l},${m.t})`}>
-                        {[0, Math.ceil(maxY/2), maxY].map((v,i)=> (
-                          <g key={i}>
-                            <line x1={0} y1={ys(v)} x2={cw} y2={ys(v)} stroke="#e5e7eb" strokeWidth="1" />
-                            <text x={-6} y={ys(v)} textAnchor="end" dominantBaseline="middle" style={{ fill: '#6b7280', fontSize: 11 }}>{v}</text>
-                          </g>
-                        ))}
-                        {points.length>0 && (
-                          <>
-                            <path d={path} fill="none" stroke="#0ea5e9" strokeWidth={2} />
-                            {points.map((p,i)=> (<circle key={i} cx={xs(i)} cy={ys(p.value)} r={2.5} fill="#0284c7" />))}
-                          </>
-                        )}
-                        {labels.length===3 && (
-                          <>
-                            <text x={0} y={ch+16} textAnchor="start" style={{ fill: '#6b7280', fontSize: 11 }}>{labels[0]}</text>
-                            <text x={cw/2} y={ch+16} textAnchor="middle" style={{ fill: '#6b7280', fontSize: 11 }}>{labels[1]}</text>
-                            <text x={cw} y={ch+16} textAnchor="end" style={{ fill: '#6b7280', fontSize: 11 }}>{labels[2]}</text>
-                          </>
-                        )}
-                      </g>
-                    </svg>
-                  </div>
-                )
-              })()}
-            </div>
-
-            <div className="card" style={{ padding: 12 }}>
-              <div style={{ fontWeight: 600, marginBottom: 6 }}>On‑time vs Late</div>
-              {onTime+late === 0 ? (
-                <div className="muted">No timed submissions yet.</div>
-              ) : (
-                <div style={{ display: 'grid', gap: 10 }}>
-                  <div style={{ display: 'grid', gridTemplateColumns: '60px 1fr 40px', gap: 8, alignItems: 'center' }}>
-                    <div className="muted">On‑time</div>
-                    <div style={{ height: 10, background: '#e5e7eb', borderRadius: 5, overflow: 'hidden' }}>
-                      <div style={{ width: `${onTimePct}%`, height: '100%', background: '#10b981' }} />
-                    </div>
-                    <div style={{ textAlign: 'right', fontWeight: 600 }}>{onTimePct}%</div>
-                  </div>
-                  <div style={{ display: 'grid', gridTemplateColumns: '60px 1fr 40px', gap: 8, alignItems: 'center' }}>
-                    <div className="muted">Late</div>
-                    <div style={{ height: 10, background: '#e5e7eb', borderRadius: 5, overflow: 'hidden' }}>
-                      <div style={{ width: `${100-onTimePct}%`, height: '100%', background: '#ef4444' }} />
-                    </div>
-                    <div style={{ textAlign: 'right', fontWeight: 600 }}>{100-onTimePct}%</div>
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-
-          <div style={{ overflowX: 'auto' }}>
-            <table className="table">
-              <thead>
-                <tr>
-                  <th style={{minWidth:240}}>Title</th>
-                  <th>Type</th>
-                  <th>Status</th>
-                  <th>Score</th>
-                  <th>Max</th>
-                  <th>Due</th>
-                  <th>Submitted</th>
-                </tr>
-              </thead>
-              <tbody>
-                {Object.entries(byType).map(([type, list]) => (
-                  list.map((r) => (
-                    <tr key={`${type}-${r.activity_id}`}>
-                      <td>{r.activity_title || `#${r.activity_id}`}</td>
-                      <td>{type}</td>
-                      <td>{r.status || (r.score!=null ? 'Submitted' : 'Pending')}</td>
-                      <td>{r.score ?? '-'}</td>
-                      <td>{r.max_score ?? '-'}</td>
-                      <td>{r.due_at ? new Date(r.due_at).toLocaleString() : '-'}</td>
-                      <td>{r.submitted_at ? new Date(r.submitted_at).toLocaleString() : '-'}</td>
-                    </tr>
-                  ))
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </>
-      )}
-    </div>
-  )
-}
-
-function CourseProgressEmbed({ offeringId }: { offeringId: string }) {
-  const [rows, setRows] = useState<ProgressRow[]>([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-  useEffect(() => {
-    (async () => {
-      try {
-        // Staff progress: call /api/progress/course/:offeringId
-        const r = await apiFetch<{ rows: ProgressRow[] }>(`/api/progress/course/${offeringId}`)
-        setRows(r.rows || [])
-      } catch(e:any){ setError(e?.message||'Failed to load') }
-      finally { setLoading(false) }
-    })()
-  }, [offeringId])
-  const byStudent = useMemo(() => groupBy(rows, (r)=> String(r.student_id||'unknown')), [rows])
-  return (
-    <div>
-      {loading ? <p className="muted">Loading…</p> : null}
-      {error ? <div className="card" style={{ borderColor: '#ef4444', borderWidth: 1 }}>{error}</div> : null}
-      {Object.keys(byStudent).length===0 && !loading ? <p className="muted">No data.</p> : (
-        <div className="grid" style={{ gridTemplateColumns: '1fr', gap: 12 }}>
-          {Object.entries(byStudent).map(([sid, items]) => {
-            const name = items[0]?.student_name || items[0]?.student_email || `Student #${sid}`
-            const totalMax = items.reduce((s, r) => s + (r.max_score || 0), 0)
-            const totalScore = items.reduce((s, r) => s + (r.score || 0), 0)
-            const pct = totalMax > 0 ? Math.round((totalScore / totalMax) * 100) : 0
-            const byType = groupBy(items, (r)=> r.activity_type)
-            return (
-              <section key={sid} className="card">
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                  <h4 style={{ margin: 0 }}>{name}</h4>
-                  <div className="muted">{totalScore} / {totalMax} ({pct}%)</div>
-                </div>
-                <div style={{ overflowX: 'auto' }}>
-                  <table className="table">
-                    <thead>
-                      <tr>
-                        <th style={{minWidth:240}}>Title</th>
-                        <th>Type</th>
-                        <th>Status</th>
-                        <th>Score</th>
-                        <th>Max</th>
-                        <th>Due</th>
-                        <th>Submitted</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {Object.entries(byType).map(([type, list]) => (
-                        list.map((r) => (
-                          <tr key={`${sid}-${type}-${r.activity_id}`}>
-                            <td>{r.activity_title || `#${r.activity_id}`}</td>
-                            <td>{type}</td>
-                            <td>{r.status || (r.score!=null ? 'Submitted' : 'Pending')}</td>
-                            <td>{r.score ?? '-'}</td>
-                            <td>{r.max_score ?? '-'}</td>
-                            <td>{r.due_at ? new Date(r.due_at).toLocaleString() : '-'}</td>
-                            <td>{r.submitted_at ? new Date(r.submitted_at).toLocaleString() : '-'}</td>
-                          </tr>
-                        ))
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </section>
-            )
-          })}
-        </div>
-      )}
-    </div>
-  )
 }
 
 export default function CourseDetails() {
@@ -1668,177 +944,61 @@ export default function CourseDetails() {
       </nav>
 
           {tab === 'present' && (
-            <section className="card">
-              <h3>{user?.role === 'student' ? 'Assignments & Quizzes' : 'Open Assignments'}</h3>
-              {user?.role === 'student' && presentAssignments.length === 0 && (
-                <p className="muted">No unsubmitted assignments or quizzes available.</p>
-              )}
-              <ul className="list">
-{presentAssignments.map((a: any) => (
-                  <li 
-                    key={a.id} 
-                    style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: (user?.role==='student' && (a.assignment_type==='file' || a.assignment_type==='pdf')) ? 'pointer' : 'default' }}
-                    onClick={() => {
-                      if (user?.role==='student' && (a.assignment_type==='file' || a.assignment_type==='pdf')) {
-                        setSelectedAssignmentId(String(a.id))
-                        setTimeout(() => {
-                          const form = document.querySelector('form[data-assignment-submit]') as HTMLElement | null
-                          if (form) form.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
-                        }, 80)
-                      }
-                    }}
-                  >
-                    <span style={{ flex: 1 }}>
-                      {a.title} 
-                      {a.due_at ? ` (Due: ${new Date(a.due_at).toLocaleString()})` : ''}
-                      {a.assignment_type && (
-                        <span style={{ marginLeft: 8, fontSize: '0.9em', color: '#6b7280' }}>
-                          [{a.assignment_type === 'code' ? '💻 Code' : a.assignment_type === 'quiz' ? '📝 Quiz' : a.assignment_type === 'file' ? '📄 PDF' : a.assignment_type}]
-                        </span>
-                      )}
-                      {a.is_quiz && (
-                        <span style={{ marginLeft: 8, fontSize: '0.9em', color: '#6b7280' }}>
-                          [📝 Quiz-based]
-                        </span>
-                      )}
-                    </span>
-                    {isBackend && user?.role === 'teacher' && (
-                      <MenuTiny onDelete={async () => { 
-                        try { 
-                          await (await import('../../services/assignments')).deleteAssignmentApi(Number(a.id))
-                          push({ kind: 'success', message: 'Assignment deleted' })
-                          const data = await apiFetch<any[]>(`/api/courses/${courseId}/assignments`)
-                          setBackendAssignments(data) 
-                        } catch (e: any) { 
-                          push({ kind: 'error', message: e?.message || 'Failed' }) 
-                        } 
-                      }} />
-                    )}
-                    {user?.role === 'student' && (
-                      <>
-                        {a.is_quiz ? (
-                          <button 
-                            className="btn btn-primary" 
-                            style={{ marginLeft: 8 }} 
-                            onClick={() => location.assign(`/quizzes/${a.quiz_id}`)}
-                          >
-                            Attempt Quiz
-                          </button>
-                        ) : a.assignment_type === 'code' ? (
-                          <button 
-                            className="btn btn-primary" 
-                            style={{ marginLeft: 8 }} 
-                            onClick={() => void startCodeAttempt(a)}
-                          >
-                            Attempt Code
-                          </button>
-                        ) : a.assignment_type === 'file' || a.assignment_type === 'pdf' ? (
-                          <button 
-                            className="btn btn-primary" 
-                            style={{ marginLeft: 8 }} 
-                            onClick={() => {
-                              setSelectedAssignmentId(String(a.id))
-                              // Scroll to submission form
-                              setTimeout(() => {
-                                const form = document.querySelector('form[data-assignment-submit]') as HTMLElement | null
-                                if (form) form.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
-                              }, 80)
-                            }}
-                          >
-                            Submit PDF
-                          </button>
-                        ) : null}
-                      </>
-                    )}
-                  </li>
-                ))}
-              </ul>
-              {user?.role === 'student' && isBackend && (
-                <div style={{ marginTop: 24, paddingTop: 24, borderTop: '1px solid var(--border-color, #ddd)' }}>
-                  <h4>Submit PDF Assignment</h4>
-                  <form data-assignment-submit onSubmit={async (e) => {
-                    e.preventDefault()
-                    if (!selectedAssignmentId || !linkUrl.trim()) {
-                      return push({ kind: 'error', message: 'Please select an assignment and provide a URL' })
-                    }
+            <PresentAssignmentsSection
+              userRole={user?.role}
+              presentAssignments={presentAssignments as any[]}
+              isBackend={isBackend}
+              onTeacherDelete={async (id: number) => {
+                try {
+                  const mod = await import('../../services/assignments')
+                  await mod.deleteAssignmentApi(Number(id))
+                  push({ kind: 'success', message: 'Assignment deleted' })
+                  const data = await apiFetch<any[]>(`/api/courses/${courseId}/assignments`)
+                  setBackendAssignments(data)
+                } catch (e: any) {
+                  push({ kind: 'error', message: e?.message || 'Failed' })
+                }
+              }}
+              onStudentClickSubmitPDF={(id: string) => setSelectedAssignmentId(id)}
+              onAttemptQuiz={(quizId: any) => { location.assign(`/quizzes/${quizId}`) }}
+              onStartCodeAttempt={(assignment: any) => { void startCodeAttempt(assignment) }}
+              selectedAssignmentId={selectedAssignmentId}
+              onChangeSelectedAssignmentId={(v: string) => setSelectedAssignmentId(v)}
+              linkUrl={linkUrl}
+              onChangeLinkUrl={(v: string) => setLinkUrl(v)}
+              onSubmitLink={async (e: React.FormEvent) => {
+                e.preventDefault()
+                if (!selectedAssignmentId || !linkUrl.trim()) {
+                  return push({ kind: 'error', message: 'Please select an assignment and provide a URL' })
+                }
+                try {
+                  await apiFetch('/api/submissions/submit/link', {
+                    method: 'POST',
+                    body: { assignment_id: Number(selectedAssignmentId), url: linkUrl.trim() }
+                  })
+                  push({ kind: 'success', message: 'Assignment submitted successfully' })
+                  setLinkUrl('')
+                  setSelectedAssignmentId('')
+                  if (user?.id) {
                     try {
-                      await apiFetch('/api/submissions/submit/link', { 
-                        method: 'POST', 
-                        body: { assignment_id: Number(selectedAssignmentId), url: linkUrl.trim() } 
-                      })
-                      push({ kind: 'success', message: 'Assignment submitted successfully' })
-                      setLinkUrl('')
-                      setSelectedAssignmentId('')
-                      // Reload submissions to update the list
-                      if (user?.id) {
-                        try {
-                          const submissions = await apiFetch<any[]>(`/api/student/courses/${courseId}/submissions`)
-                          setMySubmissions(submissions || [])
-                        } catch {}
-                      }
-                    } catch (err: any) {
-                      push({ kind: 'error', message: err?.message || 'Submission failed' })
-                    }
-                  }} style={{ display: 'flex', gap: 8, alignItems: 'center', marginTop: 12, flexWrap: 'wrap' }}>
-                    <select 
-                      className="select" 
-                      value={selectedAssignmentId} 
-                      onChange={(e) => setSelectedAssignmentId(e.target.value)}
-                      style={{ minWidth: 200 }}
-                    >
-                      <option value="">Select PDF assignment</option>
-                      {(isBackend ? backendAssignments : presentAssignments)
-                        .filter((a: any) => (a.assignment_type === 'file' || a.assignment_type === 'pdf'))
-                        .map((a: any) => (
-                          <option key={a.id} value={String(a.id)}>{a.title}</option>
-                        ))}
-                    </select>
-                    <input 
-                      className="input" 
-                      style={{ flex: 1, minWidth: 260 }} 
-                      placeholder="Submission URL (e.g., Google Drive link)" 
-                      value={linkUrl} 
-                      onChange={(e) => setLinkUrl(e.target.value)} 
-                      required
-                    />
-                    <button className="btn btn-primary" type="submit" disabled={!selectedAssignmentId || !linkUrl.trim()}>
-                      Submit
-                    </button>
-                  </form>
-                </div>
-              )}
-              {user?.role === 'student' && isBackend && (
-                <div style={{ marginTop: 24, paddingTop: 24, borderTop: '1px solid var(--border-color, #ddd)' }}>
-                  <h4>Code Submission</h4>
-                  <p className="muted">Submit code for code-based assignments</p>
-                  <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginTop: 12 }}>
-                    <select 
-                      className="select" 
-                      value={codeAssignmentId} 
-                      onChange={(e) => setCodeAssignmentId(e.target.value)}
-                    >
-                      <option value="">Select code assignment</option>
-                      {presentAssignments.filter((a: any) => a.assignment_type === 'code').map((a: any) => (
-                        <option key={a.id} value={a.id}>{a.title}</option>
-                      ))}
-                    </select>
-                    <button 
-                      className="btn btn-primary" 
-                      onClick={() => {
-                        if (!codeAssignmentId) {
-                          push({ kind: 'error', message: 'Please select a code assignment' })
-                          return
-                        }
-                        setShowCodeEditor(true)
-                      }}
-                      disabled={!codeAssignmentId}
-                    >
-                      Open Code Editor
-                    </button>
-                  </div>
-                </div>
-              )}
-            </section>
+                      const submissions = await apiFetch<any[]>(`/api/student/courses/${courseId}/submissions`)
+                      setMySubmissions(submissions || [])
+                    } catch {}
+                  }
+                } catch (err: any) {
+                  push({ kind: 'error', message: err?.message || 'Submission failed' })
+                }
+              }}
+              codeAssignmentId={codeAssignmentId}
+              onChangeCodeAssignmentId={(v: string) => setCodeAssignmentId(v)}
+              onOpenCodeEditor={() => {
+                if (!codeAssignmentId) {
+                  push({ kind: 'error', message: 'Please select a code assignment' })
+                  return
+                }
+                setShowCodeEditor(true)
+              }}
+            />
           )}
 
       {tab === 'past' && (
@@ -2052,148 +1212,28 @@ export default function CourseDetails() {
 
 
       {tab === 'discussion' && isBackend && (
-        <section className="card">
-          <h3>Discussion Forum</h3>
-          <div className="discussion-wrap">
-            {/* New Post Form */}
-            <div className="discussion-new">
-              <textarea
-                className="input"
-                placeholder="Start a new discussion..."
-                value={newPostContent}
-                onChange={(e) => setNewPostContent(e.target.value)}
-                rows={3}
-                disabled={discussionLoading}
-              />
-              <button
-                className="btn btn-primary"
-                onClick={handlePostMessage}
-                disabled={!newPostContent.trim() || discussionLoading}
-              >
-                {discussionLoading ? 'Posting...' : 'Post'}
-              </button>
-            </div>
-
-            {/* Discussion Threads */}
-            {discussionLoading && discussionThreads.threads.length === 0 ? (
-              <p className="muted">Loading discussions...</p>
-            ) : discussionThreads.threads.length === 0 ? (
-              <p className="muted">No discussions yet. Be the first to start one!</p>
-            ) : (
-              <ul className="discussion-list">
-                {discussionThreads.threads.map((thread) => {
-                  const replies = discussionThreads.repliesMap.get(thread.id) || []
-                  return (
-                    <li key={thread.id} className="discussion-thread">
-                      <div className="discussion-meta">
-                        <strong>{thread.author_name || 'Anonymous'}</strong>
-                        {thread.author_role && ` (${thread.author_role})`}
-                        {' • '}
-                        {new Date(thread.created_at).toLocaleString()}
-                      </div>
-                      <div className="discussion-content">{thread.content}</div>
-                      
-                      {/* Replies */}
-                      {replies.length > 0 && (
-                        <div className="discussion-replies">
-                          {replies.map((reply) => (
-                            <div key={reply.id} className="discussion-reply">
-                              <div className="discussion-meta">
-                                <strong>{reply.author_name || 'Anonymous'}</strong>
-                                {reply.author_role && ` (${reply.author_role})`}
-                                {' • '}
-                                {new Date(reply.created_at).toLocaleString()}
-                              </div>
-                              <div className="discussion-content">{reply.content}</div>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-
-                      {/* Reply Form */}
-                      {replyingTo === thread.id ? (
-                        <div className="discussion-reply-form">
-                          <textarea
-                            className="input"
-                            placeholder="Write a reply..."
-                            value={replyContent}
-                            onChange={(e) => setReplyContent(e.target.value)}
-                            rows={2}
-                            disabled={discussionLoading}
-                          />
-                          <div style={{ display: 'flex', gap: '8px' }}>
-                            <button
-                              className="btn btn-primary"
-                              onClick={() => handlePostReply(thread.id)}
-                              disabled={!replyContent.trim() || discussionLoading}
-                            >
-                              {discussionLoading ? 'Posting...' : 'Reply'}
-                            </button>
-                            <button
-                              className="btn btn-ghost"
-                              onClick={() => {
-                                setReplyingTo(null)
-                                setReplyContent('')
-                              }}
-                            >
-                              Cancel
-                            </button>
-                          </div>
-                        </div>
-                      ) : (
-                        <button
-                          className="btn btn-ghost"
-                          onClick={() => setReplyingTo(thread.id)}
-                          style={{ marginTop: '12px' }}
-                        >
-                          Reply
-                        </button>
-                      )}
-                    </li>
-                  )
-                })}
-              </ul>
-            )}
-          </div>
-        </section>
+        <DiscussionForum
+          loading={discussionLoading}
+          threads={discussionThreads.threads}
+          repliesMap={discussionThreads.repliesMap}
+          newPostContent={newPostContent}
+          onChangeNewPost={setNewPostContent}
+          onPost={handlePostMessage}
+          replyingTo={replyingTo}
+          replyContent={replyContent}
+          onReplyChange={setReplyContent}
+          onStartReply={(id) => setReplyingTo(id)}
+          onSubmitReply={(id) => void handlePostReply(id)}
+          onCancelReply={() => { setReplyingTo(null); setReplyContent('') }}
+        />
       )}
 
       {tab === 'pyq' && (
-        <section className="card">
-          <h3>Previous Year Questions</h3>
-          {isBackend ? (
-            backendPYQ.length === 0 ? <p className="muted">No PYQs available.</p> : (
-              <ul className="list">
-                {backendPYQ.map((p: any) => (
-                  <li key={p.id}>
-                    <a href={p.storage_path} target="_blank" rel="noopener noreferrer">{p.filename || p.title}</a>
-                  </li>
-                ))}
-              </ul>
-            )
-          ) : (
-            <p className="muted">PYQs available in backend mode only.</p>
-          )}
-        </section>
+        <PyqList isBackend={isBackend} items={backendPYQ as any[]} />
       )}
 
       {tab === 'notes' && (
-        <section className="card">
-          <h3>Notes</h3>
-          {isBackend ? (
-            backendNotes.length === 0 ? <p className="muted">No notes available.</p> : (
-              <ul className="list">
-                {backendNotes.map((n: any) => (
-                  <li key={n.id}>
-                    <a href={n.storage_path} target="_blank" rel="noopener noreferrer">{n.filename || n.title}</a>
-                  </li>
-                ))}
-              </ul>
-            )
-          ) : (
-            <p className="muted">Notes available in backend mode only.</p>
-          )}
-        </section>
+        <NotesList isBackend={isBackend} items={backendNotes as any[]} />
       )}
 
 {tab === 'progress' && isBackend && (
