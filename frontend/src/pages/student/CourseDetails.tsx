@@ -1,5 +1,5 @@
 import { useParams } from 'react-router-dom'
-import { useMemo, useState, useEffect } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { courses } from '../../data/mock'
 import { useAuth } from '../../context/AuthContext'
 import { getUserCourses } from '../../data/userCourses'
@@ -345,38 +345,18 @@ export default function CourseDetails() {
     }
   }
 
-  // Load backend assignments, pyqs, notes and discussion when in backend mode
+  // Load backend data once per offering id
   useEffect(() => {
-    if (!isBackend) return;
-    let mounted = true;
-
-    (async () => {
-      try {
-        const data = await apiFetch<any[]>(`/api/courses/${courseId}/assignments`)
-        const pyq = await apiFetch<any[]>(`/api/courses/${courseId}/pyqs`)
-        const notes = await apiFetch<any[]>(`/api/courses/${courseId}/notes`)
-        if (!mounted) return;
-        setBackendAssignments(data)
-        setBackendPYQ(pyq)
-        setBackendNotes(notes)
-      } catch (err) {
-        // ignore transient errors for now
-      }
-    })();
-
-    (async () => {
-      try {
-        const { listDiscussionMessages } = await import('../../services/discussion')
-        const items = await listDiscussionMessages(courseId!)
-        if (!mounted) return;
-        setDiscussion(items)
-      } catch (err) {
-        // ignore
-      }
-    })();
-
-    return () => { mounted = false }
-  }, [isBackend, courseId])
+    let cancelled = false
+    if (!isBackend || !courseId) return
+    ;(async () => {
+      try { const data = await apiFetch<any[]>(`/api/courses/${courseId}/assignments`); if (!cancelled) setBackendAssignments(data) } catch {}
+      try { const pyq = await apiFetch<any[]>(`/api/courses/${courseId}/pyqs`); if (!cancelled) setBackendPYQ(pyq) } catch {}
+      try { const notes = await apiFetch<any[]>(`/api/courses/${courseId}/notes`); if (!cancelled) setBackendNotes(notes) } catch {}
+      try { const { listDiscussionMessages } = await import('../../services/discussion'); const items = await listDiscussionMessages(courseId!); if (!cancelled) setDiscussion(items) } catch {}
+    })()
+    return () => { cancelled = true }
+  }, [courseId, isBackend])
 
   return (
     <div className="course-details-page">
@@ -629,66 +609,64 @@ export default function CourseDetails() {
 
       {isBackend && tab === 'discussion' && (
         <section className="card">
-          <h3>Discussion Forum</h3>
-          {(user?.role === 'teacher' || user?.role === 'ta') && (
-            <form onSubmit={async (e) => {
-              e.preventDefault();
-              const msg = newTopMessage.trim();
-              if (!msg) return;
-              try {
-                const { postDiscussionMessage, listDiscussionMessages } = await import('../../services/discussion')
-                await postDiscussionMessage(courseId!, msg)
-                setNewTopMessage('')
-                const items = await listDiscussionMessages(courseId!)
-                setDiscussion(items)
-                push({ kind: 'success', message: 'Posted' })
-              } catch (err:any) {
-                push({ kind: 'error', message: err?.message || 'Failed to post' })
-              }
-            }} style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
-              <input className="input" placeholder="New announcement" value={newTopMessage} onChange={(e) => setNewTopMessage(e.target.value)} />
-              <button className="btn btn-primary" type="submit">Post</button>
-            </form>
-          )}
+          <div className="discussion-wrap">
+            <h3>Discussion Forum</h3>
+          <form onSubmit={async (e) => {
+            e.preventDefault();
+            const msg = newTopMessage.trim();
+            if (!msg) return;
+            try {
+              const { postDiscussionMessage, listDiscussionMessages } = await import('../../services/discussion')
+              await postDiscussionMessage(courseId!, msg)
+              setNewTopMessage('')
+              const items = await listDiscussionMessages(courseId!)
+              setDiscussion(items)
+              push({ kind: 'success', message: 'Posted' })
+            } catch (err:any) {
+              push({ kind: 'error', message: err?.message || 'Failed to post' })
+            }
+          }} className="discussion-new">
+            <input className="input" placeholder="Start a new discussion" value={newTopMessage} onChange={(e) => setNewTopMessage(e.target.value)} />
+            <button className="btn btn-primary" type="submit">Post</button>
+          </form>
 
           {discussion.length === 0 ? <p className="muted">No messages yet.</p> : (
-            <ul className="list">
+            <ul className="discussion-list">
               {discussion.filter((m:any)=>!m.parent_id).map((m:any)=> (
-                <li key={m.id}>
-                  <div><strong>{m.author_name || 'User'}</strong> <span className="muted">• {new Date(m.created_at).toLocaleString()}</span></div>
-                  <div style={{ whiteSpace: 'pre-wrap' }}>{m.content}</div>
-                  <div style={{ marginTop: 6, paddingLeft: 12, borderLeft: '2px solid #e5e7eb' }}>
+                <li key={m.id} className="discussion-thread">
+                  <div className="discussion-meta"><strong>{m.author_name || 'User'}</strong> <span className="muted">• {new Date(m.created_at).toLocaleString()}</span></div>
+                  <div className="discussion-content">{m.content}</div>
+                  <div className="discussion-replies">
                     {discussion.filter((x:any)=>x.parent_id===m.id).map((r:any)=> (
-                      <div key={r.id} style={{ margin: '6px 0' }}>
-                        <strong>{r.author_name || 'User'}</strong> <span className="muted">• {new Date(r.created_at).toLocaleString()}</span>
-                        <div style={{ whiteSpace: 'pre-wrap' }}>{r.content}</div>
+                      <div key={r.id} className="discussion-reply">
+                        <div className="discussion-meta"><strong>{r.author_name || 'User'}</strong> <span className="muted">• {new Date(r.created_at).toLocaleString()}</span></div>
+                        <div className="discussion-content">{r.content}</div>
                       </div>
                     ))}
-                    {user?.role === 'student' && (
-                      <form onSubmit={async (e)=>{
-                        e.preventDefault();
-                        const text = (replyDrafts[m.id]||'').trim();
-                        if (!text) return;
-                        try {
-                          const { postDiscussionMessage, listDiscussionMessages } = await import('../../services/discussion')
-                          await postDiscussionMessage(courseId!, text, m.id)
-                          setReplyDrafts((d)=>({ ...d, [m.id]: '' }))
-                          const items = await listDiscussionMessages(courseId!)
-                          setDiscussion(items)
-                          push({ kind: 'success', message: 'Replied' })
-                        } catch (err:any) {
-                          push({ kind: 'error', message: err?.message || 'Reply failed' })
-                        }
-                      }} style={{ display: 'flex', gap: 8, marginTop: 8 }}>
-                        <input className="input" placeholder="Reply" value={replyDrafts[m.id]||''} onChange={(e)=> setReplyDrafts((d)=>({ ...d, [m.id]: e.target.value }))} />
-                        <button className="btn" type="submit">Reply</button>
-                      </form>
-                    )}
+                    <form onSubmit={async (e)=>{
+                      e.preventDefault();
+                      const text = (replyDrafts[m.id]||'').trim();
+                      if (!text) return;
+                      try {
+                        const { postDiscussionMessage, listDiscussionMessages } = await import('../../services/discussion')
+                        await postDiscussionMessage(courseId!, text, m.id)
+                        setReplyDrafts((d)=>({ ...d, [m.id]: '' }))
+                        const items = await listDiscussionMessages(courseId!)
+                        setDiscussion(items)
+                        push({ kind: 'success', message: 'Replied' })
+                      } catch (err:any) {
+                        push({ kind: 'error', message: err?.message || 'Reply failed' })
+                      }
+                    }} className="discussion-reply-form">
+                      <input className="input" placeholder="Write a reply" value={replyDrafts[m.id]||''} onChange={(e)=> setReplyDrafts((d)=>({ ...d, [m.id]: e.target.value }))} />
+                      <button className="btn" type="submit">Reply</button>
+                    </form>
                   </div>
                 </li>
               ))}
             </ul>
           )}
+          </div>
         </section>
       )}
 
