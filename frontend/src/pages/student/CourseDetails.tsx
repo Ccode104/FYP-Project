@@ -10,6 +10,7 @@ import './CourseDetails.css'
 import { useToast } from '../../components/ToastProvider'
 import { apiFetch } from '../../services/api'
 import { type ProgressRow } from '../../services/progress'
+import QuizCreator from '../../components/QuizCreator'
 
 function BackendSubmissions({ assignments }: { assignments: any[] }) {
   const [assignmentId, setAssignmentId] = useState<string>('')
@@ -246,7 +247,8 @@ function CourseProgressEmbed({ offeringId }: { offeringId: string }) {
 export default function CourseDetails() {
   const { courseId } = useParams()
   const { user, logout } = useAuth()
-  const [tab, setTab] = useState<'present' | 'past' | 'pyq' | 'notes' | 'manage' | 'submissions' | 'grading' | 'progress' | 'discussion'>('present')
+  const [tab, setTab] = useState<'present' | 'past' | 'pyq' | 'notes' | 'quizzes' | 'manage' | 'submissions' | 'grading' | 'progress' | 'discussion'>('present')
+  const [assignmentCreationType, setAssignmentCreationType] = useState<'selection' | 'code' | 'quiz' | 'pdf'>('selection')
   const isBackend = !!courseId && /^\d+$/.test(courseId)
   const { push } = useToast()
 
@@ -288,6 +290,7 @@ export default function CourseDetails() {
   const [discussion, setDiscussion] = useState<any[]>([])
   const [newTopMessage, setNewTopMessage] = useState('')
   const [replyDrafts, setReplyDrafts] = useState<Record<string, string>>({})
+  const [backendQuizzes, setBackendQuizzes] = useState<any[]>([])
 
   const [newAssnTitle, setNewAssnTitle] = useState('')
   const [newAssnDesc, setNewAssnDesc] = useState('')
@@ -353,6 +356,9 @@ export default function CourseDetails() {
       try { const data = await apiFetch<any[]>(`/api/courses/${courseId}/assignments`); if (!cancelled) setBackendAssignments(data) } catch {}
       try { const pyq = await apiFetch<any[]>(`/api/courses/${courseId}/pyqs`); if (!cancelled) setBackendPYQ(pyq) } catch {}
       try { const notes = await apiFetch<any[]>(`/api/courses/${courseId}/notes`); if (!cancelled) setBackendNotes(notes) } catch {}
+        // quizzes list for offering
+        const quizzes = await (await import('../../services/quizzes')).listCourseQuizzes(Number(courseId))
+        setBackendQuizzes(quizzes)
       try { const { listDiscussionMessages } = await import('../../services/discussion'); const items = await listDiscussionMessages(courseId!); if (!cancelled) setDiscussion(items) } catch {}
     })()
     return () => { cancelled = true }
@@ -392,10 +398,13 @@ export default function CourseDetails() {
             Progress
           </button>
         )}
-            {user?.role === 'teacher' && (
+            <button className={tab === 'quizzes' ? 'active' : ''} onClick={() => setTab('quizzes')} aria-pressed={tab === 'quizzes'}>
+          Quizzes
+        </button>
+        {user?.role === 'teacher' && (
               <>
                 <button className={tab === 'manage' ? 'active' : ''} onClick={() => setTab('manage')} aria-pressed={tab === 'manage'}>
-                  Upload Assignment
+                  Manage Assignment
                 </button>
                 <button className={tab === 'submissions' ? 'active' : ''} onClick={() => setTab('submissions')} aria-pressed={tab === 'submissions'}>
                   Submissions
@@ -463,63 +472,177 @@ export default function CourseDetails() {
             </section>
           )}
 
-          {tab === 'past' && (
-            <section className="card">
-              <h3>Past Assignments</h3>
+      {tab === 'past' && (
+        <section className="card">
+          <h3>Past Assignments</h3>
+          <ul className="list">
+            {course.assignmentsPast.map((a) => (
+              <li key={a.id}>
+                {a.title} {a.submitted ? '✓ Submitted' : ''}
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+
+      {tab === 'quizzes' && (
+        <section className="card">
+          <h3>Quizzes</h3>
+          {isBackend ? (
+            backendQuizzes.length === 0 ? <p className="muted">No quizzes available.</p> : (
               <ul className="list">
-                {course.assignmentsPast.map((a) => (
-                  <li key={a.id}>
-                    {a.title} {a.submitted ? '✓ Submitted' : ''}
+                {backendQuizzes.map((q:any) => (
+                  <li key={q.id}>
+                    {q.title} {q.start_at ? `(Opens: ${new Date(q.start_at).toLocaleString()})` : ''}
+                    <button className="btn btn-primary" style={{ marginLeft: 8 }} onClick={() => location.assign(`/quizzes/${q.id}`)}>Start</button>
                   </li>
                 ))}
               </ul>
-            </section>
+            )
+          ) : (
+            <p className="muted">Local course mode does not support quizzes.</p>
           )}
+        </section>
+      )}
 
       {user?.role === 'teacher' && tab === 'manage' && (
         <section className="card">
-          <h3>Create Assignment</h3>
-          <div className="form" style={{ maxWidth: 640 }}>
-            <label className="field">
-              <span className="label"></span>
-              <input className="input" value={newAssnTitle} onChange={(e) => setNewAssnTitle(e.target.value)} placeholder="Assignment title" />
-            </label>
-            <label className="field">
-              <span className="label"></span>
-              <input className="input" value={newAssnDesc} onChange={(e) => setNewAssnDesc(e.target.value)} placeholder="Optional details" />
-            </label>
-            <label className="field">
-              <span className="label"></span>
-              <select className="select" value={newAssnType} onChange={(e) => setNewAssnType(e.target.value as any)}>
-                <option value="file">File</option>
-                <option value="code">Code</option>
-                <option value="link">Link</option>
-              </select>
-            </label>
-            <div className="grid" style={{ gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-              <label className="field">
-                <span className="label"></span>
-                <input className="input" value={newAssnRelease} onChange={(e) => setNewAssnRelease(e.target.value)} placeholder="Release at (YYYY-MM-DDTHH:mm)" />
-              </label>
-              <label className="field">
-                <span className="label"></span>
-                <input className="input" value={newAssnDue} onChange={(e) => setNewAssnDue(e.target.value)} placeholder="Due at (YYYY-MM-DDTHH:mm)" />
-              </label>
-            </div>
-            <div className="grid" style={{ gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-              <label className="field">
-                <span className="label"></span>
-                <input className="input" value={newAssnMax} onChange={(e) => setNewAssnMax(e.target.value)} placeholder="Max score (e.g 100)" />
-              </label>
-              <label className="field" style={{ alignItems: 'center' }}>
-                <span className="label">Allow multiple submissions</span>
-                <input type="checkbox" checked={newAssnMulti} onChange={(e) => setNewAssnMulti(e.target.checked)} />
-              </label>
-            </div>
-            <div>
-              <button className="btn btn-primary" onClick={addAssn}>Create assignment</button>
-            </div>
-          </div>
+          {assignmentCreationType === 'selection' && (
+            <>
+              <h3>Create Assignment</h3>
+              <p className="muted" style={{ marginBottom: 16 }}>Choose the type of assignment you want to create:</p>
+              <div className="grid" style={{ gridTemplateColumns: '1fr 1fr 1fr', gap: 16, maxWidth: 800 }}>
+                <button 
+                  className="btn btn-primary" 
+                  style={{ padding: 24, fontSize: 16, height: 120, display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', gap: 8 }}
+                  onClick={() => setAssignmentCreationType('code')}
+                >
+                  <span style={{ fontSize: 32 }}>💻</span>
+                  <span>Code-based</span>
+                </button>
+                <button 
+                  className="btn btn-primary" 
+                  style={{ padding: 24, fontSize: 16, height: 120, display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', gap: 8 }}
+                  onClick={() => setAssignmentCreationType('quiz')}
+                >
+                  <span style={{ fontSize: 32 }}>📝</span>
+                  <span>Quiz-based</span>
+                </button>
+                <button 
+                  className="btn btn-primary" 
+                  style={{ padding: 24, fontSize: 16, height: 120, display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', gap: 8 }}
+                  onClick={() => setAssignmentCreationType('pdf')}
+                >
+                  <span style={{ fontSize: 32 }}>📄</span>
+                  <span>PDF Submission</span>
+                </button>
+              </div>
+            </>
+          )}
+
+          {assignmentCreationType === 'pdf' && (
+            <>
+              <div style={{ display: 'flex', alignItems: 'center', marginBottom: 16 }}>
+                <button className="btn" onClick={() => setAssignmentCreationType('selection')} style={{ marginRight: 8 }}>← Back</button>
+                <h3 style={{ margin: 0 }}>Create PDF Submission Assignment</h3>
+              </div>
+              <div className="form" style={{ maxWidth: 640 }}>
+                <label className="field">
+                  <span className="label">Title</span>
+                  <input className="input" value={newAssnTitle} onChange={(e) => setNewAssnTitle(e.target.value)} placeholder="Assignment title" />
+                </label>
+                <label className="field">
+                  <span className="label">Description</span>
+                  <input className="input" value={newAssnDesc} onChange={(e) => setNewAssnDesc(e.target.value)} placeholder="Optional details" />
+                </label>
+                <div className="grid" style={{ gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                  <label className="field">
+                    <span className="label">Release at</span>
+                    <input className="input" value={newAssnRelease} onChange={(e) => setNewAssnRelease(e.target.value)} placeholder="YYYY-MM-DDTHH:mm" />
+                  </label>
+                  <label className="field">
+                    <span className="label">Due at</span>
+                    <input className="input" value={newAssnDue} onChange={(e) => setNewAssnDue(e.target.value)} placeholder="YYYY-MM-DDTHH:mm" />
+                  </label>
+                </div>
+                <div className="grid" style={{ gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                  <label className="field">
+                    <span className="label">Max score</span>
+                    <input className="input" value={newAssnMax} onChange={(e) => setNewAssnMax(e.target.value)} placeholder="100" />
+                  </label>
+                  <label className="field" style={{ alignItems: 'center' }}>
+                    <span className="label">Allow multiple submissions</span>
+                    <input type="checkbox" checked={newAssnMulti} onChange={(e) => setNewAssnMulti(e.target.checked)} />
+                  </label>
+                </div>
+                <div>
+                  <button className="btn btn-primary" onClick={() => { setNewAssnType('file'); addAssn(); }}>Create PDF Assignment</button>
+                </div>
+              </div>
+            </>
+          )}
+
+          {assignmentCreationType === 'code' && (
+            <>
+              <div style={{ display: 'flex', alignItems: 'center', marginBottom: 16 }}>
+                <button className="btn" onClick={() => setAssignmentCreationType('selection')} style={{ marginRight: 8 }}>← Back</button>
+                <h3 style={{ margin: 0 }}>Create Code-based Assignment</h3>
+              </div>
+              <div className="form" style={{ maxWidth: 640 }}>
+                <label className="field">
+                  <span className="label">Title</span>
+                  <input className="input" value={newAssnTitle} onChange={(e) => setNewAssnTitle(e.target.value)} placeholder="Assignment title" />
+                </label>
+                <label className="field">
+                  <span className="label">Description</span>
+                  <input className="input" value={newAssnDesc} onChange={(e) => setNewAssnDesc(e.target.value)} placeholder="Optional details" />
+                </label>
+                <div className="grid" style={{ gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                  <label className="field">
+                    <span className="label">Release at</span>
+                    <input className="input" value={newAssnRelease} onChange={(e) => setNewAssnRelease(e.target.value)} placeholder="YYYY-MM-DDTHH:mm" />
+                  </label>
+                  <label className="field">
+                    <span className="label">Due at</span>
+                    <input className="input" value={newAssnDue} onChange={(e) => setNewAssnDue(e.target.value)} placeholder="YYYY-MM-DDTHH:mm" />
+                  </label>
+                </div>
+                <div className="grid" style={{ gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                  <label className="field">
+                    <span className="label">Max score</span>
+                    <input className="input" value={newAssnMax} onChange={(e) => setNewAssnMax(e.target.value)} placeholder="100" />
+                  </label>
+                  <label className="field" style={{ alignItems: 'center' }}>
+                    <span className="label">Allow multiple submissions</span>
+                    <input type="checkbox" checked={newAssnMulti} onChange={(e) => setNewAssnMulti(e.target.checked)} />
+                  </label>
+                </div>
+                <div>
+                  <button className="btn btn-primary" onClick={() => { setNewAssnType('code'); addAssn(); }}>Create Code Assignment</button>
+                </div>
+              </div>
+            </>
+          )}
+
+          {assignmentCreationType === 'quiz' && (
+            <>
+              <div style={{ display: 'flex', alignItems: 'center', marginBottom: 16 }}>
+                <button className="btn" onClick={() => setAssignmentCreationType('selection')} style={{ marginRight: 8 }}>← Back</button>
+                <h3 style={{ margin: 0 }}>Create Quiz-based Assignment</h3>
+              </div>
+              <QuizCreator courseOfferingId={courseId!} onComplete={async () => { 
+                setAssignmentCreationType('selection'); 
+                setTab('present');
+                // Refresh assignments list
+                if (isBackend) {
+                  try {
+                    const data = await apiFetch<any[]>(`/api/courses/${courseId}/assignments`)
+                    setBackendAssignments(data)
+                  } catch {}
+                }
+              }} />
+            </>
+          )}
         </section>
       )}
 

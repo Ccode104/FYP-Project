@@ -8,6 +8,8 @@ import CourseDetails from './pages/student/CourseDetails'
 import ProtectedRoute from './routes/ProtectedRoute'
 import { useAuth, getDashboardPathForRole } from './context/AuthContext'
 import Layout from './components/Layout'
+import QuizTake from './pages/student/QuizTake'
+import QuizGrader from './pages/teacher/QuizGrader'
 import StudentProgress from './pages/progress/StudentProgress'
 import CourseProgress from './pages/progress/CourseProgress'
 
@@ -17,10 +19,9 @@ function App() {
   return (
     <Layout>
       <Routes>
-        <Route
-          path="/"
-          element={user ? <Navigate to={getDashboardPathForRole(user.role)} replace /> : <Navigate to="/login" replace />}
-        />
+        {/* Show Login page on root so frontend opens to the login screen */}
+        <Route path="/" element={user ? <Navigate to={getDashboardPathForRole(user.role)} replace /> : <Navigate to="/login" replace />} />
+
         {/* 
         Can be added in future
         <Route path="/" element={<HomePage />} />
@@ -63,6 +64,24 @@ function App() {
           element={
             <ProtectedRoute roles={["student", "teacher", "ta"]}>
               <CourseDetails />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/quizzes/:quizId"
+          element={
+            <ProtectedRoute roles={["student"]}>
+              <QuizTake />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/quizzes/:quizId/grading"
+          element={
+            <ProtectedRoute roles={["teacher", "ta"]}>
+              <QuizGrader />
             </ProtectedRoute>
           }
         />
