@@ -7,6 +7,7 @@ import courseRoutes from './routes/courses.js';
 import assignmentRoutes from './routes/assignments.js';
 import submissionRoutes from './routes/submissions.js';
 import quizRoutes from './routes/quizzes.js';
+import progressRoutes from './routes/progress.js';
 import extendedRoutes from './routes/extended.js';
 import { logger } from './utils/logger.js';
 import usersRoutes from './routes/users.js';
@@ -27,6 +28,7 @@ export async function startServer(port = 4000) {
   app.use('/api/assignments', assignmentRoutes);
   app.use('/api/submissions', submissionRoutes);
   app.use('/api/quizzes', quizRoutes);
+  app.use('/api/progress', progressRoutes);
   app.use('/api', extendedRoutes);
   app.use('/api/users', usersRoutes);
   app.use('/api/student', studentRoutes);
