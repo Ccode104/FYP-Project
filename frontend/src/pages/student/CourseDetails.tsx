@@ -363,7 +363,7 @@ export default function CourseDetails() {
     <div className="container">
       <header className="topbar">
         <h2>
-          {course.title} — {user?.role.toUpperCase()}
+          {course.title} - {user?.role.toUpperCase()}
         </h2>
         <div className="actions">
           {isBackend && (
@@ -607,7 +607,7 @@ export default function CourseDetails() {
         </section>
       )}
 
-      {isBackend && tab === 'discussion' && (
+{isBackend && tab === 'discussion' && (
         <section className="card">
           <div className="discussion-wrap">
             <h3>Discussion Forum</h3>

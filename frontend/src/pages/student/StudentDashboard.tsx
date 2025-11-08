@@ -74,7 +74,7 @@ export default function StudentDashboard() {
       <header className="topbar">
         <h2>Welcome, {user?.name} ({user?.role.toUpperCase()})</h2>
         <div className="actions">
-          <button className="btn btn-primary" onClick={() => setEnrOpen(true)}>{(user?.role === 'ta' || user?.role === 'teacher') ? '+ Enroll student' : '+ Enroll in offering'}</button>
+          <button className="btn btn-primary" onClick={() => setEnrOpen(true)}>{(user?.role === 'ta' || user?.role === 'teacher') ? ' Enroll Student' : ' Enroll Course '}</button>
           <button className="btn btn-ghost" onClick={() => navigate('/')}>Home</button>
           <button className="btn btn-ghost" onClick={logout}>Logout</button>
         </div>
