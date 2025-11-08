@@ -53,7 +53,9 @@ export default function StudentDashboard() {
   const enrollNow = async () => {
     try {
       await enrollStudent(Number(offId), Number(stuId || user?.id))
-      push({ kind: 'success', message: 'Enrollment requested' })
+      const list = await getEnrolledCourses()
+      setOfferings(list)
+      push({ kind: 'success', message: 'Enrolled' })
       setEnrOpen(false); setOffId(''); setStuId('')
     } catch (e: any) {
       push({ kind: 'error', message: e?.message || 'Enroll failed' })
