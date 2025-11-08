@@ -6,7 +6,7 @@ import { createCourse, createOffering, listCourses, listMyOfferings } from '../.
 import { useToast } from '../../components/ToastProvider'
 
 export default function TeacherDashboard() {
-  const { user, logout } = useAuth()
+  const { user } = useAuth()
   const navigate = useNavigate()
   const { push } = useToast()
 
@@ -48,13 +48,12 @@ export default function TeacherDashboard() {
 
   return (
     <div className="container container-wide dashboard-page teacher-theme">
-      <header className="topbar">
-        <h2>Welcome, {user?.name} (Teacher)</h2>
-        <div className="actions">
-          <button className="btn btn-ghost" onClick={() => navigate('/')}>Home</button>
-          <button className="btn btn-ghost" onClick={logout}>Logout</button>
+      <div className="dashboard-header">
+        <div className="welcome-section">
+          <h1 className="dashboard-title">Welcome, {user?.name}</h1>
+          <p className="dashboard-subtitle">Manage your courses and create new offerings</p>
         </div>
-      </header>
+      </div>
 
       <div className="grid" style={{ gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 16 }}>
         <div className="card">

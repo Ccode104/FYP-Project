@@ -1,4 +1,4 @@
-import { useParams } from 'react-router-dom'
+import { useParams, useNavigate } from 'react-router-dom'
 import { useEffect, useMemo, useState } from 'react'
 import { courses } from '../../data/mock'
 import { useAuth } from '../../context/AuthContext'
@@ -246,7 +246,8 @@ function CourseProgressEmbed({ offeringId }: { offeringId: string }) {
 
 export default function CourseDetails() {
   const { courseId } = useParams()
-  const { user, logout } = useAuth()
+  const { user } = useAuth()
+  const navigate = useNavigate()
   const [tab, setTab] = useState<'present' | 'past' | 'pyq' | 'notes' | 'quizzes' | 'manage' | 'submissions' | 'grading' | 'progress' | 'discussion'>('present')
   const [assignmentCreationType, setAssignmentCreationType] = useState<'selection' | 'code' | 'quiz' | 'pdf'>('selection')
   const isBackend = !!courseId && /^\d+$/.test(courseId)
@@ -367,18 +368,24 @@ export default function CourseDetails() {
   return (
     <div className="course-details-page">
     <div className="container">
-      <header className="topbar">
-        <h2>
-          {course.title} - {user?.role.toUpperCase()}
-        </h2>
-        <div className="actions">
-          {isBackend && (
-            <button className="btn" onClick={() => setTab('discussion')}>Discussion</button>
-          )}
-          <button className="btn btn-ghost" onClick={() => history.back()}>Back</button>
-          <button className="btn btn-ghost" onClick={logout}>Logout</button>
+      <div className="course-header">
+        <div className="course-header-content">
+          <button className="back-button" onClick={() => navigate(-1)} aria-label="Go back">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M19 12H5M12 19l-7-7 7-7"/>
+            </svg>
+          </button>
+          <div className="course-title-section">
+            <h1 className="course-title">{course.title}</h1>
+            <p className="course-role">{user?.role.toUpperCase()}</p>
+          </div>
         </div>
-      </header>
+        {isBackend && (
+          <button className="btn btn-primary" onClick={() => setTab('discussion')}>
+            Discussion
+          </button>
+        )}
+      </div>
 
           <nav className="tabs">
             <button className={tab === 'present' ? 'active' : ''} onClick={() => setTab('present')} aria-pressed={tab === 'present'}>
