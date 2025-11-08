@@ -170,3 +170,17 @@ CREATE TABLE IF NOT EXISTS notifications (
   is_read BOOLEAN DEFAULT false,
   created_at TIMESTAMPTZ DEFAULT now()
 );
+
+-- Discussion forum for each course offering
+CREATE TABLE IF NOT EXISTS discussion_messages (
+  id BIGSERIAL PRIMARY KEY,
+  course_offering_id BIGINT NOT NULL REFERENCES course_offerings(id) ON DELETE CASCADE,
+  user_id BIGINT REFERENCES users(id) ON DELETE SET NULL,
+  parent_id BIGINT REFERENCES discussion_messages(id) ON DELETE CASCADE,
+  content TEXT NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_discussion_messages_offering ON discussion_messages(course_offering_id);
+CREATE INDEX IF NOT EXISTS idx_discussion_messages_parent ON discussion_messages(parent_id);
+CREATE INDEX IF NOT EXISTS idx_discussion_messages_created_at ON discussion_messages(created_at);

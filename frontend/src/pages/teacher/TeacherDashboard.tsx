@@ -15,7 +15,7 @@ export default function TeacherDashboard() {
   const [courseDesc, setCourseDesc] = useState('')
 
   const [offerCourseId, setOfferCourseId] = useState('')
-  const [term, setTerm] = useState('2025-SPR')
+  const [term, setTerm] = useState('W25')
   const [section, setSection] = useState('A')
 
   const [courses, setCourses] = useState<any[]>([])
@@ -60,18 +60,18 @@ export default function TeacherDashboard() {
         <div className="card">
           <h3 className="section-title">Create Course</h3>
           <div className="form">
-            <label className="field"><span className="label">Code</span><input className="input" value={courseCode} onChange={(e) => setCourseCode(e.target.value)} placeholder="CS101" /></label>
-            <label className="field"><span className="label">Title</span><input className="input" value={courseTitle} onChange={(e) => setCourseTitle(e.target.value)} placeholder="Intro to CS" /></label>
-            <label className="field"><span className="label">Description</span><input className="input" value={courseDesc} onChange={(e) => setCourseDesc(e.target.value)} placeholder="Short description" /></label>
+            <label className="field"><span className="label"></span><input className="input" value={courseCode} onChange={(e) => setCourseCode(e.target.value)} placeholder="e.g CS101 (New Course ID)" /></label>
+            <label className="field"><span className="label"></span><input className="input" value={courseTitle} onChange={(e) => setCourseTitle(e.target.value)} placeholder="e.g Intro to CS (New Course Name)" /></label>
+            <label className="field"><span className="label"></span><input className="input" value={courseDesc} onChange={(e) => setCourseDesc(e.target.value)} placeholder="e.g Learn the fundamentals of Computer Science (Short description)" /></label>
             <div><button className="btn btn-primary" onClick={makeCourse}>Create Course</button></div>
           </div>
         </div>
         <div className="card">
           <h3 className="section-title">Create Offering</h3>
           <div className="form">
-            <label className="field"><span className="label">Course ID</span><input className="input" value={offerCourseId} onChange={(e) => setOfferCourseId(e.target.value)} placeholder="Created course id" /></label>
-            <label className="field"><span className="label">Term</span><input className="input" value={term} onChange={(e) => setTerm(e.target.value)} placeholder="2025-SPR" /></label>
-            <label className="field"><span className="label">Section</span><input className="input" value={section} onChange={(e) => setSection(e.target.value)} placeholder="A" /></label>
+            <label className="field"><span className="label"></span><input className="input" value={offerCourseId} onChange={(e) => setOfferCourseId(e.target.value)} placeholder="e.g CSL 101(Existing Course ID) " /></label>
+            <label className="field"><span className="label"></span><input className="input" value={term} onChange={(e) => setTerm(e.target.value)} placeholder="e.g W25 (Session)" /></label>
+            <label className="field"><span className="label"></span><input className="input" value={section} onChange={(e) => setSection(e.target.value)} placeholder="A" /></label>
             <div><button className="btn btn-primary" onClick={makeOffering}>Create Offering</button></div>
           </div>
         </div>

@@ -33,6 +33,7 @@ export default function Login() {
       return
     }
     try {
+      console.log(password);
       const u = await login(email, password)
       push({ kind: 'success', message: 'Login successful' })
       navigate(getDashboardPathForRole(u.role), { replace: true })
@@ -71,6 +72,7 @@ export default function Login() {
           <label className="field">
             <input
               className="input"
+          
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               type="password"
@@ -87,7 +89,7 @@ export default function Login() {
           </div>
 
           <button className="btn btn-primary" type="submit" disabled={loading} aria-busy={loading}>
-            {loading ? <span className="spinner" aria-hidden="true"></span> : 'Sign in'}
+            {loading ? <span className="spinner" aria-hidden="false"></span> : 'Sign in'}
           </button>
         </form>
 
