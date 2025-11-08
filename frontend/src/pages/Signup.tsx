@@ -11,7 +11,7 @@ export default function Signup() {
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
-  const [role, setRole] = useState<'student'|'teacher'|'ta'>('student')
+  const [role, setRole] = useState<'student'|'teacher'|'ta'|'admin'>('student')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const { push } = useToast()
@@ -91,6 +91,7 @@ export default function Signup() {
               <option value="student">Student</option>
               <option value="teacher">Teacher</option>
               <option value="ta">TA</option>
+              <option value="admin">Admin</option>
             </select>
           </label>
 

@@ -171,6 +171,59 @@ CREATE TABLE IF NOT EXISTS notifications (
   created_at TIMESTAMPTZ DEFAULT now()
 );
 
+-- Admins table linking to users (role must be 'admin')
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.tables WHERE table_name = 'admins'
+  ) THEN
+    CREATE TABLE admins (
+      user_id BIGINT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+      is_super BOOLEAN DEFAULT true,
+      created_at TIMESTAMPTZ DEFAULT now(),
+      created_by BIGINT REFERENCES users(id)
+    );
+  END IF;
+END$$;
+
+-- Optional: mark users as active/inactive
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns WHERE table_name='users' AND column_name='is_active'
+  ) THEN
+    ALTER TABLE users ADD COLUMN is_active BOOLEAN DEFAULT true;
+  END IF;
+END$$;
+
+-- Material type enum
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'material_type') THEN
+    CREATE TYPE material_type AS ENUM ('notes','video','presentation','question_bank','other');
+  END IF;
+END$$;
+
+-- Study materials catalog (department-wide or course-specific)
+CREATE TABLE IF NOT EXISTS study_materials (
+  id BIGSERIAL PRIMARY KEY,
+  department_id BIGINT NOT NULL REFERENCES departments(id),
+  course_id BIGINT REFERENCES courses(id) ON DELETE SET NULL,
+  title TEXT NOT NULL,
+  description TEXT,
+  category TEXT, -- arbitrary categorization label if needed
+  material material_type NOT NULL,
+  storage_path TEXT NOT NULL,
+  filename TEXT,
+  uploaded_by BIGINT REFERENCES users(id),
+  created_at TIMESTAMPTZ DEFAULT now(),
+  updated_at TIMESTAMPTZ DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_study_materials_dept ON study_materials(department_id);
+CREATE INDEX IF NOT EXISTS idx_study_materials_course ON study_materials(course_id);
+CREATE INDEX IF NOT EXISTS idx_study_materials_type ON study_materials(material);
+
 -- Discussion forum for each course offering
 CREATE TABLE IF NOT EXISTS discussion_messages (
   id BIGSERIAL PRIMARY KEY,
