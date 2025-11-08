@@ -4,10 +4,10 @@
   display: flex;
   flex-direction: column;
   background:
-    radial-gradient(1200px 600px at 20% -10%, rgba(79, 70, 229, 0.12), transparent 40%),
-    radial-gradient(1000px 500px at 120% 0%, rgba(16, 185, 129, 0.08), transparent 45%),
-    linear-gradient(180deg, #0b1220 0%, #0f172a 100%);
-  color: #e5e7eb;
+    radial-gradient(1200px 600px at 20% -10%, rgba(79, 70, 229, 0.04), transparent 40%),
+    radial-gradient(1000px 500px at 120% 0%, rgba(16, 185, 129, 0.03), transparent 45%),
+    linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
+  color: #1f2937;
   font-family: 'Inter', sans-serif;
 }
 
@@ -16,9 +16,9 @@
   position: sticky;
   top: 0;
   width: 100%;
-  background: rgba(2, 6, 23, 0.6);
+  background: rgba(255, 255, 255, 0.9);
   backdrop-filter: blur(12px);
-  border-bottom: 1px solid rgba(148, 163, 184, 0.12);
+  border-bottom: 1px solid rgba(229, 231, 235, 0.8);
   z-index: 100;
 }
 
@@ -46,12 +46,12 @@
 
 /* ===== Footer ===== */
 .site-footer {
-  background: rgba(2, 6, 23, 0.6);
+  background: rgba(248, 250, 252, 0.9);
   backdrop-filter: blur(10px);
-  border-top: 1px solid rgba(148, 163, 184, 0.12);
+  border-top: 1px solid rgba(229, 231, 235, 0.8);
   text-align: center;
   padding: 12px 0;
-  color: #9ca3af;
+  color: #6b7280;
   font-size: 13px;
   font-weight: 400;
 }

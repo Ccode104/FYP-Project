@@ -16,7 +16,10 @@
   border: 1px solid #e5e7eb;
   padding: 16px;
 }
-.modal-title { margin: 4px 0 12px; font-size: 20px; }
+.modal-title { margin: 4px 0 12px; font-size: 20px; padding-right: 32px; color: #1f2937}
 .modal-body { padding: 8px 0; }
 .modal-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 12px; }
 .modal-close { position: absolute; top: 8px; right: 10px; border: none; background: transparent; font-size: 22px; cursor: pointer; }
+
+.modal-body .field { display: flex; flex-direction: column; gap: 8px; }
+.modal-body .label { display: block; font-size: 14px; font-weight: 500; }

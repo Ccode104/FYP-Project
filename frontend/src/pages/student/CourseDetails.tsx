@@ -214,6 +214,7 @@ export default function CourseDetails() {
   }
 
   return (
+    <div className="course-details-page">
     <div className="container">
       <header className="topbar">
         <h2>
@@ -447,6 +448,7 @@ export default function CourseDetails() {
           </ul>
         </section>
       )}
+    </div>
     </div>
   )
 }

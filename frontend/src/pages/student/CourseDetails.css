@@ -2,18 +2,66 @@
   min-height: 100vh;
   padding-bottom: 32px;
   background:
-    radial-gradient(900px 600px at -10% 0%, rgba(99,102,241,0.08), transparent 60%),
-    linear-gradient(180deg, #f8fafc 0%, #eef2ff 100%);
+    radial-gradient(1000px 700px at -10% -10%, rgba(99,102,241,0.06), transparent 60%),
+    linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
+  margin: -24px;
+  padding: 24px;
+}
+
+.course-details-page .topbar {
+  background: linear-gradient(90deg, rgba(99,102,241,0.08), rgba(16,185,129,0.08));
+  border: 1px solid rgba(99,102,241,0.2);
+  padding: 12px 16px;
+  border-radius: 14px;
+  box-shadow: 0 4px 12px rgba(99,102,241,0.1);
+}
+
+.course-details-page .topbar h2 {
+  color: #1f2937;
+  margin: 0;
+}
+
+.course-details-page .tabs {
+  margin: 20px 0;
 }
 
 .course-details-page .tabs button {
-  box-shadow: 0 2px 8px rgba(99,102,241,0.12);
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  color: #4b5563;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+  transition: all 0.2s ease;
+}
+
+.course-details-page .tabs button:hover {
+  border-color: #c7d2fe;
+  background: #f9fafb;
 }
 
 .course-details-page .tabs button.active {
-  box-shadow: 0 6px 16px rgba(99,102,241,0.24);
+  background: var(--primary);
+  border-color: var(--primary);
+  color: #ffffff;
+  box-shadow: 0 4px 12px rgba(99,102,241,0.3);
 }
 
 .course-details-page section.card {
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
   border-left: 4px solid var(--primary);
+  box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+}
+
+.course-details-page section.card h3 {
+  color: #1f2937;
+  margin-top: 0;
+}
+
+.course-details-page .list li {
+  color: #374151;
+}
+
+.course-details-page .label {
+  color: #4b5563;
+  font-weight: 500;
 }

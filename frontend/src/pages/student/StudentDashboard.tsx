@@ -104,8 +104,8 @@ export default function StudentDashboard() {
       )}>
         <div className="form">
           <label className="field">
-            <span className="label">Offering ID</span>
-            <input className="input" value={offId} onChange={(e) => setOffId(e.target.value)} placeholder="e.g., 101" />
+            <span className="label"></span>
+            <input className="input" value={offId} onChange={(e) => setOffId(e.target.value)} placeholder="e.g., 101 (Offering ID)" />
           </label>
           {(user?.role==='ta' || user?.role==='teacher') && (
             <label className="field">
