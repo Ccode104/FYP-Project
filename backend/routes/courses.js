@@ -7,6 +7,7 @@ import {
   getCourseNotes,
   getCourseAssignments
 } from '../controllers/resourcesController.js';
+import { getCodeQuestions } from '../controllers/codeQuestionsController.js';
 import { uploadResource } from '../controllers/resourcesController.js';
 import { offeringOverview } from '../controllers/coursesController.js';
 
@@ -139,6 +140,28 @@ router.get('/:offeringId/notes', getCourseNotes);
  *         description: Unauthorized
  */
 router.get('/:offeringId/assignments', getCourseAssignments);
+
+/**
+ * @swagger
+ * /api/courses/{offeringId}/code-questions:
+ *   get:
+ *     summary: Get code questions for a course offering
+ *     tags: [Courses]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: offeringId
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: List of code questions
+ *       401:
+ *         description: Unauthorized
+ */
+router.get('/:offeringId/code-questions', getCodeQuestions);
 
 /**
  * @swagger

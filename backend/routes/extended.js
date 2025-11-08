@@ -5,6 +5,7 @@ import { createResource, listResources, deleteResource } from '../controllers/re
 import { assignTA, removeTA } from '../controllers/taController.js';
 import { graderWebhook } from '../controllers/graderWebhookController.js';
 import { health } from '../controllers/adminController.js';
+import { executeCode } from '../controllers/judgeController.js';
 import { requireAuth, requireRole } from '../middleware/auth.js';
 
 const router = express.Router();
@@ -25,6 +26,8 @@ router.post('/ta/assign', requireAuth, requireRole('faculty','admin'), assignTA)
 router.delete('/ta/:id', requireAuth, requireRole('faculty','admin'), removeTA);
 
 router.post('/grader/webhook', graderWebhook); // secure in production
+
+router.post('/judge', requireAuth, executeCode);
 
 router.get('/admin/health', requireAuth, requireRole('admin'), health);
 

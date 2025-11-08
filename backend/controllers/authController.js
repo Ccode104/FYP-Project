@@ -1,10 +1,12 @@
 import { pool } from '../db/index.js';
 import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
+import express from 'express';
 
 const SALT_ROUNDS = 10;
 const JWT_SECRET = process.env.JWT_SECRET || 'supersecretkey';
 const JWT_EXPIRES_IN = '7d';
+const router = express.Router();
 
 // REGISTER
 export async function registerUser(req, res) {
@@ -40,27 +42,56 @@ export async function registerUser(req, res) {
 export async function loginUser(req, res) {
   try {
     const { email, password } = req.body;
-    if (!email || !password) return res.status(400).json({ error: 'Email and password required' });
 
-    const userRes = await pool.query('SELECT * FROM users WHERE email=$1', [email]);
-    if (userRes.rowCount === 0) return res.status(401).json({ error: 'Invalid credentials' });
+    // Validate input
+    if (!email || !password) {
+      return res.status(400).json({ error: 'Email and password are required' });
+    }
 
-    const user = userRes.rows[0];
-    if (!user.password_hash) return res.status(401).json({ error: 'No password set for this user' });
+    // Find user in database
+    const userQuery = await pool.query(
+      'SELECT id, name, email, role, password_hash, department_id, roll_number FROM users WHERE email = $1',
+      [email]
+    );
 
-    const match = await bcrypt.compare(password, user.password_hash);
-    if (!match) return res.status(401).json({ error: 'Invalid credentials' });
+    if (userQuery.rowCount === 0) {
+      return res.status(401).json({ error: 'Invalid email or password' });
+    }
 
-    // generate JWT
+    const user = userQuery.rows[0];
+
+    // Check password
+    if (!user.password_hash) {
+      return res.status(401).json({ error: 'Invalid email or password' });
+    }
+
+    const passwordMatch = await bcrypt.compare(password, user.password_hash);
+    if (!passwordMatch) {
+      return res.status(401).json({ error: 'Invalid email or password' });
+    }
+
+    // Generate JWT token
     const token = jwt.sign(
       { id: user.id, email: user.email, role: user.role },
       JWT_SECRET,
       { expiresIn: JWT_EXPIRES_IN }
     );
 
-    res.json({ message: 'Login successful', token, user: { id: user.id, email: user.email, name: user.name, role: user.role } });
+    // Return success response with token
+    // Note: role is included for convenience, but can be fetched separately if needed
+    res.json({
+      token,
+      user: {
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        role: user.role || 'student', // Default to student if role is null
+        department_id: user.department_id,
+        roll_number: user.roll_number
+      }
+    });
   } catch (err) {
-    console.error('loginUser error:', err);
+    console.error('Error in loginUser:', err);
     res.status(500).json({ error: 'Internal server error' });
   }
 }
@@ -69,17 +100,41 @@ export async function loginUser(req, res) {
 export async function getUserDetails(req, res) {
   try {
     const userId = req.params.id;
-    console.log(userId);
-    const userRes = await pool.query(
-      'SELECT id, name, email, role, department_id, roll_number, created_at, updated_at FROM users WHERE id=$1',
+    const requestingUserId = req.user?.id;
+
+    // Users can only view their own details unless they're admin
+    if (String(userId) !== String(requestingUserId) && req.user?.role !== 'admin') {
+      return res.status(403).json({ error: 'Forbidden' });
+    }
+
+    const userQuery = await pool.query(
+      `SELECT id, name, email, role, department_id, roll_number, created_at 
+       FROM users WHERE id = $1`,
       [userId]
     );
-    if (userRes.rowCount === 0) {
+
+    if (userQuery.rowCount === 0) {
       return res.status(404).json({ error: 'User not found' });
     }
-    res.json(userRes.rows[0]);
+
+    const user = userQuery.rows[0];
+
+    // Get enrolled courses if student
+    if (user.role === 'student') {
+      const coursesQuery = await pool.query(
+        `SELECT co.id, c.code as course_code, c.title as name
+         FROM enrollments e
+         JOIN course_offerings co ON e.course_offering_id = co.id
+         JOIN courses c ON co.course_id = c.id
+         WHERE e.student_id = $1 AND e.status = 'active'`,
+        [userId]
+      );
+      user.enrolledCourses = coursesQuery.rows;
+    }
+
+    res.json(user);
   } catch (err) {
-    console.error('getUserDetails error:', err);
+    console.error('Error in getUserDetails:', err);
     res.status(500).json({ error: 'Internal server error' });
   }
 }

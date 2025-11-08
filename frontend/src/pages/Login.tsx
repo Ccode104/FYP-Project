@@ -25,20 +25,14 @@ export default function Login() {
     e.preventDefault()
     setError(null)
     setLoading(true)
-    const ok = await verify()
-    if (!ok) {
-      setError('Invalid credentials.')
-      push({ kind: 'error', message: 'Login failed' })
-      setLoading(false)
-      return
-    }
+
     try {
-      console.log(password);
-      const u = await login(email, password)
+      const user = await login(email, password) // Use the login service
       push({ kind: 'success', message: 'Login successful' })
-      navigate(getDashboardPathForRole(u.role), { replace: true })
-    } catch (e: any) {
-      setError(e?.message || 'Login failed')
+      navigate(getDashboardPathForRole(user.role), { replace: true })
+    } catch (err: any) {
+      console.error('Login failed:', err.message)
+      setError(err.message || 'Login failed')
       push({ kind: 'error', message: 'Login failed' })
     } finally {
       setLoading(false)
@@ -72,7 +66,6 @@ export default function Login() {
           <label className="field">
             <input
               className="input"
-          
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               type="password"

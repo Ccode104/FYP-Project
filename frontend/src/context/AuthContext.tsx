@@ -37,8 +37,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const login: AuthContextValue['login'] = async (email, password) => {
     const { loginRequest } = await import('../services/auth')
     const res = await loginRequest(email, password)
-    const mappedRole = mapBackendRole(res.user.role)
-    const u: User = { id: String(res.user.id), name: res.user.name || email.split('@')[0] || 'User', email: res.user.email, role: mappedRole }
+    
+    // Handle case where user object might not be in response
+    if (!res.user) {
+      throw new Error('Invalid login response: user data missing')
+    }
+    
+    // Map role if provided, otherwise default to 'student'
+    const backendRole = res.user.role || 'student'
+    const mappedRole = mapBackendRole(backendRole)
+    
+    const u: User = { 
+      id: String(res.user.id || ''), 
+      name: res.user.name || email.split('@')[0] || 'User', 
+      email: res.user.email || email, 
+      role: mappedRole 
+    }
+    
     localStorage.setItem('auth:token', res.token)
     localStorage.setItem('auth:user', JSON.stringify(u))
     setUser(u)
