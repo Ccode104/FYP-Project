@@ -1,24 +1,41 @@
-import multer from 'multer';
-import AWS from 'aws-sdk';
-import { v4 as uuidv4 } from 'uuid';
+import multer from "multer";
+import { v4 as uuidv4 } from "uuid";
+import { v2 as cloudinary } from "cloudinary";
+import { CloudinaryStorage } from "multer-storage-cloudinary";
 
-const storage = multer.memoryStorage();
-export const upload = multer({ storage });
-
-const s3 = new AWS.S3({
-  accessKeyId: process.env.AWS_ACCESS_KEY_ID,
-  secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
-  region: process.env.S3_REGION
+// Configure Cloudinary
+cloudinary.config({
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+  api_key: process.env.CLOUDINARY_API_KEY,
+  api_secret: process.env.CLOUDINARY_API_SECRET,
 });
 
-export async function uploadBufferToS3(buffer, filename, mime) {
-  const key = `${uuidv4()}_${filename}`;
-  const params = {
-    Bucket: process.env.S3_BUCKET,
-    Key: key,
-    Body: buffer,
-    ContentType: mime
-  };
-  const result = await s3.upload(params).promise();
-  return result.Location;
-}
+// Cloudinary storage for videos
+const cloudinaryStorage = new CloudinaryStorage({
+  cloudinary,
+  params: async (req, file) => ({
+    folder: "lms_videos",
+    resource_type: "video",
+    public_id: `${uuidv4()}_${Date.now()}`,
+  }),
+});
+
+// Multer middleware
+export const uploadVideo = multer({
+  storage: cloudinaryStorage,
+  limits: { fileSize: 500 * 1024 * 1024 }, // 500 MB
+  fileFilter: (req, file, cb) => {
+    console.log("Received file:", file.originalname, file.mimetype);
+    const allowed = ["video/mp4", "video/mkv", "video/webm", "video/avi"];
+    if (
+      allowed.includes(file.mimetype) ||
+      file.originalname.match(/\.(mp4|mkv|avi|webm)$/)
+    ) {
+      cb(null, true);
+    } else {
+      cb(new Error("Only video files are allowed!"), false);
+    }
+  },
+});
+
+export { cloudinary };

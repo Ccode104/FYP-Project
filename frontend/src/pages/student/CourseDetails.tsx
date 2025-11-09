@@ -1,5 +1,5 @@
 import { useParams, useNavigate } from 'react-router-dom'
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState, useRef } from 'react'
 import { courses } from '../../data/mock'
 import { useAuth } from '../../context/AuthContext'
 import { getUserCourses } from '../../data/userCourses'
@@ -11,6 +11,11 @@ import { useToast } from '../../components/ToastProvider'
 import { apiFetch } from '../../services/api'
 import { type ProgressRow } from '../../services/progress'
 import QuizCreator from '../../components/QuizCreator'
+import VideoUpload from '../../components/VideoUpload'
+import InteractiveVideoPlayer from '../../components/InteractiveVideoPlayer'
+import VideoQuestionManager from '../../components/VideoQuestionManager'
+import VideoQuizResults from '../../components/VideoQuizResults'
+import Modal from '../../components/Modal'
 
 function BackendSubmissions({ assignments }: { assignments: any[] }) {
   const [assignmentId, setAssignmentId] = useState<string>('')
@@ -248,8 +253,15 @@ export default function CourseDetails() {
   const { courseId } = useParams()
   const { user } = useAuth()
   const navigate = useNavigate()
-  const [tab, setTab] = useState<'present' | 'past' | 'pyq' | 'notes' | 'quizzes' | 'manage' | 'submissions' | 'grading' | 'progress' | 'discussion'>('present')
+  const [tab, setTab] = useState<'present' | 'past' | 'pyq' | 'notes' | 'quizzes' | 'manage' | 'submissions' | 'grading' | 'progress' | 'discussion' | 'videos'>('present')
+  const [backendVideos, setBackendVideos] = useState<any[]>([])
+  const [selectedVideo, setSelectedVideo] = useState<any | null>(null)
+  const [videoQuestions, setVideoQuestions] = useState<any[]>([])
+  const [showQuestionForm, setShowQuestionForm] = useState(false)
+  const [currentVideoTime, setCurrentVideoTime] = useState<number>(0)
+  const videoRefForFaculty = useRef<HTMLVideoElement>(null)
   const [assignmentCreationType, setAssignmentCreationType] = useState<'selection' | 'code' | 'quiz' | 'pdf'>('selection')
+  const [showVideoUpload, setShowVideoUpload] = useState(false)
   const isBackend = !!courseId && /^\d+$/.test(courseId)
   const { push } = useToast()
 
@@ -361,9 +373,27 @@ export default function CourseDetails() {
         const quizzes = await (await import('../../services/quizzes')).listCourseQuizzes(Number(courseId))
         setBackendQuizzes(quizzes)
       try { const { listDiscussionMessages } = await import('../../services/discussion'); const items = await listDiscussionMessages(courseId!); if (!cancelled) setDiscussion(items) } catch {}
+      // Load videos for this course offering
+      try {
+        const { getVideosByCourseOffering } = await import('../../services/videos');
+        const videosData = await getVideosByCourseOffering(courseId!);
+        if (!cancelled) setBackendVideos(videosData.videos || []);
+      } catch {}
     })()
     return () => { cancelled = true }
   }, [courseId, isBackend])
+
+  // Load questions when video is selected
+  useEffect(() => {
+    if (!selectedVideo || user?.role !== 'teacher') return;
+    (async () => {
+      try {
+        const { getVideoQuizQuestions } = await import('../../services/videos');
+        const questionsData = await getVideoQuizQuestions(selectedVideo.id);
+        setVideoQuestions(questionsData.questions || []);
+      } catch {}
+    })();
+  }, [selectedVideo, user?.role])
 
   return (
     <div className="course-details-page">
@@ -408,6 +438,11 @@ export default function CourseDetails() {
             <button className={tab === 'quizzes' ? 'active' : ''} onClick={() => setTab('quizzes')} aria-pressed={tab === 'quizzes'}>
           Quizzes
         </button>
+        {isBackend && (
+          <button className={tab === 'videos' ? 'active' : ''} onClick={() => setTab('videos')} aria-pressed={tab === 'videos'}>
+            Videos
+          </button>
+        )}
         {user?.role === 'teacher' && (
               <>
                 <button className={tab === 'manage' ? 'active' : ''} onClick={() => setTab('manage')} aria-pressed={tab === 'manage'}>
@@ -809,6 +844,210 @@ export default function CourseDetails() {
             <CourseProgressEmbed offeringId={courseId!} />
           )}
         </section>
+      )}
+
+      {tab === 'videos' && isBackend && (
+        <section className="card">
+          {user?.role === 'teacher' && (
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+              <h3 style={{ margin: 0 }}>Video Lectures</h3>
+              <button className="btn btn-primary" onClick={() => setShowVideoUpload(true)}>
+                📹 Upload Video Lecture
+              </button>
+            </div>
+          )}
+          {user?.role !== 'teacher' && (
+            <h3 style={{ marginBottom: 16 }}>Video Lectures</h3>
+          )}
+
+          {selectedVideo ? (
+            <div>
+              <button className="btn" onClick={() => setSelectedVideo(null)} style={{ marginBottom: 16 }}>
+                ← Back to Videos
+              </button>
+              <div className="video-viewer">
+                <h4>{selectedVideo.title}</h4>
+                {selectedVideo.description && (
+                  <p className="muted" style={{ marginBottom: 16 }}>{selectedVideo.description}</p>
+                )}
+                <div style={{ marginBottom: 8 }}>
+                  <strong>Duration:</strong> {selectedVideo.duration 
+                    ? (() => {
+                        const totalSeconds = Math.floor(selectedVideo.duration);
+                        const hours = Math.floor(totalSeconds / 3600);
+                        const minutes = Math.floor((totalSeconds % 3600) / 60);
+                        const seconds = totalSeconds % 60;
+                        if (hours > 0) {
+                          return `${hours}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+                        }
+                        return `${minutes}:${seconds.toString().padStart(2, '0')}`;
+                      })()
+                    : 'N/A'}
+                </div>
+                <div style={{ marginBottom: 16 }}>
+                  <strong>Uploaded:</strong> {new Date(selectedVideo.upload_timestamp).toLocaleString()}
+                </div>
+                <div style={{ width: '100%', maxWidth: '800px', margin: '0 auto' }}>
+                  {user?.role === 'student' ? (
+                    <InteractiveVideoPlayer
+                      video={selectedVideo}
+                      userRole={user?.role || 'student'}
+                      onComplete={(score, maxScore) => {
+                        push({
+                          kind: 'success',
+                          message: `Quiz completed! Score: ${score}/${maxScore}`,
+                        });
+                      }}
+                    />
+                  ) : (
+                    <div className="faculty-video-container">
+                      <div className="faculty-video-wrapper">
+                        <video
+                          ref={videoRefForFaculty}
+                          src={selectedVideo.video_url}
+                          controls
+                          onTimeUpdate={(e) => {
+                            setCurrentVideoTime(e.currentTarget.currentTime);
+                          }}
+                          className="faculty-video-player"
+                        >
+                          Your browser does not support the video tag.
+                        </video>
+                      </div>
+                      <VideoQuestionManager
+                        videoId={selectedVideo.id}
+                        videoDuration={selectedVideo.duration}
+                        currentTime={currentVideoTime}
+                        onTimeSelect={(time) => {
+                          if (videoRefForFaculty.current) {
+                            videoRefForFaculty.current.currentTime = time;
+                          }
+                        }}
+                      />
+                      <VideoQuizResults videoId={selectedVideo.id} />
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          ) : (
+            <>
+              {backendVideos.length === 0 ? (
+                <p className="muted">No videos available for this course.</p>
+              ) : (
+                <div style={{ overflowX: 'auto' }}>
+                  <table className="table">
+                    <thead>
+                      <tr>
+                        <th>Title</th>
+                        {user?.role === 'teacher' && <th>URL</th>}
+                        <th>Duration</th>
+                        <th>Uploaded</th>
+                        {user?.role === 'teacher' && <th>Actions</th>}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {backendVideos.map((video: any) => (
+                        <tr key={video.id}>
+                          <td>
+                            <button
+                              className="btn"
+                              style={{ textAlign: 'left', padding: 0, background: 'none', border: 'none', color: 'inherit', cursor: 'pointer', textDecoration: 'underline' }}
+                              onClick={() => setSelectedVideo(video)}
+                            >
+                              {video.title}
+                            </button>
+                          </td>
+                          {user?.role === 'teacher' && (
+                            <td>
+                              <a 
+                                href={video.video_url} 
+                                target="_blank" 
+                                rel="noopener noreferrer"
+                                style={{ fontSize: '0.875rem', wordBreak: 'break-all' }}
+                              >
+                                {video.video_url.length > 50 ? video.video_url.substring(0, 50) + '...' : video.video_url}
+                              </a>
+                            </td>
+                          )}
+                          <td>
+                            {video.duration
+                              ? (() => {
+                                  const totalSeconds = Math.floor(video.duration);
+                                  const hours = Math.floor(totalSeconds / 3600);
+                                  const minutes = Math.floor((totalSeconds % 3600) / 60);
+                                  const seconds = totalSeconds % 60;
+                                  if (hours > 0) {
+                                    return `${hours}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+                                  }
+                                  return `${minutes}:${seconds.toString().padStart(2, '0')}`;
+                                })()
+                              : 'N/A'}
+                          </td>
+                          <td>{new Date(video.upload_timestamp).toLocaleString()}</td>
+                          {user?.role === 'teacher' && (
+                            <td>
+                              <button
+                                className="btn btn-primary"
+                                style={{ marginRight: 8 }}
+                                onClick={() => setSelectedVideo(video)}
+                              >
+                                View
+                              </button>
+                              <button
+                                className="btn"
+                                onClick={async () => {
+                                  if (confirm(`Delete "${video.title}"?`)) {
+                                    try {
+                                      const { deleteVideo } = await import('../../services/videos');
+                                      await deleteVideo(video.id);
+                                      push({ kind: 'success', message: 'Video deleted' });
+                                      const { getVideosByCourseOffering } = await import('../../services/videos');
+                                      const videosData = await getVideosByCourseOffering(courseId!);
+                                      setBackendVideos(videosData.videos || []);
+                                    } catch (e: any) {
+                                      push({ kind: 'error', message: e?.message || 'Failed to delete video' });
+                                    }
+                                  }
+                                }}
+                              >
+                                Delete
+                              </button>
+                            </td>
+                          )}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </>
+          )}
+        </section>
+      )}
+
+      {/* Video Upload Modal */}
+      {isBackend && courseId && (
+        <Modal
+          open={showVideoUpload}
+          onClose={() => setShowVideoUpload(false)}
+          title="Upload Video Lecture"
+        >
+          <VideoUpload
+            courseOfferingId={courseId}
+            onUploadSuccess={async (video) => {
+              push({ kind: 'success', message: `Video "${video.title}" uploaded successfully!` })
+              setShowVideoUpload(false)
+              // Refresh videos list
+              try {
+                const { getVideosByCourseOffering } = await import('../../services/videos');
+                const videosData = await getVideosByCourseOffering(courseId!);
+                setBackendVideos(videosData.videos || []);
+              } catch {}
+            }}
+            onClose={() => setShowVideoUpload(false)}
+          />
+        </Modal>
       )}
         </div>
       </div>

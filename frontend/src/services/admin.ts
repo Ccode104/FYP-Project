@@ -26,7 +26,6 @@ export async function deleteMaterial(id: number) {
 export async function listUsers(role?: 'student'|'faculty'|'ta'|'admin') {
   const qs = role ? `?role=${role}` : ''
   const url = `/api/admin/users${qs}`
-  console.log('Calling admin API:', url)
   return apiFetch<{ users: any[] }>(url)
 }
 

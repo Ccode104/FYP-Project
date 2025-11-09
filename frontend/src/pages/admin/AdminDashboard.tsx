@@ -25,11 +25,7 @@ export default function AdminDashboard() {
     try {
       setIsLoading(true)
       setLoadError('')
-      console.log('Loading users with role filter:', roleFilter)
       const r = await listUsers(roleFilter || undefined)
-      console.log('Loaded users:', r)
-      console.log('Users array:', r.users)
-      console.log('Users count:', r.users?.length)
       setUsersList(r.users || [])
     } catch (err: any) {
       console.error('Error loading users:', err)
@@ -42,7 +38,6 @@ export default function AdminDashboard() {
 
   useEffect(() => {
     if (isAdmin) {
-      console.log('Effect triggered - loading users')
       void loadUsers()
     }
   }, [isAdmin, roleFilter])
@@ -108,14 +103,11 @@ export default function AdminDashboard() {
   }
 
   const selectFaculty = async (faculty: any) => {
-    console.log('Selected faculty:', faculty)
-    console.log('Faculty ID:', faculty.faculty_id)
     setSelectedFaculty(faculty)
     setSelectedOffering(null)
     setSelectedAssignment(null)
     try {
       const r = await getAssignmentsByFaculty(faculty.faculty_id)
-      console.log('Faculty assignments response:', r)
       setFacultyAssignments(r.assignments)
     } catch (err) {
       console.error('Error loading faculty assignments:', err)

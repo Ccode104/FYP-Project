@@ -1,6 +1,6 @@
 import express from 'express';
 import { requireAuth, requireRole } from '../middleware/auth.js';
-import { upload } from '../middleware/upload.js';
+// import { upload } from '../middleware/upload.js';
 import { submitFileAssignment, submitCodeAssignment, gradeSubmission, submitLinkAssignment, getSubmissionById } from '../controllers/submissionsController.js';
 
 const router = express.Router();
@@ -40,7 +40,14 @@ const router = express.Router();
  *       404:
  *         description: Assignment not found
  */
-router.post('/submit/files', requireAuth, requireRole('student','ta','faculty'), upload.array('files', 5), submitFileAssignment);
+// router.post('/submit/files', requireAuth, requireRole('student','ta','faculty'), upload.array('files', 5), submitFileAssignment);
+router.post(
+  "/submit/files",
+  requireAuth,
+  requireRole("student", "ta", "faculty"),
+//   upload.array("files", 5),
+  submitFileAssignment
+);
 
 /**
  * @swagger

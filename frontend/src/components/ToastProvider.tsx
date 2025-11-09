@@ -1,14 +1,20 @@
 import { createContext, useContext, useMemo, useState } from 'react'
 import './Toast.css'
 
-type Toast = { id: number; kind: 'success'|'error'|'info'; message: string }
+type Toast = { id: string; kind: 'success'|'error'|'info'; message: string }
 
 const ToastCtx = createContext<{ push: (t: Omit<Toast,'id'>) => void } | null>(null)
+
+let __toastCounter = 0
+function nextToastId() {
+  __toastCounter += 1
+  return `${Date.now()}-${__toastCounter}`
+}
 
 export function ToastProvider({ children }: { children: React.ReactNode }) {
   const [toasts, setToasts] = useState<Toast[]>([])
   const push = (t: Omit<Toast,'id'>) => {
-    const id = Date.now() + Math.floor(Math.random()*1000)
+    const id = nextToastId()
     setToasts((prev) => [...prev, { id, ...t }])
     setTimeout(() => setToasts((prev) => prev.filter((x) => x.id !== id)), 2500)
   }

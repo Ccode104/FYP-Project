@@ -1,5 +1,5 @@
 import { pool } from '../db/index.js';
-import { uploadBufferToS3 } from '../middleware/upload.js';
+
 
 export async function submitFileAssignment(req, res) {
   const assignment_id = Number(req.body.assignment_id);
@@ -15,7 +15,9 @@ export async function submitFileAssignment(req, res) {
 
     const files = req.files || [];
     for (const f of files) {
-      const url = await uploadBufferToS3(f.buffer, f.originalname, f.mimetype);
+  // TODO: Implement file upload to Cloudinary or another storage provider if needed
+  // const url = await uploadBufferToS3(f.buffer, f.originalname, f.mimetype);
+  const url = null; // Placeholder, update with actual upload logic
       await pool.query(`INSERT INTO submission_files (submission_id, storage_path, filename, file_size, mime_type)
                         VALUES ($1,$2,$3,$4,$5)`, [submission.id, url, f.originalname, f.size, f.mimetype]);
     }
