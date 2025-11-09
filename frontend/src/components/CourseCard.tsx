@@ -41,7 +41,7 @@ export default function CourseCard({ course, onClick }: { course: Course; onClic
           <div className="course-card-progress">
             <div className="course-card-progress-info">
               <span className="course-card-progress-label text-xs font-medium tracking-wide text-secondary">Progress</span>
-              <span className="course-card-progress-value text-xs font-semibold text-primary">{Math.round(progress)}%</span>
+              <span className="course-card-progress-value text-xs font-semibold text-primary">{progressPercentage}%</span>
             </div>
             <div className="course-card-progress-bar">
               <div 

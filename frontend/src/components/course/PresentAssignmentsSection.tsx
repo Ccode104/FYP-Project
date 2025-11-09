@@ -34,16 +34,27 @@ export default function PresentAssignmentsSection({
   onOpenCodeEditor: () => void
 }) {
   return (
-    <section className="card">
-      <h3>{userRole === 'student' ? 'Assignments & Quizzes' : 'Open Assignments'}</h3>
+    <section className="assignments-section">
+      <div className="section-header">
+        <h2 className="section-title">
+          {userRole === 'student' ? 'Your Assignments' : 'Open Assignments'}
+        </h2>
+        <span className="assignment-count">{presentAssignments.length} available</span>
+      </div>
+      
       {userRole === 'student' && presentAssignments.length === 0 && (
-        <p className="muted">No unsubmitted assignments or quizzes available.</p>
+        <div className="empty-state">
+          <div className="empty-icon">🎉</div>
+          <h3>All caught up!</h3>
+          <p>You've completed all your assignments and quizzes.</p>
+        </div>
       )}
-      <ul className="list">
+
+      <div className="assignments-grid">
         {presentAssignments.map((a: any) => (
-          <li
+          <div
             key={a.id}
-            style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: (userRole==='student' && (a.assignment_type==='file' || a.assignment_type==='pdf')) ? 'pointer' : 'default' }}
+            className={`assignment-card ${(userRole==='student' && (a.assignment_type==='file' || a.assignment_type==='pdf')) ? 'clickable' : ''}`}
             onClick={() => {
               if (userRole==='student' && (a.assignment_type==='file' || a.assignment_type==='pdf')) {
                 onStudentClickSubmitPDF(String(a.id))
@@ -54,48 +65,67 @@ export default function PresentAssignmentsSection({
               }
             }}
           >
-            <span style={{ flex: 1 }}>
-              {a.title}
-              {a.due_at ? ` (Due: ${new Date(a.due_at).toLocaleString()})` : ''}
-              {a.assignment_type && (
-                <span style={{ marginLeft: 8, fontSize: '0.9em', color: '#6b7280' }}>
-                  [{a.assignment_type === 'code' ? '💻 Code' : a.assignment_type === 'quiz' ? '📝 Quiz' : a.assignment_type === 'file' ? '📄 PDF' : a.assignment_type}]
-                </span>
+            <div className="assignment-header">
+              <div className="assignment-type">
+                {a.assignment_type === 'code' && '💻'}
+                {a.assignment_type === 'quiz' && '📝'}
+                {a.assignment_type === 'file' && '📄'}
+                {a.assignment_type === 'pdf' && '📄'}
+                {!a.assignment_type && a.is_quiz && '📝'}
+                <span>{a.assignment_type === 'code' ? 'Code' : a.assignment_type === 'quiz' ? 'Quiz' : a.assignment_type === 'file' ? 'PDF' : a.assignment_type === 'pdf' ? 'PDF' : a.is_quiz ? 'Quiz' : 'Assignment'}</span>
+              </div>
+              {isBackend && userRole === 'teacher' && (
+                <MenuTiny onDelete={async () => { await onTeacherDelete(Number(a.id)) }} />
               )}
-              {a.is_quiz && (
-                <span style={{ marginLeft: 8, fontSize: '0.9em', color: '#6b7280' }}>
-                  [📝 Quiz-based]
-                </span>
-              )}
-            </span>
+            </div>
 
-            {isBackend && userRole === 'teacher' && (
-              <MenuTiny onDelete={async () => { await onTeacherDelete(Number(a.id)) }} />
+            <h3 className="assignment-title">{a.title}</h3>
+            
+            {a.due_at && (
+              <div className="assignment-due">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
+                  <line x1="16" y1="2" x2="16" y2="6"/>
+                  <line x1="8" y1="2" x2="8" y2="6"/>
+                  <line x1="3" y1="10" x2="21" y2="10"/>
+                </svg>
+                Due: {new Date(a.due_at).toLocaleDateString()}
+              </div>
             )}
 
             {userRole === 'student' && (
-              <>
+              <div className="assignment-actions">
                 {a.is_quiz ? (
                   <button
-                    className="btn btn-primary"
-                    style={{ marginLeft: 8 }}
-                    onClick={() => onAttemptQuiz(a.quiz_id)}
+                    className="btn-assignment attempt-quiz"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      onAttemptQuiz(a.quiz_id)
+                    }}
                   >
-                    Attempt Quiz
+                    <span>Start Quiz</span>
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <polyline points="9,18 15,12 9,6"/>
+                    </svg>
                   </button>
                 ) : a.assignment_type === 'code' ? (
                   <button
-                    className="btn btn-primary"
-                    style={{ marginLeft: 8 }}
-                    onClick={() => onStartCodeAttempt(a)}
+                    className="btn-assignment attempt-code"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      onStartCodeAttempt(a)
+                    }}
                   >
-                    Attempt Code
+                    <span>Code Editor</span>
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <polyline points="9,18 15,12 9,6"/>
+                    </svg>
                   </button>
                 ) : a.assignment_type === 'file' || a.assignment_type === 'pdf' ? (
                   <button
-                    className="btn btn-primary"
-                    style={{ marginLeft: 8 }}
-                    onClick={() => {
+                    className="btn-assignment submit-pdf"
+                    onClick={(e) => {
+                      e.stopPropagation()
                       onStudentClickSubmitPDF(String(a.id))
                       setTimeout(() => {
                         const form = document.querySelector('form[data-assignment-submit]') as HTMLElement | null
@@ -103,68 +133,97 @@ export default function PresentAssignmentsSection({
                       }, 80)
                     }}
                   >
-                    Submit PDF
+                    <span>Submit PDF</span>
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <path d="M21,15v4a2,2 0 0 1-2,2H5a2,2 0 0 1-2-2v-4"/>
+                      <polyline points="7,10 12,15 17,10"/>
+                      <line x1="12" y1="15" x2="12" y2="3"/>
+                    </svg>
                   </button>
                 ) : null}
-              </>
+              </div>
             )}
-          </li>
+          </div>
         ))}
-      </ul>
+      </div>
 
       {userRole === 'student' && isBackend && (
-        <div style={{ marginTop: 24, paddingTop: 24, borderTop: '1px solid var(--border-color, #ddd)' }}>
-          <h4>Submit PDF Assignment</h4>
-          <form data-assignment-submit onSubmit={onSubmitLink} style={{ display: 'flex', gap: 8, alignItems: 'center', marginTop: 12, flexWrap: 'wrap' }}>
-            <select
-              className="select"
-              value={selectedAssignmentId}
-              onChange={(e) => onChangeSelectedAssignmentId(e.target.value)}
-              style={{ minWidth: 200 }}
-            >
-              <option value="">Select PDF assignment</option>
-              {presentAssignments
-                .filter((a: any) => (a.assignment_type === 'file' || a.assignment_type === 'pdf'))
-                .map((a: any) => (
-                  <option key={a.id} value={String(a.id)}>{a.title}</option>
-                ))}
-            </select>
-            <input
-              className="input"
-              style={{ flex: 1, minWidth: 260 }}
-              placeholder="Submission URL (e.g., Google Drive link)"
-              value={linkUrl}
-              onChange={(e) => onChangeLinkUrl(e.target.value)}
-              required
-            />
-            <button className="btn btn-primary" type="submit" disabled={!selectedAssignmentId || !linkUrl.trim()}>
-              Submit
+        <div className="submission-section">
+          <div className="submission-header">
+            <h4>Submit PDF Assignment</h4>
+            <p className="submission-description">Upload your PDF assignment via Google Drive or similar service</p>
+          </div>
+          <form data-assignment-submit onSubmit={onSubmitLink} className="submission-form">
+            <div className="form-group">
+              <label htmlFor="assignment-select">Select Assignment</label>
+              <select
+                id="assignment-select"
+                className="form-select"
+                value={selectedAssignmentId}
+                onChange={(e) => onChangeSelectedAssignmentId(e.target.value)}
+              >
+                <option value="">Choose a PDF assignment...</option>
+                {presentAssignments
+                  .filter((a: any) => (a.assignment_type === 'file' || a.assignment_type === 'pdf'))
+                  .map((a: any) => (
+                    <option key={a.id} value={String(a.id)}>{a.title}</option>
+                  ))}
+              </select>
+            </div>
+            <div className="form-group">
+              <label htmlFor="submission-url">Submission Link</label>
+              <input
+                id="submission-url"
+                className="form-input"
+                placeholder="Paste your Google Drive or cloud storage link"
+                value={linkUrl}
+                onChange={(e) => onChangeLinkUrl(e.target.value)}
+                required
+              />
+            </div>
+            <button className="btn-submit" type="submit" disabled={!selectedAssignmentId || !linkUrl.trim()}>
+              <span>Submit Assignment</span>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M21,15v4a2,2 0 0 1-2,2H5a2,2 0 0 1-2-2v-4"/>
+                <polyline points="7,10 12,15 17,10"/>
+                <line x1="12" y1="15" x2="12" y2="3"/>
+              </svg>
             </button>
           </form>
         </div>
       )}
 
       {userRole === 'student' && isBackend && (
-        <div style={{ marginTop: 24, paddingTop: 24, borderTop: '1px solid var(--border-color, #ddd)' }}>
-          <h4>Code Submission</h4>
-          <p className="muted">Submit code for code-based assignments</p>
-          <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginTop: 12 }}>
-            <select
-              className="select"
-              value={codeAssignmentId}
-              onChange={(e) => onChangeCodeAssignmentId(e.target.value)}
-            >
-              <option value="">Select code assignment</option>
-              {presentAssignments.filter((a: any) => a.assignment_type === 'code').map((a: any) => (
-                <option key={a.id} value={a.id}>{a.title}</option>
-              ))}
-            </select>
+        <div className="submission-section">
+          <div className="submission-header">
+            <h4>Code Assignment</h4>
+            <p className="submission-description">Work on your coding assignments in our built-in editor</p>
+          </div>
+          <div className="code-submission-form">
+            <div className="form-group">
+              <label htmlFor="code-assignment-select">Select Code Assignment</label>
+              <select
+                id="code-assignment-select"
+                className="form-select"
+                value={codeAssignmentId}
+                onChange={(e) => onChangeCodeAssignmentId(e.target.value)}
+              >
+                <option value="">Choose a code assignment...</option>
+                {presentAssignments.filter((a: any) => a.assignment_type === 'code').map((a: any) => (
+                  <option key={a.id} value={a.id}>{a.title}</option>
+                ))}
+              </select>
+            </div>
             <button
-              className="btn btn-primary"
+              className="btn-code-editor"
               onClick={onOpenCodeEditor}
               disabled={!codeAssignmentId}
             >
-              Open Code Editor
+              <span>Open Code Editor</span>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <polyline points="16,18 22,12 16,6"/>
+                <polyline points="8,6 2,12 8,18"/>
+              </svg>
             </button>
           </div>
         </div>

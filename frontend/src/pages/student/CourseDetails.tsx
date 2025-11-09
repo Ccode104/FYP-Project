@@ -88,7 +88,7 @@ export default function CourseDetails() {
   const [backendNotes, setBackendNotes] = useState<any[]>([])
   const [backendQuizzes, setBackendQuizzes] = useState<any[]>([])
   const [myQuizAttempts, setMyQuizAttempts] = useState<any[]>([])
-  const [mySubmissions, setMySubmissions] = useState<any[]>([]) // Track student's submissions
+  const [mySubmissions, setMySubmissions] = useState<any[] | null>(null) // Track student's submissions - null means not loaded yet
   const [selectedAssignmentId, setSelectedAssignmentId] = useState<string>('')
   const [discussionMessages, setDiscussionMessages] = useState<DiscussionMessage[]>([])
   const [discussionLoading, setDiscussionLoading] = useState(false)
@@ -130,28 +130,54 @@ export default function CourseDetails() {
 
   // For students: filter out submitted assignments and combine with unsubmitted quizzes
   const presentAssignments = useMemo(() => {
+    console.log('=== presentAssignments memo recalculating ===')
+    console.log('user?.role:', user?.role)
+    console.log('allPresentAssignments count:', allPresentAssignments?.length)
+    console.log('mySubmissions count:', mySubmissions?.length)
+    console.log('myQuizAttempts count:', myQuizAttempts?.length)
+    console.log('backendQuizzes count:', backendQuizzes?.length)
+    console.log('isBackend:', isBackend)
+
     if (user?.role !== 'student') {
+      console.log('Not a student, returning all assignments')
       return allPresentAssignments
     }
 
     if (!isBackend) {
+      console.log('Not backend mode, returning all assignments')
       return allPresentAssignments
     }
 
-    // Get set of submitted assignment IDs
-    const submittedAssignmentIds = new Set(
-      mySubmissions.map((s: any) => String(s.assignment_id))
-    )
+    // Get set of submitted assignment IDs (only if submissions are loaded)
+    const submittedAssignmentIds = mySubmissions ? new Set(
+      mySubmissions.map((s: any) => {
+        const id = s.assignment_id || s.id // Handle both submission formats
+        return String(id)
+      })
+    ) : new Set()
+    console.log('submittedAssignmentIds:', Array.from(submittedAssignmentIds))
+    console.log('mySubmissions loaded:', mySubmissions !== null)
 
     // Get set of attempted quiz IDs
     const attemptedQuizIds = new Set(
       (myQuizAttempts || []).map((a: any) => String(a.quiz_id))
     )
+    console.log('attemptedQuizIds:', Array.from(attemptedQuizIds))
 
-    // Filter assignments: only show unsubmitted ones
-    const unsubmittedAssignments = allPresentAssignments.filter((a: any) => {
-      return !submittedAssignmentIds.has(String(a.id))
-    })
+    // Filter assignments: only show unsubmitted ones (only if submissions are loaded)
+    const unsubmittedAssignments = mySubmissions ? allPresentAssignments.filter((a: any) => {
+      const assignmentId = String(a.id)
+      const isSubmitted = submittedAssignmentIds.has(assignmentId)
+      console.log(`Assignment ${assignmentId} (${a.title}): isSubmitted=${isSubmitted}, assignment_type=${a.assignment_type}`)
+      return !isSubmitted
+    }) : allPresentAssignments // If submissions not loaded yet, show all assignments
+    console.log('unsubmittedAssignments count:', unsubmittedAssignments.length)
+    console.log('unsubmittedAssignments details:', unsubmittedAssignments.map(a => ({
+      id: a.id,
+      title: a.title,
+      assignment_type: a.assignment_type,
+      is_quiz: a.is_quiz
+    })))
 
     // Get unsubmitted quizzes and convert them to assignment-like objects
     const unsubmittedQuizzes = (backendQuizzes || [])
@@ -166,9 +192,24 @@ export default function CourseDetails() {
         quiz_id: q.id,
         quiz_data: q
       }))
+    console.log('unsubmittedQuizzes count:', unsubmittedQuizzes.length)
 
-    // Combine unsubmitted assignments and quizzes
-    return [...unsubmittedAssignments, ...unsubmittedQuizzes]
+    const result = [...unsubmittedAssignments, ...unsubmittedQuizzes]
+    console.log('Final presentAssignments count:', result.length)
+    console.log('Final result details:', result.map(r => ({
+      id: r.id,
+      title: r.title,
+      assignment_type: r.assignment_type,
+      is_quiz: r.is_quiz
+    })))
+    console.log('presentAssignments filtering status:', {
+      allPresentAssignments: allPresentAssignments.length,
+      mySubmissionsLoaded: mySubmissions !== null,
+      mySubmissionsCount: mySubmissions?.length || 0,
+      unsubmittedAssignments: unsubmittedAssignments.length,
+      unsubmittedQuizzes: unsubmittedQuizzes.length
+    })
+    return result
   }, [allPresentAssignments, mySubmissions, myQuizAttempts, backendQuizzes, user?.role, isBackend])
 
   const [file, setFile] = useState<File | null>(null)
@@ -659,7 +700,12 @@ export default function CourseDetails() {
     let cancelled = false
     if (!isBackend || !courseId) return
       ; (async () => {
-        try { const data = await apiFetch<any[]>(`/api/courses/${courseId}/assignments`); if (!cancelled) setBackendAssignments(data) } catch { }
+        try { 
+          console.log('Loading assignments...')
+          const data = await apiFetch<any[]>(`/api/courses/${courseId}/assignments`)
+          console.log('Loaded assignments:', data)
+          if (!cancelled) setBackendAssignments(data) 
+        } catch { }
         try { const pyq = await apiFetch<any[]>(`/api/courses/${courseId}/pyqs`); if (!cancelled) setBackendPYQ(pyq) } catch { }
         try { const notes = await apiFetch<any[]>(`/api/courses/${courseId}/notes`); if (!cancelled) setBackendNotes(notes) } catch { }
         // quizzes list for offering + my attempts
@@ -675,7 +721,15 @@ export default function CourseDetails() {
         // Load student's submissions to track which assignments have been submitted
         if (user?.role === 'student' && user?.id) {
           try {
+            console.log('Loading student submissions...')
             const submissions = await apiFetch<any[]>(`/api/student/courses/${courseId}/submissions`)
+            console.log('Loaded submissions:', submissions)
+            console.log('Submission details:', submissions?.map(s => ({
+              id: s.id,
+              assignment_id: s.assignment_id,
+              student_id: s.student_id,
+              submitted_at: s.submitted_at
+            })))
             if (!cancelled) setMySubmissions(submissions || [])
           } catch (err) {
             console.error('Failed to load student submissions:', err)
@@ -827,87 +881,111 @@ export default function CourseDetails() {
 
       <div className="course-details-page">
         <div className="container">
-          <header className="topbar">
-            <h2>
-              {course?.title || 'Course'} - {user?.role.toUpperCase()}
-            </h2>
-            <div className="actions">
-              <button className="btn btn-ghost" onClick={() => navigate(-1)}>Back</button>
-              <button className="btn btn-ghost" onClick={logout}>Logout</button>
+          <header className="course-header">
+            <div className="course-header-content">
+              <button className="back-button" onClick={() => navigate(-1)} aria-label="Go back">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M19 12H5M12 19l-7-7 7-7"/>
+                </svg>
+              </button>
+              <div className="course-title-section">
+                <h1 className="course-title">{course?.title || 'Course'}</h1>
+                <p className="course-role">{user?.role.toUpperCase()} Dashboard</p>
+              </div>
+            </div>
+            <div className="course-header-actions">
+              
             </div>
           </header>
 
-          <nav className="tabs">
-            {user?.role === 'student' ? (
-              <>
-                <button className={tab === 'present' ? 'active' : ''} onClick={() => setTab('present')} aria-pressed={tab === 'present'}>
-                  Assignments
-                </button>
-                <button className={tab === 'pyq' ? 'active' : ''} onClick={() => setTab('pyq')} aria-pressed={tab === 'pyq'}>
-                  PYQ
-                </button>
-                <button className={tab === 'notes' ? 'active' : ''} onClick={() => setTab('notes')} aria-pressed={tab === 'notes'}>
-                  Notes
-                </button>
-                {isBackend && (
-                  <button className={tab === 'progress' ? 'active' : ''} onClick={() => setTab('progress')} aria-pressed={tab === 'progress'}>
-                    Progress
+          <nav className="tabs-modern">
+            <div className="tabs-container">
+              {user?.role === 'student' ? (
+                <>
+                  <button className={`tab-button ${tab === 'present' ? 'active' : ''}`} onClick={() => setTab('present')} aria-pressed={tab === 'present'}>
+                    <span className="tab-icon">📚</span>
+                    Assignments
                   </button>
-                )}
-                {isBackend && (
-                  <button className={tab === 'discussion' ? 'active' : ''} onClick={() => setTab('discussion')} aria-pressed={tab === 'discussion'}>
-                    Discussion
+                  <button className={`tab-button ${tab === 'pyq' ? 'active' : ''}`} onClick={() => setTab('pyq')} aria-pressed={tab === 'pyq'}>
+                    <span className="tab-icon">📝</span>
+                    PYQ
                   </button>
-                )}
-                {isBackend && (
-                  <button className={tab === 'videos' ? 'active' : ''} onClick={() => setTab('videos')} aria-pressed={tab === 'videos'}>
-                    Videos
+                  <button className={`tab-button ${tab === 'notes' ? 'active' : ''}`} onClick={() => setTab('notes')} aria-pressed={tab === 'notes'}>
+                    <span className="tab-icon">📖</span>
+                    Notes
                   </button>
-                )}
-                {isBackend && (
-                  <button className={tab === 'chatbot' ? 'active' : ''} onClick={() => setTab('chatbot')} aria-pressed={tab === 'chatbot'}>
-                    AI Assistant
+                  {isBackend && (
+                    <button className={`tab-button ${tab === 'progress' ? 'active' : ''}`} onClick={() => setTab('progress')} aria-pressed={tab === 'progress'}>
+                      <span className="tab-icon">📊</span>
+                      Progress
+                    </button>
+                  )}
+                  {isBackend && (
+                    <button className={`tab-button ${tab === 'discussion' ? 'active' : ''}`} onClick={() => setTab('discussion')} aria-pressed={tab === 'discussion'}>
+                      <span className="tab-icon">💬</span>
+                      Discussion
+                    </button>
+                  )}
+                  {isBackend && (
+                    <button className={`tab-button ${tab === 'videos' ? 'active' : ''}`} onClick={() => setTab('videos')} aria-pressed={tab === 'videos'}>
+                      <span className="tab-icon">🎥</span>
+                      Videos
+                    </button>
+                  )}
+                  {isBackend && (
+                    <button className={`tab-button ${tab === 'chatbot' ? 'active' : ''}`} onClick={() => setTab('chatbot')} aria-pressed={tab === 'chatbot'}>
+                      <span className="tab-icon">🤖</span>
+                      AI Assistant
+                    </button>
+                  )}
+                  {isBackend && (
+                    <button className={`tab-button ${tab === 'pdfchat' ? 'active' : ''}`} onClick={() => setTab('pdfchat')} aria-pressed={tab === 'pdfchat'}>
+                      <span className="tab-icon">📄</span>
+                      PDF Q&A
+                    </button>
+                  )}
+                </>
+              ) : (
+                <>
+                  <button className={`tab-button ${tab === 'assignment' ? 'active' : ''}`} onClick={() => setTab('assignment')} aria-pressed={tab === 'assignment'}>
+                    <span className="tab-icon">📋</span>
+                    Assignment
                   </button>
-                )}
-                {isBackend && (
-                  <button className={tab === 'pdfchat' ? 'active' : ''} onClick={() => setTab('pdfchat')} aria-pressed={tab === 'pdfchat'}>
-                    PDF Q&A
+                  <button className={`tab-button ${tab === 'pyq' ? 'active' : ''}`} onClick={() => setTab('pyq')} aria-pressed={tab === 'pyq'}>
+                    <span className="tab-icon">📝</span>
+                    PYQ
                   </button>
-                )}
-              </>
-            ) : (
-              <>
-                <button className={tab === 'assignment' ? 'active' : ''} onClick={() => setTab('assignment')} aria-pressed={tab === 'assignment'}>
-                  Assignment
-                </button>
-                <button className={tab === 'pyq' ? 'active' : ''} onClick={() => setTab('pyq')} aria-pressed={tab === 'pyq'}>
-                  PYQ
-                </button>
-                <button className={tab === 'notes' ? 'active' : ''} onClick={() => setTab('notes')} aria-pressed={tab === 'notes'}>
-                  Notes
-                </button>
-                {isBackend && (
-                  <button className={tab === 'discussion' ? 'active' : ''} onClick={() => setTab('discussion')} aria-pressed={tab === 'discussion'}>
-                    Discussion
+                  <button className={`tab-button ${tab === 'notes' ? 'active' : ''}`} onClick={() => setTab('notes')} aria-pressed={tab === 'notes'}>
+                    <span className="tab-icon">📖</span>
+                    Notes
                   </button>
-                )}
-              </>
-            )}
-            {user?.role === 'teacher' && (
-              <>
-                <button className={tab === 'manage' ? 'active' : ''} onClick={() => setTab('manage')} aria-pressed={tab === 'manage'}>
-                  Manage Assignment
+                  {isBackend && (
+                    <button className={`tab-button ${tab === 'discussion' ? 'active' : ''}`} onClick={() => setTab('discussion')} aria-pressed={tab === 'discussion'}>
+                      <span className="tab-icon">💬</span>
+                      Discussion
+                    </button>
+                  )}
+                </>
+              )}
+              {user?.role === 'teacher' && (
+                <>
+                  <button className={`tab-button ${tab === 'manage' ? 'active' : ''}`} onClick={() => setTab('manage')} aria-pressed={tab === 'manage'}>
+                    <span className="tab-icon">⚙️</span>
+                    Manage Assignment
+                  </button>
+                  <button className={`tab-button ${tab === 'submissions' ? 'active' : ''}`} onClick={() => setTab('submissions')} aria-pressed={tab === 'submissions'}>
+                    <span className="tab-icon">📥</span>
+                    Submissions
+                  </button>
+                </>
+              )}
+              {user?.role === 'ta' && (
+                <button className={`tab-button ${tab === 'grading' ? 'active' : ''}`} onClick={() => setTab('grading')} aria-pressed={tab === 'grading'}>
+                  <span className="tab-icon">✅</span>
+                  Grading
                 </button>
-                <button className={tab === 'submissions' ? 'active' : ''} onClick={() => setTab('submissions')} aria-pressed={tab === 'submissions'}>
-                  Submissions
-                </button>
-              </>
-            )}
-            {user?.role === 'ta' && (
-              <button className={tab === 'grading' ? 'active' : ''} onClick={() => setTab('grading')} aria-pressed={tab === 'grading'}>
-                Grading
-              </button>
-            )}
+              )}
+            </div>
           </nav>
 
           {user?.role === 'teacher' && tab === 'assignment' && (
