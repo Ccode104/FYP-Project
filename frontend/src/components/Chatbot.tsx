@@ -123,9 +123,18 @@ export default function Chatbot({ type, offeringId, pdfId }: ChatbotProps) {
 
   return (
     <div className="chatbot-container">
-      <div className="chatbot-header">
-        <h3>🤖 AI Assistant</h3>
-        {type === 'pdf' && !uploadedPdfId && (
+      {type === 'pdf' && !uploadedPdfId && (
+        <div className="chatbot-header">
+          <h3>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/>
+              <polyline points="14 2 14 8 20 8"/>
+              <line x1="16" y1="13" x2="8" y2="13"/>
+              <line x1="16" y1="17" x2="8" y2="17"/>
+              <polyline points="10 9 9 9 8 9"/>
+            </svg>
+            Upload Document
+          </h3>
           <div className="pdf-upload-section">
             <input
               type="file"
@@ -138,17 +147,20 @@ export default function Chatbot({ type, offeringId, pdfId }: ChatbotProps) {
               disabled={!pdfFile || loading}
               className="btn btn-primary"
             >
-              Upload Document
+              {loading ? 'Uploading...' : 'Upload Document'}
             </button>
           </div>
-        )}
-      </div>
+        </div>
+      )}
 
       <div className="chatbot-messages">
         {messages.length === 0 && (
           <div className="empty-state">
-            <p>👋 Hi! I'm your AI assistant.</p>
-            <p>{type === 'course' ? 'Ask me anything about this course!' : 'Upload a document (PDF/DOCX/TXT) to get started!'}</p>
+            <p>{type === 'course' ? '🤖' : '📄'}</p>
+            <p>{type === 'course' ? 'Ask me anything about this course!' : 'Upload a document to get started!'}</p>
+            <p style={{ fontSize: '14px', marginTop: '8px', opacity: 0.8 }}>
+              {type === 'course' ? 'I can help with course content, assignments, and more.' : 'Supported formats: PDF, DOCX, TXT'}
+            </p>
           </div>
         )}
         {messages.map((msg, idx) => (

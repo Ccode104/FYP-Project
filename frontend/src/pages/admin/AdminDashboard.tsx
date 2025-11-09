@@ -159,33 +159,44 @@ export default function AdminDashboard() {
   if (!isAdmin) {
     // TA view as before
     return (
-      <div className="container container-wide dashboard-page admin-theme">
-        <header className="topbar">
-          <h2>Welcome, {user?.name} (TA)</h2>
-          <div className="actions">
-            <button className="btn btn-ghost" onClick={() => navigate('/')}>Home</button>
-            <button className="btn btn-ghost" onClick={logout}>Logout</button>
+      <div className="container container-wide dashboard-page student-theme">
+        <div className="dashboard-header">
+          <div className="welcome-section">
+            <h1 className="dashboard-title h2 text-primary">Welcome back, {user?.name}!</h1>
+            <p className="dashboard-subtitle text-lg text-secondary leading-relaxed">Manage your courses and track your progress</p>
           </div>
-        </header>
-        <h3 className="section-title">Courses</h3>
-        <div className="grid grid-cards">
-          {courses.map((c) => (
-            <CourseCard key={c.id} course={c} onClick={() => navigate(`/courses/${c.id}`)} />
-          ))}
+          <div className="dashboard-actions">
+            <button className="btn btn-primary" onClick={() => navigate('/')}>Home</button>
+            <button className="btn btn-primary" onClick={logout}>Logout</button>
+          </div>
+        </div>
+        <div className="courses-section">
+          <div className="section-header">
+            <h3 className="section-title h3">Courses</h3>
+            <span className="courses-count text-sm font-medium text-secondary">{courses.length} courses available</span>
+          </div>
+          <div className="grid grid-cards">
+            {courses.map((c) => (
+              <CourseCard key={c.id} course={c} onClick={() => navigate(`/courses/${c.id}`)} />
+            ))}
+          </div>
         </div>
       </div>
     )
   }
 
   return (
-    <div className="container container-wide dashboard-page admin-theme">
-      <header className="topbar">
-        <h2>Admin Dashboard</h2>
-        <div className="actions">
-          <button className="btn btn-ghost" onClick={() => navigate('/')}>Home</button>
-          <button className="btn btn-ghost" onClick={logout}>Logout</button>
+    <div className="container container-wide dashboard-page student-theme">
+      <div className="dashboard-header">
+        <div className="welcome-section">
+          <h1 className="dashboard-title h2 text-primary">Welcome, Admin!</h1>
+          <p className="dashboard-subtitle text-lg text-secondary leading-relaxed">Manage users, courses, and explore data</p>
         </div>
-      </header>
+        <div className="dashboard-actions">
+          <button className="btn btn-primary" onClick={() => navigate('/')}>Home</button>
+          <button className="btn btn-primary" onClick={logout}>Logout</button>
+        </div>
+      </div>
 
       {false && tab === 'users' && (
         <section className="card">
@@ -295,92 +306,104 @@ export default function AdminDashboard() {
       )}
 
       {tab === 'explorer' && (
-        <section style={{ padding: '24px' }}>
+        <section className="courses-section">
           {/* Breadcrumb Navigation */}
-          <div style={{
-            background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-            padding: '20px 24px',
-            borderRadius: '12px',
-            marginBottom: '24px',
-            boxShadow: '0 4px 6px rgba(0,0,0,0.1)'
-          }}>
-            <div style={{ fontSize: '14px', color: 'rgba(255,255,255,0.9)', marginBottom: '8px', fontWeight: '500' }}>
+          <div className="breadcrumb-navigation">
+            <div className="breadcrumb-label">
               Navigation Path
             </div>
-            <div style={{ fontSize: '18px', color: '#fff', fontWeight: '600', display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-              {!selectedDept && <span>🏛️ Select a department to begin</span>}
+            <div className="breadcrumb-path">
+              {!selectedDept && <span className="breadcrumb-next">Select a department to begin</span>}
               {selectedDept && (
                 <>
-                  <span>🏛️ {selectedDept.name}</span>
-                  {!selectedCourse && <span style={{ opacity: 0.7 }}> → 📚 Select a course</span>}
+                  <span 
+                    className="breadcrumb-item" 
+                    onClick={() => {
+                      setSelectedCourse(null)
+                      setCourseDetails(null)
+                      setSelectedOffering(null)
+                      setSelectedAssignment(null)
+                      setSelectedFaculty(null)
+                      setOfferingAssignments([])
+                      setFacultyAssignments([])
+                      setAssignmentSubmissions([])
+                    }}
+                  >
+                    {selectedDept.name}
+                  </span>
+                  {!selectedCourse && <span className="breadcrumb-next">/ Select a course</span>}
                 </>
               )}
               {selectedCourse && (
                 <>
-                  <span> → 📚 {selectedCourse.code}</span>
-                  {!selectedOffering && !selectedFaculty && <span style={{ opacity: 0.7 }}> → 🎓 Select offering or professor</span>}
+                  <span className="breadcrumb-separator">/</span>
+                  <span 
+                    className="breadcrumb-item"
+                    onClick={() => {
+                      setSelectedOffering(null)
+                      setSelectedAssignment(null)
+                      setSelectedFaculty(null)
+                      setOfferingAssignments([])
+                      setFacultyAssignments([])
+                      setAssignmentSubmissions([])
+                    }}
+                  >
+                    {selectedCourse.code}
+                  </span>
+                  {!selectedOffering && !selectedFaculty && <span className="breadcrumb-next">/ Select offering or professor</span>}
                 </>
               )}
               {selectedOffering && (
                 <>
-                  <span> → 🎓 {selectedOffering.term}-{selectedOffering.section}</span>
-                  {!selectedAssignment && <span style={{ opacity: 0.7 }}> → 📝 Select assignment</span>}
+                  <span className="breadcrumb-separator">/</span>
+                  <span 
+                    className="breadcrumb-item"
+                    onClick={() => {
+                      setSelectedAssignment(null)
+                      setAssignmentSubmissions([])
+                    }}
+                  >
+                    {selectedOffering.term}-{selectedOffering.section}
+                  </span>
+                  {!selectedAssignment && <span className="breadcrumb-next">/ Select assignment</span>}
                 </>
               )}
               {selectedFaculty && (
                 <>
-                  <span> → 👨‍🏫 {selectedFaculty.faculty_name}</span>
-                  {!selectedAssignment && <span style={{ opacity: 0.7 }}> → 📝 Select assignment</span>}
+                  <span className="breadcrumb-separator">/</span>
+                  <span 
+                    className="breadcrumb-item"
+                    onClick={() => {
+                      setSelectedAssignment(null)
+                      setAssignmentSubmissions([])
+                    }}
+                  >
+                    {selectedFaculty.faculty_name}
+                  </span>
+                  {!selectedAssignment && <span className="breadcrumb-next">/ Select assignment</span>}
                 </>
               )}
-              {selectedAssignment && <span> → 📝 {selectedAssignment.title}</span>}
+              {selectedAssignment && (
+                <>
+                  <span className="breadcrumb-separator">/</span>
+                  <span className="breadcrumb-current">{selectedAssignment.title}</span>
+                </>
+              )}
             </div>
           </div>
 
-          <div className="grid" style={{ gridTemplateColumns: '280px 1fr', gap: '24px' }}>
+          <div className="explorer-layout">
             {/* Sidebar */}
-            <div style={{
-              background: '#fff',
-              borderRadius: '12px',
-              padding: '20px',
-              boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
-              height: 'fit-content',
-              position: 'sticky',
-              top: '20px'
-            }}>
-              <h3 style={{ margin: '0 0 16px 0', fontSize: '18px', color: '#333', display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <div className="departments-sidebar">
+              <h3 className="sidebar-title">
                 🏛️ Departments
               </h3>
-              <div style={{ maxHeight: '600px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              <div className="departments-list">
                 {departments.map((d) => (
                   <button
                     key={d.id}
                     onClick={() => selectDepartment(d)}
-                    style={{
-                      padding: '12px 16px',
-                      border: selectedDept?.id === d.id ? '2px solid #667eea' : '2px solid #e5e7eb',
-                      borderRadius: '8px',
-                      background: selectedDept?.id === d.id ? 'linear-gradient(135deg, #667eea15, #764ba215)' : '#fff',
-                      color: selectedDept?.id === d.id ? '#667eea' : '#374151',
-                      cursor: 'pointer',
-                      transition: 'all 0.2s',
-                      fontSize: '14px',
-                      fontWeight: selectedDept?.id === d.id ? '600' : '500',
-                      textAlign: 'left',
-                      width: '100%'
-                    }}
-                    onMouseEnter={(e) => {
-                      if (selectedDept?.id !== d.id) {
-                        e.currentTarget.style.borderColor = '#cbd5e1'
-                        e.currentTarget.style.background = '#f9fafb'
-                      }
-                    }}
-                    onMouseLeave={(e) => {
-                      if (selectedDept?.id !== d.id) {
-                        e.currentTarget.style.borderColor = '#e5e7eb'
-                        e.currentTarget.style.background = '#fff'
-                      }
-                    }}
+                    className={`department-item ${selectedDept?.id === d.id ? 'active' : ''}`}
                   >
                     {d.name}
                   </button>
@@ -388,74 +411,37 @@ export default function AdminDashboard() {
               </div>
             </div>
             {/* Main Content */}
-            <div style={{ background: '#fff', borderRadius: '12px', padding: '24px', boxShadow: '0 2px 8px rgba(0,0,0,0.1)', minHeight: '500px' }}>
+            <div className="explorer-content">
               {!selectedDept && (
-                <div style={{ textAlign: 'center', padding: '60px 20px', color: '#9ca3af' }}>
-                  <div style={{ fontSize: '64px', marginBottom: '16px' }}>🏛️</div>
-                  <h3 style={{ color: '#6b7280', marginBottom: '8px' }}>Welcome to Admin Data Explorer</h3>
-                  <p>Select a department from the sidebar to get started</p>
+                <div className="empty-explorer-state">
+                  <div className="empty-state-icon">🏛️</div>
+                  <h3 className="empty-state-title">Welcome to Admin Data Explorer</h3>
+                  <p className="empty-state-description">Select a department from the sidebar to get started</p>
                 </div>
               )}
               {selectedDept && !selectedCourse && (
-                <div>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px' }}>
-                    <h3 style={{ marginTop: 0, marginBottom: 0, color: '#111', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <div className="department-view">
+                  <div className="department-header">
+                    <h3 className="department-title">
                       📚 Courses in {selectedDept.name}
                     </h3>
-                    <button
-                      onClick={() => { setShowCreateCourse(true); setNewCode(''); setNewTitle(''); setNewDesc(''); setNewCredits(''); setSelectedFacultyIds([]); }}
-                      style={{
-                        display: 'flex', alignItems: 'center', gap: 8,
-                        padding: '10px 14px', background: '#10b981', color: '#fff', border: 'none', borderRadius: 8, fontWeight: 600, cursor: 'pointer'
-                      }}
+                    <button 
+                      className="btn btn-primary create-course-btn"
+                      onClick={() => setShowCreateCourse(true)}
                     >
-                      <span style={{ fontSize: 18, lineHeight: 1 }}>+</span> Add Course
+                      Create New Course
                     </button>
                   </div>
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '16px' }}>
+                  <div className="courses-grid">
                     {deptCourses.map((c) => (
                       <div
                         key={c.id}
                         onClick={() => selectCourse(c)}
-                        style={{
-                          padding: '20px',
-                          border: '2px solid #e5e7eb',
-                          borderRadius: '12px',
-                          cursor: 'pointer',
-                          transition: 'all 0.2s',
-                          background: '#fff'
-                        }}
-                        onMouseEnter={(e) => {
-                          e.currentTarget.style.borderColor = '#667eea'
-                          e.currentTarget.style.boxShadow = '0 4px 12px rgba(102, 126, 234, 0.15)'
-                          e.currentTarget.style.transform = 'translateY(-2px)'
-                        }}
-                        onMouseLeave={(e) => {
-                          e.currentTarget.style.borderColor = '#e5e7eb'
-                          e.currentTarget.style.boxShadow = 'none'
-                          e.currentTarget.style.transform = 'translateY(0)'
-                        }}
+                        className="course-card hover-effect"
                       >
-                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
-                          <div style={{ fontSize: '16px', fontWeight: '700', color: '#667eea' }}>{c.code}</div>
-                          <div style={{ position: 'relative' }}>
-                            <button
-                              aria-label="Course actions"
-                              onClick={(e) => {
-                                e.stopPropagation()
-                                setOfferForCourse(c)
-                                setShowOfferCourse(true)
-                              }}
-                              style={{ background: 'transparent', border: 'none', cursor: 'pointer', fontSize: 18, lineHeight: 1 }}
-                            >
-                              ⋮
-                            </button>
-                          </div>
-                        </div>
-                        <div style={{ marginTop: 8 }}>
-                          <div style={{ fontSize: '14px', color: '#374151', lineHeight: '1.5' }}>{c.title}</div>
-                          {c.credits && <div style={{ fontSize: '12px', color: '#9ca3af', marginTop: '8px' }}>{c.credits} credits</div>}
-                        </div>
+                        <div className="course-code">{c.code}</div>
+                        <div className="course-title">{c.title}</div>
+                        {c.credits && <div className="course-credits">{c.credits} credits</div>}
                       </div>
                     ))}
                   </div>
@@ -463,90 +449,48 @@ export default function AdminDashboard() {
               )}
               {selectedCourse && !selectedOffering && !selectedFaculty && courseDetails && (
                 <div>
-                  <div style={{ marginBottom: '24px' }}>
-                    <h3 style={{ margin: '0 0 8px 0', color: '#111' }}>{selectedCourse.code} — {selectedCourse.title}</h3>
-                    <p style={{ color: '#6b7280', margin: 0 }}>{selectedCourse.description}</p>
+                  <div className="course-header">
+                    <h3 className="content-title">{selectedCourse.code} — {selectedCourse.title}</h3>
+                    <p className="course-description">{selectedCourse.description}</p>
                   </div>
-                  <h4 style={{ marginBottom: '16px', color: '#111', display: 'flex', alignItems: 'center', gap: '8px' }}>🎓 Course Offerings</h4>
+                  <h4 className="section-subtitle">🎓 Course Offerings</h4>
                   {courseDetails.offerings.length === 0 ? (
-                    <p style={{ color: '#9ca3af', textAlign: 'center', padding: '40px' }}>No offerings available</p>
+                    <p className="empty-message">No offerings available</p>
                   ) : (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                    <div className="offerings-list">
                       {courseDetails.offerings.map((o: any) => (
-                        <div key={o.offering_id} style={{
-                          border: '2px solid #e5e7eb',
-                          borderRadius: '12px',
-                          padding: '20px',
-                          background: '#fafafa'
-                        }}>
-                          <div style={{ display: 'flex', gap: '12px', marginBottom: '16px', flexWrap: 'wrap' }}>
+                        <div key={o.offering_id} className="offering-card">
+                          <div className="offering-actions">
                             <button
                               onClick={() => selectOffering(o)}
-                              style={{
-                                padding: '10px 20px',
-                                background: 'linear-gradient(135deg, #667eea, #764ba2)',
-                                color: '#fff',
-                                border: 'none',
-                                borderRadius: '8px',
-                                fontWeight: '600',
-                                cursor: 'pointer',
-                                fontSize: '14px',
-                                transition: 'all 0.2s'
-                              }}
-                              onMouseEnter={(e) => e.currentTarget.style.transform = 'translateY(-2px)'}
-                              onMouseLeave={(e) => e.currentTarget.style.transform = 'translateY(0)'}
+                              className="btn btn-primary"
                             >
                               📝 {o.term} - Section {o.section}
                             </button>
                             {o.faculty_name && (
                               <button
                                 onClick={() => selectFaculty(o)}
-                                style={{
-                                  padding: '10px 20px',
-                                  background: '#fff',
-                                  color: '#667eea',
-                                  border: '2px solid #667eea',
-                                  borderRadius: '8px',
-                                  fontWeight: '600',
-                                  cursor: 'pointer',
-                                  fontSize: '14px',
-                                  transition: 'all 0.2s'
-                                }}
-                                onMouseEnter={(e) => {
-                                  e.currentTarget.style.background = '#667eea'
-                                  e.currentTarget.style.color = '#fff'
-                                }}
-                                onMouseLeave={(e) => {
-                                  e.currentTarget.style.background = '#fff'
-                                  e.currentTarget.style.color = '#667eea'
-                                }}
+                                className="btn btn-secondary"
                               >
                                 👨‍🏫 {o.faculty_name}
                               </button>
                             )}
                           </div>
-                          <div style={{ paddingLeft: '12px', borderLeft: '3px solid #667eea20' }}>
-                            <div style={{ fontWeight: '600', color: '#374151', marginBottom: '8px' }}>
+                          <div className="students-section">
+                            <div className="students-header">
                               🎓 Enrolled Students ({o.students.length})
                             </div>
                             {o.students.length === 0 ? (
-                              <span style={{ color: '#9ca3af', fontSize: '14px' }}>No students enrolled</span>
+                              <span className="empty-text">No students enrolled</span>
                             ) : (
-                              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+                              <div className="students-tags">
                                 {o.students.slice(0, 5).map((s: any) => (
-                                  <span key={s.id} style={{
-                                    padding: '6px 12px',
-                                    background: '#fff',
-                                    border: '1px solid #e5e7eb',
-                                    borderRadius: '6px',
-                                    fontSize: '13px',
-                                    color: '#374151'
-                                  }}>
+                                  <span key={s.id} className="student-tag">
                                     {s.name}
                                   </span>
                                 ))}
                                 {o.students.length > 5 && (
-                                  <span style={{ color: '#9ca3af', fontSize: '13px', padding: '6px' }}>+{o.students.length - 5} more</span>
+                                  <span className="more-students">+{o.students.length - 5} more</span>
                                 )}
                               </div>
                             )}
@@ -559,67 +503,63 @@ export default function AdminDashboard() {
               )}
               {selectedFaculty && !selectedAssignment && (
                 <div>
-                  <h4 style={{ marginTop: 0 }}>All Assignments by {selectedFaculty.faculty_name}</h4>
-                  <p className="muted">Course: {selectedCourse.code}</p>
+                  <h4 className="content-title">All Assignments by {selectedFaculty.faculty_name}</h4>
+                  <p className="content-subtitle">Course: {selectedCourse.code}</p>
                   {facultyAssignments.length === 0 ? (
-                    <p className="muted">No assignments published</p>
+                    <p className="empty-message">No assignments published</p>
                   ) : (
-                    <ul className="list">
+                    <div className="assignments-list">
                       {facultyAssignments.map((a) => (
-                        <li key={a.id}>
-                          <button className="btn" onClick={() => selectAssignment(a)} style={{ width: '100%', textAlign: 'left' }}>
-                            <strong>{a.title}</strong> — {a.course_code} ({a.term}-{a.section}) — Due: {new Date(a.due_date).toLocaleDateString()} ({a.total_marks} marks)
-                          </button>
-                        </li>
+                        <button key={a.id} className="assignment-item" onClick={() => selectAssignment(a)}>
+                          <strong>{a.title}</strong> — {a.course_code} ({a.term}-{a.section}) — Due: {new Date(a.due_date).toLocaleDateString()} ({a.total_marks} marks)
+                        </button>
                       ))}
-                    </ul>
+                    </div>
                   )}
                 </div>
               )}
               {selectedOffering && !selectedAssignment && (
                 <div>
-                  <h4 style={{ marginTop: 0 }}>Assignments for {selectedCourse.code} ({selectedOffering.term}-{selectedOffering.section})</h4>
-                  <p className="muted">Professor: {selectedOffering.faculty_name}</p>
+                  <h4 className="content-title">Assignments for {selectedCourse.code} ({selectedOffering.term}-{selectedOffering.section})</h4>
+                  <p className="content-subtitle">Professor: {selectedOffering.faculty_name}</p>
                   {offeringAssignments.length === 0 ? (
-                    <p className="muted">No assignments published</p>
+                    <p className="empty-message">No assignments published</p>
                   ) : (
-                    <ul className="list">
+                    <div className="assignments-list">
                       {offeringAssignments.map((a) => (
-                        <li key={a.id}>
-                          <button className="btn" onClick={() => selectAssignment(a)} style={{ width: '100%', textAlign: 'left' }}>
-                            <strong>{a.title}</strong> — Due: {new Date(a.due_date).toLocaleDateString()} ({a.total_marks} marks)
-                          </button>
-                        </li>
+                        <button key={a.id} className="assignment-item" onClick={() => selectAssignment(a)}>
+                          <strong>{a.title}</strong> — Due: {new Date(a.due_date).toLocaleDateString()} ({a.total_marks} marks)
+                        </button>
                       ))}
-                    </ul>
+                    </div>
                   )}
                 </div>
               )}
               {selectedAssignment && (
                 <div>
-                  <h4 style={{ marginTop: 0 }}>{selectedAssignment.title}</h4>
-                  <p>{selectedAssignment.description}</p>
-                  <div className="muted" style={{ marginBottom: 12 }}>Due: {new Date(selectedAssignment.due_date).toLocaleString()} | Total Marks: {selectedAssignment.total_marks}</div>
-                  <h5>Submissions ({assignmentSubmissions.length})</h5>
+                  <h4 className="content-title">{selectedAssignment.title}</h4>
+                  <p className="assignment-description">{selectedAssignment.description}</p>
+                  <div className="assignment-meta">Due: {new Date(selectedAssignment.due_date).toLocaleString()} | Total Marks: {selectedAssignment.total_marks}</div>
+                  <h5 className="section-subtitle">Submissions ({assignmentSubmissions.length})</h5>
                   {assignmentSubmissions.length === 0 ? (
-                    <p className="muted">No submissions yet</p>
+                    <p className="empty-message">No submissions yet</p>
                   ) : (
-                    <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                    <table className="submissions-table">
                       <thead>
                         <tr>
-                          <th style={{ textAlign: 'left', borderBottom: '1px solid #ddd', padding: 8 }}>Student</th>
-                          <th style={{ textAlign: 'left', borderBottom: '1px solid #ddd', padding: 8 }}>Submitted</th>
-                          <th style={{ textAlign: 'left', borderBottom: '1px solid #ddd', padding: 8 }}>Marks</th>
-                          <th style={{ textAlign: 'left', borderBottom: '1px solid #ddd', padding: 8 }}>Graded By</th>
+                          <th>Student</th>
+                          <th>Submitted</th>
+                          <th>Marks</th>
+                          <th>Graded By</th>
                         </tr>
                       </thead>
                       <tbody>
                         {assignmentSubmissions.map((s) => (
                           <tr key={s.id}>
-                            <td style={{ padding: 8 }}>{s.student_name} ({s.roll_number})</td>
-                            <td style={{ padding: 8 }}>{new Date(s.submitted_at).toLocaleString()}</td>
-                            <td style={{ padding: 8 }}>{s.marks_obtained ?? 'Not graded'} / {selectedAssignment.total_marks}</td>
-                            <td style={{ padding: 8 }}>{s.grader_name || 'N/A'}</td>
+                            <td>{s.student_name} ({s.roll_number})</td>
+                            <td>{new Date(s.submitted_at).toLocaleString()}</td>
+                            <td>{s.marks_obtained ?? 'Not graded'} / {selectedAssignment.total_marks}</td>
+                            <td>{s.grader_name || 'N/A'}</td>
                           </tr>
                         ))}
                       </tbody>

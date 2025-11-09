@@ -1,53 +1,413 @@
 .course-card {
-  --accent-a: #4f46e5;
-  --accent-b: #10b981;
+  padding: 24px;
+  border-radius: 16px;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  cursor: pointer;
   position: relative;
   overflow: hidden;
   background: var(--surface);
   border: 1px solid var(--border);
-  transition: all 0.3s ease;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-height: 280px;
 }
 
-.course-card::before {
+.course-card:hover {
+  transform: translateY(-4px);
+  box-shadow: var(--shadow-lg);
+  border-color: var(--primary);
+}
+
+.course-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.course-card-icon {
+  width: 48px;
+  height: 48px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--primary-light);
+  color: var(--primary);
+  transition: all 0.2s ease;
+}
+
+.course-card:hover .course-card-icon {
+  background: var(--primary);
+  color: white;
+  transform: scale(1.05);
+}
+
+.course-card-badge {
+  background: var(--accent);
+  color: white;
+  padding: 4px 8px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.course-card-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.course-card-title {
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--text);
+  margin: 0;
+  line-height: 1.3;
+  letter-spacing: -0.02em;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  transition: color 0.2s ease;
+}
+
+.course-card:hover .course-card-title {
+  color: var(--primary);
+}
+
+.course-card-description {
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 1.5;
+  margin: 0;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  transition: color 0.2s ease;
+}
+
+.course-card:hover .course-card-description {
+  color: var(--text-secondary);
+}
+
+.course-card-progress {
+  margin-top: 8px;
+}
+
+.course-card-progress-info {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 6px;
+}
+
+.course-card-progress-label {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.course-card-progress-value {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--primary);
+}
+
+.course-card-progress-bar {
+  height: 4px;
+  background: var(--bg-secondary);
+  border-radius: 2px;
+  overflow: hidden;
+  position: relative;
+}
+
+.course-card-progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--primary), var(--secondary));
+  border-radius: 2px;
+  transition: width 0.6s ease;
+  position: relative;
+}
+
+.course-card-progress-fill::after {
   content: '';
   position: absolute;
   top: 0;
   left: 0;
   right: 0;
-  height: 4px;
-  background: linear-gradient(90deg, var(--accent-a), var(--accent-b));
-  transform: scaleX(0);
-  transform-origin: left;
-  transition: transform 0.3s ease;
+  bottom: 0;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.3), transparent);
+  animation: shimmer 2s infinite;
 }
 
-.course-card:hover::before {
-  transform: scaleX(1);
+@keyframes shimmer {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
 }
 
-/* Accent palettes */
-.accent-blue  { --accent-a: #3b82f6; --accent-b: #6366f1; }
-.accent-green { --accent-a: #10b981; --accent-b: #22c55e; }
-.accent-purple{ --accent-a: #8b5cf6; --accent-b: #a78bfa; }
-.accent-orange{ --accent-a: #f59e0b; --accent-b: #f97316; }
-.accent-pink  { --accent-a: #ec4899; --accent-b: #f472b6; }
-.accent-cyan  { --accent-a: #06b6d4; --accent-b: #22d3ee; }
+.course-card-stats {
+  display: flex;
+  gap: 16px;
+  margin-top: 8px;
+}
 
-.course-card h4 {
-  color: var(--text);
-  font-size: 18px;
+.course-card-stat {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--text-secondary);
+  font-weight: 500;
+}
+
+.course-card-stat svg {
+  opacity: 0.7;
+}
+
+.course-card-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-top: 16px;
+  border-top: 1px solid var(--border);
+  margin-top: auto;
+}
+
+.course-card-action {
+  font-size: 14px;
   font-weight: 600;
-  margin: 0 0 8px;
-  letter-spacing: -0.01em;
-  transition: color 0.2s ease;
+  color: var(--primary);
+  transition: all 0.2s ease;
 }
 
-.course-card:hover h4 {
+.course-card:hover .course-card-action {
+  color: var(--primary-hover);
+  transform: translateX(4px);
+}
+
+.course-card-footer svg {
+  color: var(--primary);
+  transition: all 0.2s ease;
+}
+
+.course-card:hover .course-card-footer svg {
+  transform: translateX(4px);
+  color: var(--primary-hover);
+}
+
+/* Enhanced animations and micro-interactions */
+.course-card.animate-scaleIn {
+  animation: scaleIn 0.4s ease-out;
+}
+
+.course-card.animate-float {
+  animation: float 3s ease-in-out infinite;
+}
+
+.course-card.animate-float:hover {
+  animation-play-state: paused;
+}
+
+.course-card.interactive-state {
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.course-card.interactive-state:hover {
+  transform: translateY(-8px) scale(1.02);
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.15);
+}
+
+/* Enhanced shimmer effect for loading state */
+.course-card.loading {
+  position: relative;
+  overflow: hidden;
+}
+
+.course-card.loading::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.1), transparent);
+  animation: shimmer 2s infinite;
+  z-index: 1;
+}
+
+/* Glow effect on hover */
+.course-card.glow-primary:hover {
+  box-shadow: 0 0 20px rgba(59, 130, 246, 0.3);
+}
+
+/* Enhanced progress bar animations */
+.course-card-progress-fill.animated {
+  animation: progressFill 1.5s ease-out;
+}
+
+@keyframes progressFill {
+  from { width: 0%; }
+  to { width: var(--progress-width, 0%); }
+}
+
+/* Enhanced stats animations */
+.course-card-stat {
+  transition: all 0.2s ease;
+}
+
+.course-card-stat:hover {
+  transform: translateY(-2px);
   color: var(--primary);
 }
 
-.course-card .muted {
-  color: var(--muted);
-  font-size: 14px;
-  line-height: 1.5;
+.course-card-stat:hover svg {
+  transform: scale(1.2);
+  opacity: 1;
+}
+
+/* Enhanced action button */
+.course-card-action {
+  position: relative;
+  overflow: hidden;
+}
+
+.course-card-action::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.4), transparent);
+  transition: left 0.5s ease;
+}
+
+.course-card:hover .course-card-action::before {
+  left: 100%;
+}
+
+/* Enhanced icon animations */
+.course-card-icon {
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.course-card-icon:hover {
+  transform: rotate(5deg) scale(1.1);
+}
+
+/* Enhanced badge animations */
+.course-card-badge {
+  transition: all 0.2s ease;
+  position: relative;
+  overflow: hidden;
+}
+
+.course-card-badge::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.3), transparent);
+  transition: left 0.6s ease;
+}
+
+.course-card:hover .course-card-badge::before {
+  left: 100%;
+}
+
+/* Accent variations with gradients */
+.accent-blue { 
+  border-left: 4px solid #3b82f6;
+}
+.accent-blue .course-card-icon {
+  background: linear-gradient(135deg, #dbeafe, #bfdbfe);
+  color: #3b82f6;
+}
+.accent-blue:hover .course-card-icon {
+  background: linear-gradient(135deg, #3b82f6, #2563eb);
+  color: white;
+}
+
+.accent-green { 
+  border-left: 4px solid #10b981;
+}
+.accent-green .course-card-icon {
+  background: linear-gradient(135deg, #d1fae5, #a7f3d0);
+  color: #10b981;
+}
+.accent-green:hover .course-card-icon {
+  background: linear-gradient(135deg, #10b981, #059669);
+  color: white;
+}
+
+.accent-purple { 
+  border-left: 4px solid #8b5cf6;
+}
+.accent-purple .course-card-icon {
+  background: linear-gradient(135deg, #ede9fe, #ddd6fe);
+  color: #8b5cf6;
+}
+.accent-purple:hover .course-card-icon {
+  background: linear-gradient(135deg, #8b5cf6, #7c3aed);
+  color: white;
+}
+
+.accent-orange { 
+  border-left: 4px solid #f59e0b;
+}
+.accent-orange .course-card-icon {
+  background: linear-gradient(135deg, #fef3c7, #fde68a);
+  color: #f59e0b;
+}
+.accent-orange:hover .course-card-icon {
+  background: linear-gradient(135deg, #f59e0b, #d97706);
+  color: white;
+}
+
+.accent-pink { 
+  border-left: 4px solid #ec4899;
+}
+.accent-pink .course-card-icon {
+  background: linear-gradient(135deg, #fce7f3, #fbcfe8);
+  color: #ec4899;
+}
+.accent-pink:hover .course-card-icon {
+  background: linear-gradient(135deg, #ec4899, #db2777);
+  color: white;
+}
+
+.accent-cyan { 
+  border-left: 4px solid #06b6d4;
+}
+.accent-cyan .course-card-icon {
+  background: linear-gradient(135deg, #cffafe, #a5f3fc);
+  color: #06b6d4;
+}
+.accent-cyan:hover .course-card-icon {
+  background: linear-gradient(135deg, #06b6d4, #0891b2);
+  color: white;
+}
+
+/* Responsive design */
+@media (max-width: 768px) {
+  .course-card {
+    padding: 20px;
+    min-height: 240px;
+  }
+  
+  .course-card-title {
+    font-size: 16px;
+  }
+  
+  .course-card-stats {
+    gap: 12px;
+  }
+  
+  .course-card-stat {
+    font-size: 12px;
+  }
 }
