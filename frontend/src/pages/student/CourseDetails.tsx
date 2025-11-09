@@ -200,7 +200,10 @@ export default function CourseDetails() {
     console.log('attemptedQuizIds:', Array.from(attemptedQuizIds))
 
     // Add submission status to assignments instead of filtering them out
-    const assignmentsWithStatus = allPresentAssignments.map((a: any) => {
+    const sourceAssignments = (isBackend && Array.isArray(backendAssignments) && user?.role === 'student')
+      ? backendAssignments
+      : allPresentAssignments
+    const assignmentsWithStatus = sourceAssignments.map((a: any) => {
       const assignmentId = String(a.id)
       const isSubmitted = submittedAssignmentIds.has(assignmentId)
       console.log(`Assignment ${assignmentId} (${a.title}): isSubmitted=${isSubmitted}, assignment_type=${a.assignment_type}`)
@@ -244,7 +247,7 @@ export default function CourseDetails() {
       total: result.length
     })
     return result
-  }, [allPresentAssignments, mySubmissions, myQuizAttempts, backendQuizzes, user?.role, isBackend])
+  }, [allPresentAssignments, mySubmissions, myQuizAttempts, backendQuizzes, user?.role, isBackend, backendAssignments])
 
   const [file, setFile] = useState<File | null>(null)
   const [linkUrl, setLinkUrl] = useState('')
