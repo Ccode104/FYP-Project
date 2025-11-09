@@ -62,6 +62,7 @@ export default function InteractiveVideoPlayer({ video, userRole, onComplete }: 
         if (userRole === 'student') {
           try {
             const attemptData = await getVideoQuizAttempt(video.id);
+            console.log(attempt);
             setAttempt(attemptData.attempt);
             if (attemptData.attempt?.answers) {
               const answers = attemptData.attempt.answers;

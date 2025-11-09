@@ -27,7 +27,12 @@ export default function Login() {
     setLoading(true)
 
     try {
-      const user = await login(email, password) // Use the login service
+      const isValid = await verify()
+      if (!isValid) {
+        throw new Error('Password must be at least 4 characters long')
+      }
+
+      const user = await login(email, password)
       push({ kind: 'success', message: 'Login successful' })
       navigate(getDashboardPathForRole(user.role), { replace: true })
     } catch (err: any) {

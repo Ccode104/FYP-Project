@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { courses } from '../../data/mock'
 import { useAuth } from '../../context/AuthContext'
 import { useNavigate } from 'react-router-dom'
@@ -11,7 +11,7 @@ export default function AdminDashboard() {
   const navigate = useNavigate()
 
   const isAdmin = user?.role === 'admin'
-  const [tab, setTab] = useState<'explorer'>('explorer')
+  const [tab] = useState<'users' | 'courses' | 'explorer'>('explorer')
 
   // Users state
   const [roleFilter, setRoleFilter] = useState<'student' | 'faculty' | 'ta' | 'admin' | ''>('student')

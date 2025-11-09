@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useToast } from './ToastProvider'
-import CodeEditor from './CodeEditor'
+// import CodeEditor from './CodeEditor'
 
 interface TestCase {
   id: number

@@ -4,7 +4,7 @@ import { courses } from '../../data/mock'
 import { useAuth } from '../../context/AuthContext'
 import { getUserCourses } from '../../data/userCourses'
 import { addCustomAssignment } from '../../data/courseOverlays'
-import { addSubmission } from '../../data/submissions'
+// import { addSubmission } from '../../data/submissions'
 import './CourseDetails.css'
 import './CourseDetails.overrides.css'
 import { useToast } from '../../components/ToastProvider'
@@ -21,7 +21,6 @@ import BackendSubmissions from '../../components/course/BackendSubmissions'
 import BackendGrading from '../../components/course/BackendGrading'
 import StudentProgressEmbed from '../../components/course/StudentProgressEmbed'
 import CourseProgressEmbed from '../../components/course/CourseProgressEmbed'
-import MenuTiny from '../../components/course/MenuTiny'
 import PyqList from '../../components/course/PyqList'
 import NotesList from '../../components/course/NotesList'
 import DiscussionForum from '../../components/course/DiscussionForum'
@@ -67,7 +66,7 @@ export default function CourseDetails() {
   const [backendVideos, setBackendVideos] = useState<any[]>([])
   const [selectedVideo, setSelectedVideo] = useState<any | null>(null)
   const [videoQuestions, setVideoQuestions] = useState<any[]>([])
-  const [showQuestionForm, setShowQuestionForm] = useState(false)
+  // const [showQuestionForm, setShowQuestionForm] = useState(false)
   const [currentVideoTime, setCurrentVideoTime] = useState<number>(0)
   const videoRefForFaculty = useRef<HTMLVideoElement>(null)
   const [assignmentCreationType, setAssignmentCreationType] = useState<'selection' | 'code' | 'quiz' | 'pdf'>('selection')
@@ -171,18 +170,18 @@ export default function CourseDetails() {
     return [...unsubmittedAssignments, ...unsubmittedQuizzes]
   }, [allPresentAssignments, mySubmissions, myQuizAttempts, backendQuizzes, user?.role, isBackend])
 
-  const [file, setFile] = useState<File | null>(null)
+  // const [file, setFile] = useState<File | null>(null)
   const [linkUrl, setLinkUrl] = useState('')
-  const submitAssignment = (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!file || !courseId) return alert('Please choose a file to upload!')
-    // Record submission for teacher/TA views
-    addSubmission(courseId, user?.name ?? 'Student', file.name)
-    setTimeout(() => {
-      alert(`Submitted ${file.name} for ${course?.title}`)
-      setFile(null)
-    }, 200)
-  }
+  // const submitAssignment = (e: React.FormEvent) => {
+  //   e.preventDefault()
+  //   if (!file || !courseId) return alert('Please choose a file to upload!')
+  //   // Record submission for teacher/TA views
+  //   addSubmission(courseId, user?.name ?? 'Student', file.name)
+  //   setTimeout(() => {
+  //     alert(`Submitted ${file.name} for ${course?.title}`)
+  //     setFile(null)
+  //   }, 200)
+  // }
 
   // Code submission states
   const [showCodeEditor, setShowCodeEditor] = useState(false)
@@ -226,57 +225,57 @@ export default function CourseDetails() {
   }, [courseId, isBackend])
 
   // Submit code assignment (backend endpoint assumed; fallback to localStorage)
-  const submitCodeAssignment = async () => {
-    if (!selectedCodeAssignment) return push({ kind: 'error', message: 'No code assignment selected' })
-    // build answers payload
-    const answers = Object.entries(codeEditor).reduce<Record<string, any>>((acc, [qid, src]) => {
-      acc[qid] = { source_code: src, language: codeLang[qid] ?? 'python' }
-      return acc
-    }, {})
+  // const submitCodeAssignment = async () => {
+  //   if (!selectedCodeAssignment) return push({ kind: 'error', message: 'No code assignment selected' })
+  //   // build answers payload
+  //   const answers = Object.entries(codeEditor).reduce<Record<string, any>>((acc, [qid, src]) => {
+  //     acc[qid] = { source_code: src, language: codeLang[qid] ?? 'python' }
+  //     return acc
+  //   }, {})
 
-    if (isBackend) {
-      try {
-        await apiFetch('/api/submissions/submit/code', {
-          method: 'POST',
-          body: {
-            assignment_id: Number(selectedCodeAssignment.id),
-            answers
-          }
-        })
-        push({ kind: 'success', message: 'Code submitted' })
-        setShowCodeEditor(false)
-        // Reload submissions to update the list
-        if (user?.role === 'student' && user?.id && courseId) {
-          try {
-            const submissions = await apiFetch<any[]>(`/api/student/courses/${courseId}/submissions`)
-            setMySubmissions(submissions || [])
-          } catch { }
-        }
-      } catch (err: any) {
-        push({ kind: 'error', message: err?.message || 'Submission failed' })
-      }
-      return
-    }
+  //   if (isBackend) {
+  //     try {
+  //       await apiFetch('/api/submissions/submit/code', {
+  //         method: 'POST',
+  //         body: {
+  //           assignment_id: Number(selectedCodeAssignment.id),
+  //           answers
+  //         }
+  //       })
+  //       push({ kind: 'success', message: 'Code submitted' })
+  //       setShowCodeEditor(false)
+  //       // Reload submissions to update the list
+  //       if (user?.role === 'student' && user?.id && courseId) {
+  //         try {
+  //           const submissions = await apiFetch<any[]>(`/api/student/courses/${courseId}/submissions`)
+  //           setMySubmissions(submissions || [])
+  //         } catch { }
+  //       }
+  //     } catch (err: any) {
+  //       push({ kind: 'error', message: err?.message || 'Submission failed' })
+  //     }
+  //     return
+  //   }
 
-    // Local mode: persist to localStorage
-    try {
-      const key = `localCodeSubmissions:${courseId}`
-      const existing = JSON.parse(localStorage.getItem(key) || '[]')
-      existing.push({
-        id: Date.now().toString(),
-        assignment_id: selectedCodeAssignment.id,
-        student_name: user?.name ?? 'Student',
-        code: codeEditor,
-        langs: codeLang,
-        submitted_at: new Date().toISOString()
-      })
-      localStorage.setItem(key, JSON.stringify(existing))
-      push({ kind: 'success', message: 'Code saved locally' })
-      setShowCodeEditor(false)
-    } catch (err: any) {
-      push({ kind: 'error', message: err?.message || 'Failed to save locally' })
-    }
-  }
+  //   // Local mode: persist to localStorage
+  //   try {
+  //     const key = `localCodeSubmissions:${courseId}`
+  //     const existing = JSON.parse(localStorage.getItem(key) || '[]')
+  //     existing.push({
+  //       id: Date.now().toString(),
+  //       assignment_id: selectedCodeAssignment.id,
+  //       student_name: user?.name ?? 'Student',
+  //       code: codeEditor,
+  //       langs: codeLang,
+  //       submitted_at: new Date().toISOString()
+  //     })
+  //     localStorage.setItem(key, JSON.stringify(existing))
+  //     push({ kind: 'success', message: 'Code saved locally' })
+  //     setShowCodeEditor(false)
+  //   } catch (err: any) {
+  //     push({ kind: 'error', message: err?.message || 'Failed to save locally' })
+  //   }
+  // }
 
   const [newAssnTitle, setNewAssnTitle] = useState('')
   const [newAssnDesc, setNewAssnDesc] = useState('')
@@ -817,6 +816,7 @@ export default function CourseDetails() {
       try {
         const { getVideoQuizQuestions } = await import('../../services/videos');
         const questionsData = await getVideoQuizQuestions(selectedVideo.id);
+        console.log(videoQuestions);
         setVideoQuestions(questionsData.questions || []);
       } catch { }
     })();

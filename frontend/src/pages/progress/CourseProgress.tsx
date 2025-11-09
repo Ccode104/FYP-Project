@@ -14,7 +14,7 @@ function groupBy<T, K extends keyof any>(list: T[], getKey: (item: T) => K): Rec
 }
 
 export default function CourseProgress() {
-  const { user, logout } = useAuth()
+  const {logout } = useAuth()
   const navigate = useNavigate()
   const { offeringId } = useParams()
   const { push } = useToast()
