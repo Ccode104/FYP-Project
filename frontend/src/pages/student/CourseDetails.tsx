@@ -1264,20 +1264,28 @@ export default function CourseDetails() {
 
 
           {tab === 'discussion' && isBackend && (
-            <DiscussionForum
-              loading={discussionLoading}
-              threads={discussionThreads.threads}
-              repliesMap={discussionThreads.repliesMap}
-              newPostContent={newPostContent}
-              onChangeNewPost={setNewPostContent}
-              onPost={handlePostMessage}
-              replyingTo={replyingTo}
-              replyContent={replyContent}
-              onReplyChange={setReplyContent}
-              onStartReply={(id) => setReplyingTo(id)}
-              onSubmitReply={(id) => void handlePostReply(id)}
-              onCancelReply={() => { setReplyingTo(null); setReplyContent('') }}
-            />
+            <section className="assignments-section">
+              <div className="section-header">
+                <h3 className="section-title">Discussion</h3>
+                <span className="assignment-count">{discussionThreads.threads?.length || 0} Threads</span>
+              </div>
+              <div className="discussion-wrap">
+                <DiscussionForum
+                  loading={discussionLoading}
+                  threads={discussionThreads.threads}
+                  repliesMap={discussionThreads.repliesMap}
+                  newPostContent={newPostContent}
+                  onChangeNewPost={setNewPostContent}
+                  onPost={handlePostMessage}
+                  replyingTo={replyingTo}
+                  replyContent={replyContent}
+                  onReplyChange={setReplyContent}
+                  onStartReply={(id) => setReplyingTo(id)}
+                  onSubmitReply={(id) => void handlePostReply(id)}
+                  onCancelReply={() => { setReplyingTo(null); setReplyContent('') }}
+                />
+              </div>
+            </section>
           )}
 
           {tab === 'pyq' && (
@@ -1658,21 +1666,21 @@ export default function CourseDetails() {
           )}
 
           {tab === 'chatbot' && isBackend && (
-            <section className="card">
-              <h3>AI Assistant — Course</h3>
-              <p className="muted" style={{ marginTop: 4 }}>Ask questions about this course and get AI-powered answers.</p>
-              <div style={{ marginTop: 12 }}>
-                <Chatbot type="course" offeringId={Number(courseId)} />
+            <section className="assignments-section">
+              <div className="section-header">
+                <h3 className="section-title">AI Assistant — Course</h3>
               </div>
+              <p className="muted" style={{ marginTop: 0, marginBottom: 12 }}>Ask questions about this course and get AI-powered answers.</p>
+              <Chatbot type="course" offeringId={Number(courseId)} />
             </section>
           )}
           {tab === 'pdfchat' && isBackend && (
-            <section className="card">
-              <h3>AI Assistant — PDF</h3>
-              <p className="muted" style={{ marginTop: 4 }}>Upload a PDF, then ask questions about its content.</p>
-              <div style={{ marginTop: 12 }}>
-                <Chatbot type="pdf" />
+            <section className="assignments-section">
+              <div className="section-header">
+                <h3 className="section-title">AI Assistant — PDF</h3>
               </div>
+              <p className="muted" style={{ marginTop: 0, marginBottom: 12 }}>Upload a PDF, then ask questions about its content.</p>
+              <Chatbot type="pdf" />
             </section>
           )}
           {tab === 'videos' && isBackend && (
