@@ -139,22 +139,7 @@ export default function PresentAssignmentsSection({
 
             {userRole === "student" && (
               <div className="assignment-actions">
-                {a.isSubmitted ? (
-                  <div className="submitted-info">
-                    <svg
-                      width="20"
-                      height="20"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                    >
-                      <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
-                      <polyline points="22 4 12 14.01 9 11.01" />
-                    </svg>
-                    <span>Completed</span>
-                  </div>
-                ) : a.is_quiz ? (
+                {a.is_quiz ? (
                   <button
                     className="btn-assignment attempt-quiz"
                     onClick={(e) => {
@@ -182,7 +167,7 @@ export default function PresentAssignmentsSection({
                       onStartCodeAttempt(a);
                     }}
                   >
-                    <span>Code Editor</span>
+                    <span>{a.isSubmitted ? "View Submission" : "Code Editor"}</span>
                     <svg
                       width="16"
                       height="16"
@@ -327,7 +312,7 @@ export default function PresentAssignmentsSection({
                   .filter((a: any) => a.assignment_type === "code")
                   .map((a: any) => (
                     <option key={a.id} value={a.id}>
-                      {a.title}
+                      {a.title}{a.isSubmitted ? " (Submitted)" : ""}
                     </option>
                   ))}
               </select>

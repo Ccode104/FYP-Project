@@ -1,27 +1,41 @@
-type Item = { id: string|number; filename?: string; title?: string; storage_path: string }
+type Item = {
+  id: string | number;
+  filename?: string;
+  title?: string;
+  storage_path: string;
+};
 
-export default function PyqList({ isBackend, items }: { isBackend: boolean; items: Item[] }) {
+export default function PyqList({
+  isBackend,
+  items,
+}: {
+  isBackend: boolean;
+  items: Item[];
+}) {
   return (
     <section className="assignments-section">
       <div className="section-header">
         <h2 className="section-title">Previous Year Questions</h2>
         <span className="assignment-count">{items.length} available</span>
       </div>
-      
+
       {isBackend ? (
         items.length === 0 ? (
           <div className="empty-state">
             <div className="empty-icon">📝</div>
             <h3>No PYQs yet</h3>
-            <p>Previous year question papers will appear here once uploaded by your instructor.</p>
+            <p>
+              Previous year question papers will appear here once uploaded by
+              your instructor.
+            </p>
           </div>
         ) : (
           <div className="resources-grid">
             {items.map((p) => (
-              <a 
-                key={p.id} 
-                href={p.storage_path} 
-                target="_blank" 
+              <a
+                key={p.id}
+                href={p.storage_path}
+                target="_blank"
                 rel="noopener noreferrer"
                 className="resource-card"
               >
@@ -30,8 +44,16 @@ export default function PyqList({ isBackend, items }: { isBackend: boolean; item
                   <h4 className="resource-title">{p.filename || p.title}</h4>
                   <span className="resource-type">PDF Document</span>
                 </div>
-                <svg className="resource-arrow" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <path d="M7 17L17 7M17 7H7M17 7V17"/>
+                <svg
+                  className="resource-arrow"
+                  width="20"
+                  height="20"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                >
+                  <path d="M7 17L17 7M17 7H7M17 7V17" />
                 </svg>
               </a>
             ))}
@@ -45,5 +67,5 @@ export default function PyqList({ isBackend, items }: { isBackend: boolean; item
         </div>
       )}
     </section>
-  )
+  );
 }
