@@ -14,6 +14,18 @@ export async function listCourses(req, res) {
   res.json(r.rows);
 }
 
+export async function listMyCourses(req, res) {
+  const facultyId = Number(req.user?.id);
+  if (!facultyId) return res.status(401).json({ error: 'Unauthorized' });
+  const q = `SELECT DISTINCT c.id, c.code, c.title, c.description, c.department_id, c.credits
+             FROM course_offerings o
+             JOIN courses c ON o.course_id = c.id
+             WHERE o.faculty_id = $1
+             ORDER BY c.code`;
+  const r = await pool.query(q, [facultyId]);
+  res.json(r.rows);
+}
+
 export async function createOffering(req, res) {
   const { course_id, term, section, faculty_id, max_capacity, start_date, end_date } = req.body;
   console.log(req.body);

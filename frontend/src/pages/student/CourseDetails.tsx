@@ -7,6 +7,7 @@ import { addCustomAssignment } from '../../data/courseOverlays'
 // import { addSubmission } from '../../data/submissions'
 import './CourseDetails.css'
 import './CourseDetails.overrides.css'
+import './CodeSubmissionView.css'
 import { useToast } from '../../components/ToastProvider'
 import { apiFetch } from '../../services/api'
 import QuizCreator from '../../components/QuizCreator'
@@ -60,7 +61,7 @@ function saveLocalCodeQuestions(courseId: string, items: CodeQuestion[]) {
 
 export default function CourseDetails() {
   const { courseId } = useParams()
-  const { user, logout } = useAuth()
+  const { user } = useAuth()
   const navigate = useNavigate()
   const [tab, setTab] = useState<'assignment' | 'present' | 'past' | 'pyq' | 'notes' | 'quizzes' | 'quizzes_submitted' | 'manage' | 'submissions' | 'grading' | 'progress' | 'discussion' | 'chatbot' | 'pdfchat' | 'videos'>('present')
   const [backendVideos, setBackendVideos] = useState<any[]>([])
@@ -87,7 +88,7 @@ export default function CourseDetails() {
   const [backendNotes, setBackendNotes] = useState<any[]>([])
   const [backendQuizzes, setBackendQuizzes] = useState<any[]>([])
   const [myQuizAttempts, setMyQuizAttempts] = useState<any[]>([])
-  const [mySubmissions, setMySubmissions] = useState<any[]>([]) // Track student's submissions
+  const [mySubmissions, setMySubmissions] = useState<any[] | null>(null) // Track student's submissions - null means not loaded yet
   const [selectedAssignmentId, setSelectedAssignmentId] = useState<string>('')
   const [discussionMessages, setDiscussionMessages] = useState<DiscussionMessage[]>([])
   const [discussionLoading, setDiscussionLoading] = useState(false)
@@ -110,11 +111,20 @@ export default function CourseDetails() {
 
   // Compute present assignments (not past due date)
   const allPresentAssignments = useMemo(() => {
+    console.log('=== allPresentAssignments recalculating ===')
+    console.log('isBackend:', isBackend)
+    console.log('backendAssignments:', backendAssignments)
     if (isBackend) {
-      return backendAssignments.filter((a: any) => {
+      const filtered = backendAssignments.filter((a: any) => {
         if (!a.due_at) return true
-        return new Date(a.due_at) >= new Date()
+        const dueDate = new Date(a.due_at)
+        const now = new Date()
+        const isPast = dueDate < now
+        console.log(`Assignment ${a.id} (${a.title}): due_at=${a.due_at}, isPast=${isPast}`)
+        return !isPast
       })
+      console.log('Filtered present assignments:', filtered)
+      return filtered
     }
     return course?.assignmentsPresent || []
   }, [isBackend, backendAssignments, course])
@@ -129,46 +139,114 @@ export default function CourseDetails() {
 
   // For students: filter out submitted assignments and combine with unsubmitted quizzes
   const presentAssignments = useMemo(() => {
+    console.log('=== presentAssignments memo recalculating ===')
+    console.log('user?.role:', user?.role)
+    console.log('allPresentAssignments count:', allPresentAssignments?.length)
+    console.log('allPresentAssignments:', allPresentAssignments?.map(a => ({ id: a.id, title: a.title })))
+    console.log('mySubmissions:', mySubmissions)
+    console.log('mySubmissions count:', mySubmissions?.length)
+    console.log('myQuizAttempts count:', myQuizAttempts?.length)
+    console.log('backendQuizzes count:', backendQuizzes?.length)
+    console.log('isBackend:', isBackend)
+
     if (user?.role !== 'student') {
+      console.log('Not a student, returning all assignments')
       return allPresentAssignments
     }
 
     if (!isBackend) {
+      console.log('Not backend mode, returning all assignments')
       return allPresentAssignments
+    }
+
+    // IMPORTANT: Only filter if submissions have been loaded (not null)
+    // If mySubmissions is null, we haven't loaded them yet, so show all assignments with isSubmitted: false
+    if (mySubmissions === null) {
+      console.log('Submissions not loaded yet (null), showing all assignments with isSubmitted: false')
+      const assignmentsWithStatus = allPresentAssignments.map((a: any) => ({
+        ...a,
+        isSubmitted: false
+      }))
+      const quizzesWithStatus = (backendQuizzes || [])
+        .map((q: any) => ({
+          id: `quiz_${q.id}`,
+          title: q.title,
+          assignment_type: 'quiz',
+          due_at: q.end_at || q.due_at,
+          release_at: q.start_at,
+          is_quiz: true,
+          quiz_id: q.id,
+          quiz_data: q,
+          isSubmitted: false
+        }))
+      return [...assignmentsWithStatus, ...quizzesWithStatus]
     }
 
     // Get set of submitted assignment IDs
     const submittedAssignmentIds = new Set(
-      mySubmissions.map((s: any) => String(s.assignment_id))
+      mySubmissions.map((s: any) => {
+        const id = s.assignment_id || s.id // Handle both submission formats
+        console.log('Submission:', { submission_id: s.id, assignment_id: s.assignment_id, using: id })
+        return String(id)
+      })
     )
+    console.log('submittedAssignmentIds:', Array.from(submittedAssignmentIds))
 
     // Get set of attempted quiz IDs
     const attemptedQuizIds = new Set(
       (myQuizAttempts || []).map((a: any) => String(a.quiz_id))
     )
+    console.log('attemptedQuizIds:', Array.from(attemptedQuizIds))
 
-    // Filter assignments: only show unsubmitted ones
-    const unsubmittedAssignments = allPresentAssignments.filter((a: any) => {
-      return !submittedAssignmentIds.has(String(a.id))
+    // Add submission status to assignments instead of filtering them out
+    const sourceAssignments = (isBackend && Array.isArray(backendAssignments) && user?.role === 'student')
+      ? backendAssignments
+      : allPresentAssignments
+    const assignmentsWithStatus = sourceAssignments.map((a: any) => {
+      const assignmentId = String(a.id)
+      const isSubmitted = submittedAssignmentIds.has(assignmentId)
+      console.log(`Assignment ${assignmentId} (${a.title}): isSubmitted=${isSubmitted}, assignment_type=${a.assignment_type}`)
+      return {
+        ...a,
+        isSubmitted
+      }
     })
+    console.log('assignmentsWithStatus count:', assignmentsWithStatus.length)
 
-    // Get unsubmitted quizzes and convert them to assignment-like objects
-    const unsubmittedQuizzes = (backendQuizzes || [])
-      .filter((q: any) => !attemptedQuizIds.has(String(q.id)))
+    // Add quizzes with attempt status
+    const quizzesWithStatus = (backendQuizzes || [])
       .map((q: any) => ({
-        id: `quiz_${q.id}`, // Prefix to avoid ID conflicts
+        id: `quiz_${q.id}`,
         title: q.title,
         assignment_type: 'quiz',
         due_at: q.end_at || q.due_at,
         release_at: q.start_at,
         is_quiz: true,
         quiz_id: q.id,
-        quiz_data: q
+        quiz_data: q,
+        isSubmitted: attemptedQuizIds.has(String(q.id))
       }))
+    console.log('quizzesWithStatus count:', quizzesWithStatus.length)
 
-    // Combine unsubmitted assignments and quizzes
-    return [...unsubmittedAssignments, ...unsubmittedQuizzes]
-  }, [allPresentAssignments, mySubmissions, myQuizAttempts, backendQuizzes, user?.role, isBackend])
+    const result = [...assignmentsWithStatus, ...quizzesWithStatus]
+    console.log('Final presentAssignments count:', result.length)
+    console.log('Final result details:', result.map(r => ({
+      id: r.id,
+      title: r.title,
+      assignment_type: r.assignment_type,
+      is_quiz: r.is_quiz,
+      isSubmitted: r.isSubmitted
+    })))
+    console.log('presentAssignments status:', {
+      allPresentAssignments: allPresentAssignments.length,
+      mySubmissionsLoaded: mySubmissions !== null,
+      mySubmissionsCount: mySubmissions?.length || 0,
+      assignmentsWithStatus: assignmentsWithStatus.length,
+      quizzesWithStatus: quizzesWithStatus.length,
+      total: result.length
+    })
+    return result
+  }, [allPresentAssignments, mySubmissions, myQuizAttempts, backendQuizzes, user?.role, isBackend, backendAssignments])
 
   // const [file, setFile] = useState<File | null>(null)
   const [linkUrl, setLinkUrl] = useState('')
@@ -658,7 +736,12 @@ export default function CourseDetails() {
     let cancelled = false
     if (!isBackend || !courseId) return
       ; (async () => {
-        try { const data = await apiFetch<any[]>(`/api/courses/${courseId}/assignments`); if (!cancelled) setBackendAssignments(data) } catch { }
+        try { 
+          console.log('Loading assignments...')
+          const data = await apiFetch<any[]>(`/api/courses/${courseId}/assignments`)
+          console.log('Loaded assignments:', data)
+          if (!cancelled) setBackendAssignments(data) 
+        } catch { }
         try { const pyq = await apiFetch<any[]>(`/api/courses/${courseId}/pyqs`); if (!cancelled) setBackendPYQ(pyq) } catch { }
         try { const notes = await apiFetch<any[]>(`/api/courses/${courseId}/notes`); if (!cancelled) setBackendNotes(notes) } catch { }
         // quizzes list for offering + my attempts
@@ -674,7 +757,15 @@ export default function CourseDetails() {
         // Load student's submissions to track which assignments have been submitted
         if (user?.role === 'student' && user?.id) {
           try {
+            console.log('Loading student submissions...')
             const submissions = await apiFetch<any[]>(`/api/student/courses/${courseId}/submissions`)
+            console.log('Loaded submissions:', submissions)
+            console.log('Submission details:', submissions?.map(s => ({
+              id: s.id,
+              assignment_id: s.assignment_id,
+              student_id: s.student_id,
+              submitted_at: s.submitted_at
+            })))
             if (!cancelled) setMySubmissions(submissions || [])
           } catch (err) {
             console.error('Failed to load student submissions:', err)
@@ -827,87 +918,117 @@ export default function CourseDetails() {
 
       <div className="course-details-page">
         <div className="container">
-          <header className="topbar">
-            <h2>
-              {course?.title || 'Course'} - {user?.role.toUpperCase()}
-            </h2>
-            <div className="actions">
-              <button className="btn btn-ghost" onClick={() => navigate(-1)}>Back</button>
-              <button className="btn btn-ghost" onClick={logout}>Logout</button>
+          <header className="course-header">
+            <div className="course-header-content">
+              <button className="back-button" onClick={() => navigate(-1)} aria-label="Go back">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M19 12H5M12 19l-7-7 7-7"/>
+                </svg>
+              </button>
+              <div className="course-title-section">
+                <h1 className="course-title">{course?.title || 'Course'}</h1>
+                <p className="course-role">{user?.role.toUpperCase()} Dashboard</p>
+              </div>
+            </div>
+            <div className="course-header-actions">
+              
             </div>
           </header>
 
-          <nav className="tabs">
-            {user?.role === 'student' ? (
-              <>
-                <button className={tab === 'present' ? 'active' : ''} onClick={() => setTab('present')} aria-pressed={tab === 'present'}>
-                  Assignments
-                </button>
-                <button className={tab === 'pyq' ? 'active' : ''} onClick={() => setTab('pyq')} aria-pressed={tab === 'pyq'}>
-                  PYQ
-                </button>
-                <button className={tab === 'notes' ? 'active' : ''} onClick={() => setTab('notes')} aria-pressed={tab === 'notes'}>
-                  Notes
-                </button>
-                {isBackend && (
-                  <button className={tab === 'progress' ? 'active' : ''} onClick={() => setTab('progress')} aria-pressed={tab === 'progress'}>
-                    Progress
+          <nav className="tabs-modern">
+            <div className="tabs-container">
+              {user?.role === 'student' ? (
+                <>
+                  <button className={`tab-button ${tab === 'present' ? 'active' : ''}`} onClick={() => setTab('present')} aria-pressed={tab === 'present'}>
+                    <span className="tab-icon">📚</span>
+                    Assignments
                   </button>
-                )}
-                {isBackend && (
-                  <button className={tab === 'discussion' ? 'active' : ''} onClick={() => setTab('discussion')} aria-pressed={tab === 'discussion'}>
-                    Discussion
+                  <button className={`tab-button ${tab === 'pyq' ? 'active' : ''}`} onClick={() => setTab('pyq')} aria-pressed={tab === 'pyq'}>
+                    <span className="tab-icon">📝</span>
+                    PYQ
                   </button>
-                )}
-                {isBackend && (
-                  <button className={tab === 'videos' ? 'active' : ''} onClick={() => setTab('videos')} aria-pressed={tab === 'videos'}>
-                    Videos
+                  <button className={`tab-button ${tab === 'notes' ? 'active' : ''}`} onClick={() => setTab('notes')} aria-pressed={tab === 'notes'}>
+                    <span className="tab-icon">📖</span>
+                    Notes
                   </button>
-                )}
-                {isBackend && (
-                  <button className={tab === 'chatbot' ? 'active' : ''} onClick={() => setTab('chatbot')} aria-pressed={tab === 'chatbot'}>
-                    AI Assistant
+                  {isBackend && (
+                    <button className={`tab-button ${tab === 'progress' ? 'active' : ''}`} onClick={() => setTab('progress')} aria-pressed={tab === 'progress'}>
+                      <span className="tab-icon">📊</span>
+                      Progress
+                    </button>
+                  )}
+                  {isBackend && (
+                    <button className={`tab-button ${tab === 'discussion' ? 'active' : ''}`} onClick={() => setTab('discussion')} aria-pressed={tab === 'discussion'}>
+                      <span className="tab-icon">💬</span>
+                      Discussion
+                    </button>
+                  )}
+                  {isBackend && (
+                    <button className={`tab-button ${tab === 'videos' ? 'active' : ''}`} onClick={() => setTab('videos')} aria-pressed={tab === 'videos'}>
+                      <span className="tab-icon">🎥</span>
+                      Videos
+                    </button>
+                  )}
+                  {isBackend && (
+                    <button className={`tab-button ${tab === 'chatbot' ? 'active' : ''}`} onClick={() => setTab('chatbot')} aria-pressed={tab === 'chatbot'}>
+                      <span className="tab-icon">🤖</span>
+                      AI Assistant
+                    </button>
+                  )}
+                  {isBackend && (
+                    <button className={`tab-button ${tab === 'pdfchat' ? 'active' : ''}`} onClick={() => setTab('pdfchat')} aria-pressed={tab === 'pdfchat'}>
+                      <span className="tab-icon">📄</span>
+                      PDF Q&A
+                    </button>
+                  )}
+                </>
+              ) : (
+                <>
+                  <button className={`tab-button ${tab === 'assignment' ? 'active' : ''}`} onClick={() => setTab('assignment')} aria-pressed={tab === 'assignment'}>
+                    <span className="tab-icon">📋</span>
+                    Assignment
                   </button>
-                )}
-                {isBackend && (
-                  <button className={tab === 'pdfchat' ? 'active' : ''} onClick={() => setTab('pdfchat')} aria-pressed={tab === 'pdfchat'}>
-                    PDF Q&A
+                  <button className={`tab-button ${tab === 'pyq' ? 'active' : ''}`} onClick={() => setTab('pyq')} aria-pressed={tab === 'pyq'}>
+                    <span className="tab-icon">📝</span>
+                    PYQ
                   </button>
-                )}
-              </>
-            ) : (
-              <>
-                <button className={tab === 'assignment' ? 'active' : ''} onClick={() => setTab('assignment')} aria-pressed={tab === 'assignment'}>
-                  Assignment
-                </button>
-                <button className={tab === 'pyq' ? 'active' : ''} onClick={() => setTab('pyq')} aria-pressed={tab === 'pyq'}>
-                  PYQ
-                </button>
-                <button className={tab === 'notes' ? 'active' : ''} onClick={() => setTab('notes')} aria-pressed={tab === 'notes'}>
-                  Notes
-                </button>
-                {isBackend && (
-                  <button className={tab === 'discussion' ? 'active' : ''} onClick={() => setTab('discussion')} aria-pressed={tab === 'discussion'}>
-                    Discussion
+                  <button className={`tab-button ${tab === 'notes' ? 'active' : ''}`} onClick={() => setTab('notes')} aria-pressed={tab === 'notes'}>
+                    <span className="tab-icon">📖</span>
+                    Notes
                   </button>
-                )}
-              </>
-            )}
-            {user?.role === 'teacher' && (
-              <>
-                <button className={tab === 'manage' ? 'active' : ''} onClick={() => setTab('manage')} aria-pressed={tab === 'manage'}>
-                  Manage Assignment
+                  {isBackend && (
+                    <button className={`tab-button ${tab === 'discussion' ? 'active' : ''}`} onClick={() => setTab('discussion')} aria-pressed={tab === 'discussion'}>
+                      <span className="tab-icon">💬</span>
+                      Discussion
+                    </button>
+                  )}
+                  {isBackend && (
+                    <button className={`tab-button ${tab === 'videos' ? 'active' : ''}`} onClick={() => setTab('videos')} aria-pressed={tab === 'videos'}>
+                      <span className="tab-icon">🎥</span>
+                      Videos
+                    </button>
+                  )}
+                </>
+              )}
+              {user?.role === 'teacher' && (
+                <>
+                  <button className={`tab-button ${tab === 'manage' ? 'active' : ''}`} onClick={() => setTab('manage')} aria-pressed={tab === 'manage'}>
+                    <span className="tab-icon">⚙️</span>
+                    Manage Assignment
+                  </button>
+                  <button className={`tab-button ${tab === 'submissions' ? 'active' : ''}`} onClick={() => setTab('submissions')} aria-pressed={tab === 'submissions'}>
+                    <span className="tab-icon">📥</span>
+                    Submissions
+                  </button>
+                </>
+              )}
+              {user?.role === 'ta' && (
+                <button className={`tab-button ${tab === 'grading' ? 'active' : ''}`} onClick={() => setTab('grading')} aria-pressed={tab === 'grading'}>
+                  <span className="tab-icon">✅</span>
+                  Grading
                 </button>
-                <button className={tab === 'submissions' ? 'active' : ''} onClick={() => setTab('submissions')} aria-pressed={tab === 'submissions'}>
-                  Submissions
-                </button>
-              </>
-            )}
-            {user?.role === 'ta' && (
-              <button className={tab === 'grading' ? 'active' : ''} onClick={() => setTab('grading')} aria-pressed={tab === 'grading'}>
-                Grading
-              </button>
-            )}
+              )}
+            </div>
           </nav>
 
           {user?.role === 'teacher' && tab === 'assignment' && (
@@ -965,12 +1086,36 @@ export default function CourseDetails() {
               }}
               codeAssignmentId={codeAssignmentId}
               onChangeCodeAssignmentId={(v: string) => setCodeAssignmentId(v)}
-              onOpenCodeEditor={() => {
+              onOpenCodeEditor={async () => {
                 if (!codeAssignmentId) {
                   push({ kind: 'error', message: 'Please select a code assignment' })
                   return
                 }
-                setShowCodeEditor(true)
+                
+                // Find and load the selected assignment
+                const assignment = presentAssignments.find((a: any) => String(a.id) === codeAssignmentId)
+                if (!assignment) {
+                  push({ kind: 'error', message: 'Assignment not found' })
+                  return
+                }
+                
+                // Load assignment with questions if backend mode
+                if (isBackend) {
+                  try {
+                    const questions = await apiFetch<any[]>(`/api/assignments/${codeAssignmentId}/questions`)
+                    setSelectedCodeAssignment({
+                      ...assignment,
+                      questions
+                    })
+                    setTabInternal('code-attempt')
+                  } catch (err: any) {
+                    push({ kind: 'error', message: err?.message || 'Failed to load assignment' })
+                    return
+                  }
+                } else {
+                  setSelectedCodeAssignment(assignment)
+                  setShowCodeEditor(true)
+                }
               }}
             />
           )}
@@ -1186,20 +1331,28 @@ export default function CourseDetails() {
 
 
           {tab === 'discussion' && isBackend && (
-            <DiscussionForum
-              loading={discussionLoading}
-              threads={discussionThreads.threads}
-              repliesMap={discussionThreads.repliesMap}
-              newPostContent={newPostContent}
-              onChangeNewPost={setNewPostContent}
-              onPost={handlePostMessage}
-              replyingTo={replyingTo}
-              replyContent={replyContent}
-              onReplyChange={setReplyContent}
-              onStartReply={(id) => setReplyingTo(id)}
-              onSubmitReply={(id) => void handlePostReply(id)}
-              onCancelReply={() => { setReplyingTo(null); setReplyContent('') }}
-            />
+            <section className="assignments-section">
+              <div className="section-header">
+                <h3 className="section-title">Discussion</h3>
+                <span className="assignment-count">{discussionThreads.threads?.length || 0} Threads</span>
+              </div>
+              <div className="discussion-wrap">
+                <DiscussionForum
+                  loading={discussionLoading}
+                  threads={discussionThreads.threads}
+                  repliesMap={discussionThreads.repliesMap}
+                  newPostContent={newPostContent}
+                  onChangeNewPost={setNewPostContent}
+                  onPost={handlePostMessage}
+                  replyingTo={replyingTo}
+                  replyContent={replyContent}
+                  onReplyChange={setReplyContent}
+                  onStartReply={(id) => setReplyingTo(id)}
+                  onSubmitReply={(id) => void handlePostReply(id)}
+                  onCancelReply={() => { setReplyingTo(null); setReplyContent('') }}
+                />
+              </div>
+            </section>
           )}
 
           {tab === 'pyq' && (
@@ -1211,8 +1364,11 @@ export default function CourseDetails() {
           )}
 
           {tab === 'progress' && isBackend && (
-            <section className="card">
-              <h3>Progress</h3>
+            <section className="assignments-section">
+              <div className="section-header">
+                <h2 className="section-title">{user?.role === 'student' ? 'Your Progress' : 'Course Progress'}</h2>
+                <span className="assignment-count">{backendAssignments.length} assignments</span>
+              </div>
               {user?.role === 'student' ? (
                 <StudentProgressEmbed offeringId={courseId || ''} assignmentTotal={backendAssignments.length} />
               ) : (
@@ -1235,210 +1391,282 @@ export default function CourseDetails() {
           )}
 
           {tabInternal === 'code_attempt' && selectedCodeAssignment && (
-            <section className="card">
-              <div style={{ display: 'flex', alignItems: 'center', marginBottom: 16 }}>
-                <button className="btn" onClick={() => { setTabInternal(''); setSelectedCodeAssignment(null) }} style={{ marginRight: 8 }}>← Back</button>
-                <h3 style={{ margin: 0 }}>{selectedCodeAssignment.title}</h3>
+            <section className="code-submission-view">
+              <div className="code-submission-header">
+                <div className="code-submission-title-section">
+                  <h2 className="code-submission-title">
+                    <span className="assignment-icon">💻</span>
+                    {selectedCodeAssignment.title}
+                  </h2>
+                  <div className="code-submission-meta">
+                    <span className="meta-badge">
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <path d="M9 11l3 3L22 4"/>
+                        <path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/>
+                      </svg>
+                      {selectedCodeAssignment.questions?.length || 0} Questions
+                    </span>
+                    {selectedCodeAssignment.due_at && (
+                      <span className="meta-badge">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                          <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
+                          <line x1="16" y1="2" x2="16" y2="6"/>
+                          <line x1="8" y1="2" x2="8" y2="6"/>
+                          <line x1="3" y1="10" x2="21" y2="10"/>
+                        </svg>
+                        Due: {new Date(selectedCodeAssignment.due_at).toLocaleDateString()}
+                      </span>
+                    )}
+                  </div>
+                </div>
+                <div className="code-submission-actions">
+                  <button className="btn-back" onClick={() => { setTabInternal(''); setSelectedCodeAssignment(null) }}>
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <path d="M19 12H5M12 19l-7-7 7-7"/>
+                    </svg>
+                    Back to Assignments
+                  </button>
+                </div>
               </div>
-              {selectedCodeAssignment.questions && selectedCodeAssignment.questions.length > 0 ? (
-                <div>
+              <div className="code-submission-body">
+                {selectedCodeAssignment.questions && selectedCodeAssignment.questions.length > 0 ? (
+                  <div className="questions-container">
                   {selectedCodeAssignment.questions.map((q: CodeQuestion, idx: number) => (
-                    <div key={q.id} style={{ marginBottom: 24, padding: 16, border: '1px solid #ddd', borderRadius: 4 }}>
-                      <h4>Question {idx + 1}: {q.title || 'Untitled'}</h4>
-                      <div style={{ marginBottom: 12, whiteSpace: 'pre-wrap' }}>{q.description}</div>
-                      {q.constraints && (
-                        <div style={{ marginBottom: 12, padding: 8, backgroundColor: '#fff3cd', borderRadius: 4 }}>
-                          <strong>Constraints:</strong> {q.constraints}
+                    <div key={q.id} className="question-card">
+                      <div className="question-header">
+                        <div style={{ display: 'flex', alignItems: 'center' }}>
+                          <span className="question-number">{idx + 1}</span>
+                          <h3 className="question-title-text">{q.title || 'Untitled Question'}</h3>
                         </div>
-                      )}
-                      {(() => {
-                        // Get sample test cases from test_cases array (backend) or direct properties (local)
-                        let sampleCases: any[] = []
-                        if (q.test_cases && Array.isArray(q.test_cases)) {
-                          sampleCases = q.test_cases.filter((tc: any) => tc.is_sample === true)
-                        } else if (q.sample_input && q.sample_output) {
-                          // Fallback to direct properties for local mode
-                          sampleCases = [{ input_text: q.sample_input, expected_text: q.sample_output }]
-                        }
+                        <span className={`question-status ${savedQuestions[q.id] ? 'saved' : 'unsaved'}`}>
+                          {savedQuestions[q.id] ? (
+                            <>
+                              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
+                                <polyline points="20 6 9 17 4 12"/>
+                              </svg>
+                              Saved
+                            </>
+                          ) : (
+                            'Not Saved'
+                          )}
+                        </span>
+                      </div>
+                      <div className="question-body">
+                        <div className="question-description">{q.description}</div>
+                        {q.constraints && (
+                          <div className="constraints-box">
+                            <strong>⚠️ Constraints</strong>
+                            <p>{q.constraints}</p>
+                          </div>
+                        )}
+                        {(() => {
+                          // Get sample test cases from test_cases array (backend) or direct properties (local)
+                          let sampleCases: any[] = []
+                          if (q.test_cases && Array.isArray(q.test_cases)) {
+                            sampleCases = q.test_cases.filter((tc: any) => tc.is_sample === true)
+                          } else if (q.sample_input && q.sample_output) {
+                            // Fallback to direct properties for local mode
+                            sampleCases = [{ input_text: q.sample_input, expected_text: q.sample_output }]
+                          }
 
-                        return sampleCases.length > 0 ? (
-                          <div style={{ marginBottom: 12 }}>
-                            <strong>Sample Test Cases:</strong>
-                            {sampleCases.map((tc: any, idx: number) => (
-                              <div key={idx} style={{ marginTop: 8 }}>
-                                <div style={{ backgroundColor: '#f8f9fa', padding: 12, borderRadius: 4, fontSize: '0.9em' }}>
-                                  <div style={{ marginBottom: 8 }}>
-                                    <strong>Input:</strong>
-                                    <pre style={{ marginTop: 4, marginBottom: 0, padding: 8, backgroundColor: '#ffffff', borderRadius: 4, whiteSpace: 'pre-wrap', fontFamily: 'monospace', fontSize: '0.9em' }}>
-                                      {tc.input_text || '(empty)'}
-                                    </pre>
-                                  </div>
-                                  <div>
-                                    <strong>Expected Output:</strong>
-                                    <pre style={{ marginTop: 4, marginBottom: 0, padding: 8, backgroundColor: '#ffffff', borderRadius: 4, whiteSpace: 'pre-wrap', fontFamily: 'monospace', fontSize: '0.9em' }}>
-                                      {tc.expected_text || '(empty)'}
-                                    </pre>
-                                  </div>
-                                </div>
+                          return sampleCases.length > 0 ? (
+                            <div className="test-cases-section">
+                              <div className="test-cases-title">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                  <path d="M9 11l3 3L22 4"/>
+                                  <path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/>
+                                </svg>
+                                Sample Test Cases
                               </div>
-                            ))}
+                              {sampleCases.map((tc: any, tcIdx: number) => (
+                                <div key={tcIdx} className="test-case-item">
+                                  <span className="test-case-label">Input</span>
+                                  <div className="test-case-content">{tc.input_text || '(empty)'}</div>
+                                  <span className="test-case-label" style={{ marginTop: 12, display: 'block' }}>Expected Output</span>
+                                  <div className="test-case-content">{tc.expected_text || '(empty)'}</div>
+                                </div>
+                              ))}
+                            </div>
+                          ) : null
+                        })()}
+                        
+                        <div className="code-editor-section">
+                          <div className="language-selector">
+                            <label>Programming Language</label>
+                            <select className="language-select" value={codeLang[q.id] || 'python'} onChange={(e) => setCodeLang(prev => ({ ...prev, [q.id]: e.target.value }))}>
+                              <option value="python">Python</option>
+                              <option value="java">Java</option>
+                              <option value="cpp">C++</option>
+                              <option value="c">C</option>
+                              <option value="javascript">JavaScript</option>
+                            </select>
                           </div>
-                        ) : null
-                      })()}
-                      <div style={{ marginBottom: 8 }}>
-                        <select className="select" value={codeLang[q.id] || 'python'} onChange={(e) => setCodeLang(prev => ({ ...prev, [q.id]: e.target.value }))}>
-                          <option value="python">Python</option>
-                          <option value="java">Java</option>
-                          <option value="cpp">C++</option>
-                          <option value="c">C</option>
-                          <option value="javascript">JavaScript</option>
-                        </select>
-                      </div>
-                      <textarea
-                        className="input"
-                        value={codeEditor[q.id] || ''}
-                        onChange={(e) => setCodeEditor(prev => ({ ...prev, [q.id]: e.target.value }))}
-                        placeholder="Write your code here..."
-                        rows={10}
-                        style={{ fontFamily: 'monospace', fontSize: '14px', width: '100%', marginBottom: 8 }}
-                      />
-                      <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                        <button
-                          className="btn"
-                          onClick={() => void runCodeForQuestion(q)}
-                          disabled={!codeEditor[q.id]?.trim() || isRunningCode[q.id]}
-                          style={{ position: 'relative' }}
-                        >
-                          {isRunningCode[q.id] ? (
-                            <>
-                              <span className="spinner" style={{ marginRight: 8 }}></span>
-                              Running...
-                            </>
-                          ) : (
-                            'Run Code'
-                          )}
-                        </button>
-                        <button
-                          className="btn"
-                          onClick={async () => {
-                            if (!codeEditor[q.id]?.trim()) {
-                              push({ kind: 'error', message: 'Write your code first' })
-                              return
-                            }
-                            setIsSavingCode(prev => ({ ...prev, [q.id]: true }))
-                            try {
-                              await apiFetch('/api/submissions/submit/code', {
-                                method: 'POST',
-                                body: {
-                                  assignment_id: Number(selectedCodeAssignment.id),
-                                  question_id: Number(q.id),
-                                  language: codeLang[q.id] || 'python',
-                                  code: codeEditor[q.id]
-                                }
-                              })
-                              setSavedQuestions(prev => ({ ...prev, [q.id]: true }))
-                              push({ kind: 'success', message: `Question ${idx + 1} code saved successfully` })
-                            } catch (err: any) {
-                              push({ kind: 'error', message: err?.message || 'Failed to save code' })
-                            } finally {
-                              setIsSavingCode(prev => ({ ...prev, [q.id]: false }))
-                            }
-                          }}
-                          disabled={!codeEditor[q.id]?.trim() || isSavingCode[q.id]}
-                          style={{
-                            backgroundColor: savedQuestions[q.id] ? '#10b981' : undefined,
-                            color: savedQuestions[q.id] ? 'white' : undefined
-                          }}
-                        >
-                          {isSavingCode[q.id] ? (
-                            <>
-                              <span className="spinner" style={{ marginRight: 8, display: 'inline-block' }}></span>
-                              Saving...
-                            </>
-                          ) : savedQuestions[q.id] ? (
-                            '✓ Saved'
-                          ) : (
-                            'Save Code'
-                          )}
-                        </button>
-                      </div>
-                      {isRunningCode[q.id] && (
-                        <div style={{ marginTop: 12, padding: 16, backgroundColor: '#e7f3ff', borderRadius: 4, border: '1px solid #b3d9ff', display: 'flex', alignItems: 'center', gap: 12 }}>
-                          <span className="spinner" style={{ display: 'inline-block' }}></span>
-                          <span style={{ color: '#0066cc', fontWeight: 500 }}>Running the test cases...</span>
-                        </div>
-                      )}
-                      {runResults[q.id] && !isRunningCode[q.id] && (
-                        <div style={{ marginTop: 12, padding: 12, backgroundColor: runResults[q.id].ok ? '#d4edda' : '#f8d7da', borderRadius: 4 }}>
-                          <div style={{ marginBottom: 8 }}>
-                            <strong>Result:</strong> {runResults[q.id].message || (runResults[q.id].ok ? 'Passed' : 'Failed')}
+                          
+                          <div className="code-editor">
+                            <textarea
+                              className="code-textarea"
+                              value={codeEditor[q.id] || ''}
+                              onChange={(e) => setCodeEditor(prev => ({ ...prev, [q.id]: e.target.value }))}
+                              placeholder="// Write your code here..."
+                            />
                           </div>
-                          {runResults[q.id].stdout !== undefined && runResults[q.id].stdout !== '' && (
-                            <div style={{ marginTop: 8 }}>
-                              <strong>Output:</strong>
-                              <pre style={{ marginTop: 4, fontSize: '0.9em', backgroundColor: '#f8f9fa', padding: 8, borderRadius: 4, whiteSpace: 'pre-wrap' }}>
-                                {runResults[q.id].stdout || '(empty)'}
-                              </pre>
-                            </div>
-                          )}
-                          {runResults[q.id].expected && (
-                            <div style={{ marginTop: 8 }}>
-                              <strong>Expected:</strong>
-                              <pre style={{ marginTop: 4, fontSize: '0.9em', backgroundColor: '#f8f9fa', padding: 8, borderRadius: 4, whiteSpace: 'pre-wrap' }}>
-                                {runResults[q.id].expected}
-                              </pre>
-                            </div>
-                          )}
-                          {runResults[q.id].stderr && runResults[q.id].stderr.trim() !== '' && (
-                            <div style={{ marginTop: 8 }}>
-                              <strong>Error:</strong>
-                              <pre style={{ marginTop: 4, fontSize: '0.9em', color: '#dc3545', backgroundColor: '#fff5f5', padding: 8, borderRadius: 4, whiteSpace: 'pre-wrap' }}>
-                                {runResults[q.id].stderr}
-                              </pre>
-                            </div>
-                          )}
-                          {runResults[q.id].error && (
-                            <div style={{ marginTop: 8, color: '#dc3545' }}>
-                              <strong>Error:</strong> {runResults[q.id].error}
-                            </div>
-                          )}
                         </div>
-                      )}
+
+                        <div className="code-actions">
+                          <button
+                            className="btn-run-code"
+                            onClick={() => void runCodeForQuestion(q)}
+                            disabled={!codeEditor[q.id]?.trim() || isRunningCode[q.id]}
+                          >
+                            {isRunningCode[q.id] ? (
+                              <>
+                                <span className="loading-indicator"></span>
+                                Running...
+                              </>
+                            ) : (
+                              <>
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                  <polygon points="5 3 19 12 5 21 5 3"/>
+                                </svg>
+                                Run Code
+                              </>
+                            )}
+                          </button>
+                          <button
+                            className={`btn-save-code ${savedQuestions[q.id] ? 'saved' : ''}`}
+                            onClick={async () => {
+                              if (!codeEditor[q.id]?.trim()) {
+                                push({ kind: 'error', message: 'Write your code first' })
+                                return
+                              }
+                              setIsSavingCode(prev => ({ ...prev, [q.id]: true }))
+                              try {
+                                await apiFetch('/api/submissions/submit/code', {
+                                  method: 'POST',
+                                  body: {
+                                    assignment_id: Number(selectedCodeAssignment.id),
+                                    question_id: Number(q.id),
+                                    language: codeLang[q.id] || 'python',
+                                    code: codeEditor[q.id]
+                                  }
+                                })
+                                setSavedQuestions(prev => ({ ...prev, [q.id]: true }))
+                                push({ kind: 'success', message: `Question ${idx + 1} code saved successfully` })
+                              } catch (err: any) {
+                                push({ kind: 'error', message: err?.message || 'Failed to save code' })
+                              } finally {
+                                setIsSavingCode(prev => ({ ...prev, [q.id]: false }))
+                              }
+                            }}
+                            disabled={!codeEditor[q.id]?.trim() || isSavingCode[q.id]}
+                          >
+                            {isSavingCode[q.id] ? (
+                              <>
+                                <span className="loading-indicator"></span>
+                                Saving...
+                              </>
+                            ) : savedQuestions[q.id] ? (
+                              <>
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                  <polyline points="20 6 9 17 4 12"/>
+                                </svg>
+                                Saved
+                              </>
+                            ) : (
+                              <>
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                  <path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/>
+                                  <polyline points="17 21 17 13 7 13 7 21"/>
+                                  <polyline points="7 3 7 8 15 8"/>
+                                </svg>
+                                Save Code
+                              </>
+                            )}
+                          </button>
+                        </div>
+
+                        {isRunningCode[q.id] && (
+                          <div className="result-panel loading">
+                            <div className="result-header">
+                              <div className="result-icon loading">
+                                <span className="loading-indicator"></span>
+                              </div>
+                              <h4 className="result-title loading">Running test cases...</h4>
+                            </div>
+                          </div>
+                        )}
+
+                        {runResults[q.id] && !isRunningCode[q.id] && (
+                          <div className={`result-panel ${runResults[q.id].ok ? 'success' : 'error'}`}>
+                            <div className="result-header">
+                              <div className={`result-icon ${runResults[q.id].ok ? 'success' : 'error'}`}>
+                                {runResults[q.id].ok ? '✓' : '✗'}
+                              </div>
+                              <h4 className={`result-title ${runResults[q.id].ok ? 'success' : 'error'}`}>
+                                {runResults[q.id].message || (runResults[q.id].ok ? 'Test Passed!' : 'Test Failed')}
+                              </h4>
+                            </div>
+                            <div className="result-content">
+                              {runResults[q.id].stdout !== undefined && runResults[q.id].stdout !== '' && (
+                                <div className="result-section">
+                                  <div className="result-section-title">Your Output</div>
+                                  <pre className="result-code">{runResults[q.id].stdout || '(empty)'}</pre>
+                                </div>
+                              )}
+                              {runResults[q.id].expected && (
+                                <div className="result-section">
+                                  <div className="result-section-title">Expected Output</div>
+                                  <pre className="result-code">{runResults[q.id].expected}</pre>
+                                </div>
+                              )}
+                              {runResults[q.id].stderr && runResults[q.id].stderr.trim() !== '' && (
+                                <div className="result-section">
+                                  <div className="result-section-title">Error Message</div>
+                                  <pre className="result-code error-text">{runResults[q.id].stderr}</pre>
+                                </div>
+                              )}
+                              {runResults[q.id].error && (
+                                <div className="result-section">
+                                  <div className="result-section-title">Error</div>
+                                  <pre className="result-code error-text">{runResults[q.id].error}</pre>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        )}
+                      </div>
                     </div>
                   ))}
-                </div>
-              ) : (
-                <p className="muted">No questions found for this assignment.</p>
-              )}
-              {selectedCodeAssignment.questions && selectedCodeAssignment.questions.length > 0 && (
-                <div style={{
-                  marginTop: 24,
-                  padding: 16,
-                  backgroundColor: '#f9fafb',
-                  border: '2px solid #6366f1',
-                  borderRadius: 8,
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'center'
-                }}>
-                  <div>
-                    <h4 style={{ margin: 0, marginBottom: 4 }}>Final Submission</h4>
-                    <p style={{ margin: 0, fontSize: '0.9em', color: '#6b7280' }}>
-                      {(() => {
-                        const savedCount = selectedCodeAssignment.questions.filter((q: CodeQuestion) => savedQuestions[q.id]).length
-                        const totalCount = selectedCodeAssignment.questions.length
-                        return `Saved ${savedCount} of ${totalCount} questions`
-                      })()}
-                    </p>
                   </div>
-                  <button
-                    className="btn btn-primary"
-                    style={{
-                      fontSize: '16px',
-                      padding: '12px 24px',
-                      fontWeight: 600
-                    }}
-                    onClick={async () => {
+                ) : (
+                  <p className="muted" style={{ textAlign: 'center', padding: '40px 20px' }}>No questions found for this assignment.</p>
+                )}
+                
+                {selectedCodeAssignment.questions && selectedCodeAssignment.questions.length > 0 && (
+                  <div className="final-submission-panel">
+                    <div className="final-submission-header">
+                      <div className="final-submission-info">
+                        <h4>Ready to Submit?</h4>
+                        <p className="progress-text">
+                          {(() => {
+                            const savedCount = selectedCodeAssignment.questions.filter((q: CodeQuestion) => savedQuestions[q.id]).length
+                            const totalCount = selectedCodeAssignment.questions.length
+                            return `${savedCount} of ${totalCount} questions saved`
+                          })()}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="progress-bar-container">
+                      <div 
+                        className="progress-bar" 
+                        style={{ 
+                          width: `${(selectedCodeAssignment.questions.filter((q: CodeQuestion) => savedQuestions[q.id]).length / selectedCodeAssignment.questions.length) * 100}%` 
+                        }}
+                      />
+                    </div>
+                    <button
+                      className="btn-final-submit"
+                      onClick={async () => {
                       // Check if all questions have code
                       const allHaveCode = selectedCodeAssignment.questions.every((q: CodeQuestion) => {
                         return codeEditor[q.id]?.trim()
@@ -1527,13 +1755,18 @@ export default function CourseDetails() {
                       } catch (err: any) {
                         push({ kind: 'error', message: err?.message || 'Final submission failed' })
                       }
-                    }}
-                    disabled={selectedCodeAssignment.questions.some((q: CodeQuestion) => !codeEditor[q.id]?.trim())}
-                  >
-                    Final Submit Assignment
-                  </button>
-                </div>
-              )}
+                      }}
+                      disabled={selectedCodeAssignment.questions.some((q: CodeQuestion) => !codeEditor[q.id]?.trim())}
+                    >
+                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
+                        <polyline points="22 4 12 14.01 9 11.01"/>
+                      </svg>
+                      Submit All Answers
+                    </button>
+                  </div>
+                )}
+              </div>
             </section>
           )}
 
@@ -1580,36 +1813,69 @@ export default function CourseDetails() {
           )}
 
           {tab === 'chatbot' && isBackend && (
-            <section className="card">
-              <h3>AI Assistant — Course</h3>
-              <p className="muted" style={{ marginTop: 4 }}>Ask questions about this course and get AI-powered answers.</p>
-              <div style={{ marginTop: 12 }}>
-                <Chatbot type="course" offeringId={Number(courseId)} />
+            <section className="assignments-section">
+              <div className="section-header">
+                <h2 className="section-title">
+                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ marginRight: '8px', verticalAlign: 'middle' }}>
+                    <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+                    <path d="M7 11V7a5 5 0 0110 0v4"/>
+                  </svg>
+                  AI Course Assistant
+                </h2>
+                <span className="assignment-count">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ marginRight: '4px', verticalAlign: 'middle' }}>
+                    <circle cx="12" cy="12" r="10"/>
+                    <polyline points="12 6 12 12 16 14"/>
+                  </svg>
+                  24/7 Available
+                </span>
               </div>
+              <div className="ai-assistant-intro">
+                <div className="ai-icon">🤖</div>
+                <p>Get instant AI-powered answers to your course questions. Ask about lectures, assignments, concepts, and more.</p>
+              </div>
+              <Chatbot type="course" offeringId={Number(courseId)} />
             </section>
           )}
           {tab === 'pdfchat' && isBackend && (
-            <section className="card">
-              <h3>AI Assistant — PDF</h3>
-              <p className="muted" style={{ marginTop: 4 }}>Upload a PDF, then ask questions about its content.</p>
-              <div style={{ marginTop: 12 }}>
-                <Chatbot type="pdf" />
+            <section className="assignments-section">
+              <div className="section-header">
+                <h2 className="section-title">
+                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ marginRight: '8px', verticalAlign: 'middle' }}>
+                    <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/>
+                    <polyline points="14 2 14 8 20 8"/>
+                  </svg>
+                  PDF Q&A Assistant
+                </h2>
+                <span className="assignment-count">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ marginRight: '4px', verticalAlign: 'middle' }}>
+                    <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/>
+                    <polyline points="17 8 12 3 7 8"/>
+                    <line x1="12" y1="3" x2="12" y2="15"/>
+                  </svg>
+                  Upload & Ask
+                </span>
               </div>
+              <div className="ai-assistant-intro">
+                <div className="ai-icon">📄</div>
+                <p>Upload any document (PDF, DOCX, TXT) and ask questions about its content. Perfect for analyzing course materials, research papers, and study guides.</p>
+              </div>
+              <Chatbot type="pdf" />
             </section>
           )}
           {tab === 'videos' && isBackend && (
-            <section className="card">
-              {user?.role === 'teacher' && (
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-                  <h3 style={{ margin: 0 }}>Video Lectures</h3>
-                  <button className="btn btn-primary" onClick={() => setShowVideoUpload(true)}>
-                    📹 Upload Video Lecture
-                  </button>
+            <section className="assignments-section">
+              <div className="section-header">
+                <h2 className="section-title">Video Lectures</h2>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                  <span className="assignment-count">{backendVideos.length} videos</span>
+                  {user?.role === 'teacher' && (
+                    <button className="btn btn-primary" onClick={() => setShowVideoUpload(true)}>
+                      📹 Upload Video
+                    </button>
+                  )}
                 </div>
-              )}
-              {user?.role !== 'teacher' && (
-                <h3 style={{ marginBottom: 16 }}>Video Lectures</h3>
-              )}
+              </div>
 
               {selectedVideo ? (
                 <div>

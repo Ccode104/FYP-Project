@@ -104,6 +104,37 @@ export async function adminListUsers(req, res) {
   }
 }
 
+// Assign one or more faculty to a course
+export async function adminAssignFacultyToCourse(req, res) {
+  try {
+    const courseId = Number(req.params.courseId);
+    const { faculty_ids } = req.body || {};
+    if (!courseId) return res.status(400).json({ error: 'Invalid course id' });
+    if (!Array.isArray(faculty_ids) || faculty_ids.length === 0) {
+      return res.status(400).json({ error: 'faculty_ids (non-empty array) is required' });
+    }
+
+    const values = [];
+    const params = [];
+    faculty_ids.forEach((fid) => {
+      params.push(courseId, Number(fid));
+      values.push(`($${params.length - 1}, $${params.length})`);
+    });
+
+    const q = `
+      INSERT INTO faculty_courses (course_id, faculty_id)
+      VALUES ${values.join(', ')}
+      ON CONFLICT DO NOTHING
+      RETURNING *
+    `;
+    const r = await pool.query(q, params);
+    res.json({ assigned: r.rowCount });
+  } catch (err) {
+    console.error('adminAssignFacultyToCourse', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+}
+
 export async function adminUpdateUser(req, res) {
   try {
     const id = Number(req.params.id);

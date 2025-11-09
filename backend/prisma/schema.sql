@@ -238,6 +238,15 @@ CREATE INDEX IF NOT EXISTS idx_discussion_messages_offering ON discussion_messag
 CREATE INDEX IF NOT EXISTS idx_discussion_messages_parent ON discussion_messages(parent_id);
 CREATE INDEX IF NOT EXISTS idx_discussion_messages_created_at ON discussion_messages(created_at);
 
+-- Map faculty to courses (admin-assigned instructors)
+CREATE TABLE IF NOT EXISTS faculty_courses (
+  id BIGSERIAL PRIMARY KEY,
+  course_id BIGINT NOT NULL REFERENCES courses(id) ON DELETE CASCADE,
+  faculty_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  assigned_at TIMESTAMPTZ DEFAULT now(),
+  UNIQUE(course_id, faculty_id)
+);
+
 -- Code questions bank
 CREATE TABLE IF NOT EXISTS code_questions (
   id BIGSERIAL PRIMARY KEY,

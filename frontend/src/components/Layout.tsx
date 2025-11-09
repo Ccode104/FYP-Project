@@ -34,7 +34,7 @@ export default function Layout({ children }: { children: ReactNode }) {
                     onClick={() => navigate(getDashboardPathForRole(user.role))}
                     aria-label="Courses"
                   >
-                    Courses
+                    Dashboard
                   </button>
                 </nav>
               )}
@@ -116,7 +116,7 @@ export default function Layout({ children }: { children: ReactNode }) {
                   onClick={() => navigate(getDashboardPathForRole(user.role))}
                   aria-label="Courses"
                 >
-                  Courses
+                  Dashboard
                 </button>
               </nav>
             )}
