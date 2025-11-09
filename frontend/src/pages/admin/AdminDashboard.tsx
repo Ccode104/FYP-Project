@@ -439,6 +439,26 @@ export default function AdminDashboard() {
                         onClick={() => selectCourse(c)}
                         className="course-card hover-effect"
                       >
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+                          <div style={{ fontSize: '16px', fontWeight: '700', color: '#667eea' }}>{c.code}</div>
+                          <div style={{ position: 'relative' }}>
+                            <button
+                              aria-label="Course actions"
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                setOfferForCourse(c)
+                                setShowOfferCourse(true)
+                              }}
+                              style={{ background: 'transparent', border: 'none', cursor: 'pointer', fontSize: 18, lineHeight: 1 }}
+                            >
+                              ⋮
+                            </button>
+                          </div>
+                        </div>
+                        <div style={{ marginTop: 8 }}>
+                          <div style={{ fontSize: '14px', color: '#374151', lineHeight: '1.5' }}>{c.title}</div>
+                          {c.credits && <div style={{ fontSize: '12px', color: '#9ca3af', marginTop: '8px' }}>{c.credits} credits</div>}
+                        </div>
                         <div className="course-code">{c.code}</div>
                         <div className="course-title">{c.title}</div>
                         {c.credits && <div className="course-credits">{c.credits} credits</div>}
