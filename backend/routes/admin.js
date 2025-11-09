@@ -14,6 +14,7 @@ import {
   adminGetAssignmentsByFaculty,
   adminGetAssignmentsByFacultyId,
   adminGetSubmissions,
+  adminAssignFacultyToCourse,
 } from '../controllers/adminPanelController.js';
 
 const router = express.Router();
@@ -40,5 +41,6 @@ router.get('/courses/:courseId/details', adminGetCourseDetails);
 router.get('/offerings/:offeringId/assignments', adminGetAssignmentsByFaculty);
 router.get('/faculty/:facultyId/assignments', adminGetAssignmentsByFacultyId);
 router.get('/assignments/:assignmentId/submissions', adminGetSubmissions);
+router.post('/courses/:courseId/assign-faculty', adminAssignFacultyToCourse);
 
 export default router;

@@ -1,6 +1,6 @@
 import express from 'express';
 import { requireAuth, requireRole } from '../middleware/auth.js';
-import { createCourse, createOffering, enroll, listCourses, listMyOfferings, unenroll } from '../controllers/coursesController.js';
+import { createCourse, createOffering, enroll, listCourses, listMyCourses, listMyOfferings, unenroll } from '../controllers/coursesController.js';
 import {
   getCourseResources,
   getCoursePYQs,
@@ -371,6 +371,9 @@ router.post('/:offeringId/resources', uploadResource);
  *         description: Forbidden - Requires faculty or admin role
  */
 router.get('/mine/offerings', requireAuth, requireRole('faculty','admin'), listMyOfferings);
+
+// List distinct courses for the current faculty (assigned via any past or present offerings)
+router.get('/mine/courses', requireAuth, requireRole('faculty','admin'), listMyCourses);
 
 /**
  * @swagger

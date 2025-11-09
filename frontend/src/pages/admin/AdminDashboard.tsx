@@ -1,17 +1,20 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { courses } from '../../data/mock'
 import { useAuth } from '../../context/AuthContext'
 import { useNavigate } from 'react-router-dom'
 import CourseCard from '../../components/CourseCard'
 import './AdminDashboard.css'
-import { listUsers, getUserOverview, getCoursesByDepartment, getCourseDetails, getAssignmentsByOffering, getAssignmentsByFaculty, getSubmissionsByAssignment } from '../../services/admin'
+import { listUsers, getUserOverview, getCoursesByDepartment, getCourseDetails, getAssignmentsByOffering, getAssignmentsByFaculty, getSubmissionsByAssignment, assignFacultyToCourse } from '../../services/admin'
+import { createCourse, createOffering } from '../../services/courses'
+import { useToast } from '../../components/ToastProvider'
 
 export default function AdminDashboard() {
   const { user, logout} = useAuth()
   const navigate = useNavigate()
+  const { push } = useToast()
 
   const isAdmin = user?.role === 'admin'
-  const [tab, setTab] = useState<'explorer'>('explorer')
+  const [tab, setTab] = useState<'explorer' | 'users' | 'courses'>('explorer')
 
   // Users state
   const [roleFilter, setRoleFilter] = useState<'student' | 'faculty' | 'ta' | 'admin' | ''>('student')
@@ -55,6 +58,25 @@ export default function AdminDashboard() {
   const [selectedFaculty, setSelectedFaculty] = useState<any>(null)
   const [facultyAssignments, setFacultyAssignments] = useState<any[]>([])
 
+  const [showCreateCourse, setShowCreateCourse] = useState(false)
+  const [newCode, setNewCode] = useState('')
+  const [newTitle, setNewTitle] = useState('')
+  const [newDesc, setNewDesc] = useState('')
+  const [newCredits, setNewCredits] = useState<number | ''>('')
+  const [deptFaculty, setDeptFaculty] = useState<any[]>([])
+  const [selectedFacultyIds, setSelectedFacultyIds] = useState<number[]>([])
+  const [savingCourse, setSavingCourse] = useState(false)
+
+  const [showOfferCourse, setShowOfferCourse] = useState(false)
+  const [offerForCourse, setOfferForCourse] = useState<any>(null)
+  const [offerTerm, setOfferTerm] = useState('W25')
+  const [offerSection, setOfferSection] = useState('A')
+  const [offerFacultyId, setOfferFacultyId] = useState<number | ''>('')
+  const [offerCapacity, setOfferCapacity] = useState<number | ''>('')
+  const [offerStart, setOfferStart] = useState('')
+  const [offerEnd, setOfferEnd] = useState('')
+  const [savingOffering, setSavingOffering] = useState(false)
+
   const loadDepartments = async () => {
     try {
       const { listDepartments } = await import('../../services/admin')
@@ -76,6 +98,10 @@ export default function AdminDashboard() {
     } catch (err) {
       console.error('Error loading courses:', err)
     }
+    try {
+      const fac = await listUsers('faculty')
+      setDeptFaculty((fac.users || []).filter((u: any) => u.department_id === dept.id))
+    } catch {}
   }
 
   const selectCourse = async (course: any) => {
@@ -372,9 +398,20 @@ export default function AdminDashboard() {
               )}
               {selectedDept && !selectedCourse && (
                 <div>
-                  <h3 style={{ marginTop: 0, marginBottom: '20px', color: '#111', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    📚 Courses in {selectedDept.name}
-                  </h3>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px' }}>
+                    <h3 style={{ marginTop: 0, marginBottom: 0, color: '#111', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      📚 Courses in {selectedDept.name}
+                    </h3>
+                    <button
+                      onClick={() => { setShowCreateCourse(true); setNewCode(''); setNewTitle(''); setNewDesc(''); setNewCredits(''); setSelectedFacultyIds([]); }}
+                      style={{
+                        display: 'flex', alignItems: 'center', gap: 8,
+                        padding: '10px 14px', background: '#10b981', color: '#fff', border: 'none', borderRadius: 8, fontWeight: 600, cursor: 'pointer'
+                      }}
+                    >
+                      <span style={{ fontSize: 18, lineHeight: 1 }}>+</span> Add Course
+                    </button>
+                  </div>
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '16px' }}>
                     {deptCourses.map((c) => (
                       <div
@@ -399,9 +436,26 @@ export default function AdminDashboard() {
                           e.currentTarget.style.transform = 'translateY(0)'
                         }}
                       >
-                        <div style={{ fontSize: '16px', fontWeight: '700', color: '#667eea', marginBottom: '8px' }}>{c.code}</div>
-                        <div style={{ fontSize: '14px', color: '#374151', lineHeight: '1.5' }}>{c.title}</div>
-                        {c.credits && <div style={{ fontSize: '12px', color: '#9ca3af', marginTop: '8px' }}>{c.credits} credits</div>}
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+                          <div style={{ fontSize: '16px', fontWeight: '700', color: '#667eea' }}>{c.code}</div>
+                          <div style={{ position: 'relative' }}>
+                            <button
+                              aria-label="Course actions"
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                setOfferForCourse(c)
+                                setShowOfferCourse(true)
+                              }}
+                              style={{ background: 'transparent', border: 'none', cursor: 'pointer', fontSize: 18, lineHeight: 1 }}
+                            >
+                              ⋮
+                            </button>
+                          </div>
+                        </div>
+                        <div style={{ marginTop: 8 }}>
+                          <div style={{ fontSize: '14px', color: '#374151', lineHeight: '1.5' }}>{c.title}</div>
+                          {c.credits && <div style={{ fontSize: '12px', color: '#9ca3af', marginTop: '8px' }}>{c.credits} credits</div>}
+                        </div>
                       </div>
                     ))}
                   </div>
@@ -576,6 +630,131 @@ export default function AdminDashboard() {
             </div>
           </div>
         </section>
+      )}
+      {showCreateCourse && selectedDept && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50 }}>
+          <div style={{ width: 520, background: '#fff', borderRadius: 12, padding: 20, boxShadow: '0 10px 30px rgba(0,0,0,0.2)' }}>
+            <h3 style={{ marginTop: 0 }}>Add Course to {selectedDept.name}</h3>
+            <div className="form" style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              <label className="field"><span className="label"></span><input className="input" value={newCode} onChange={(e) => setNewCode(e.target.value)} placeholder="Course Code (e.g., CS101)" /></label>
+              <label className="field"><span className="label"></span><input className="input" value={newTitle} onChange={(e) => setNewTitle(e.target.value)} placeholder="Course Title" /></label>
+              <label className="field"><span className="label"></span><input className="input" value={newDesc} onChange={(e) => setNewDesc(e.target.value)} placeholder="Description" /></label>
+              <label className="field"><span className="label"></span><input className="input" value={newCredits} onChange={(e) => setNewCredits(e.target.value === '' ? '' : Number(e.target.value))} placeholder="Credits" /></label>
+              <div>
+                <div style={{ fontWeight: 600, marginBottom: 6 }}>Assign Faculty</div>
+                <div style={{ maxHeight: 180, overflowY: 'auto', border: '1px solid #e5e7eb', borderRadius: 8, padding: 8 }}>
+                  {deptFaculty.length === 0 ? (
+                    <div className="muted">No faculty in this department</div>
+                  ) : (
+                    <ul className="list">
+                      {deptFaculty.map((f) => (
+                        <li key={f.id}>
+                          <label style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                            <input
+                              type="checkbox"
+                              checked={selectedFacultyIds.includes(f.id)}
+                              onChange={(e) => {
+                                const checked = e.target.checked
+                                setSelectedFacultyIds((prev) => checked ? [...prev, f.id] : prev.filter((x) => x !== f.id))
+                              }}
+                            />
+                            <span>{f.name || f.email}</span>
+                          </label>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+              </div>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 14 }}>
+              <button className="btn" onClick={() => setShowCreateCourse(false)} disabled={savingCourse}>Cancel</button>
+              <button
+                className="btn btn-primary"
+                onClick={async () => {
+                  if (!newCode || !newTitle) return
+                  try {
+                    setSavingCourse(true)
+                    const c = await createCourse({ code: newCode, title: newTitle, description: newDesc || undefined, department_id: selectedDept.id, credits: newCredits === '' ? undefined : Number(newCredits) })
+                    if (selectedFacultyIds.length) {
+                      await assignFacultyToCourse(c.id, selectedFacultyIds)
+                    }
+                    const r = await getCoursesByDepartment(selectedDept.id)
+                    setDeptCourses(r.courses)
+                    setShowCreateCourse(false)
+                    push({ kind: 'success', message: `Course ${c.code || ''} created successfully` })
+                    setTimeout(() => window.location.reload(), 800)
+                  } catch (e: any) {
+                    push({ kind: 'error', message: e?.message || 'Failed to create course' })
+                  } finally {
+                    setSavingCourse(false)
+                  }
+                }}
+                disabled={savingCourse || !newCode || !newTitle}
+              >
+                {savingCourse ? 'Saving…' : 'Create Course'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {showOfferCourse && offerForCourse && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50 }}>
+          <div style={{ width: 520, background: '#fff', borderRadius: 12, padding: 20, boxShadow: '0 10px 30px rgba(0,0,0,0.2)' }}>
+            <h3 style={{ marginTop: 0 }}>Offer Course — {offerForCourse.code}</h3>
+            <div className="form" style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              <label className="field"><span className="label"></span><input className="input" value={offerTerm} onChange={(e) => setOfferTerm(e.target.value)} placeholder="Term (e.g., W25)" /></label>
+              <label className="field"><span className="label"></span><input className="input" value={offerSection} onChange={(e) => setOfferSection(e.target.value)} placeholder="Section (e.g., A)" /></label>
+              <label className="field">
+                <span className="label"></span>
+                <select className="input" value={offerFacultyId} onChange={(e) => setOfferFacultyId(e.target.value === '' ? '' : Number(e.target.value))}>
+                  <option value="">Select Faculty</option>
+                  {deptFaculty.map((f) => (
+                    <option key={f.id} value={f.id}>{f.name || f.email}</option>
+                  ))}
+                </select>
+              </label>
+              <label className="field"><span className="label"></span><input className="input" type="number" value={offerCapacity} onChange={(e) => setOfferCapacity(e.target.value === '' ? '' : Number(e.target.value))} placeholder="Max Capacity (optional)" /></label>
+              <div className="grid" style={{ gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                <label className="field"><span className="label"></span><input className="input" type="date" value={offerStart} onChange={(e) => setOfferStart(e.target.value)} placeholder="Start date" /></label>
+                <label className="field"><span className="label"></span><input className="input" type="date" value={offerEnd} onChange={(e) => setOfferEnd(e.target.value)} placeholder="End date" /></label>
+              </div>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 14 }}>
+              <button className="btn" onClick={() => { setShowOfferCourse(false); setOfferForCourse(null); }} disabled={savingOffering}>Cancel</button>
+              <button
+                className="btn btn-primary"
+                onClick={async () => {
+                  if (!offerForCourse?.id || !offerTerm || !offerFacultyId) return
+                  try {
+                    setSavingOffering(true)
+                    const payload = {
+                      course_id: Number(offerForCourse.id),
+                      term: offerTerm,
+                      section: offerSection || undefined,
+                      faculty_id: Number(offerFacultyId),
+                      max_capacity: offerCapacity === '' ? undefined : Number(offerCapacity),
+                      start_date: offerStart || undefined,
+                      end_date: offerEnd || undefined,
+                    }
+                    const res = await createOffering(payload)
+                    setShowOfferCourse(false)
+                    setOfferForCourse(null)
+                    push({ kind: 'success', message: `Offering #${res.id} created` })
+                    setTimeout(() => window.location.reload(), 800)
+                  } catch (e: any) {
+                    push({ kind: 'error', message: e?.message || 'Failed to create offering' })
+                  } finally {
+                    setSavingOffering(false)
+                  }
+                }}
+                disabled={savingOffering || !offerTerm || !offerFacultyId}
+              >
+                {savingOffering ? 'Saving…' : 'Offer Course'}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   )
