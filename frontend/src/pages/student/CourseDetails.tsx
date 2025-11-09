@@ -6,6 +6,7 @@ import { getUserCourses } from '../../data/userCourses'
 import { addCustomAssignment } from '../../data/courseOverlays'
 import { addSubmission } from '../../data/submissions'
 import './CourseDetails.css'
+import './CourseDetails.overrides.css'
 import { useToast } from '../../components/ToastProvider'
 import { apiFetch } from '../../services/api'
 import QuizCreator from '../../components/QuizCreator'
@@ -20,6 +21,7 @@ import PyqList from '../../components/course/PyqList'
 import NotesList from '../../components/course/NotesList'
 import DiscussionForum from '../../components/course/DiscussionForum'
 import PresentAssignmentsSection from '../../components/course/PresentAssignmentsSection'
+import TeacherAssignments from '../../components/course/TeacherAssignments'
 import { listDiscussionMessages, postDiscussionMessage, type DiscussionMessage } from '../../services/discussion'
 
 // Add CodeQuestion type for frontend usage
@@ -56,7 +58,7 @@ export default function CourseDetails() {
   const { courseId } = useParams()
   const { user, logout } = useAuth()
   const navigate = useNavigate()
-  const [tab, setTab] = useState<'present' | 'past' | 'pyq' | 'notes' | 'quizzes' | 'quizzes_submitted' | 'manage' | 'submissions' | 'grading' | 'progress' | 'discussion' | 'chatbot' | 'pdfchat'>('present')
+  const [tab, setTab] = useState<'assignment' | 'present' | 'past' | 'pyq' | 'notes' | 'quizzes' | 'quizzes_submitted' | 'manage' | 'submissions' | 'grading' | 'progress' | 'discussion' | 'chatbot' | 'pdfchat'>('present')
   const [assignmentCreationType, setAssignmentCreationType] = useState<'selection' | 'code' | 'quiz' | 'pdf'>('selection')
   const isBackend = !!courseId && /^\d+$/.test(courseId)
   const toast = useToast()
@@ -104,6 +106,14 @@ export default function CourseDetails() {
       })
     }
     return course?.assignmentsPresent || []
+  }, [isBackend, backendAssignments, course])
+
+  // Teacher view: list all assignments (backend: from API; local: present + past)
+  const teacherAssignments = useMemo(() => {
+    if (isBackend) return backendAssignments || []
+    const present = course?.assignmentsPresent || []
+    const past = (course as any)?.assignmentsPast || []
+    return [...present, ...past]
   }, [isBackend, backendAssignments, course])
 
   // For students: filter out submitted assignments and combine with unsubmitted quizzes
@@ -692,6 +702,16 @@ export default function CourseDetails() {
     }
   }, [tab, isBackend, courseId])
 
+  // Redirect teachers to the new 'Assignment' tab if they are on hidden tabs
+  useEffect(() => {
+    if (user?.role === 'teacher') {
+      const hiddenForTeacher = new Set(['present', 'past', 'progress', 'chatbot', 'pdfchat'])
+      if (hiddenForTeacher.has(tab)) {
+        setTab('assignment')
+      }
+    }
+  }, [user?.role, tab])
+
   // Handle posting a new discussion message
   const handlePostMessage = async () => {
     if (!newPostContent.trim() || !courseId || !isBackend) return
@@ -763,88 +783,7 @@ export default function CourseDetails() {
 
   return (
     <>
-      {/* Scoped styles to fix overlapping label/input fields on this page */}
-      <style>{`
-        .course-details-page .form {
-          display: flex !important;
-          flex-direction: column !important;
-          gap: 16px !important;
-        }
-        .course-details-page .form .field {
-          display: flex !important;
-          flex-direction: column !important;
-          gap: 8px !important;
-          align-items: stretch !important;
-          margin-bottom: 0 !important;
-          position: relative !important;
-        }
-        .course-details-page .form .field .label {
-          display: block !important;
-          font-size: 14px !important;
-          font-weight: 500 !important;
-          color: #374151 !important;
-          margin-bottom: 8px !important;
-          margin-top: 0 !important;
-          padding: 0 !important;
-          line-height: 1.4 !important;
-          position: static !important;
-          top: auto !important;
-          left: auto !important;
-          transform: none !important;
-          order: -1 !important;
-          z-index: 1 !important;
-          pointer-events: none !important;
-        }
-        .course-details-page .form .field .input,
-        .course-details-page .form .field textarea,
-        .course-details-page .form .field .select {
-          width: 100% !important;
-          box-sizing: border-box !important;
-          padding: 10px 12px !important;
-          font-size: 14px !important;
-          line-height: 1.5 !important;
-          border: 1px solid #d1d5db !important;
-          border-radius: 6px !important;
-          background: #ffffff !important;
-          color: #111827 !important;
-          transition: border-color 0.2s, box-shadow 0.2s !important;
-          font-family: inherit !important;
-          position: relative !important;
-          z-index: 0 !important;
-          margin-top: 0 !important;
-          margin-bottom: 0 !important;
-        }
-        .course-details-page .form .field .input:focus,
-        .course-details-page .form .field textarea:focus,
-        .course-details-page .form .field .select:focus {
-          outline: none !important;
-          border-color: #6366f1 !important;
-          box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1) !important;
-        }
-        .course-details-page .form .field textarea {
-          resize: vertical !important;
-          min-height: 80px !important;
-          font-family: inherit !important;
-        }
-        .course-details-page .form .field input[type="checkbox"] {
-          width: auto !important;
-          align-self: flex-start !important;
-          margin-top: 4px !important;
-          margin-right: 8px !important;
-          cursor: pointer !important;
-        }
-        .course-details-page .form .field[style*="align-items: center"] {
-          flex-direction: row !important;
-          align-items: center !important;
-          gap: 8px !important;
-        }
-        .course-details-page .form .field[style*="align-items: center"] .label {
-          margin-bottom: 0 !important;
-          margin-right: 8px !important;
-          order: 0 !important;
-        }
-      `}</style>
-       
+      
       <div className="course-details-page">
        <div className="container">
       <header className="topbar">
@@ -892,11 +831,8 @@ export default function CourseDetails() {
               </>
             ) : (
               <>
-                <button className={tab === 'present' ? 'active' : ''} onClick={() => setTab('present')} aria-pressed={tab === 'present'}>
-                  Assignments (Present)
-                </button>
-                <button className={tab === 'past' ? 'active' : ''} onClick={() => setTab('past')} aria-pressed={tab === 'past'}>
-                  Assignments (Past)
+                <button className={tab === 'assignment' ? 'active' : ''} onClick={() => setTab('assignment')} aria-pressed={tab === 'assignment'}>
+                  Assignment
                 </button>
                 <button className={tab === 'pyq' ? 'active' : ''} onClick={() => setTab('pyq')} aria-pressed={tab === 'pyq'}>
                   PYQ
@@ -905,23 +841,8 @@ export default function CourseDetails() {
                   Notes
                 </button>
                 {isBackend && (
-                  <button className={tab === 'progress' ? 'active' : ''} onClick={() => setTab('progress')} aria-pressed={tab === 'progress'}>
-                    Progress
-                  </button>
-                )}
-                {isBackend && (
                   <button className={tab === 'discussion' ? 'active' : ''} onClick={() => setTab('discussion')} aria-pressed={tab === 'discussion'}>
                     Discussion
-                  </button>
-                )}
-                {isBackend && (
-                  <button className={tab === 'chatbot' ? 'active' : ''} onClick={() => setTab('chatbot')} aria-pressed={tab === 'chatbot'}>
-                    AI Assistant
-                  </button>
-                )}
-                {isBackend && (
-                  <button className={tab === 'pdfchat' ? 'active' : ''} onClick={() => setTab('pdfchat')} aria-pressed={tab === 'pdfchat'}>
-                    PDF Q&A
                   </button>
                 )}
               </>
@@ -942,6 +863,13 @@ export default function CourseDetails() {
               </button>
             )}
       </nav>
+
+          {user?.role === 'teacher' && tab === 'assignment' && (
+            <TeacherAssignments
+              assignments={teacherAssignments as any[]}
+              onViewCode={(submission) => { setShowCodeEditor(true); setViewingCodeSubmission(submission) }}
+            />
+          )}
 
           {tab === 'present' && (
             <PresentAssignmentsSection

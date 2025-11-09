@@ -1,0 +1,92 @@
+/* Scoped styles extracted from CourseDetails.tsx inline style */
+.course-details-page .form {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 16px !important;
+}
+.course-details-page .form .field {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 8px !important;
+  align-items: stretch !important;
+  margin-bottom: 0 !important;
+  position: relative !important;
+}
+.course-details-page .form .field .label {
+  display: block !important;
+  font-size: 14px !important;
+  font-weight: 500 !important;
+  color: #374151 !important;
+  margin-bottom: 8px !important;
+  margin-top: 0 !important;
+  padding: 0 !important;
+  line-height: 1.4 !important;
+  position: static !important;
+  top: auto !important;
+  left: auto !important;
+  transform: none !important;
+  order: -1 !important;
+  z-index: 1 !important;
+  pointer-events: none !important;
+}
+.course-details-page .form .field .input,
+.course-details-page .form .field textarea,
+.course-details-page .form .field .select {
+  width: 100% !important;
+  box-sizing: border-box !important;
+  padding: 10px 12px !important;
+  font-size: 14px !important;
+  line-height: 1.5 !important;
+  border: 1px solid #d1d5db !important;
+  border-radius: 6px !important;
+  background: #ffffff !important;
+  color: #111827 !important;
+  transition: border-color 0.2s, box-shadow 0.2s !important;
+  font-family: inherit !important;
+  position: relative !important;
+  z-index: 0 !important;
+  margin-top: 0 !important;
+  margin-bottom: 0 !important;
+}
+.course-details-page .form .field .input:focus,
+.course-details-page .form .field textarea:focus,
+.course-details-page .form .field .select:focus {
+  outline: none !important;
+  border-color: #6366f1 !important;
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1) !important;
+}
+.course-details-page .form .field textarea {
+  resize: vertical !important;
+  min-height: 80px !important;
+  font-family: inherit !important;
+}
+.course-details-page .form .field input[type="checkbox"] {
+  width: auto !important;
+  align-self: flex-start !important;
+  margin-top: 4px !important;
+  margin-right: 8px !important;
+  cursor: pointer !important;
+}
+.course-details-page .form .field[style*="align-items: center"] {
+  flex-direction: row !important;
+  align-items: center !important;
+  gap: 8px !important;
+}
+.course-details-page .form .field[style*="align-items: center"] .label {
+  margin-bottom: 0 !important;
+  margin-right: 8px !important;
+  order: 0 !important;
+}
+/* Dark mode: keep label and input text black for clarity in Create Code-based Assignment form */
+@media (prefers-color-scheme: dark) {
+  .course-details-page .form .field .label {
+    color: #000000 !important;
+  }
+  .course-details-page .form .field .input,
+  .course-details-page .form .field textarea,
+  .course-details-page .form .field .select {
+    color: #000000 !important;
+    background: #ffffff !important;
+    border-color: #d1d5db !important;
+  }
+}
