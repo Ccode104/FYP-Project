@@ -1002,6 +1002,12 @@ export default function CourseDetails() {
                       Discussion
                     </button>
                   )}
+                  {isBackend && (
+                    <button className={`tab-button ${tab === 'videos' ? 'active' : ''}`} onClick={() => setTab('videos')} aria-pressed={tab === 'videos'}>
+                      <span className="tab-icon">🎥</span>
+                      Videos
+                    </button>
+                  )}
                 </>
               )}
               {user?.role === 'teacher' && (
