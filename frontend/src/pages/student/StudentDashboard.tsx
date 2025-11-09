@@ -66,8 +66,6 @@ export default function StudentDashboard() {
     }
   }
 
-  // Quick open by offering ID
-  const [openId, setOpenId] = useState('')
 
   return (
     <div className="container container-wide dashboard-page student-theme">
@@ -83,12 +81,6 @@ export default function StudentDashboard() {
         </div>
       </div>
 
-      <div className="card" style={{ marginBottom: 16 }}>
-        <div className="form" style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-          <input className="input" placeholder="Open offering by ID (e.g., 101)" value={openId} onChange={(e) => setOpenId(e.target.value)} />
-          <button className="btn btn-primary" onClick={() => openId && goToOffering(openId)}>Open</button>
-        </div>
-      </div>
 
       <h3 className="section-title">Your Enrolled Courses</h3>
       {err ? <div className="card" style={{ borderColor: '#ef4444', borderWidth: 1 }}>{err}</div> : null}

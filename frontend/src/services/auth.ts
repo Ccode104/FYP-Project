@@ -9,3 +9,10 @@ export async function loginRequest(email: string, password: string): Promise<{ t
   });
   return data;
 }
+
+export async function login(email: string, password: string) {
+  return apiFetch('/api/auth/login', {
+    method: 'POST',
+    body: { email, password },
+  });
+}

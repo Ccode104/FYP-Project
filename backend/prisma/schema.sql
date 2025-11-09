@@ -237,3 +237,38 @@ CREATE TABLE IF NOT EXISTS discussion_messages (
 CREATE INDEX IF NOT EXISTS idx_discussion_messages_offering ON discussion_messages(course_offering_id);
 CREATE INDEX IF NOT EXISTS idx_discussion_messages_parent ON discussion_messages(parent_id);
 CREATE INDEX IF NOT EXISTS idx_discussion_messages_created_at ON discussion_messages(created_at);
+
+-- Code questions bank
+CREATE TABLE IF NOT EXISTS code_questions (
+  id BIGSERIAL PRIMARY KEY,
+  title TEXT NOT NULL,
+  description TEXT NOT NULL,
+  constraints TEXT,
+  created_by BIGINT REFERENCES users(id),
+  created_at TIMESTAMPTZ DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS code_question_testcases (
+  id BIGSERIAL PRIMARY KEY,
+  question_id BIGINT NOT NULL REFERENCES code_questions(id) ON DELETE CASCADE,
+  is_sample BOOLEAN DEFAULT false,
+  input_path TEXT,
+  expected_path TEXT,
+  input_text TEXT,
+  expected_text TEXT,
+  created_at TIMESTAMPTZ DEFAULT now()
+);
+
+-- Mapping questions into a code assignment
+CREATE TABLE IF NOT EXISTS assignment_questions (
+  id BIGSERIAL PRIMARY KEY,
+  assignment_id BIGINT NOT NULL REFERENCES assignments(id) ON DELETE CASCADE,
+  question_id BIGINT NOT NULL REFERENCES code_questions(id) ON DELETE CASCADE,
+  points NUMERIC(6,2) DEFAULT 0,
+  position INT,
+  UNIQUE(assignment_id, question_id)
+);
+
+-- Link code submission to assignment question (if provided)
+ALTER TABLE code_submissions
+  ADD COLUMN IF NOT EXISTS assignment_question_id BIGINT REFERENCES assignment_questions(id);

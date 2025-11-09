@@ -85,7 +85,7 @@ router.post(
  *       404:
  *         description: Assignment not found
  */
-router.post('/submit/code', requireAuth, requireRole('student'), submitCodeAssignment);
+router.post('/submit/code', requireAuth, requireRole('student','faculty'), submitCodeAssignment);
 
 /**
  * @swagger

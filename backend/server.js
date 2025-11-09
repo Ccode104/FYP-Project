@@ -14,12 +14,20 @@ import usersRoutes from './routes/users.js';
 import studentRoutes from './routes/student.js';
 import discussionsRoutes from './routes/discussions.js';
 import adminRoutes from './routes/admin.js';
+import codeQuestionsRoutes from './routes/codeQuestions.js';
+import chatbotRoutes from './routes/chatbot.js';
 import videosRoutes from './routes/videos.js';
 import swaggerSpec from './swagger.js';
 
 export async function startServer(port = 4000) {
   const app = express();
-  app.use(cors());
+  
+  // CORS configuration - allow all origins in development
+  app.use(cors({
+    origin: process.env.FRONTEND_URL || '*',
+    credentials: true
+  }));
+  
   app.use(bodyParser.json({ limit: '10mb' }));
   app.use(bodyParser.urlencoded({ extended: true }));
 
@@ -37,6 +45,8 @@ export async function startServer(port = 4000) {
   app.use('/api/student', studentRoutes);
   app.use('/api/discussions', discussionsRoutes);
   app.use('/api/admin', adminRoutes);
+  app.use('/api/code-questions', codeQuestionsRoutes);
+  app.use('/api/chatbot', chatbotRoutes);
   app.use('/api/videos', videosRoutes);
 
   app.get('/health', (req, res) => res.json({ ok: true }));
@@ -58,9 +68,34 @@ export async function startServer(port = 4000) {
     });
   });
 
-  app.listen(port, () => {
-    logger.info(`Server started on http://localhost:${port}`);
+  // Global error handler
+  app.use((err, req, res, next) => {
+    logger.error('Unhandled error:', err);
+    res.status(500).json({ 
+      error: 'Internal server error',
+      message: process.env.NODE_ENV === 'development' ? err.message : undefined
+    });
   });
 
-  return app;
+  return new Promise((resolve, reject) => {
+    try {
+      const server = app.listen(port, () => {
+        logger.info(`Server started on http://localhost:${port}`);
+        resolve(app);
+      });
+
+      server.on('error', (err) => {
+        if (err.code === 'EADDRINUSE') {
+          logger.error(`Port ${port} is already in use`);
+          reject(new Error(`Port ${port} is already in use`));
+        } else {
+          logger.error('Server error:', err);
+          reject(err);
+        }
+      });
+    } catch (err) {
+      logger.error('Failed to start server:', err);
+      reject(err);
+    }
+  });
 }

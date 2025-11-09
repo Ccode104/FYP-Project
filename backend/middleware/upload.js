@@ -20,6 +20,9 @@ const cloudinaryStorage = new CloudinaryStorage({
   }),
 });
 
+const storage = multer.memoryStorage();
+export const upload = multer({ storage });
+
 // Multer middleware
 export const uploadVideo = multer({
   storage: cloudinaryStorage,

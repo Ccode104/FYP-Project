@@ -23,15 +23,19 @@ export default function QuizCreator({ courseOfferingId, onComplete }: QuizCreato
   // Safe fallback for toast push so missing/partial provider doesn't crash the app
   let push: (opts: { kind?: 'success' | 'error' | string; message?: string }) => void = (opts) => {
     if (!opts) return
-    if ((opts as any).kind === 'error') console.error(opts.message ?? opts)
-    else if ((opts as any).kind === 'success') console.log(opts.message ?? opts)
-    else console.log(opts)
+    // allow either { kind, message } or a simple string/object
+    const kind = (opts as any)?.kind
+    const msg = (opts as any)?.message ?? opts
+    if (kind === 'error') console.error(msg)
+    else if (kind === 'success') console.log(msg)
+    else console.log(msg)
   }
+  // if provider exists and implements push, use it; otherwise keep console fallback
   if (toast && typeof (toast as any).push === 'function') {
     push = (toast as any).push
   } else {
     // Helpful dev hint if provider isn't wired
-    console.warn('ToastProvider not present or push not available — using console fallback for toasts.')
+    // Keep runtime console warning minimal to avoid noise in production builds
   }
 
   const [title, setTitle] = useState('')

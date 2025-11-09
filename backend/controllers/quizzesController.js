@@ -105,6 +105,13 @@ export async function submitQuizAttempt(req, res) {
     const client = await pool.connect();
     try {
       await client.query('BEGIN');
+
+      // Disallow multiple submissions by the same student for the same quiz
+      const existsRes = await client.query('SELECT id FROM quiz_attempts WHERE quiz_id = $1 AND student_id = $2 LIMIT 1', [quiz_id, student_id]);
+      if (existsRes.rowCount > 0) {
+        await client.query('ROLLBACK');
+        return res.status(409).json({ error: 'You have already submitted this quiz.' });
+      }
       
       // Get quiz questions with correct answers
       const questionsQuery = `

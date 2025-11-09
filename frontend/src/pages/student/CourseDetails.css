@@ -251,6 +251,95 @@
   font-weight: 500;
 }
 
+/* Form field styling to prevent label/input overlap */
+.course-details-page .form {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 16px !important;
+}
+
+.course-details-page .form .field {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 8px !important;
+  align-items: stretch !important;
+  margin-bottom: 0 !important;
+  position: relative !important;
+}
+
+.course-details-page .form .field .label {
+  display: block !important;
+  font-size: 14px !important;
+  font-weight: 500 !important;
+  color: #374151 !important;
+  margin-bottom: 8px !important;
+  margin-top: 0 !important;
+  padding: 0 !important;
+  line-height: 1.4 !important;
+  position: static !important;
+  top: auto !important;
+  left: auto !important;
+  transform: none !important;
+  order: -1 !important; /* Ensure label appears before input */
+  z-index: 1 !important;
+  pointer-events: none !important;
+}
+
+.course-details-page .form .field .input,
+.course-details-page .form .field textarea,
+.course-details-page .form .field .select {
+  width: 100% !important;
+  box-sizing: border-box !important;
+  padding: 10px 12px !important;
+  font-size: 14px !important;
+  line-height: 1.5 !important;
+  border: 1px solid #d1d5db !important;
+  border-radius: 6px !important;
+  background: #ffffff !important;
+  color: #111827 !important;
+  transition: border-color 0.2s, box-shadow 0.2s !important;
+  font-family: inherit !important;
+  position: relative !important;
+  z-index: 0 !important;
+  margin-top: 0 !important;
+  margin-bottom: 0 !important;
+}
+
+.course-details-page .form .field .input:focus,
+.course-details-page .form .field textarea:focus,
+.course-details-page .form .field .select:focus {
+  outline: none;
+  border-color: #6366f1;
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
+}
+
+.course-details-page .form .field textarea {
+  resize: vertical;
+  min-height: 80px;
+  font-family: inherit;
+}
+
+.course-details-page .form .field input[type="checkbox"] {
+  width: auto;
+  align-self: flex-start;
+  margin-top: 4px;
+  margin-right: 8px;
+  cursor: pointer;
+}
+
+/* For fields with align-items: center (like checkbox fields) */
+.course-details-page .form .field[style*="align-items: center"] {
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+}
+
+.course-details-page .form .field[style*="align-items: center"] .label {
+  margin-bottom: 0;
+  margin-right: 8px;
+  order: 0;
+}
+
 /* Table styling for progress and lists */
 .course-details-page .table {
   width: 100%;
@@ -303,4 +392,20 @@
 
 .course-details-page .muted {
   color: var(--muted);
+}
+
+/* Loading spinner for code execution */
+.course-details-page .spinner {
+  width: 16px;
+  height: 16px;
+  border: 2px solid rgba(0, 102, 204, 0.2);
+  border-top-color: #0066cc;
+  border-radius: 50%;
+  display: inline-block;
+  animation: spin 0.8s linear infinite;
+  vertical-align: middle;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
 }
