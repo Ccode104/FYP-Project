@@ -201,13 +201,19 @@ export default function TeacherDashboard() {
             </div>
             <div className="form">
               <label className="field">
-                <span className="label">Course ID</span>
-                <input
-                  className="input"
+                <span className="label">Select Course</span>
+                <select
+                  className="input select"
                   value={offerCourseId}
                   onChange={(e) => setOfferCourseId(e.target.value)}
-                  placeholder="e.g., 101"
-                />
+                >
+                  <option value="">-- Select a course --</option>
+                  {courses.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.code} - {c.title} (ID: {c.id})
+                    </option>
+                  ))}
+                </select>
               </label>
               <label className="field">
                 <span className="label">Term</span>
@@ -230,6 +236,7 @@ export default function TeacherDashboard() {
               <button
                 className="btn btn-primary btn-full"
                 onClick={makeOffering}
+                disabled={!offerCourseId}
               >
                 Create Offering
               </button>

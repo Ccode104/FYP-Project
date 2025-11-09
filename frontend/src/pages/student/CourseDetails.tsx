@@ -111,11 +111,20 @@ export default function CourseDetails() {
 
   // Compute present assignments (not past due date)
   const allPresentAssignments = useMemo(() => {
+    console.log('=== allPresentAssignments recalculating ===')
+    console.log('isBackend:', isBackend)
+    console.log('backendAssignments:', backendAssignments)
     if (isBackend) {
-      return backendAssignments.filter((a: any) => {
+      const filtered = backendAssignments.filter((a: any) => {
         if (!a.due_at) return true
-        return new Date(a.due_at) >= new Date()
+        const dueDate = new Date(a.due_at)
+        const now = new Date()
+        const isPast = dueDate < now
+        console.log(`Assignment ${a.id} (${a.title}): due_at=${a.due_at}, isPast=${isPast}`)
+        return !isPast
       })
+      console.log('Filtered present assignments:', filtered)
+      return filtered
     }
     return course?.assignmentsPresent || []
   }, [isBackend, backendAssignments, course])
@@ -133,6 +142,8 @@ export default function CourseDetails() {
     console.log('=== presentAssignments memo recalculating ===')
     console.log('user?.role:', user?.role)
     console.log('allPresentAssignments count:', allPresentAssignments?.length)
+    console.log('allPresentAssignments:', allPresentAssignments?.map(a => ({ id: a.id, title: a.title })))
+    console.log('mySubmissions:', mySubmissions)
     console.log('mySubmissions count:', mySubmissions?.length)
     console.log('myQuizAttempts count:', myQuizAttempts?.length)
     console.log('backendQuizzes count:', backendQuizzes?.length)
@@ -148,15 +159,22 @@ export default function CourseDetails() {
       return allPresentAssignments
     }
 
-    // Get set of submitted assignment IDs (only if submissions are loaded)
-    const submittedAssignmentIds = mySubmissions ? new Set(
+    // IMPORTANT: Only filter if submissions have been loaded (not null)
+    // If mySubmissions is null, we haven't loaded them yet, so show all assignments
+    if (mySubmissions === null) {
+      console.log('Submissions not loaded yet (null), showing all assignments')
+      return allPresentAssignments
+    }
+
+    // Get set of submitted assignment IDs
+    const submittedAssignmentIds = new Set(
       mySubmissions.map((s: any) => {
         const id = s.assignment_id || s.id // Handle both submission formats
+        console.log('Submission:', { submission_id: s.id, assignment_id: s.assignment_id, using: id })
         return String(id)
       })
-    ) : new Set()
+    )
     console.log('submittedAssignmentIds:', Array.from(submittedAssignmentIds))
-    console.log('mySubmissions loaded:', mySubmissions !== null)
 
     // Get set of attempted quiz IDs
     const attemptedQuizIds = new Set(
@@ -164,50 +182,49 @@ export default function CourseDetails() {
     )
     console.log('attemptedQuizIds:', Array.from(attemptedQuizIds))
 
-    // Filter assignments: only show unsubmitted ones (only if submissions are loaded)
-    const unsubmittedAssignments = mySubmissions ? allPresentAssignments.filter((a: any) => {
+    // Add submission status to assignments instead of filtering them out
+    const assignmentsWithStatus = allPresentAssignments.map((a: any) => {
       const assignmentId = String(a.id)
       const isSubmitted = submittedAssignmentIds.has(assignmentId)
       console.log(`Assignment ${assignmentId} (${a.title}): isSubmitted=${isSubmitted}, assignment_type=${a.assignment_type}`)
-      return !isSubmitted
-    }) : allPresentAssignments // If submissions not loaded yet, show all assignments
-    console.log('unsubmittedAssignments count:', unsubmittedAssignments.length)
-    console.log('unsubmittedAssignments details:', unsubmittedAssignments.map(a => ({
-      id: a.id,
-      title: a.title,
-      assignment_type: a.assignment_type,
-      is_quiz: a.is_quiz
-    })))
+      return {
+        ...a,
+        isSubmitted
+      }
+    })
+    console.log('assignmentsWithStatus count:', assignmentsWithStatus.length)
 
-    // Get unsubmitted quizzes and convert them to assignment-like objects
-    const unsubmittedQuizzes = (backendQuizzes || [])
-      .filter((q: any) => !attemptedQuizIds.has(String(q.id)))
+    // Add quizzes with attempt status
+    const quizzesWithStatus = (backendQuizzes || [])
       .map((q: any) => ({
-        id: `quiz_${q.id}`, // Prefix to avoid ID conflicts
+        id: `quiz_${q.id}`,
         title: q.title,
         assignment_type: 'quiz',
         due_at: q.end_at || q.due_at,
         release_at: q.start_at,
         is_quiz: true,
         quiz_id: q.id,
-        quiz_data: q
+        quiz_data: q,
+        isSubmitted: attemptedQuizIds.has(String(q.id))
       }))
-    console.log('unsubmittedQuizzes count:', unsubmittedQuizzes.length)
+    console.log('quizzesWithStatus count:', quizzesWithStatus.length)
 
-    const result = [...unsubmittedAssignments, ...unsubmittedQuizzes]
+    const result = [...assignmentsWithStatus, ...quizzesWithStatus]
     console.log('Final presentAssignments count:', result.length)
     console.log('Final result details:', result.map(r => ({
       id: r.id,
       title: r.title,
       assignment_type: r.assignment_type,
-      is_quiz: r.is_quiz
+      is_quiz: r.is_quiz,
+      isSubmitted: r.isSubmitted
     })))
-    console.log('presentAssignments filtering status:', {
+    console.log('presentAssignments status:', {
       allPresentAssignments: allPresentAssignments.length,
       mySubmissionsLoaded: mySubmissions !== null,
       mySubmissionsCount: mySubmissions?.length || 0,
-      unsubmittedAssignments: unsubmittedAssignments.length,
-      unsubmittedQuizzes: unsubmittedQuizzes.length
+      assignmentsWithStatus: assignmentsWithStatus.length,
+      quizzesWithStatus: quizzesWithStatus.length,
+      total: result.length
     })
     return result
   }, [allPresentAssignments, mySubmissions, myQuizAttempts, backendQuizzes, user?.role, isBackend])
