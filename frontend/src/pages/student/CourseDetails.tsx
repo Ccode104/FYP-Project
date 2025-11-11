@@ -21,7 +21,7 @@ import BackendSubmissions from '../../components/course/BackendSubmissions'
 import BackendGrading from '../../components/course/BackendGrading'
 import StudentProgressEmbed from '../../components/course/StudentProgressEmbed'
 import CourseProgressEmbed from '../../components/course/CourseProgressEmbed'
-import MenuTiny from '../../components/course/MenuTiny'
+// import MenuTiny from '../../components/course/MenuTiny'
 import PyqList from '../../components/course/PyqList'
 import NotesList from '../../components/course/NotesList'
 import DiscussionForum from '../../components/course/DiscussionForum'
@@ -67,7 +67,7 @@ export default function CourseDetails() {
   const [backendVideos, setBackendVideos] = useState<any[]>([])
   const [selectedVideo, setSelectedVideo] = useState<any | null>(null)
   const [videoQuestions, setVideoQuestions] = useState<any[]>([])
-  const [showQuestionForm, setShowQuestionForm] = useState(false)
+  // const [showQuestionForm, setShowQuestionForm] = useState(false)
   const [currentVideoTime, setCurrentVideoTime] = useState<number>(0)
   const videoRefForFaculty = useRef<HTMLVideoElement>(null)
   const [assignmentCreationType, setAssignmentCreationType] = useState<'selection' | 'code' | 'quiz' | 'pdf'>('selection')
