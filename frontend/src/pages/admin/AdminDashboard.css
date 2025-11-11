@@ -1079,18 +1079,16 @@
 .course-code {
   font-size: 18px;
   font-weight: 700;
-  background: linear-gradient(135deg, var(--primary), var(--secondary));
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
+  color: var(--primary);
   margin-bottom: 10px;
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   letter-spacing: -0.02em;
-  transition: transform 0.3s ease;
+  transition: all 0.3s ease;
   display: inline-block;
 }
 
 .course-info-card:hover .course-code {
+  color: var(--primary-hover);
   transform: translateX(4px);
 }
 
@@ -1124,6 +1122,34 @@
   background: linear-gradient(135deg, rgba(79, 70, 229, 0.1), rgba(16, 185, 129, 0.1));
   color: var(--primary);
   transform: scale(1.05);
+}
+
+/* Modal Form Styling */
+label.field {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 6px;
+  width: 100%;
+}
+
+label.field span.label {
+  font-size: 14px !important;
+  font-weight: 600 !important;
+  color: #1f2937 !important;
+  display: block !important;
+  margin-bottom: 6px !important;
+  text-transform: none !important;
+  opacity: 1 !important;
+  visibility: visible !important;
+  height: auto !important;
+  line-height: 1.4 !important;
+  padding: 0 !important;
+}
+
+label.field .input,
+label.field select.input {
+  width: 100%;
+  margin-top: 0;
 }
 
 /* Course Header */

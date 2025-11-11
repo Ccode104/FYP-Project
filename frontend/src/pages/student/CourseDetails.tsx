@@ -737,10 +737,19 @@ export default function CourseDetails() {
     let cancelled = false
     if (!isBackend || !courseId) return
       ; (async () => {
+        // Load offering details first
+        try {
+          const offering = await apiFetch<any>(`/api/student/courses/${courseId}`)
+          console.log('Loaded offering details:', offering)
+          if (!cancelled) setOfferingDetails(offering)
+        } catch (err) {
+          console.error('Failed to load offering details:', err)
+        }
         try { 
           console.log('Loading assignments...')
           const data = await apiFetch<any[]>(`/api/courses/${courseId}/assignments`)
           console.log('Loaded assignments:', data)
+          console.log('Assignment types:', data?.map(a => ({ id: a.id, title: a.title, type: a.assignment_type })))
           if (!cancelled) setBackendAssignments(data) 
         } catch { }
         try { const pyq = await apiFetch<any[]>(`/api/courses/${courseId}/pyqs`); if (!cancelled) setBackendPYQ(pyq) } catch { }

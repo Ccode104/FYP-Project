@@ -165,10 +165,6 @@ export default function AdminDashboard() {
             <h1 className="dashboard-title h2 text-primary">Welcome back, {user?.name}!</h1>
             <p className="dashboard-subtitle text-lg text-secondary leading-relaxed">Manage your courses and track your progress</p>
           </div>
-          <div className="dashboard-actions">
-            <button className="btn btn-primary" onClick={() => navigate('/')}>Home</button>
-            <button className="btn btn-primary" onClick={logout}>Logout</button>
-          </div>
         </div>
         <div className="courses-section">
           <div className="section-header">
@@ -189,12 +185,8 @@ export default function AdminDashboard() {
     <div className="container container-wide dashboard-page student-theme">
       <div className="dashboard-header">
         <div className="welcome-section">
-          <h1 className="dashboard-title h2 text-primary">Welcome, Admin!</h1>
-          <p className="dashboard-subtitle text-lg text-secondary leading-relaxed">Manage users, courses, and explore data</p>
-        </div>
-        <div className="dashboard-actions">
-          <button className="btn btn-primary" onClick={() => navigate('/')}>Home</button>
-          <button className="btn btn-primary" onClick={logout}>Logout</button>
+          <h1 className="dashboard-title h2 text-primary">Welcome back, {user?.name}!</h1>
+          <p className="dashboard-subtitle text-lg text-secondary leading-relaxed">Manage users, courses, and explore system data</p>
         </div>
       </div>
 
@@ -396,7 +388,7 @@ export default function AdminDashboard() {
             {/* Sidebar */}
             <div className="departments-sidebar">
               <h3 className="sidebar-title">
-                🏛️ Departments
+                Departments
               </h3>
               <div className="departments-list">
                 {departments.map((d) => (
@@ -414,54 +406,61 @@ export default function AdminDashboard() {
             <div className="explorer-content">
               {!selectedDept && (
                 <div className="empty-explorer-state">
-                  <div className="empty-state-icon">🏛️</div>
+                  <div className="empty-state-icon">
+                    <svg width="64" height="64" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                      <path d="M19 11H13L11 13L9 11H3M21 20H3C2.44772 20 2 19.5523 2 19V5C2 4.44772 2.44772 4 3 4H21C21.5523 4 22 4.44772 22 5V19C22 19.5523 21.5523 20 21 20Z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                    </svg>
+                  </div>
                   <h3 className="empty-state-title">Welcome to Admin Data Explorer</h3>
                   <p className="empty-state-description">Select a department from the sidebar to get started</p>
                 </div>
               )}
               {selectedDept && !selectedCourse && (
-                <div className="department-view">
-                  <div className="department-header">
-                    <h3 className="department-title">
-                      📚 Courses in {selectedDept.name}
+                <div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
+                    <h3 className="content-title" style={{ margin: 0 }}>
+                      Courses in {selectedDept.name}
                     </h3>
                     <button 
-                      className="btn btn-primary create-course-btn"
+                      className="btn btn-primary"
                       onClick={() => setShowCreateCourse(true)}
                     >
-                      Create New Course
+                      + Create Course
                     </button>
                   </div>
-                  <div className="courses-grid">
+                  <div className="courses-cards-grid">
                     {deptCourses.map((c) => (
                       <div
                         key={c.id}
-                        onClick={() => selectCourse(c)}
-                        className="course-card hover-effect"
+                        className="course-info-card"
+                        style={{ position: 'relative' }}
                       >
-                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
-                          <div style={{ fontSize: '16px', fontWeight: '700', color: '#667eea' }}>{c.code}</div>
-                          <div style={{ position: 'relative' }}>
-                            <button
-                              aria-label="Course actions"
-                              onClick={(e) => {
-                                e.stopPropagation()
-                                setOfferForCourse(c)
-                                setShowOfferCourse(true)
-                              }}
-                              style={{ background: 'transparent', border: 'none', cursor: 'pointer', fontSize: 18, lineHeight: 1 }}
-                            >
-                              ⋮
-                            </button>
-                          </div>
+                        <div onClick={() => selectCourse(c)} style={{ cursor: 'pointer' }}>
+                          <div className="course-code">{c.code}</div>
+                          <div className="course-title">{c.title}</div>
+                          {c.credits && <div className="course-credits">{c.credits} credits</div>}
                         </div>
-                        <div style={{ marginTop: 8 }}>
-                          <div style={{ fontSize: '14px', color: '#374151', lineHeight: '1.5' }}>{c.title}</div>
-                          {c.credits && <div style={{ fontSize: '12px', color: '#9ca3af', marginTop: '8px' }}>{c.credits} credits</div>}
-                        </div>
-                        <div className="course-code">{c.code}</div>
-                        <div className="course-title">{c.title}</div>
-                        {c.credits && <div className="course-credits">{c.credits} credits</div>}
+                        <button
+                          aria-label="Course actions"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            setOfferForCourse(c)
+                            setShowOfferCourse(true)
+                          }}
+                          style={{ 
+                            position: 'absolute', 
+                            top: '12px', 
+                            right: '12px',
+                            background: 'transparent', 
+                            border: 'none', 
+                            cursor: 'pointer', 
+                            fontSize: '18px',
+                            color: 'var(--text-secondary)',
+                            padding: '4px 8px'
+                          }}
+                        >
+                          ⋮
+                        </button>
                       </div>
                     ))}
                   </div>
@@ -473,7 +472,7 @@ export default function AdminDashboard() {
                     <h3 className="content-title">{selectedCourse.code} — {selectedCourse.title}</h3>
                     <p className="course-description">{selectedCourse.description}</p>
                   </div>
-                  <h4 className="section-subtitle">🎓 Course Offerings</h4>
+                  <h4 className="section-subtitle">Course Offerings</h4>
                   {courseDetails.offerings.length === 0 ? (
                     <p className="empty-message">No offerings available</p>
                   ) : (
@@ -485,20 +484,20 @@ export default function AdminDashboard() {
                               onClick={() => selectOffering(o)}
                               className="btn btn-primary"
                             >
-                              📝 {o.term} - Section {o.section}
+                              {o.term} - Section {o.section}
                             </button>
                             {o.faculty_name && (
                               <button
                                 onClick={() => selectFaculty(o)}
                                 className="btn btn-secondary"
                               >
-                                👨‍🏫 {o.faculty_name}
+                                {o.faculty_name}
                               </button>
                             )}
                           </div>
                           <div className="students-section">
                             <div className="students-header">
-                              🎓 Enrolled Students ({o.students.length})
+                              Enrolled Students ({o.students.length})
                             </div>
                             {o.students.length === 0 ? (
                               <span className="empty-text">No students enrolled</span>
@@ -592,14 +591,14 @@ export default function AdminDashboard() {
         </section>
       )}
       {showCreateCourse && selectedDept && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50 }}>
-          <div style={{ width: 520, background: '#fff', borderRadius: 12, padding: 20, boxShadow: '0 10px 30px rgba(0,0,0,0.2)' }}>
-            <h3 style={{ marginTop: 0 }}>Add Course to {selectedDept.name}</h3>
-            <div className="form" style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-              <label className="field"><span className="label"></span><input className="input" value={newCode} onChange={(e) => setNewCode(e.target.value)} placeholder="Course Code (e.g., CS101)" /></label>
-              <label className="field"><span className="label"></span><input className="input" value={newTitle} onChange={(e) => setNewTitle(e.target.value)} placeholder="Course Title" /></label>
-              <label className="field"><span className="label"></span><input className="input" value={newDesc} onChange={(e) => setNewDesc(e.target.value)} placeholder="Description" /></label>
-              <label className="field"><span className="label"></span><input className="input" value={newCredits} onChange={(e) => setNewCredits(e.target.value === '' ? '' : Number(e.target.value))} placeholder="Credits" /></label>
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50, backdropFilter: 'blur(4px)', padding: '20px', overflowY: 'auto' }}>
+          <div className="card" style={{ width: '100%', maxWidth: 520, background: 'var(--surface)', borderRadius: 'var(--radius-lg)', padding: 24, boxShadow: '0 20px 50px rgba(0,0,0,0.3)', border: '1px solid var(--border)', margin: 'auto', maxHeight: '90vh', overflowY: 'auto' }}>
+            <h3 className="h4" style={{ marginTop: 0, marginBottom: 20, color: 'var(--text)' }}>Create New Course in {selectedDept.name}</h3>
+            <div className="form" style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+              <input className="input" value={newCode} onChange={(e) => setNewCode(e.target.value)} placeholder="Course Code (e.g., CS101)" />
+              <input className="input" value={newTitle} onChange={(e) => setNewTitle(e.target.value)} placeholder="Course Title (e.g., Introduction to Computer Science)" />
+              <input className="input" value={newDesc} onChange={(e) => setNewDesc(e.target.value)} placeholder="Description (Brief course description)" />
+              <input className="input" type="number" value={newCredits} onChange={(e) => setNewCredits(e.target.value === '' ? '' : Number(e.target.value))} placeholder="Credits (e.g., 3)" />
               <div>
                 <div style={{ fontWeight: 600, marginBottom: 6 }}>Assign Faculty</div>
                 <div style={{ maxHeight: 180, overflowY: 'auto', border: '1px solid #e5e7eb', borderRadius: 8, padding: 8 }}>
@@ -627,8 +626,8 @@ export default function AdminDashboard() {
                 </div>
               </div>
             </div>
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 14 }}>
-              <button className="btn" onClick={() => setShowCreateCourse(false)} disabled={savingCourse}>Cancel</button>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 12, marginTop: 24 }}>
+              <button className="btn btn-secondary" onClick={() => setShowCreateCourse(false)} disabled={savingCourse}>Cancel</button>
               <button
                 className="btn btn-primary"
                 onClick={async () => {
@@ -659,29 +658,26 @@ export default function AdminDashboard() {
         </div>
       )}
       {showOfferCourse && offerForCourse && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50 }}>
-          <div style={{ width: 520, background: '#fff', borderRadius: 12, padding: 20, boxShadow: '0 10px 30px rgba(0,0,0,0.2)' }}>
-            <h3 style={{ marginTop: 0 }}>Offer Course — {offerForCourse.code}</h3>
-            <div className="form" style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-              <label className="field"><span className="label"></span><input className="input" value={offerTerm} onChange={(e) => setOfferTerm(e.target.value)} placeholder="Term (e.g., W25)" /></label>
-              <label className="field"><span className="label"></span><input className="input" value={offerSection} onChange={(e) => setOfferSection(e.target.value)} placeholder="Section (e.g., A)" /></label>
-              <label className="field">
-                <span className="label"></span>
-                <select className="input" value={offerFacultyId} onChange={(e) => setOfferFacultyId(e.target.value === '' ? '' : Number(e.target.value))}>
-                  <option value="">Select Faculty</option>
-                  {deptFaculty.map((f) => (
-                    <option key={f.id} value={f.id}>{f.name || f.email}</option>
-                  ))}
-                </select>
-              </label>
-              <label className="field"><span className="label"></span><input className="input" type="number" value={offerCapacity} onChange={(e) => setOfferCapacity(e.target.value === '' ? '' : Number(e.target.value))} placeholder="Max Capacity (optional)" /></label>
-              <div className="grid" style={{ gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-                <label className="field"><span className="label"></span><input className="input" type="date" value={offerStart} onChange={(e) => setOfferStart(e.target.value)} placeholder="Start date" /></label>
-                <label className="field"><span className="label"></span><input className="input" type="date" value={offerEnd} onChange={(e) => setOfferEnd(e.target.value)} placeholder="End date" /></label>
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50, backdropFilter: 'blur(4px)', padding: '20px', overflowY: 'auto' }}>
+          <div className="card" style={{ width: '100%', maxWidth: 520, background: 'var(--surface)', borderRadius: 'var(--radius-lg)', padding: 24, boxShadow: '0 20px 50px rgba(0,0,0,0.3)', border: '1px solid var(--border)', margin: 'auto', maxHeight: '90vh', overflowY: 'auto' }}>
+            <h3 className="h4" style={{ marginTop: 0, marginBottom: 20, color: 'var(--text)' }}>Create Offering — {offerForCourse.code}</h3>
+            <div className="form" style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+              <input className="input" value={offerTerm} onChange={(e) => setOfferTerm(e.target.value)} placeholder="Term (e.g., W25 or Fall 2024)" />
+              <input className="input" value={offerSection} onChange={(e) => setOfferSection(e.target.value)} placeholder="Section (e.g., A)" />
+              <select className="input" value={offerFacultyId} onChange={(e) => setOfferFacultyId(e.target.value === '' ? '' : Number(e.target.value))}>
+                <option value="">Faculty (Select faculty member)</option>
+                {deptFaculty.map((f) => (
+                  <option key={f.id} value={f.id}>{f.name || f.email}</option>
+                ))}
+              </select>
+              <input className="input" type="number" value={offerCapacity} onChange={(e) => setOfferCapacity(e.target.value === '' ? '' : Number(e.target.value))} placeholder="Max Capacity (e.g., 50) - Optional" />
+              <div className="grid" style={{ gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                <input className="input" type="date" value={offerStart} onChange={(e) => setOfferStart(e.target.value)} placeholder="Start Date" />
+                <input className="input" type="date" value={offerEnd} onChange={(e) => setOfferEnd(e.target.value)} placeholder="End Date" />
               </div>
             </div>
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 14 }}>
-              <button className="btn" onClick={() => { setShowOfferCourse(false); setOfferForCourse(null); }} disabled={savingOffering}>Cancel</button>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 12, marginTop: 24 }}>
+              <button className="btn btn-secondary" onClick={() => { setShowOfferCourse(false); setOfferForCourse(null); }} disabled={savingOffering}>Cancel</button>
               <button
                 className="btn btn-primary"
                 onClick={async () => {
