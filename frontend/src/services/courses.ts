@@ -26,6 +26,10 @@ export async function listMyOfferings() {
   return apiFetch(`/api/courses/mine/offerings`)
 }
 
+export async function listMyCourses() {
+  return apiFetch(`/api/courses/mine/courses`)
+}
+
 export async function createOffering(payload: { course_id: number; term: string; section?: string; faculty_id: number; max_capacity?: number; start_date?: string; end_date?: string }) {
   return apiFetch(`/api/courses/${payload.course_id}/offerings`, { method: 'POST', body: payload })
 }
