@@ -7,7 +7,7 @@ import TeacherDashboard from './pages/teacher/TeacherDashboard'
 import AdminDashboard from './pages/admin/AdminDashboard'
 import CourseDetails from './pages/student/CourseDetails'
 import ProtectedRoute from './routes/ProtectedRoute'
-import { useAuth, getDashboardPathForRole } from './context/AuthContext'
+// import { useAuth } from './context/AuthContext'
 import Layout from './components/Layout'
 import QuizTake from './pages/student/QuizTake'
 import QuizGrader from './pages/teacher/QuizGrader'
@@ -15,7 +15,7 @@ import StudentProgress from './pages/progress/StudentProgress'
 import CourseProgress from './pages/progress/CourseProgress'
 
 function App() {
-  const { user } = useAuth()
+  // const { user } = useAuth()
 
   return (
     <Layout>
