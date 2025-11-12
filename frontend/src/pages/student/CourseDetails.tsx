@@ -1195,37 +1195,77 @@ export default function CourseDetails() {
                     <button className="btn" onClick={() => setAssignmentCreationType('selection')} style={{ marginRight: 8 }}>← Back</button>
                     <h3 style={{ margin: 0 }}>Create PDF Submission Assignment</h3>
                   </div>
-                  <div className="form" style={{ maxWidth: 640 }}>
-                    <label className="field">
-                      <span className="label">Title</span>
-                      <input className="input" value={newAssnTitle} onChange={(e) => setNewAssnTitle(e.target.value)} />
-                    </label>
-                    <label className="field">
-                      <span className="label">Description</span>
-                      <input className="input" value={newAssnDesc} onChange={(e) => setNewAssnDesc(e.target.value)} />
-                    </label>
-                    <div className="grid" style={{ gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-                      <label className="field">
-                        <span className="label">Release at</span>
-                        <input className="input" value={newAssnRelease} onChange={(e) => setNewAssnRelease(e.target.value)} />
-                      </label>
-                      <label className="field">
-                        <span className="label">Due at</span>
-                        <input className="input" value={newAssnDue} onChange={(e) => setNewAssnDue(e.target.value)} />
-                      </label>
-                    </div>
-                    <div className="grid" style={{ gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-                      <label className="field">
-                        <span className="label">Max score</span>
-                        <input className="input" value={newAssnMax} onChange={(e) => setNewAssnMax(e.target.value)} />
-                      </label>
-                      <label className="field" style={{ alignItems: 'center' }}>
-                        <span className="label">Allow multiple submissions</span>
-                        <input type="checkbox" checked={newAssnMulti} onChange={(e) => setNewAssnMulti(e.target.checked)} />
-                      </label>
-                    </div>
-                    <div>
-                      <button className="btn btn-primary" onClick={() => { setNewAssnType('file'); addAssn(); }}>Create PDF Assignment</button>
+                  <div className="form" style={{ maxWidth: 800 }}>
+                    <div className="card" style={{ marginBottom: 16, padding: 16 }}>
+                      <h4 style={{ marginTop: 0 }}>Assignment Details</h4>
+                      <div style={{ marginBottom: 16 }}>
+                        <div style={{ display: 'block', marginBottom: 6, fontWeight: 500 }}>Title *</div>
+                        <input 
+                          className="input" 
+                          style={{ display: 'block', width: '100%', boxSizing: 'border-box' }}
+                          value={newAssnTitle} 
+                          onChange={(e) => setNewAssnTitle(e.target.value)} 
+                          placeholder="e.g., Research Paper - Topic Analysis"
+                        />
+                      </div>
+                      <div style={{ marginBottom: 16 }}>
+                        <div style={{ display: 'block', marginBottom: 6, fontWeight: 500 }}>Description</div>
+                        <textarea 
+                          className="input" 
+                          style={{ display: 'block', width: '100%', boxSizing: 'border-box', minHeight: 72 }}
+                          value={newAssnDesc} 
+                          onChange={(e) => setNewAssnDesc(e.target.value)}
+                          placeholder="Optional assignment instructions..."
+                          rows={3}
+                        />
+                      </div>
+                      <div className="grid" style={{ gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                        <div style={{ marginBottom: 16 }}>
+                          <div style={{ display: 'block', marginBottom: 6, fontWeight: 500 }}>Release Time</div>
+                          <input 
+                            className="input" 
+                            style={{ display: 'block', width: '100%', boxSizing: 'border-box' }}
+                            value={newAssnRelease} 
+                            onChange={(e) => setNewAssnRelease(e.target.value)} 
+                          />
+                        </div>
+                        <div style={{ marginBottom: 16 }}>
+                          <div style={{ display: 'block', marginBottom: 6, fontWeight: 500 }}>Due Time</div>
+                          <input 
+                            className="input" 
+                            style={{ display: 'block', width: '100%', boxSizing: 'border-box' }}
+                            value={newAssnDue} 
+                            onChange={(e) => setNewAssnDue(e.target.value)} 
+                          />
+                        </div>
+                      </div>
+                      <div className="grid" style={{ gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                        <div style={{ marginBottom: 16 }}>
+                          <div style={{ display: 'block', marginBottom: 6, fontWeight: 500 }}>Max Score</div>
+                          <input 
+                            className="input" 
+                            style={{ display: 'block', width: '100%', boxSizing: 'border-box' }}
+                            type="number"
+                            value={newAssnMax} 
+                            onChange={(e) => setNewAssnMax(e.target.value)}
+                            placeholder="100"
+                          />
+                        </div>
+                        <div style={{ marginBottom: 16 }}>
+                          <div style={{ display: 'block', marginBottom: 6, fontWeight: 500 }}>Allow Multiple Submissions</div>
+                          <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
+                            <input 
+                              type="checkbox" 
+                              checked={newAssnMulti} 
+                              onChange={(e) => setNewAssnMulti(e.target.checked)} 
+                            />
+                            <span>{newAssnMulti ? 'Yes' : 'No'}</span>
+                          </label>
+                        </div>
+                      </div>
+                      <button className="btn btn-primary" onClick={() => { setNewAssnType('file'); addAssn(); }}>
+                        Create PDF Assignment
+                      </button>
                     </div>
                   </div>
                 </>
@@ -1237,48 +1277,173 @@ export default function CourseDetails() {
                     <button className="btn" onClick={() => setAssignmentCreationType('selection')} style={{ marginRight: 8 }}>← Back</button>
                     <h3 style={{ margin: 0 }}>Create Code-based Assignment</h3>
                   </div>
-                  <div className="form" style={{ maxWidth: 900 }}>
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 320px', gap: 16 }}>
+                  <div className="form" style={{ maxWidth: 1200 }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 380px', gap: 16 }}>
                       <div>
-                        <label className="field"><span className="label">Title</span><input className="input" value={newAssnTitle} onChange={(e) => setNewAssnTitle(e.target.value)} /></label>
-                        <label className="field"><span className="label">Description</span><input className="input" value={newAssnDesc} onChange={(e) => setNewAssnDesc(e.target.value)} /></label>
-                        <div className="grid" style={{ gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-                          <label className="field"><span className="label">Release at</span><input className="input" value={newAssnRelease} onChange={(e) => setNewAssnRelease(e.target.value)} /></label>
-                          <label className="field"><span className="label">Due at</span><input className="input" value={newAssnDue} onChange={(e) => setNewAssnDue(e.target.value)} /></label>
-                        </div>
-                        <div className="grid" style={{ gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-                          <label className="field"><span className="label">Max score</span><input className="input" value={newAssnMax} onChange={(e) => setNewAssnMax(e.target.value)} /></label>
-                          <label className="field" style={{ alignItems: 'center' }}><span className="label">Allow multiple submissions</span><input type="checkbox" checked={newAssnMulti} onChange={(e) => setNewAssnMulti(e.target.checked)} /></label>
-                        </div>
-                        <div style={{ marginTop: 12 }}>
-                          <button className="btn btn-primary" onClick={createCodeAssignment}>Create Code Assignment (with selected questions)</button>
+                        <div className="card" style={{ marginBottom: 16, padding: 16 }}>
+                          <h4 style={{ marginTop: 0 }}>Assignment Details</h4>
+                          <div style={{ marginBottom: 16 }}>
+                            <div style={{ display: 'block', marginBottom: 6, fontWeight: 500 }}>Title *</div>
+                            <input 
+                              className="input" 
+                              style={{ display: 'block', width: '100%', boxSizing: 'border-box' }}
+                              value={newAssnTitle} 
+                              onChange={(e) => setNewAssnTitle(e.target.value)}
+                              placeholder="e.g., Data Structures Lab - Week 5"
+                            />
+                          </div>
+                          <div style={{ marginBottom: 16 }}>
+                            <div style={{ display: 'block', marginBottom: 6, fontWeight: 500 }}>Description</div>
+                            <textarea 
+                              className="input" 
+                              style={{ display: 'block', width: '100%', boxSizing: 'border-box', minHeight: 72 }}
+                              value={newAssnDesc} 
+                              onChange={(e) => setNewAssnDesc(e.target.value)}
+                              placeholder="Optional assignment instructions..."
+                              rows={3}
+                            />
+                          </div>
+                          <div className="grid" style={{ gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                            <div style={{ marginBottom: 16 }}>
+                              <div style={{ display: 'block', marginBottom: 6, fontWeight: 500 }}>Release Time</div>
+                              <input 
+                                className="input" 
+                                style={{ display: 'block', width: '100%', boxSizing: 'border-box' }}
+                                value={newAssnRelease} 
+                                onChange={(e) => setNewAssnRelease(e.target.value)} 
+                              />
+                            </div>
+                            <div style={{ marginBottom: 16 }}>
+                              <div style={{ display: 'block', marginBottom: 6, fontWeight: 500 }}>Due Time</div>
+                              <input 
+                                className="input" 
+                                style={{ display: 'block', width: '100%', boxSizing: 'border-box' }}
+                                value={newAssnDue} 
+                                onChange={(e) => setNewAssnDue(e.target.value)} 
+                              />
+                            </div>
+                          </div>
+                          <div className="grid" style={{ gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                            <div style={{ marginBottom: 16 }}>
+                              <div style={{ display: 'block', marginBottom: 6, fontWeight: 500 }}>Max Score</div>
+                              <input 
+                                className="input" 
+                                style={{ display: 'block', width: '100%', boxSizing: 'border-box' }}
+                                type="number"
+                                value={newAssnMax} 
+                                onChange={(e) => setNewAssnMax(e.target.value)}
+                                placeholder="100"
+                              />
+                            </div>
+                            <div style={{ marginBottom: 16 }}>
+                              <div style={{ display: 'block', marginBottom: 6, fontWeight: 500 }}>Allow Multiple Submissions</div>
+                              <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
+                                <input 
+                                  type="checkbox" 
+                                  checked={newAssnMulti} 
+                                  onChange={(e) => setNewAssnMulti(e.target.checked)} 
+                                />
+                                <span>{newAssnMulti ? 'Yes' : 'No'}</span>
+                              </label>
+                            </div>
+                          </div>
+                          <button className="btn btn-primary" onClick={createCodeAssignment}>
+                            Create Code Assignment
+                          </button>
                         </div>
                       </div>
                       <aside>
-                        <h4 style={{ marginTop: 0 }}>Question Manager</h4>
-                        <div style={{ marginBottom: 8 }}>
-                          <label className="field"><span className="label">Title</span><input className="input" value={newCodeQ.title} onChange={(e) => setNewCodeQ(q => ({ ...q, title: e.target.value }))} /></label>
-                          <label className="field"><span className="label">Description</span><textarea className="input" rows={3} value={newCodeQ.description} onChange={(e) => setNewCodeQ(q => ({ ...q, description: e.target.value }))} /></label>
-                          <label className="field"><span className="label">Constraints</span><input className="input" value={newCodeQ.constraints} onChange={(e) => setNewCodeQ(q => ({ ...q, constraints: e.target.value }))} /></label>
-                          <label className="field"><span className="label">Sample Input</span><textarea className="input" rows={2} value={newCodeQ.sample_input} onChange={(e) => setNewCodeQ(q => ({ ...q, sample_input: e.target.value }))} /></label>
-                          <label className="field"><span className="label">Sample Output</span><textarea className="input" rows={2} value={newCodeQ.sample_output} onChange={(e) => setNewCodeQ(q => ({ ...q, sample_output: e.target.value }))} /></label>
-                          <label className="field"><span className="label">Test Input (hidden)</span><textarea className="input" rows={2} value={newCodeQ.test_input} onChange={(e) => setNewCodeQ(q => ({ ...q, test_input: e.target.value }))} /></label>
-                          <label className="field"><span className="label">Expected Output (hidden)</span><textarea className="input" rows={2} value={newCodeQ.expected_output} onChange={(e) => setNewCodeQ(q => ({ ...q, expected_output: e.target.value }))} /></label>
-                          <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
-                            <button className="btn btn-primary" onClick={saveCodeQuestion}>Save Question</button>
+                        <div className="card" style={{ marginBottom: 16, padding: 16 }}>
+                          <h4 style={{ marginTop: 0 }}>Add Question</h4>
+                          <div style={{ marginBottom: 16 }}>
+                            <div style={{ display: 'block', marginBottom: 6, fontWeight: 500 }}>Title *</div>
+                            <input 
+                              className="input" 
+                              style={{ display: 'block', width: '100%', boxSizing: 'border-box' }}
+                              value={newCodeQ.title} 
+                              onChange={(e) => setNewCodeQ(q => ({ ...q, title: e.target.value }))}
+                              placeholder="e.g., Two Sum Problem"
+                            />
                           </div>
+                          <div style={{ marginBottom: 16 }}>
+                            <div style={{ display: 'block', marginBottom: 6, fontWeight: 500 }}>Description *</div>
+                            <textarea 
+                              className="input" 
+                              style={{ display: 'block', width: '100%', boxSizing: 'border-box', minHeight: 60 }}
+                              rows={3} 
+                              value={newCodeQ.description} 
+                              onChange={(e) => setNewCodeQ(q => ({ ...q, description: e.target.value }))}
+                              placeholder="Problem statement..."
+                            />
+                          </div>
+                          <div style={{ marginBottom: 16 }}>
+                            <div style={{ display: 'block', marginBottom: 6, fontWeight: 500 }}>Constraints</div>
+                            <input 
+                              className="input" 
+                              style={{ display: 'block', width: '100%', boxSizing: 'border-box' }}
+                              value={newCodeQ.constraints} 
+                              onChange={(e) => setNewCodeQ(q => ({ ...q, constraints: e.target.value }))}
+                              placeholder="e.g., 1 <= n <= 10^5"
+                            />
+                          </div>
+                          <div style={{ marginBottom: 16 }}>
+                            <div style={{ display: 'block', marginBottom: 6, fontWeight: 500 }}>Sample Input</div>
+                            <textarea 
+                              className="input" 
+                              style={{ display: 'block', width: '100%', boxSizing: 'border-box', minHeight: 50 }}
+                              rows={2} 
+                              value={newCodeQ.sample_input} 
+                              onChange={(e) => setNewCodeQ(q => ({ ...q, sample_input: e.target.value }))}
+                              placeholder="Example input..."
+                            />
+                          </div>
+                          <div style={{ marginBottom: 16 }}>
+                            <div style={{ display: 'block', marginBottom: 6, fontWeight: 500 }}>Sample Output</div>
+                            <textarea 
+                              className="input" 
+                              style={{ display: 'block', width: '100%', boxSizing: 'border-box', minHeight: 50 }}
+                              rows={2} 
+                              value={newCodeQ.sample_output} 
+                              onChange={(e) => setNewCodeQ(q => ({ ...q, sample_output: e.target.value }))}
+                              placeholder="Expected output..."
+                            />
+                          </div>
+                          <div style={{ marginBottom: 16 }}>
+                            <div style={{ display: 'block', marginBottom: 6, fontWeight: 500 }}>Test Input (Hidden)</div>
+                            <textarea 
+                              className="input" 
+                              style={{ display: 'block', width: '100%', boxSizing: 'border-box', minHeight: 50 }}
+                              rows={2} 
+                              value={newCodeQ.test_input} 
+                              onChange={(e) => setNewCodeQ(q => ({ ...q, test_input: e.target.value }))}
+                              placeholder="Hidden test input..."
+                            />
+                          </div>
+                          <div style={{ marginBottom: 16 }}>
+                            <div style={{ display: 'block', marginBottom: 6, fontWeight: 500 }}>Expected Output (Hidden)</div>
+                            <textarea 
+                              className="input" 
+                              style={{ display: 'block', width: '100%', boxSizing: 'border-box', minHeight: 50 }}
+                              rows={2} 
+                              value={newCodeQ.expected_output} 
+                              onChange={(e) => setNewCodeQ(q => ({ ...q, expected_output: e.target.value }))}
+                              placeholder="Expected output for hidden test..."
+                            />
+                          </div>
+                          <button className="btn btn-primary" onClick={saveCodeQuestion}>
+                            Save Question
+                          </button>
                         </div>
-                        <div>
-                          <h5>Available Questions</h5>
+                        <div className="card" style={{ padding: 16 }}>
+                          <h4 style={{ marginTop: 0 }}>Questions ({codeQuestions.length})</h4>
                           {codeQuestions.length === 0 ? (
-                            <p className="muted">No questions</p>
+                            <p className="muted" style={{ textAlign: 'center', padding: 16 }}>No questions yet</p>
                           ) : (
-                            <ul className="list" style={{ maxHeight: 260, overflow: 'auto' }}>
+                            <ul className="list" style={{ maxHeight: 300, overflow: 'auto' }}>
                               {codeQuestions.map(q => {
-                                // Convert ID to string for consistent key handling
                                 const qId = String(q.id)
                                 return (
-                                  <li key={qId} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                  <li key={qId} style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
                                     <input
                                       type="checkbox"
                                       checked={!!selectedQuestionIds[qId]}
