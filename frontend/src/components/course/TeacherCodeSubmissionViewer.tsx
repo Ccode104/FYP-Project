@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react'
 import { apiFetch } from '../../services/api'
+import '../CodeEditor.css'
+import './TeacherCodeSubmissionViewer.css'
 
 function TeacherCodeSubmissionViewer({ submission, onGrade, push }: { submission: any; onGrade: (score: number, feedback: string) => void; push: any }) {
   const [showGradingForm, setShowGradingForm] = useState(false)
@@ -107,17 +109,11 @@ function TeacherCodeSubmissionViewer({ submission, onGrade, push }: { submission
   return (
     <div>
       {showGradingForm && (
-        <div style={{ 
-          padding: '16px', 
-          backgroundColor: '#f9fafb', 
-          border: '1px solid #e5e7eb', 
-          borderRadius: '8px',
-          marginBottom: '24px'
-        }}>
+        <div className="teacher-grading-form">
           <h4 style={{ marginTop: 0, marginBottom: '12px' }}>Grade Assignment</h4>
-          <form onSubmit={handleGradeSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+          <form onSubmit={handleGradeSubmit} className="form-field">
             <div>
-              <label style={{ display: 'block', marginBottom: '4px', fontWeight: 500 }}>
+              <label className="form-label">
                 Score (0-100):
               </label>
               <input
@@ -128,32 +124,18 @@ function TeacherCodeSubmissionViewer({ submission, onGrade, push }: { submission
                 value={score}
                 onChange={(e) => setScore(e.target.value)}
                 required
-                style={{
-                  width: '100%',
-                  padding: '8px',
-                  border: '1px solid #d1d5db',
-                  borderRadius: '4px',
-                  fontSize: '14px'
-                }}
+                className="form-input"
               />
             </div>
             <div>
-              <label style={{ display: 'block', marginBottom: '4px', fontWeight: 500 }}>
+              <label className="form-label">
                 Feedback (optional):
               </label>
               <textarea
                 value={feedback}
                 onChange={(e) => setFeedback(e.target.value)}
                 rows={4}
-                style={{
-                  width: '100%',
-                  padding: '8px',
-                  border: '1px solid #d1d5db',
-                  borderRadius: '4px',
-                  fontSize: '14px',
-                  fontFamily: 'inherit',
-                  resize: 'vertical'
-                }}
+                className="form-textarea"
                 placeholder="Provide feedback to the student..."
               />
             </div>
@@ -184,13 +166,7 @@ function TeacherCodeSubmissionViewer({ submission, onGrade, push }: { submission
         const allTestResults = [...existingTestResults, ...hiddenTestResults]
 
         return (
-          <div key={codeSub.id || idx} style={{ 
-            marginBottom: '32px', 
-            padding: '20px', 
-            border: '1px solid #e5e7eb', 
-            borderRadius: '8px',
-            backgroundColor: '#ffffff'
-          }}>
+          <div key={codeSub.id || idx} className="teacher-question-card">
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '16px' }}>
               <h4 style={{ margin: 0 }}>Question {idx + 1}</h4>
               <div style={{ display: 'flex', gap: 8 }}>
@@ -214,34 +190,23 @@ function TeacherCodeSubmissionViewer({ submission, onGrade, push }: { submission
             </div>
 
             {question && (
-              <div style={{ marginBottom: '16px', padding: '12px', backgroundColor: '#f9fafb', borderRadius: '4px' }}>
+              <div className="teacher-question-info">
                 <strong>Question:</strong>
                 <div style={{ marginTop: '8px', whiteSpace: 'pre-wrap' }}>{question.description}</div>
                 {question.constraints && (
-                  <div style={{ marginTop: '8px', padding: '8px', backgroundColor: '#fff3cd', borderRadius: '4px' }}>
+                  <div className="constraint-box">
                     <strong>Constraints:</strong> {question.constraints}
                   </div>
                 )}
               </div>
             )}
 
-            <div style={{ marginBottom: '16px' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+            <div className="teacher-code-section">
+              <div className="teacher-code-header">
                 <strong>Submitted Code</strong>
-                <span style={{ fontSize: '0.9em', color: '#6b7280' }}>Language: {codeSub.language}</span>
+                <span style={{ fontSize: '0.9em', color: 'var(--muted)' }}>Language: {codeSub.language}</span>
               </div>
-              <pre style={{
-                margin: 0,
-                padding: '16px',
-                backgroundColor: '#1e293b',
-                color: '#e2e8f0',
-                borderRadius: '4px',
-                overflow: 'auto',
-                fontSize: '14px',
-                fontFamily: 'monospace',
-                whiteSpace: 'pre-wrap',
-                wordBreak: 'break-word'
-              }}>
+              <pre className="teacher-code-display">
                 {codeSub.code}
               </pre>
               <button 
@@ -263,12 +228,7 @@ function TeacherCodeSubmissionViewer({ submission, onGrade, push }: { submission
                   {allTestResults.map((testCase: any, tcIdx: number) => (
                     <div
                       key={testCase.id || tcIdx}
-                      style={{
-                        padding: '16px',
-                        border: `2px solid ${testCase.passed ? '#10b981' : '#ef4444'}`,
-                        borderRadius: '8px',
-                        backgroundColor: testCase.passed ? '#f0fdf4' : '#fef2f2'
-                      }}
+                      className={`teacher-test-case ${testCase.passed ? 'passed' : 'failed'}`}
                     >
                       <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
                         <span style={{ fontSize: '20px', fontWeight: 'bold' }}>
@@ -276,11 +236,11 @@ function TeacherCodeSubmissionViewer({ submission, onGrade, push }: { submission
                         </span>
                         <strong style={{ fontSize: '16px' }}>
                           Test Case {tcIdx + 1}
-                          {testCase.is_sample && <span style={{ color: '#6b7280', fontSize: '14px', marginLeft: '8px' }}>(Sample)</span>}
-                          {!testCase.is_sample && <span style={{ color: '#6366f1', fontSize: '14px', marginLeft: '8px' }}>(Hidden)</span>}
+                          {testCase.is_sample && <span style={{ color: 'var(--muted)', fontSize: '14px', marginLeft: '8px' }}>(Sample)</span>}
+                          {!testCase.is_sample && <span style={{ color: 'var(--primary)', fontSize: '14px', marginLeft: '8px' }}>(Hidden)</span>}
                         </strong>
                         {testCase.execution_time_ms !== null && testCase.execution_time_ms !== undefined && (
-                          <span style={{ color: '#6b7280', fontSize: '14px', marginLeft: 'auto' }}>
+                          <span style={{ color: 'var(--muted)', fontSize: '14px', marginLeft: 'auto' }}>
                             {testCase.execution_time_ms}ms
                           </span>
                         )}
@@ -289,17 +249,7 @@ function TeacherCodeSubmissionViewer({ submission, onGrade, push }: { submission
                       {testCase.input_text && (
                         <div style={{ marginBottom: '8px' }}>
                           <strong style={{ display: 'block', marginBottom: '4px', fontSize: '14px' }}>Input:</strong>
-                          <pre style={{
-                            margin: 0,
-                            padding: '8px',
-                            backgroundColor: '#ffffff',
-                            border: '1px solid #e5e7eb',
-                            borderRadius: '4px',
-                            fontSize: '13px',
-                            whiteSpace: 'pre-wrap',
-                            fontFamily: 'monospace',
-                            overflowX: 'auto'
-                          }}>
+                          <pre className="teacher-test-output">
                             {testCase.input_text || '(empty)'}
                           </pre>
                         </div>
@@ -308,17 +258,7 @@ function TeacherCodeSubmissionViewer({ submission, onGrade, push }: { submission
                       {testCase.expected_text && (
                         <div style={{ marginBottom: '8px' }}>
                           <strong style={{ display: 'block', marginBottom: '4px', fontSize: '14px' }}>Expected Output:</strong>
-                          <pre style={{
-                            margin: 0,
-                            padding: '8px',
-                            backgroundColor: '#ffffff',
-                            border: '1px solid #e5e7eb',
-                            borderRadius: '4px',
-                            fontSize: '13px',
-                            whiteSpace: 'pre-wrap',
-                            fontFamily: 'monospace',
-                            overflowX: 'auto'
-                          }}>
+                          <pre className="teacher-test-output">
                             {testCase.expected_text || '(empty)'}
                           </pre>
                         </div>
@@ -327,16 +267,8 @@ function TeacherCodeSubmissionViewer({ submission, onGrade, push }: { submission
                       {testCase.student_output !== undefined && (
                         <div style={{ marginBottom: '8px' }}>
                           <strong style={{ display: 'block', marginBottom: '4px', fontSize: '14px' }}>Student Output:</strong>
-                          <pre style={{
-                            margin: 0,
-                            padding: '8px',
-                            backgroundColor: '#ffffff',
-                            border: `1px solid ${testCase.passed ? '#10b981' : '#ef4444'}`,
-                            borderRadius: '4px',
-                            fontSize: '13px',
-                            whiteSpace: 'pre-wrap',
-                            fontFamily: 'monospace',
-                            overflowX: 'auto'
+                          <pre className="teacher-test-output" style={{
+                            borderColor: testCase.passed ? 'var(--secondary)' : '#ef4444'
                           }}>
                             {testCase.student_output || '(empty)'}
                           </pre>
@@ -346,18 +278,7 @@ function TeacherCodeSubmissionViewer({ submission, onGrade, push }: { submission
                       {testCase.error_output && testCase.error_output.trim() !== '' && (
                         <div style={{ marginTop: '8px' }}>
                           <strong style={{ display: 'block', marginBottom: '4px', fontSize: '14px', color: '#ef4444' }}>Error:</strong>
-                          <pre style={{
-                            margin: 0,
-                            padding: '8px',
-                            backgroundColor: '#fff5f5',
-                            border: '1px solid #fecaca',
-                            borderRadius: '4px',
-                            fontSize: '13px',
-                            whiteSpace: 'pre-wrap',
-                            fontFamily: 'monospace',
-                            color: '#dc2626',
-                            overflowX: 'auto'
-                          }}>
+                          <pre className="teacher-test-error">
                             {testCase.error_output}
                           </pre>
                         </div>
@@ -369,7 +290,7 @@ function TeacherCodeSubmissionViewer({ submission, onGrade, push }: { submission
             )}
 
             {allTestResults.length > 0 && (
-              <div style={{ marginTop: '16px', padding: '12px', backgroundColor: '#f9fafb', borderRadius: '4px' }}>
+              <div className="teacher-summary">
                 <strong>Summary: </strong>
                 {allTestResults.filter((tc: any) => tc.passed).length} / {allTestResults.length} test cases passed
               </div>

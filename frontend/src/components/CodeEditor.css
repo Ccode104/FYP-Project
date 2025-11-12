@@ -22,15 +22,21 @@
   width: 100%;
   min-height: 400px;
   padding: 12px;
-  font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', 'Consolas', 'source-code-pro', monospace;
+  font-family: 'Fira Code', 'Monaco', 'Menlo', 'Ubuntu Mono', 'Consolas', 'source-code-pro', monospace;
   font-size: 14px;
   line-height: 1.6;
-  border: 1px solid var(--border-color, #ddd);
+  border: 1px solid var(--border);
   border-radius: 4px;
-  background-color: var(--code-bg, #f8f9fa);
-  color: var(--text-color, #333);
+  background-color: var(--surface);
+  color: var(--text);
   resize: vertical;
   tab-size: 4;
+}
+
+.dark .code-editor-textarea {
+  background-color: #1e1e1e;
+  color: #d4d4d4;
+  border-color: #3d3d3d;
 }
 
 .code-editor-textarea:focus {
@@ -62,9 +68,14 @@
   justify-content: space-between;
   align-items: center;
   padding: 8px 12px;
-  background-color: var(--code-bg, #f8f9fa);
-  border: 1px solid var(--border-color, #ddd);
+  background-color: var(--surface);
+  border: 1px solid var(--border);
   border-radius: 4px;
+}
+
+.dark .code-viewer-header {
+  background-color: #2d2d2d;
+  border-color: #3d3d3d;
 }
 
 .code-viewer-info {
@@ -77,15 +88,21 @@
   width: 100%;
   min-height: 300px;
   padding: 12px;
-  font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', 'Consolas', 'source-code-pro', monospace;
+  font-family: 'Fira Code', 'Monaco', 'Menlo', 'Ubuntu Mono', 'Consolas', 'source-code-pro', monospace;
   font-size: 14px;
   line-height: 1.6;
-  border: 1px solid var(--border-color, #ddd);
+  border: 1px solid var(--border);
   border-radius: 4px;
-  background-color: var(--code-bg, #f8f9fa);
-  color: var(--text-color, #333);
+  background-color: var(--surface);
+  color: var(--text);
   overflow-x: auto;
   white-space: pre;
+}
+
+.dark .code-viewer-code {
+  background-color: #1e1e1e;
+  color: #d4d4d4;
+  border-color: #3d3d3d;
 }
 
 .code-viewer-actions {

@@ -1,0 +1,192 @@
+.teacher-submission-container {
+  padding: 16px;
+  background-color: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  margin-bottom: 24px;
+}
+
+.teacher-grading-form {
+  padding: 16px;
+  background-color: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  margin-bottom: 24px;
+}
+
+.teacher-question-card {
+  margin-bottom: 32px;
+  padding: 20px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background-color: var(--surface);
+}
+
+.teacher-question-info {
+  margin-bottom: 16px;
+  padding: 12px;
+  background-color: var(--bg-secondary);
+  border-radius: 4px;
+}
+
+.teacher-code-section {
+  margin-bottom: 16px;
+}
+
+.teacher-code-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.teacher-code-display {
+  margin: 0;
+  padding: 16px;
+  background-color: #1e1e1e;
+  color: #d4d4d4;
+  border-radius: 4px;
+  overflow: auto;
+  font-size: 14px;
+  font-family: 'Fira Code', 'Consolas', 'Monaco', monospace;
+  white-space: pre-wrap;
+  word-break: break-word;
+  border: 1px solid #3d3d3d;
+  line-height: 1.6;
+}
+
+.dark .teacher-code-display {
+  background-color: #1e1e1e;
+  color: #d4d4d4;
+  border-color: #3d3d3d;
+}
+
+.teacher-test-case {
+  padding: 16px;
+  border-radius: 8px;
+  margin-bottom: 12px;
+}
+
+.teacher-test-case.passed {
+  border: 2px solid var(--secondary);
+  background-color: var(--surface);
+}
+
+.dark .teacher-test-case.passed {
+  background-color: rgba(16, 185, 129, 0.1);
+}
+
+.teacher-test-case.failed {
+  border: 2px solid #ef4444;
+  background-color: var(--surface);
+}
+
+.dark .teacher-test-case.failed {
+  background-color: rgba(239, 68, 68, 0.1);
+}
+
+.teacher-test-output {
+  margin: 0;
+  padding: 8px;
+  background-color: var(--surface-elevated);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  font-size: 13px;
+  white-space: pre-wrap;
+  font-family: 'Fira Code', 'Consolas', 'Monaco', monospace;
+  overflow-x: auto;
+  line-height: 1.5;
+}
+
+.dark .teacher-test-output {
+  background-color: #1e1e1e;
+  color: #d4d4d4;
+  border-color: #3d3d3d;
+}
+
+.teacher-test-error {
+  margin: 0;
+  padding: 8px;
+  background-color: #fff5f5;
+  border: 1px solid #fecaca;
+  border-radius: 4px;
+  font-size: 13px;
+  white-space: pre-wrap;
+  font-family: 'Fira Code', 'Consolas', 'Monaco', monospace;
+  color: #dc2626;
+  overflow-x: auto;
+  line-height: 1.5;
+}
+
+.dark .teacher-test-error {
+  background-color: rgba(220, 38, 38, 0.15);
+  border-color: rgba(254, 202, 202, 0.3);
+  color: #fca5a5;
+}
+
+.teacher-summary {
+  margin-top: 16px;
+  padding: 12px;
+  background-color: var(--bg-secondary);
+  border-radius: 4px;
+}
+
+.form-field {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.form-label {
+  display: block;
+  margin-bottom: 4px;
+  font-weight: 500;
+  color: var(--text);
+}
+
+.form-input {
+  width: 100%;
+  padding: 8px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  font-size: 14px;
+  background-color: var(--surface);
+  color: var(--text);
+}
+
+.form-input:focus {
+  outline: none;
+  border-color: var(--primary);
+  box-shadow: 0 0 0 2px var(--ring);
+}
+
+.form-textarea {
+  width: 100%;
+  padding: 8px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  font-size: 14px;
+  font-family: inherit;
+  resize: vertical;
+  background-color: var(--surface);
+  color: var(--text);
+}
+
+.form-textarea:focus {
+  outline: none;
+  border-color: var(--primary);
+  box-shadow: 0 0 0 2px var(--ring);
+}
+
+.constraint-box {
+  margin-top: 8px;
+  padding: 8px;
+  background-color: #fff3cd;
+  border-radius: 4px;
+  color: #856404;
+}
+
+.dark .constraint-box {
+  background-color: rgba(245, 158, 11, 0.15);
+  color: #fbbf24;
+}
