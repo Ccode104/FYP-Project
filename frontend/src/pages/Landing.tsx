@@ -41,6 +41,27 @@ export default function Landing() {
           <h2 className="features-title">Why Choose Our Platform?</h2>
           <div className="features-grid">
             <div className="feature-card">
+              <div className="feature-icon">💻</div>
+              <h3 className="feature-title">Inbuilt Code Editor</h3>
+              <p className="feature-description">
+                Write, test, and submit your code assignments with our integrated code editor featuring multi-language support.
+              </p>
+            </div>
+            <div className="feature-card">
+              <div className="feature-icon">🤖</div>
+              <h3 className="feature-title">AI Query Resolver</h3>
+              <p className="feature-description">
+                Get instant help with your academic queries through our AI-powered assistant that provides intelligent solutions.
+              </p>
+            </div>
+            <div className="feature-card">
+              <div className="feature-icon">🎥</div>
+              <h3 className="feature-title">Video Lectures</h3>
+              <p className="feature-description">
+                Access comprehensive video lectures anytime, anywhere to enhance your learning experience. Engage with interactive questions asked during lectures.
+              </p>
+            </div>
+            <div className="feature-card">
               <div className="feature-icon">🎓</div>
               <h3 className="feature-title">Comprehensive Course Management</h3>
               <p className="feature-description">
