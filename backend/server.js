@@ -23,14 +23,10 @@ export async function startServer(port = 4000) {
   const app = express();
   
   // CORS configuration - allow all origins in development
-  app.use(
-    cors({
-      origin: [process.env.FRONTEND_URL, "http://13.233.144.115:4000", "http://localhost:5173"],
-      methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-      allowedHeaders: ["Content-Type", "Authorization"],
-      credentials: true,
-    })
-  );
+  app.use(cors({
+    origin: process.env.FRONTEND_URL || '*',
+    credentials: true
+  }));
   
   app.use(bodyParser.json({ limit: '10mb' }));
   app.use(bodyParser.urlencoded({ extended: true }));
@@ -84,7 +80,7 @@ export async function startServer(port = 4000) {
   return new Promise((resolve, reject) => {
     try {
       const server = app.listen(port, () => {
-        logger.info(`Server started on ${process.env.FRONTEND_URL}:${port}`);
+        logger.info(`Server started on http://localhost:${port}`);
         resolve(app);
       });
 

@@ -38,7 +38,7 @@ export default function VideoQuizResults({ videoId }: VideoQuizResultsProps) {
   const [attempts, setAttempts] = useState<Attempt[]>([]);
   const [questions, setQuestions] = useState<Question[]>([]);
   const [loading, setLoading] = useState(true);
-  // const [selectedAttempt, setSelectedAttempt] = useState<Attempt | null>(null);
+  const [selectedAttempt, setSelectedAttempt] = useState<Attempt | null>(null);
   const [expandedStudents, setExpandedStudents] = useState<Set<number>>(new Set());
 
   useEffect(() => {
@@ -87,9 +87,9 @@ export default function VideoQuizResults({ videoId }: VideoQuizResultsProps) {
     });
   };
 
-  // const getQuestionById = (questionId: number): Question | undefined => {
-  //   return questions.find((q) => q.id === questionId);
-  // };
+  const getQuestionById = (questionId: number): Question | undefined => {
+    return questions.find((q) => q.id === questionId);
+  };
 
   const getPercentage = (score: number | null, maxScore: number | null): number => {
     if (!score || !maxScore || maxScore === 0) return 0;

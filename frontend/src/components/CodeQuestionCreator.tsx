@@ -112,12 +112,12 @@ export default function CodeQuestionCreator({ courseOfferingId, onComplete }: Co
             expected_text: tc.expected_text || null,
             input_file: inputFileContent ? {
               data: inputFileContent,
-              filename: tc.input_file?.name,
+              filename: tc.input_file.name,
               encoding: 'utf-8'
             } : null,
             expected_file: expectedFileContent ? {
               data: expectedFileContent,
-              filename: tc.expected_file?.name,
+              filename: tc.expected_file.name,
               encoding: 'utf-8'
             } : null
           }
