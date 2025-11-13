@@ -13,6 +13,19 @@ interface ChatbotProps {
   pdfId?: string
 }
 
+// Get API base URL from environment or use current host
+const getApiBaseUrl = () => {
+  if (import.meta.env.VITE_API_URL) {
+    return import.meta.env.VITE_API_URL
+  }
+  // In production, use the same host as the frontend
+  if (typeof window !== 'undefined' && window.location.hostname !== 'localhost') {
+    return `${window.location.protocol}//${window.location.hostname}:4000`
+  }
+  // In development, use localhost
+  return 'http://localhost:4000'
+}
+
 export default function Chatbot({ type, offeringId, pdfId }: ChatbotProps) {
   const [messages, setMessages] = useState<Message[]>([])
   const [input, setInput] = useState('')
@@ -47,8 +60,9 @@ export default function Chatbot({ type, offeringId, pdfId }: ChatbotProps) {
       const endpoint = type === 'course' 
         ? `/api/chatbot/course/${offeringId}`
         : `/api/chatbot/pdf/${uploadedPdfId}/chat`
+      const apiBaseUrl = getApiBaseUrl()
 
-      const response = await fetch(`http://localhost:4000${endpoint}`, {
+      const response = await fetch(`${apiBaseUrl}${endpoint}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -92,8 +106,9 @@ export default function Chatbot({ type, offeringId, pdfId }: ChatbotProps) {
       const token = localStorage.getItem('auth:token')
       const formData = new FormData()
       formData.append('pdf', pdfFile)
+      const apiBaseUrl = getApiBaseUrl()
 
-      const response = await fetch('http://localhost:4000/api/chatbot/pdf/upload', {
+      const response = await fetch(`${apiBaseUrl}/api/chatbot/pdf/upload`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`
