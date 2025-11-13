@@ -96,6 +96,7 @@ export default function CourseDetails() {
   const [newPostContent, setNewPostContent] = useState('')
   const [replyingTo, setReplyingTo] = useState<number | null>(null)
   const [replyContent, setReplyContent] = useState('')
+  const [offeringDetails, setOfferingDetails] = useState<any>(null)
 
   const course = useMemo(() => {
     if (!courseId) return undefined
@@ -935,8 +936,16 @@ export default function CourseDetails() {
                 </svg>
               </button>
               <div className="course-title-section">
-                <h1 className="course-title">{course?.title || 'Course'}</h1>
-                <p className="course-role">{user?.role.toUpperCase()} Dashboard</p>
+                <h1 className="course-title">
+                  {isBackend && offeringDetails
+                    ? `${offeringDetails.course_code || ''} - ${offeringDetails.title || `Offering #${courseId}`}`
+                    : course?.title || 'Course'}
+                </h1>
+                <p className="course-role">
+                  {isBackend && offeringDetails && offeringDetails.term 
+                    ? `${offeringDetails.term}${offeringDetails.section ? ` - Section ${offeringDetails.section}` : ''} • ${user?.role.toUpperCase()} Dashboard`
+                    : `${user?.role.toUpperCase()} Dashboard`}
+                </p>
               </div>
             </div>
             <div className="course-header-actions">
