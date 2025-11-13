@@ -110,6 +110,132 @@
   padding: 8px 16px;
 }
 
+/* Breadcrumb navigation */
+.breadcrumb-nav {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 14px;
+}
+
+.breadcrumb-link {
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: color 0.2s ease;
+  font-family: var(--font-sans);
+  text-decoration: none;
+}
+
+.breadcrumb-link:hover {
+  color: var(--primary);
+}
+
+.breadcrumb-separator {
+  color: var(--text-secondary);
+  font-size: 16px;
+  user-select: none;
+}
+
+.breadcrumb-current {
+  color: var(--text);
+  font-weight: 600;
+  font-size: 14px;
+}
+
+/* User dropdown */
+.user-dropdown-container {
+  position: relative;
+}
+
+.user-dropdown-trigger {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-family: var(--font-sans);
+  color: var(--text);
+}
+
+.user-dropdown-trigger:hover {
+  background: var(--bg-secondary);
+  border-color: var(--border-hover);
+}
+
+.user-dropdown-trigger .user-name {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.user-dropdown-trigger svg {
+  transition: transform 0.2s ease;
+}
+
+.user-dropdown-container:has(.user-dropdown-menu) .user-dropdown-trigger svg {
+  transform: rotate(180deg);
+}
+
+.user-dropdown-menu {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  min-width: 180px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-lg);
+  padding: 8px;
+  z-index: 1000;
+  animation: dropdownFadeIn 0.15s ease;
+}
+
+@keyframes dropdownFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.dropdown-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 10px 12px;
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  text-align: left;
+  font-family: var(--font-sans);
+}
+
+.dropdown-item:hover {
+  background: var(--bg-secondary);
+}
+
+.dropdown-item svg {
+  flex-shrink: 0;
+  color: var(--text-secondary);
+}
+
 .auth-layout {
   min-height: 100vh;
 }

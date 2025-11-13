@@ -2,6 +2,7 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { useEffect, useMemo, useState, useRef } from 'react'
 import { courses } from '../../data/mock'
 import { useAuth } from '../../context/AuthContext'
+import { useCourse } from '../../context/CourseContext'
 import { getUserCourses } from '../../data/userCourses'
 import { addCustomAssignment } from '../../data/courseOverlays'
 import { addSubmission } from '../../data/submissions'
@@ -65,6 +66,7 @@ export default function CourseDetails() {
   const { courseId } = useParams()
   const { user, logout } = useAuth()
   const navigate = useNavigate()
+  const { setCourseTitle } = useCourse()
   const [tab, setTab] = useState<'assignment' | 'present' | 'past' | 'pyq' | 'notes' | 'quizzes' | 'quizzes_submitted' | 'manage' | 'submissions' | 'grading' | 'progress' | 'discussion' | 'chatbot' | 'pdfchat' | 'videos'>('present')
   const [backendVideos, setBackendVideos] = useState<any[]>([])
   const [selectedVideo, setSelectedVideo] = useState<any | null>(null)
@@ -351,6 +353,18 @@ export default function CourseDetails() {
   const [savedQuestions, setSavedQuestions] = useState<Record<string, boolean>>({}) // Track which questions have been saved
   const [isSavingCode, setIsSavingCode] = useState<Record<string, boolean>>({}) // Track saving state per question
   const [tabInternal, setTabInternal] = useState<string>('')
+
+  // Set course title in navbar and clear it on unmount
+  useEffect(() => {
+    const title = isBackend && offeringDetails
+      ? `${offeringDetails.course_code || ''} - ${offeringDetails.title || `Offering #${courseId}`}`
+      : course?.title || 'Course'
+    setCourseTitle(title)
+    
+    return () => {
+      setCourseTitle(null)
+    }
+  }, [isBackend, offeringDetails, course, courseId, setCourseTitle])
 
   // Load code questions from backend or local storage
   useEffect(() => {
@@ -1029,31 +1043,6 @@ export default function CourseDetails() {
 
       <div className={`course-details-page course-content ${!sidebarOpen ? 'sidebar-closed' : ''}`}>
         <div className="container">
-          <header className="course-header">
-            <div className="course-header-content">
-              <button className="back-button" onClick={() => navigate(-1)} aria-label="Go back">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <path d="M19 12H5M12 19l-7-7 7-7"/>
-                </svg>
-              </button>
-              <div className="course-title-section">
-                <h1 className="course-title">
-                  {isBackend && offeringDetails
-                    ? `${offeringDetails.course_code || ''} - ${offeringDetails.title || `Offering #${courseId}`}`
-                    : course?.title || 'Course'}
-                </h1>
-                <p className="course-role">
-                  {isBackend && offeringDetails && offeringDetails.term 
-                    ? `${offeringDetails.term}${offeringDetails.section ? ` - Section ${offeringDetails.section}` : ''} • ${user?.role.toUpperCase()} Dashboard`
-                    : `${user?.role.toUpperCase()} Dashboard`}
-                </p>
-              </div>
-            </div>
-            <div className="course-header-actions">
-              
-            </div>
-          </header>
-
           {/* Old tabs hidden - keeping for reference but no longer displayed */}
           <nav className="tabs-modern" style={{display: 'none'}}>
             <div className="tabs-container">
