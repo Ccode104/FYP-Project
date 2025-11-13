@@ -47,7 +47,7 @@ export default function Chatbot({ type, offeringId, pdfId }: ChatbotProps) {
       const endpoint = type === 'course'
         ? `/api/chatbot/course/${offeringId}`
         : `/api/chatbot/pdf/${uploadedPdfId}/chat`
-      const apiUrl = import.meta.env.VITE_API_URL || 'http://13.233.144.115:4000' || 'http://localhost:4000'
+      const apiUrl = import.meta.env.REACT_APP_API_URL || 'http://13.233.144.115:4000' || 'http://localhost:4000'
 
       const response = await fetch(`${apiUrl}${endpoint}`, {
         method: 'POST',
@@ -93,7 +93,7 @@ export default function Chatbot({ type, offeringId, pdfId }: ChatbotProps) {
       const token = localStorage.getItem('auth:token')
       const formData = new FormData()
       formData.append('pdf', pdfFile)
-      const apiUrl = import.meta.env.VITE_API_URL || 'http://13.233.144.115:4000' || 'http://localhost:4000'
+      const apiUrl = import.meta.env.REACT_APP_API_URL || 'http://13.233.144.115:4000' || 'http://localhost:4000'
 
       const response = await fetch(`${apiUrl}/api/chatbot/pdf/upload`, {
         method: 'POST',

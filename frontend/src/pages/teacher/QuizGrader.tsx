@@ -124,7 +124,7 @@ export default function QuizGrader() {
 // Helpers
 async function fetchQuizForGrading(quizId: number) {
   // using existing endpoint that includes correct answers
-  const res = await fetch(`${(import.meta as any).env?.VITE_API_URL || 'http://localhost:4000'}/api/quizzes/${quizId}/grading`, {
+  const res = await fetch(`${(import.meta as any).env?.REACT_APP_API_URL || 'http://localhost:4000'}/api/quizzes/${quizId}/grading`, {
     headers: { 'Authorization': `Bearer ${localStorage.getItem('auth:token') || ''}` }
   })
   if (!res.ok) throw new Error('Failed to fetch quiz for grading')
