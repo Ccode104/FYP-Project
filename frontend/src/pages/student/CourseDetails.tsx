@@ -29,6 +29,7 @@ import DiscussionForum from '../../components/course/DiscussionForum'
 import PresentAssignmentsSection from '../../components/course/PresentAssignmentsSection'
 import TeacherAssignments from '../../components/course/TeacherAssignments'
 import { listDiscussionMessages, postDiscussionMessage, type DiscussionMessage } from '../../services/discussion'
+import CourseSidebar, { type TabItem } from '../../components/course/CourseSidebar'
 
 // Add CodeQuestion type for frontend usage
 interface CodeQuestion {
@@ -97,6 +98,15 @@ export default function CourseDetails() {
   const [replyingTo, setReplyingTo] = useState<number | null>(null)
   const [replyContent, setReplyContent] = useState('')
   const [offeringDetails, setOfferingDetails] = useState<any>(null)
+  const [sidebarOpen, setSidebarOpen] = useState(true)
+  const [readMessageIds, setReadMessageIds] = useState<Set<number>>(() => {
+    try {
+      const stored = localStorage.getItem(`readMessages:${courseId}`)
+      return stored ? new Set(JSON.parse(stored)) : new Set()
+    } catch {
+      return new Set()
+    }
+  })
 
   const course = useMemo(() => {
     if (!courseId) return undefined
@@ -249,6 +259,65 @@ export default function CourseDetails() {
     })
     return result
   }, [allPresentAssignments, mySubmissions, myQuizAttempts, backendQuizzes, user?.role, isBackend, backendAssignments])
+
+  // Filter assignments and quizzes separately
+  const assignmentsOnly = useMemo(() => 
+    presentAssignments.filter((a: any) => !a.is_quiz),
+    [presentAssignments]
+  )
+
+  const quizzesOnly = useMemo(() => 
+    presentAssignments.filter((a: any) => a.is_quiz),
+    [presentAssignments]
+  )
+
+  // Sidebar tabs configuration
+  const sidebarTabs = useMemo((): TabItem[] => {
+    // Count assignments (excluding quizzes) for badge
+    const assignmentCount = assignmentsOnly.filter((a: any) => !a.isSubmitted).length
+    const quizCount = quizzesOnly.filter((a: any) => !a.isSubmitted).length
+    // Count unread discussion messages
+    const unreadCount = discussionMessages.filter(msg => !readMessageIds.has(msg.id)).length
+    const discussionCount = unreadCount > 0 ? unreadCount : undefined
+
+    const studentTabs: TabItem[] = [
+      { id: 'present', label: 'Assignments', icon: '📋', tooltip: 'View current assignments', badge: assignmentCount },
+      { id: 'quizzes', label: 'Quizzes', icon: '📝', tooltip: 'Available quizzes', badge: quizCount },
+      { id: 'past', label: 'Past', icon: '🕒', tooltip: 'View past assignments' },
+      { id: 'notes', label: 'Notes', icon: '📖', tooltip: 'Course notes and materials' },
+      { id: 'pyq', label: 'Previous Papers', icon: '📄', tooltip: 'Previous year questions' },
+      //{ id: 'quizzes_submitted', label: 'My Results', icon: '✅', tooltip: 'View quiz results' },
+      { id: 'progress', label: 'Progress', icon: '📊', tooltip: 'Track your progress' },
+      { id: 'videos', label: 'Videos', icon: '🎥', tooltip: 'Course video lectures' },
+      { id: 'discussion', label: 'Discussion', icon: '💬', tooltip: 'Discussion forum', badge: discussionCount },
+      { id: 'chatbot', label: 'AI Assistant', icon: '🤖', tooltip: 'AI-powered help' },
+      { id: 'pdfchat', label: 'PDF Q&A', icon: '📚', tooltip: 'Ask questions about PDFs' },
+    ]
+
+    const teacherTabs: TabItem[] = [
+      { id: 'present', label: 'Assignments', icon: '📋', tooltip: 'View all assignments' },
+      { id: 'quizzes', label: 'Quizzes', icon: '📝', tooltip: 'Manage quizzes' },
+      { id: 'manage', label: 'Create', icon: '➕', tooltip: 'Create new assignments' },
+      { id: 'submissions', label: 'Submissions', icon: '📥', tooltip: 'View student submissions' },
+      { id: 'progress', label: 'Progress', icon: '📊', tooltip: 'Student progress overview' },
+      { id: 'videos', label: 'Videos', icon: '🎥', tooltip: 'Manage video lectures' },
+      { id: 'notes', label: 'Notes', icon: '📖', tooltip: 'Course notes' },
+      { id: 'pyq', label: 'Previous Papers', icon: '📄', tooltip: 'Previous questions' },
+      { id: 'discussion', label: 'Discussion', icon: '💬', tooltip: 'Discussion forum' },
+    ]
+
+    const taTabs: TabItem[] = [
+      { id: 'present', label: 'Assignments', icon: '📋', tooltip: 'View assignments' },
+      { id: 'quizzes', label: 'Quizzes', icon: '📝', tooltip: 'View quizzes' },
+      { id: 'grading', label: 'Grading', icon: '✏️', tooltip: 'Grade submissions' },
+      { id: 'progress', label: 'Progress', icon: '📊', tooltip: 'Student progress' },
+      { id: 'discussion', label: 'Discussion', icon: '💬', tooltip: 'Discussion forum' },
+    ]
+
+    if (user?.role === 'teacher') return teacherTabs
+    if (user?.role === 'ta') return taTabs
+    return studentTabs
+  }, [user?.role, assignmentsOnly, quizzesOnly, discussionMessages, readMessageIds])
 
   const [file, setFile] = useState<File | null>(null)
   const [linkUrl, setLinkUrl] = useState('')
@@ -815,6 +884,30 @@ export default function CourseDetails() {
     }
   }, [tab, isBackend, courseId])
 
+  // Mark all current discussion messages as read when viewing the discussion tab
+  useEffect(() => {
+    if (tab === 'discussion' && discussionMessages.length > 0 && courseId) {
+      const newReadIds = new Set(readMessageIds)
+      let hasChanges = false
+      
+      discussionMessages.forEach(msg => {
+        if (!newReadIds.has(msg.id)) {
+          newReadIds.add(msg.id)
+          hasChanges = true
+        }
+      })
+      
+      if (hasChanges) {
+        setReadMessageIds(newReadIds)
+        try {
+          localStorage.setItem(`readMessages:${courseId}`, JSON.stringify(Array.from(newReadIds)))
+        } catch (e) {
+          console.error('Failed to save read messages:', e)
+        }
+      }
+    }
+  }, [tab, discussionMessages, courseId, readMessageIds])
+
   // Load videos when the Videos tab is activated (backend mode)
   useEffect(() => {
     if (tab !== 'videos' || !isBackend || !courseId) return
@@ -925,8 +1018,16 @@ export default function CourseDetails() {
 
   return (
     <>
+      {/* Sidebar Navigation */}
+      <CourseSidebar 
+        tabs={sidebarTabs}
+        activeTab={tab}
+        onTabChange={(tabId) => setTab(tabId as any)}
+        userRole={user?.role}
+        onSidebarToggle={(isOpen) => setSidebarOpen(isOpen)}
+      />
 
-      <div className="course-details-page">
+      <div className={`course-details-page course-content ${!sidebarOpen ? 'sidebar-closed' : ''}`}>
         <div className="container">
           <header className="course-header">
             <div className="course-header-content">
@@ -953,7 +1054,8 @@ export default function CourseDetails() {
             </div>
           </header>
 
-          <nav className="tabs-modern">
+          {/* Old tabs hidden - keeping for reference but no longer displayed */}
+          <nav className="tabs-modern" style={{display: 'none'}}>
             <div className="tabs-container">
               {user?.role === 'student' ? (
                 <>
@@ -1059,7 +1161,7 @@ export default function CourseDetails() {
           {tab === 'present' && (
             <PresentAssignmentsSection
               userRole={user?.role}
-              presentAssignments={presentAssignments as any[]}
+              presentAssignments={assignmentsOnly as any[]}
               isBackend={isBackend}
               onTeacherDelete={async (id: number) => {
                 try {
@@ -1136,6 +1238,61 @@ export default function CourseDetails() {
                 }
               }}
             />
+          )}
+
+          {tab === 'quizzes' && (
+            <section className="card">
+              <h3>Available Quizzes</h3>
+              {quizzesOnly.length === 0 ? (
+                <p className="muted">No quizzes available at the moment.</p>
+              ) : (
+                <ul className="list">
+                  {quizzesOnly.map((quiz: any) => (
+                    <li key={quiz.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px', borderRadius: '6px', background: 'var(--bg-secondary)', marginBottom: '8px' }}>
+                      <div>
+                        <strong>{quiz.title}</strong>
+                        {quiz.due_at && (
+                          <div className="muted" style={{ fontSize: '13px', marginTop: '4px' }}>
+                            Due: {new Date(quiz.due_at).toLocaleString()}
+                          </div>
+                        )}
+                        {quiz.isSubmitted && (
+                          <span style={{ 
+                            display: 'inline-block', 
+                            marginTop: '4px',
+                            padding: '2px 8px', 
+                            borderRadius: '4px', 
+                            fontSize: '12px', 
+                            background: 'var(--secondary)', 
+                            color: 'white' 
+                          }}>
+                            ✓ Submitted
+                          </span>
+                        )}
+                      </div>
+                      <div style={{ display: 'flex', gap: '8px' }}>
+                        {!quiz.isSubmitted && (
+                          <button 
+                            className="btn btn-primary" 
+                            onClick={() => location.assign(`/quizzes/${quiz.quiz_id}`)}
+                          >
+                            Start Quiz
+                          </button>
+                        )}
+                        {quiz.isSubmitted && (
+                          <button 
+                            className="btn" 
+                            onClick={() => setTab('quizzes_submitted')}
+                          >
+                            View Results
+                          </button>
+                        )}
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </section>
           )}
 
           {tab === 'past' && (
