@@ -55,6 +55,43 @@
   letter-spacing: 0.5px;
 }
 
+.course-card-notification {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--primary-light);
+  color: var(--primary);
+  padding: 8px;
+  border-radius: 50%;
+  transition: all 0.2s ease;
+  z-index: 1;
+}
+
+.course-card-notification:hover {
+  background: var(--primary);
+  color: white;
+  transform: scale(1.1);
+}
+
+.course-card-notification-count {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  background: var(--error, #ef4444);
+  color: white;
+  font-size: 10px;
+  font-weight: 700;
+  min-width: 18px;
+  height: 18px;
+  border-radius: 9px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 4px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
 .course-card-content {
   flex: 1;
   display: flex;

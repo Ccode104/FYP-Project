@@ -109,6 +109,24 @@ export default function CourseDetails() {
       return new Set()
     }
   })
+  
+  const [viewedAssignments, setViewedAssignments] = useState<Set<string>>(() => {
+    try {
+      const stored = localStorage.getItem(`viewedAssignments:${courseId}`)
+      return stored ? new Set(JSON.parse(stored)) : new Set()
+    } catch {
+      return new Set()
+    }
+  })
+  
+  const [viewedQuizzes, setViewedQuizzes] = useState<Set<string>>(() => {
+    try {
+      const stored = localStorage.getItem(`viewedQuizzes:${courseId}`)
+      return stored ? new Set(JSON.parse(stored)) : new Set()
+    } catch {
+      return new Set()
+    }
+  })
 
   const course = useMemo(() => {
     if (!courseId) return undefined
@@ -275,9 +293,14 @@ export default function CourseDetails() {
 
   // Sidebar tabs configuration
   const sidebarTabs = useMemo((): TabItem[] => {
-    // Count assignments (excluding quizzes) for badge
-    const assignmentCount = assignmentsOnly.filter((a: any) => !a.isSubmitted).length
-    const quizCount = quizzesOnly.filter((a: any) => !a.isSubmitted).length
+    // Count unviewed unsubmitted assignments
+    const unviewedAssignments = assignmentsOnly.filter((a: any) => !a.isSubmitted && !viewedAssignments.has(String(a.id)))
+    const assignmentCount = unviewedAssignments.length > 0 ? unviewedAssignments.length : undefined
+    
+    // Count unviewed unattempted quizzes
+    const unviewedQuizzes = quizzesOnly.filter((a: any) => !a.isSubmitted && !viewedQuizzes.has(String(a.id)))
+    const quizCount = unviewedQuizzes.length > 0 ? unviewedQuizzes.length : undefined
+    
     // Count unread discussion messages
     const unreadCount = discussionMessages.filter(msg => !readMessageIds.has(msg.id)).length
     const discussionCount = unreadCount > 0 ? unreadCount : undefined
@@ -301,11 +324,11 @@ export default function CourseDetails() {
       { id: 'quizzes', label: 'Quizzes', icon: '📝', tooltip: 'Manage quizzes' },
       { id: 'manage', label: 'Create', icon: '➕', tooltip: 'Create new assignments' },
       { id: 'submissions', label: 'Submissions', icon: '📥', tooltip: 'View student submissions' },
-      { id: 'progress', label: 'Progress', icon: '📊', tooltip: 'Student progress overview' },
+      //{ id: 'progress', label: 'Progress', icon: '📊', tooltip: 'Student progress overview' },
       { id: 'videos', label: 'Videos', icon: '🎥', tooltip: 'Manage video lectures' },
       { id: 'notes', label: 'Notes', icon: '📖', tooltip: 'Course notes' },
       { id: 'pyq', label: 'Previous Papers', icon: '📄', tooltip: 'Previous questions' },
-      { id: 'discussion', label: 'Discussion', icon: '💬', tooltip: 'Discussion forum' },
+      { id: 'discussion', label: 'Discussion', icon: '💬', tooltip: 'Discussion forum', badge: discussionCount },
     ]
 
     const taTabs: TabItem[] = [
@@ -313,13 +336,13 @@ export default function CourseDetails() {
       { id: 'quizzes', label: 'Quizzes', icon: '📝', tooltip: 'View quizzes' },
       { id: 'grading', label: 'Grading', icon: '✏️', tooltip: 'Grade submissions' },
       { id: 'progress', label: 'Progress', icon: '📊', tooltip: 'Student progress' },
-      { id: 'discussion', label: 'Discussion', icon: '💬', tooltip: 'Discussion forum' },
+      { id: 'discussion', label: 'Discussion', icon: '💬', tooltip: 'Discussion forum', badge: discussionCount },
     ]
 
     if (user?.role === 'teacher') return teacherTabs
     if (user?.role === 'ta') return taTabs
     return studentTabs
-  }, [user?.role, assignmentsOnly, quizzesOnly, discussionMessages, readMessageIds])
+  }, [user?.role, assignmentsOnly, quizzesOnly, discussionMessages, readMessageIds, viewedAssignments, viewedQuizzes])
 
   const [file, setFile] = useState<File | null>(null)
   const [linkUrl, setLinkUrl] = useState('')
@@ -921,6 +944,56 @@ export default function CourseDetails() {
       }
     }
   }, [tab, discussionMessages, courseId, readMessageIds])
+
+  // Mark assignments as viewed when viewing the present tab
+  useEffect(() => {
+    if (tab === 'present' && assignmentsOnly.length > 0 && courseId) {
+      const newViewedIds = new Set(viewedAssignments)
+      let hasChanges = false
+      
+      assignmentsOnly.forEach(assignment => {
+        const assignmentId = String(assignment.id)
+        if (!newViewedIds.has(assignmentId)) {
+          newViewedIds.add(assignmentId)
+          hasChanges = true
+        }
+      })
+      
+      if (hasChanges) {
+        setViewedAssignments(newViewedIds)
+        try {
+          localStorage.setItem(`viewedAssignments:${courseId}`, JSON.stringify(Array.from(newViewedIds)))
+        } catch (e) {
+          console.error('Failed to save viewed assignments:', e)
+        }
+      }
+    }
+  }, [tab, assignmentsOnly, courseId, viewedAssignments])
+
+  // Mark quizzes as viewed when viewing the quizzes tab
+  useEffect(() => {
+    if (tab === 'quizzes' && quizzesOnly.length > 0 && courseId) {
+      const newViewedIds = new Set(viewedQuizzes)
+      let hasChanges = false
+      
+      quizzesOnly.forEach(quiz => {
+        const quizId = String(quiz.id)
+        if (!newViewedIds.has(quizId)) {
+          newViewedIds.add(quizId)
+          hasChanges = true
+        }
+      })
+      
+      if (hasChanges) {
+        setViewedQuizzes(newViewedIds)
+        try {
+          localStorage.setItem(`viewedQuizzes:${courseId}`, JSON.stringify(Array.from(newViewedIds)))
+        } catch (e) {
+          console.error('Failed to save viewed quizzes:', e)
+        }
+      }
+    }
+  }, [tab, quizzesOnly, courseId, viewedQuizzes])
 
   // Load videos when the Videos tab is activated (backend mode)
   useEffect(() => {
