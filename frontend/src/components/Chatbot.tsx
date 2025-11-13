@@ -44,11 +44,12 @@ export default function Chatbot({ type, offeringId, pdfId }: ChatbotProps) {
 
     try {
       const token = localStorage.getItem('auth:token')
-      const endpoint = type === 'course' 
+      const endpoint = type === 'course'
         ? `/api/chatbot/course/${offeringId}`
         : `/api/chatbot/pdf/${uploadedPdfId}/chat`
+      const apiUrl = import.meta.env.VITE_API_URL || 'http://13.233.144.115:4000' || 'http://localhost:4000'
 
-      const response = await fetch(`http://localhost:4000${endpoint}`, {
+      const response = await fetch(`${apiUrl}${endpoint}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -92,8 +93,9 @@ export default function Chatbot({ type, offeringId, pdfId }: ChatbotProps) {
       const token = localStorage.getItem('auth:token')
       const formData = new FormData()
       formData.append('pdf', pdfFile)
+      const apiUrl = import.meta.env.VITE_API_URL || 'http://13.233.144.115:4000' || 'http://localhost:4000'
 
-      const response = await fetch('http://localhost:4000/api/chatbot/pdf/upload', {
+      const response = await fetch(`${apiUrl}/api/chatbot/pdf/upload`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`
@@ -127,11 +129,11 @@ export default function Chatbot({ type, offeringId, pdfId }: ChatbotProps) {
         <div className="chatbot-header">
           <h3>
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/>
-              <polyline points="14 2 14 8 20 8"/>
-              <line x1="16" y1="13" x2="8" y2="13"/>
-              <line x1="16" y1="17" x2="8" y2="17"/>
-              <polyline points="10 9 9 9 8 9"/>
+              <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" />
+              <polyline points="14 2 14 8 20 8" />
+              <line x1="16" y1="13" x2="8" y2="13" />
+              <line x1="16" y1="17" x2="8" y2="17" />
+              <polyline points="10 9 9 9 8 9" />
             </svg>
             Upload Document
           </h3>
@@ -142,8 +144,8 @@ export default function Chatbot({ type, offeringId, pdfId }: ChatbotProps) {
               onChange={(e) => setPdfFile(e.target.files?.[0] || null)}
               disabled={loading}
             />
-            <button 
-              onClick={handlePDFUpload} 
+            <button
+              onClick={handlePDFUpload}
               disabled={!pdfFile || loading}
               className="btn btn-primary"
             >
@@ -186,8 +188,8 @@ export default function Chatbot({ type, offeringId, pdfId }: ChatbotProps) {
           placeholder={type === 'pdf' && !uploadedPdfId ? 'Upload a PDF first...' : 'Ask a question...'}
           disabled={loading || (type === 'pdf' && !uploadedPdfId)}
         />
-        <button 
-          onClick={sendMessage} 
+        <button
+          onClick={sendMessage}
           disabled={!input.trim() || loading || (type === 'pdf' && !uploadedPdfId)}
           className="btn btn-primary"
         >

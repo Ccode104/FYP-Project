@@ -28,7 +28,7 @@ function CourseCardSkeleton({ style }: { style?: React.CSSProperties }) {
 }
 
 // Empty state component
-function EmptyCoursesState() {
+function EmptyCoursesState({ onEnrollClick }: { onEnrollClick: () => void }) {
   return (
     <div className="empty-courses-state">
       <div className="empty-state-icon">
@@ -39,7 +39,7 @@ function EmptyCoursesState() {
       </div>
       <h3 className="empty-state-title h4">No courses yet</h3>
       <p className="empty-state-description text-base leading-relaxed">Enroll in courses to start your learning journey</p>
-      <button className="btn btn-primary empty-state-action text-base" onClick={() => setEnrOpen(true)}>Browse Courses</button>
+      <button className="btn btn-primary empty-state-action text-base" onClick={onEnrollClick}>Browse Courses</button>
     </div>
   )
 }
@@ -80,7 +80,9 @@ export default function StudentDashboard() {
     })()
   }, [])
 
-  const goToOffering = (id: number | string) => navigate(`/courses/${id}`)
+  const goToOffering = (id: number | string, courseTitle?: string) => {
+    navigate(`/courses/${id}`, { state: { courseTitle } })
+  }
 
   // TA/Teacher enroll form (optional)
   const [enrOpen, setEnrOpen] = useState(false)
@@ -141,7 +143,7 @@ export default function StudentDashboard() {
             ))}
           </div>
         ) : offerings.length === 0 ? (
-          <EmptyCoursesState />
+          <EmptyCoursesState onEnrollClick={() => setEnrOpen(true)} />
         ) : (
           <div className="grid grid-cards courses-grid">
             {offerings.map((o) => (
@@ -156,7 +158,7 @@ export default function StudentDashboard() {
                     pyq:[], 
                     notes:[] 
                   }} 
-                  onClick={() => goToOffering(o.id)} 
+                  onClick={() => goToOffering(o.id, o.course_title)} 
                 />
                 <MenuButton 
                   onDelete={async () => {

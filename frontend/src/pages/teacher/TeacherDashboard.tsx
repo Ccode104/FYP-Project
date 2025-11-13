@@ -110,7 +110,7 @@ export default function TeacherDashboard() {
                   <li
                     key={o.id}
                     className="list-item list-item-clickable"
-                    onClick={() => navigate(`/courses/${o.id}`)}
+                    onClick={() => navigate(`/courses/${o.id}`, { state: { courseTitle: o.course_title } })}
                   >
                     <div className="list-item-content">
                       <span className="list-item-title">
@@ -125,7 +125,7 @@ export default function TeacherDashboard() {
                       className="btn btn-sm btn-secondary"
                       onClick={(e) => {
                         e.stopPropagation();
-                        navigate(`/courses/${o.id}`);
+                        navigate(`/courses/${o.id}`, { state: { courseTitle: o.course_title } });
                       }}
                     >
                       Manage

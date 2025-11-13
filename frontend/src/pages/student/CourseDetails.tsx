@@ -1,4 +1,4 @@
-import { useParams, useNavigate } from 'react-router-dom'
+import { useParams, useNavigate, useLocation } from 'react-router-dom'
 import { useEffect, useMemo, useState, useRef } from 'react'
 import { courses } from '../../data/mock'
 import { useAuth } from '../../context/AuthContext'
@@ -62,8 +62,10 @@ function saveLocalCodeQuestions(courseId: string, items: CodeQuestion[]) {
 
 export default function CourseDetails() {
   const { courseId } = useParams()
+  const navLocation = useLocation()
   const { user, logout } = useAuth()
   const navigate = useNavigate()
+  const passedCourseTitle = (navLocation.state as any)?.courseTitle
   const [tab, setTab] = useState<'assignment' | 'present' | 'past' | 'pyq' | 'notes' | 'quizzes' | 'quizzes_submitted' | 'manage' | 'submissions' | 'grading' | 'progress' | 'discussion' | 'chatbot' | 'pdfchat' | 'videos'>('present')
   const [backendVideos, setBackendVideos] = useState<any[]>([])
   const [selectedVideo, setSelectedVideo] = useState<any | null>(null)
@@ -93,6 +95,12 @@ export default function CourseDetails() {
   const [selectedAssignmentId, setSelectedAssignmentId] = useState<string>('')
   const [discussionMessages, setDiscussionMessages] = useState<DiscussionMessage[]>([])
   const [discussionLoading, setDiscussionLoading] = useState(false)
+  const [offeringDetails, setOfferingDetails] = useState<any>(() => {
+    if (passedCourseTitle) {
+      return { course_title: passedCourseTitle, course_code: '' }
+    }
+    return null
+  })
   const [newPostContent, setNewPostContent] = useState('')
   const [replyingTo, setReplyingTo] = useState<number | null>(null)
   const [replyContent, setReplyContent] = useState('')
@@ -100,15 +108,17 @@ export default function CourseDetails() {
   const course = useMemo(() => {
     if (!courseId) return undefined
     if (/^\d+$/.test(courseId)) {
-      // backend mode uses offeringId; we won't have local course meta
-      return { id: courseId, title: `Offering #${courseId}`, description: 'Backend course offering', assignmentsPast: [], assignmentsPresent: [], pyq: [], notes: [] }
+      // backend mode uses offeringId; get course title from offeringDetails if available
+      const title = offeringDetails?.course_title || `Offering #${courseId}`
+      const description = offeringDetails?.course_code || 'Backend course offering'
+      return { id: courseId, title, description, assignmentsPast: [], assignmentsPresent: [], pyq: [], notes: [] }
     }
     const fromDefault = courses.find((c) => c.id === courseId)
     if (fromDefault) return fromDefault
     if (!user) return undefined
     const mine = getUserCourses(user.id)
     return mine.find((c) => c.id === courseId)
-  }, [courseId, user])
+  }, [courseId, user, offeringDetails, passedCourseTitle])
 
   // Compute present assignments (not past due date)
   const allPresentAssignments = useMemo(() => {
@@ -247,7 +257,7 @@ export default function CourseDetails() {
       total: result.length
     })
     return result
-  }, [allPresentAssignments, mySubmissions, myQuizAttempts, backendQuizzes, user?.role, isBackend, backendAssignments])
+  }, [allPresentAssignments, mySubmissions, myQuizAttempts, backendQuizzes, user?.role, isBackend, backendAssignments, course])
 
   const [file, setFile] = useState<File | null>(null)
   const [linkUrl, setLinkUrl] = useState('')
@@ -741,7 +751,13 @@ export default function CourseDetails() {
         try {
           const offering = await apiFetch<any>(`/api/student/courses/${courseId}`)
           console.log('Loaded offering details:', offering)
-          if (!cancelled) setOfferingDetails(offering)
+          if (!cancelled) {
+            // Merge with existing details, but preserve passed title if it exists
+            setOfferingDetails((prev: any) => ({
+              ...offering,
+              course_title: passedCourseTitle || offering.course_title
+            }))
+          }
         } catch (err) {
           console.error('Failed to load offering details:', err)
         }
@@ -1064,7 +1080,7 @@ export default function CourseDetails() {
                 }
               }}
               onStudentClickSubmitPDF={(id: string) => setSelectedAssignmentId(id)}
-              onAttemptQuiz={(quizId: any) => { location.assign(`/quizzes/${quizId}`) }}
+              onAttemptQuiz={(quizId: any) => { window.location.assign(`/quizzes/${quizId}`) }}
               onStartCodeAttempt={(assignment: any) => { void startCodeAttempt(assignment) }}
               selectedAssignmentId={selectedAssignmentId}
               onChangeSelectedAssignmentId={(v: string) => setSelectedAssignmentId(v)}
