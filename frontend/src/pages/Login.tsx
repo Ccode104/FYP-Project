@@ -3,16 +3,18 @@ import type { FormEvent } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import { getDashboardPathForRole, useAuth } from '../context/AuthContext'
 import { useToast } from '../components/ToastProvider'
+import GoogleSignIn from '../components/GoogleSignIn'
 import backgroundImg from '../assets/background.jpg'
 import './Login.css'
 
 export default function Login() {
-  const { login } = useAuth()
+  const { login, loginWithGoogle } = useAuth()
   const navigate = useNavigate()
   const { push } = useToast()
 
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [role, setRole] = useState<'student'|'teacher'|'ta'|'admin'>('student')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -39,6 +41,22 @@ export default function Login() {
       console.error('Login failed:', err.message)
       setError(err.message || 'Login failed')
       push({ kind: 'error', message: 'Login failed' })
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleGoogleSignIn = async (credential: string) => {
+    setError(null)
+    setLoading(true)
+    try {
+      const user = await loginWithGoogle(credential, role)
+      push({ kind: 'success', message: 'Login successful' })
+      navigate(getDashboardPathForRole(user.role), { replace: true })
+    } catch (err: any) {
+      console.error('Google login failed:', err.message)
+      setError(err.message || 'Google login failed')
+      push({ kind: 'error', message: 'Google login failed' })
     } finally {
       setLoading(false)
     }
@@ -90,6 +108,29 @@ export default function Login() {
             {loading ? <span className="spinner" aria-hidden="false"></span> : 'Sign in'}
           </button>
         </form>
+
+        <div className="auth-divider">or</div>
+
+        <div style={{ marginBottom: '16px' }}>
+          <label className="field select-field">
+            <span className="label select-label">Sign in as</span>
+            <select className="select" value={role} onChange={(e) => setRole(e.target.value as any)} required aria-label="Role">
+              <option value="student">Student</option>
+              <option value="teacher">Teacher</option>
+              <option value="ta">TA</option>
+              <option value="admin">Admin</option>
+            </select>
+          </label>
+        </div>
+
+        <GoogleSignIn
+          onSuccess={handleGoogleSignIn}
+          onError={(error) => {
+            setError(error)
+            push({ kind: 'error', message: error })
+          }}
+          text="signin_with"
+        />
 
         <p className="muted mt-sm">
           No account? <Link to="/signup">Sign up</Link>

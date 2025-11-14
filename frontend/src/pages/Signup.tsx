@@ -5,9 +5,12 @@ import backgroundImg from '../assets/background.jpg'
 import './Signup.css'
 import { apiFetch } from '../services/api'
 import { useToast } from '../components/ToastProvider'
+import { getDashboardPathForRole, useAuth } from '../context/AuthContext'
+import GoogleSignIn from '../components/GoogleSignIn'
 
 export default function Signup() {
   const navigate = useNavigate()
+  const { loginWithGoogle } = useAuth()
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -99,6 +102,31 @@ export default function Signup() {
             {loading ? 'Creating…' : 'Create account'}
           </button>
         </form>
+
+        <div className="auth-divider">or</div>
+
+        <GoogleSignIn
+          onSuccess={async (credential) => {
+            setError(null)
+            setLoading(true)
+            try {
+              const user = await loginWithGoogle(credential, role)
+              push({ kind: 'success', message: 'Sign up successful' })
+              navigate(getDashboardPathForRole(user.role), { replace: true })
+            } catch (err: any) {
+              setError(err?.message || 'Google sign up failed')
+              push({ kind: 'error', message: err?.message || 'Google sign up failed' })
+            } finally {
+              setLoading(false)
+            }
+          }}
+          onError={(error) => {
+            setError(error)
+            push({ kind: 'error', message: error })
+          }}
+          text="signup_with"
+        />
+
         <p className="muted mt-sm">
           Already have an account? <Link to="/login">Login</Link>
         </p>

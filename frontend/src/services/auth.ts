@@ -16,3 +16,12 @@ export async function login(email: string, password: string) {
     body: { email, password },
   });
 }
+
+export async function loginWithGoogle(credential: string, role: 'student' | 'teacher' | 'ta' | 'admin' = 'student'): Promise<{ token: string; user: BackendUser }> {
+  const backendRole = role === 'teacher' ? 'faculty' : role;
+  const data = await apiFetch<{ token: string; user: BackendUser }>(`/api/auth/google`, {
+    method: 'POST',
+    body: { credential, role: backendRole },
+  });
+  return data;
+}

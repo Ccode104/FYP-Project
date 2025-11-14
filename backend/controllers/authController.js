@@ -2,6 +2,7 @@ import { pool } from '../db/index.js';
 import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
 import express from 'express';
+import axios from 'axios';
 
 const SALT_ROUNDS = 10;
 const JWT_SECRET = process.env.JWT_SECRET || 'supersecretkey';
@@ -60,9 +61,9 @@ export async function loginUser(req, res) {
 
     const user = userQuery.rows[0];
 
-    // Check password
+    // Check password - if user has no password_hash, they might be an OAuth-only user
     if (!user.password_hash) {
-      return res.status(401).json({ error: 'Invalid email or password' });
+      return res.status(401).json({ error: 'This account was created with Google Sign-In. Please use Google Sign-In to log in.' });
     }
 
     const passwordMatch = await bcrypt.compare(password, user.password_hash);
@@ -93,6 +94,168 @@ export async function loginUser(req, res) {
   } catch (err) {
     console.error('Error in loginUser:', err);
     // Provide more detailed error message in development
+    const errorMessage = process.env.NODE_ENV === 'development' 
+      ? `Internal server error: ${err.message}` 
+      : 'Internal server error';
+    res.status(500).json({ error: errorMessage });
+  }
+}
+
+// GOOGLE LOGIN
+export async function loginWithGoogle(req, res) {
+  try {
+    const { credential, role } = req.body;
+
+    // Validate input
+    if (!credential) {
+      return res.status(400).json({ error: 'Google credential is required' });
+    }
+
+    // Validate role if provided, default to 'student'
+    const validRoles = ['student', 'faculty', 'ta', 'admin'];
+    const userRole = role && validRoles.includes(role) ? role : 'student';
+
+    // Verify Google token by calling Google's tokeninfo endpoint
+    const tokenInfoUrl = `https://oauth2.googleapis.com/tokeninfo?id_token=${credential}`;
+    let googleUser;
+    
+    try {
+      const response = await axios.get(tokenInfoUrl);
+      googleUser = response.data;
+      
+      // Log for debugging (remove in production)
+      if (process.env.NODE_ENV === 'development') {
+        console.log('Google token verified successfully:', {
+          email: googleUser.email,
+          name: googleUser.name,
+          aud: googleUser.aud
+        });
+      }
+    } catch (axiosError) {
+      console.error('Error verifying Google token:', axiosError.message);
+      if (axiosError.response) {
+        console.error('Response status:', axiosError.response.status);
+        console.error('Response data:', axiosError.response.data);
+        if (axiosError.response.status === 400) {
+          return res.status(401).json({ error: 'Invalid Google token' });
+        }
+      }
+      return res.status(500).json({ 
+        error: 'Failed to verify Google token',
+        details: process.env.NODE_ENV === 'development' ? axiosError.message : undefined
+      });
+    }
+
+    // Verify the token is from the expected audience (optional but recommended)
+    const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID;
+    if (GOOGLE_CLIENT_ID && googleUser.aud !== GOOGLE_CLIENT_ID) {
+      return res.status(401).json({ error: 'Invalid token audience' });
+    }
+
+    // Extract user information from Google token
+    const email = googleUser.email;
+    const name = googleUser.name || googleUser.given_name || 'User';
+    const picture = googleUser.picture;
+
+    if (!email) {
+      return res.status(400).json({ error: 'Email not provided by Google' });
+    }
+
+    // Check if user exists in database
+    let userQuery;
+    try {
+      userQuery = await pool.query(
+        'SELECT id, name, email, role, department_id, roll_number FROM users WHERE email = $1',
+        [email]
+      );
+    } catch (dbError) {
+      console.error('Database error when checking user:', dbError);
+      return res.status(500).json({ 
+        error: 'Database error',
+        details: process.env.NODE_ENV === 'development' ? dbError.message : undefined
+      });
+    }
+
+    let user;
+
+    if (userQuery.rowCount === 0) {
+      // User doesn't exist, create a new user with the selected role
+      try {
+        const insertQuery = `
+          INSERT INTO users (name, email, role, password_hash)
+          VALUES ($1, $2, $3, NULL)
+          RETURNING id, name, email, role, department_id, roll_number
+        `;
+        const insertResult = await pool.query(insertQuery, [name, email, userRole]);
+        user = insertResult.rows[0];
+        console.log('New user created via Google login:', {
+          email: user.email,
+          role: user.role,
+          name: user.name
+        });
+      } catch (insertError) {
+        console.error('Database error when creating user:', insertError);
+        return res.status(500).json({ 
+          error: 'Failed to create user',
+          details: process.env.NODE_ENV === 'development' ? insertError.message : undefined
+        });
+      }
+    } else {
+      // User already exists - use their existing role (for security, don't allow role changes via Google sign-in)
+      user = userQuery.rows[0];
+      
+      // Log if user tried to sign in with a different role
+      if (process.env.NODE_ENV === 'development' && user.role !== userRole) {
+        console.log('User signed in with Google but has different existing role:', {
+          email: user.email,
+          existingRole: user.role,
+          requestedRole: userRole,
+          usingExistingRole: true
+        });
+      }
+      
+      // Update user name if it's different (in case user changed name in Google)
+      if (user.name !== name) {
+        try {
+          await pool.query('UPDATE users SET name = $1 WHERE id = $2', [name, user.id]);
+          user.name = name;
+        } catch (updateError) {
+          console.error('Database error when updating user name:', updateError);
+          // Don't fail the login if name update fails, just log it
+        }
+      }
+      
+      // Log for debugging
+      if (process.env.NODE_ENV === 'development') {
+        console.log('Existing user signed in with Google:', {
+          email: user.email,
+          role: user.role,
+          name: user.name
+        });
+      }
+    }
+
+    // Generate JWT token
+    const token = jwt.sign(
+      { id: user.id, email: user.email, role: user.role },
+      JWT_SECRET,
+      { expiresIn: JWT_EXPIRES_IN }
+    );
+
+    // Return success response with token
+    res.json({
+      token,
+      user: {
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        role: user.role || 'student',
+        department_id: user.department_id,
+        roll_number: user.roll_number
+      }
+    });
+  } catch (err) {
+    console.error('Error in loginWithGoogle:', err);
     const errorMessage = process.env.NODE_ENV === 'development' 
       ? `Internal server error: ${err.message}` 
       : 'Internal server error';
