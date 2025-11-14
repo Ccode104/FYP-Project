@@ -75,7 +75,6 @@ export default function GoogleSignIn({
               const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID || ''
               
               if (!clientId) {
-                console.warn('Google Client ID not found. Please set VITE_GOOGLE_CLIENT_ID in your .env file')
                 if (onError) {
                   onError('Google Sign-In is not configured. Please contact support.')
                 }

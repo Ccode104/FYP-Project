@@ -42,12 +42,16 @@ export async function registerUser(req, res) {
 // LOGIN
 export async function loginUser(req, res) {
   try {
-    const { email, password } = req.body;
+    const { email, password, role } = req.body;
 
     // Validate input
     if (!email || !password) {
       return res.status(400).json({ error: 'Email and password are required' });
     }
+
+    // Validate role if provided, default to 'student'
+    const validRoles = ['student', 'faculty', 'ta', 'admin'];
+    const requestedRole = role && validRoles.includes(role) ? role : 'student';
 
     // Find user in database
     const userQuery = await pool.query(
@@ -71,22 +75,37 @@ export async function loginUser(req, res) {
       return res.status(401).json({ error: 'Invalid email or password' });
     }
 
-    // Generate JWT token
+    // Verify the user's role matches the requested role
+    // Admins can access any role, but regular users must match their registered role
+    let loginRole = user.role;
+    
+    if (user.role !== requestedRole) {
+      if (user.role === 'admin') {
+        // Admins can switch to any role for testing/management purposes
+        loginRole = requestedRole;
+      } else {
+        // Regular users must use their registered role
+        return res.status(403).json({ 
+          error: `This account is registered as ${user.role === 'faculty' ? 'teacher' : user.role}. Please select the correct role.` 
+        });
+      }
+    }
+
+    // Generate JWT token with the appropriate role
     const token = jwt.sign(
-      { id: user.id, email: user.email, role: user.role },
+      { id: user.id, email: user.email, role: loginRole },
       JWT_SECRET,
       { expiresIn: JWT_EXPIRES_IN }
     );
 
     // Return success response with token
-    // Note: role is included for convenience, but can be fetched separately if needed
     res.json({
       token,
       user: {
         id: user.id,
         name: user.name,
         email: user.email,
-        role: user.role || 'student', // Default to student if role is null
+        role: loginRole,
         department_id: user.department_id,
         roll_number: user.roll_number
       }
@@ -123,14 +142,7 @@ export async function loginWithGoogle(req, res) {
       const response = await axios.get(tokenInfoUrl);
       googleUser = response.data;
       
-      // Log for debugging (remove in production)
-      if (process.env.NODE_ENV === 'development') {
-        console.log('Google token verified successfully:', {
-          email: googleUser.email,
-          name: googleUser.name,
-          aud: googleUser.aud
-        });
-      }
+      // Token verified successfully (silent in production)
     } catch (axiosError) {
       console.error('Error verifying Google token:', axiosError.message);
       if (axiosError.response) {
@@ -188,11 +200,7 @@ export async function loginWithGoogle(req, res) {
         `;
         const insertResult = await pool.query(insertQuery, [name, email, userRole]);
         user = insertResult.rows[0];
-        console.log('New user created via Google login:', {
-          email: user.email,
-          role: user.role,
-          name: user.name
-        });
+        // New user created successfully
       } catch (insertError) {
         console.error('Database error when creating user:', insertError);
         return res.status(500).json({ 
@@ -204,15 +212,7 @@ export async function loginWithGoogle(req, res) {
       // User already exists - use their existing role (for security, don't allow role changes via Google sign-in)
       user = userQuery.rows[0];
       
-      // Log if user tried to sign in with a different role
-      if (process.env.NODE_ENV === 'development' && user.role !== userRole) {
-        console.log('User signed in with Google but has different existing role:', {
-          email: user.email,
-          existingRole: user.role,
-          requestedRole: userRole,
-          usingExistingRole: true
-        });
-      }
+      // User's existing role is preserved (security measure)
       
       // Update user name if it's different (in case user changed name in Google)
       if (user.name !== name) {
@@ -225,14 +225,7 @@ export async function loginWithGoogle(req, res) {
         }
       }
       
-      // Log for debugging
-      if (process.env.NODE_ENV === 'development') {
-        console.log('Existing user signed in with Google:', {
-          email: user.email,
-          role: user.role,
-          name: user.name
-        });
-      }
+      // Existing user signed in successfully
     }
 
     // Generate JWT token
