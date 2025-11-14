@@ -11,7 +11,8 @@ export interface User {
 
 interface AuthContextValue {
   user: User | null
-  login: (email: string, password: string) => Promise<User>
+  login: (email: string, password: string, role?: 'student' | 'teacher' | 'ta' | 'admin') => Promise<User>
+  loginWithGoogle: (credential: string, role?: 'student' | 'teacher' | 'ta' | 'admin') => Promise<User>
   logout: () => void
 }
 
@@ -34,9 +35,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   })
 
-  const login: AuthContextValue['login'] = async (email, password) => {
+  const login: AuthContextValue['login'] = async (email, password, role = 'student') => {
     const { loginRequest } = await import('../services/auth')
-    const res = await loginRequest(email, password)
+    const res = await loginRequest(email, password, role)
     
     // Handle case where user object might not be in response
     if (!res.user) {
@@ -60,13 +61,39 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return u
   }
 
+  const loginWithGoogle: AuthContextValue['loginWithGoogle'] = async (credential, role = 'student') => {
+    const { loginWithGoogle: googleLogin } = await import('../services/auth')
+    const res = await googleLogin(credential, role)
+    
+    // Handle case where user object might not be in response
+    if (!res.user) {
+      throw new Error('Invalid Google login response: user data missing')
+    }
+    
+    // Map role if provided, otherwise default to 'student'
+    const backendRole = res.user.role || 'student'
+    const mappedRole = mapBackendRole(backendRole)
+    
+    const u: User = { 
+      id: String(res.user.id || ''), 
+      name: res.user.name || 'User', 
+      email: res.user.email || '', 
+      role: mappedRole 
+    }
+    
+    localStorage.setItem('auth:token', res.token)
+    localStorage.setItem('auth:user', JSON.stringify(u))
+    setUser(u)
+    return u
+  }
+
   const logout = () => {
     setUser(null)
     localStorage.removeItem('auth:user')
     localStorage.removeItem('auth:token')
   }
 
-  const value = useMemo(() => ({ user, login, logout }), [user])
+  const value = useMemo(() => ({ user, login, loginWithGoogle, logout }), [user])
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
 }
