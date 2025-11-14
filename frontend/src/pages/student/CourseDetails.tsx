@@ -293,13 +293,13 @@ export default function CourseDetails() {
 
   // Sidebar tabs configuration
   const sidebarTabs = useMemo((): TabItem[] => {
-    // Count unviewed unsubmitted assignments
-    const unviewedAssignments = assignmentsOnly.filter((a: any) => !a.isSubmitted && !viewedAssignments.has(String(a.id)))
-    const assignmentCount = unviewedAssignments.length > 0 ? unviewedAssignments.length : undefined
+    // Count ALL unsubmitted assignments (not just unviewed)
+    const unsubmittedAssignments = assignmentsOnly.filter((a: any) => !a.isSubmitted)
+    const assignmentCount = unsubmittedAssignments.length > 0 ? unsubmittedAssignments.length : undefined
 
-    // Count unviewed unattempted quizzes
-    const unviewedQuizzes = quizzesOnly.filter((a: any) => !a.isSubmitted && !viewedQuizzes.has(String(a.id)))
-    const quizCount = unviewedQuizzes.length > 0 ? unviewedQuizzes.length : undefined
+    // Count ALL unattempted quizzes (not just unviewed)
+    const unattemptedQuizzes = quizzesOnly.filter((a: any) => !a.isSubmitted)
+    const quizCount = unattemptedQuizzes.length > 0 ? unattemptedQuizzes.length : undefined
 
     // Count unread discussion messages
     const unreadCount = discussionMessages.filter(msg => !readMessageIds.has(msg.id)).length

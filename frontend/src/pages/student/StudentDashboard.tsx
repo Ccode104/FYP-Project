@@ -68,89 +68,143 @@ export default function StudentDashboard() {
   const [err, setErr] = useState<string | null>(null)
   const [courseCounts, setCourseCounts] = useState<Record<number, { pendingAssignments: number; pendingQuizzes: number; unreadNotifications: number }>>({})
 
+  // Function to refresh counts
+  const refreshCourseCounts = async (list?: any[]) => {
+    const courseList = list || offerings
+    if (user?.role === 'student' && courseList.length > 0) {
+      const counts: Record<number, any> = {}
+      await Promise.all(
+        courseList.map(async (offering: any) => {
+          try {
+            const { apiFetch } = await import('../../services/api')
+            const { listDiscussionMessages } = await import('../../services/discussion')
+            const quizzesMod = await import('../../services/quizzes')
+
+            // Fetch assignments and submissions
+            const [assignments, quizzes, submissions, discussions] = await Promise.all([
+              apiFetch<any[]>(`/api/courses/${offering.id}/assignments`).catch(() => []),
+              quizzesMod.listCourseQuizzes(Number(offering.id)).catch((e) => { console.error(`Failed to fetch quizzes for ${offering.id}:`, e); return [] }),
+              apiFetch<any[]>(`/api/student/courses/${offering.id}/submissions`).catch(() => []),
+              listDiscussionMessages(String(offering.id)).catch(() => [])
+            ])
+
+            // Get submitted assignment IDs
+            const submittedIds = new Set(submissions.map((s: any) => String(s.assignment_id)))
+
+            // Store current assignment IDs for tracking
+            const currentAssignmentIds = assignments.map((a: any) => String(a.id))
+            try {
+              localStorage.setItem(`knownAssignmentIds:${offering.id}`, JSON.stringify(currentAssignmentIds))
+            } catch (e) {
+              console.error('Failed to save known assignment IDs:', e)
+            }
+
+            // Count ALL unsubmitted assignments (not just new ones)
+            const pendingAssignments = assignments.filter((a: any) => {
+              const assignmentId = String(a.id)
+              // Count if: not submitted AND is a valid assignment type
+              const notSubmitted = !submittedIds.has(assignmentId)
+              const isAssignmentType = ['code', 'file', 'pdf'].includes(a.assignment_type)
+              
+              return notSubmitted && isAssignmentType
+            }).length
+
+            console.log(`Course ${offering.id} assignments:`, {
+              total: assignments.length,
+              submitted: submittedIds.size,
+              pendingCount: pendingAssignments,
+              assignmentDetails: assignments.map(a => ({ 
+                id: a.id, 
+                type: a.assignment_type, 
+                title: a.title,
+                isSubmitted: submittedIds.has(String(a.id))
+              }))
+            })
+
+            // Count ALL unattempted quizzes (not just new ones)
+            let pendingQuizzes = 0
+            // Store current quiz IDs for tracking
+            const currentQuizIds = quizzes.map((q: any) => String(q.id))
+            try {
+              localStorage.setItem(`knownQuizIds:${offering.id}`, JSON.stringify(currentQuizIds))
+            } catch (e) {
+              console.error('Failed to save known quiz IDs:', e)
+            }
+
+            if (user?.id) {
+              try {
+                const quizzesMod = await import('../../services/quizzes')
+                const allAttempts = await quizzesMod.getQuizAttempts(Number(user.id))
+                const attemptedQuizIds = new Set(allAttempts.map((a: any) => String(a.quiz_id)))
+
+                // Count ALL unattempted quizzes, not just new ones
+                pendingQuizzes = quizzes.filter((q: any) => {
+                  const quizId = String(q.id)
+                  // Count if: not attempted
+                  const notAttempted = !attemptedQuizIds.has(quizId)
+                  return notAttempted
+                }).length
+                
+                console.log(`Course ${offering.id} quizzes:`, {
+                  total: quizzes.length,
+                  attempted: attemptedQuizIds.size,
+                  pendingCount: pendingQuizzes
+                })
+              } catch (e) {
+                console.error(`Failed to get quiz attempts for offering ${offering.id}:`, e)
+                // If we can't get attempts, count all quizzes as pending
+                pendingQuizzes = quizzes.length
+              }
+            } else {
+              // If no user ID, count all quizzes as pending
+              pendingQuizzes = quizzes.length
+            }
+
+            // Count ALL unread discussions (not just new ones)
+            // Store current discussion IDs for tracking
+            const currentDiscussionIds = discussions.map((d: any) => String(d.id))
+            try {
+              localStorage.setItem(`knownDiscussionIds:${offering.id}`, JSON.stringify(currentDiscussionIds))
+            } catch (e) {
+              console.error('Failed to save known discussion IDs:', e)
+            }
+
+            const readMessages = new Set(JSON.parse(localStorage.getItem(`readMessages:${offering.id}`) || '[]'))
+            // Count ALL unread discussions, not just new ones
+            const unreadDiscussions = discussions.filter((d: any) => {
+              const discussionId = String(d.id)
+              // Count if: not read
+              const notRead = !readMessages.has(discussionId)
+              return notRead
+            }).length
+
+            console.log(`Course ${offering.id} discussions:`, {
+              total: discussions.length,
+              read: readMessages.size,
+              unreadCount: unreadDiscussions
+            })
+
+            counts[offering.id] = {
+              pendingAssignments,
+              pendingQuizzes,
+              unreadNotifications: unreadDiscussions
+            }
+          } catch (e) {
+            console.error(`Failed to fetch counts for offering ${offering.id}:`, e)
+            counts[offering.id] = { pendingAssignments: 0, pendingQuizzes: 0, unreadNotifications: 0 }
+          }
+        })
+      )
+      setCourseCounts(counts)
+    }
+  }
+
   useEffect(() => {
     (async () => {
       try {
         const list = await getEnrolledCourses()
         setOfferings(list)
-
-        // Fetch counts for each course
-        if (user?.role === 'student') {
-          const counts: Record<number, any> = {}
-          await Promise.all(
-            list.map(async (offering: any) => {
-              try {
-                const { apiFetch } = await import('../../services/api')
-                const { listDiscussionMessages } = await import('../../services/discussion')
-                const quizzesMod = await import('../../services/quizzes')
-
-                // Fetch assignments and submissions
-                const [assignments, quizzes, submissions, discussions] = await Promise.all([
-                  apiFetch<any[]>(`/api/courses/${offering.id}/assignments`).catch(() => []),
-                  quizzesMod.listCourseQuizzes(Number(offering.id)).catch((e) => { console.error(`Failed to fetch quizzes for ${offering.id}:`, e); return [] }),
-                  apiFetch<any[]>(`/api/student/courses/${offering.id}/submissions`).catch(() => []),
-                  listDiscussionMessages(String(offering.id)).catch(() => [])
-                ])
-
-                console.log(`Course ${offering.id} data:`, {
-                  assignments: assignments.length,
-                  quizzes: quizzes.length,
-                  submissions: submissions.length,
-                  quizData: quizzes.map(q => ({ id: q.id, title: q.title }))
-                })
-
-                // Get submitted assignment IDs
-                const submittedIds = new Set(submissions.map((s: any) => String(s.assignment_id)))
-
-                // Get viewed assignments from localStorage
-                const viewedAssignments = new Set(JSON.parse(localStorage.getItem(`viewedAssignments:${offering.id}`) || '[]'))
-
-                // Count unviewed unsubmitted assignments
-                const pendingAssignments = assignments.filter((a: any) =>
-                  !submittedIds.has(String(a.id)) && !viewedAssignments.has(String(a.id))
-                ).length
-
-                // Count unviewed unattempted quizzes
-                let pendingQuizzes = 0
-                if (user?.id) {
-                  try {
-                    const quizzesMod = await import('../../services/quizzes')
-                    const allAttempts = await quizzesMod.getQuizAttempts(Number(user.id))
-                    const attemptedQuizIds = new Set(allAttempts.map((a: any) => String(a.quiz_id)))
-
-                    // Get viewed quizzes from localStorage
-                    const viewedQuizzes = new Set(JSON.parse(localStorage.getItem(`viewedQuizzes:${offering.id}`) || '[]'))
-
-                    pendingQuizzes = quizzes.filter((q: any) =>
-                      !attemptedQuizIds.has(String(q.id)) && !viewedQuizzes.has(String(q.id))
-                    ).length
-                    console.log(`Course ${offering.id}: Total quizzes=${quizzes.length}, Attempted=${attemptedQuizIds.size}, Viewed=${viewedQuizzes.size}, Pending=${pendingQuizzes}`)
-                  } catch (e) {
-                    console.error(`Failed to get quiz attempts for offering ${offering.id}:`, e)
-                    pendingQuizzes = quizzes.length
-                  }
-                } else {
-                  pendingQuizzes = quizzes.length
-                }
-
-                // Count unread discussions
-                const readMessages = JSON.parse(localStorage.getItem(`readMessages:${offering.id}`) || '[]')
-                const readSet = new Set(readMessages)
-                const unreadDiscussions = discussions.filter((d: any) => !readSet.has(d.id)).length
-
-                counts[offering.id] = {
-                  pendingAssignments,
-                  pendingQuizzes,
-                  unreadNotifications: pendingAssignments + pendingQuizzes + unreadDiscussions
-                }
-              } catch (e) {
-                console.error(`Failed to fetch counts for offering ${offering.id}:`, e)
-                counts[offering.id] = { pendingAssignments: 0, pendingQuizzes: 0, unreadNotifications: 0 }
-              }
-            })
-          )
-          setCourseCounts(counts)
-        }
+        await refreshCourseCounts(list)
       } catch (e: any) {
         setErr(e?.message || 'Failed to load courses')
       } finally {
@@ -158,6 +212,21 @@ export default function StudentDashboard() {
       }
     })()
   }, [user?.role])
+
+  // Listen for visibility changes to refresh counts when returning to this tab
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        console.log('Page became visible, refreshing course counts...')
+        void refreshCourseCounts()
+      }
+    }
+
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
+    }
+  }, [offerings, user])
 
   const goToOffering = (id: number | string) => navigate(`/courses/${id}`)
 
