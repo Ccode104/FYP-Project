@@ -1,7 +1,8 @@
-import { useParams, useNavigate, useLocation } from 'react-router-dom'
+import { useParams, useNavigate } from 'react-router-dom'
 import { useEffect, useMemo, useState, useRef } from 'react'
 import { courses } from '../../data/mock'
 import { useAuth } from '../../context/AuthContext'
+import { useCourse } from '../../context/CourseContext'
 import { getUserCourses } from '../../data/userCourses'
 import { addCustomAssignment } from '../../data/courseOverlays'
 import { addSubmission } from '../../data/submissions'
@@ -29,6 +30,7 @@ import DiscussionForum from '../../components/course/DiscussionForum'
 import PresentAssignmentsSection from '../../components/course/PresentAssignmentsSection'
 import TeacherAssignments from '../../components/course/TeacherAssignments'
 import { listDiscussionMessages, postDiscussionMessage, type DiscussionMessage } from '../../services/discussion'
+import CourseSidebar, { type TabItem } from '../../components/course/CourseSidebar'
 
 // Add CodeQuestion type for frontend usage
 interface CodeQuestion {
@@ -62,10 +64,9 @@ function saveLocalCodeQuestions(courseId: string, items: CodeQuestion[]) {
 
 export default function CourseDetails() {
   const { courseId } = useParams()
-  const navLocation = useLocation()
   const { user, logout } = useAuth()
   const navigate = useNavigate()
-  const passedCourseTitle = (navLocation.state as any)?.courseTitle
+  const { setCourseTitle } = useCourse()
   const [tab, setTab] = useState<'assignment' | 'present' | 'past' | 'pyq' | 'notes' | 'quizzes' | 'quizzes_submitted' | 'manage' | 'submissions' | 'grading' | 'progress' | 'discussion' | 'chatbot' | 'pdfchat' | 'videos'>('present')
   const [backendVideos, setBackendVideos] = useState<any[]>([])
   const [selectedVideo, setSelectedVideo] = useState<any | null>(null)
@@ -95,30 +96,50 @@ export default function CourseDetails() {
   const [selectedAssignmentId, setSelectedAssignmentId] = useState<string>('')
   const [discussionMessages, setDiscussionMessages] = useState<DiscussionMessage[]>([])
   const [discussionLoading, setDiscussionLoading] = useState(false)
-  const [offeringDetails, setOfferingDetails] = useState<any>(() => {
-    if (passedCourseTitle) {
-      return { course_title: passedCourseTitle, course_code: '' }
-    }
-    return null
-  })
   const [newPostContent, setNewPostContent] = useState('')
   const [replyingTo, setReplyingTo] = useState<number | null>(null)
   const [replyContent, setReplyContent] = useState('')
+  const [offeringDetails, setOfferingDetails] = useState<any>(null)
+  const [sidebarOpen, setSidebarOpen] = useState(true)
+  const [readMessageIds, setReadMessageIds] = useState<Set<number>>(() => {
+    try {
+      const stored = localStorage.getItem(`readMessages:${courseId}`)
+      return stored ? new Set(JSON.parse(stored)) : new Set()
+    } catch {
+      return new Set()
+    }
+  })
+
+  const [viewedAssignments, setViewedAssignments] = useState<Set<string>>(() => {
+    try {
+      const stored = localStorage.getItem(`viewedAssignments:${courseId}`)
+      return stored ? new Set(JSON.parse(stored)) : new Set()
+    } catch {
+      return new Set()
+    }
+  })
+
+  const [viewedQuizzes, setViewedQuizzes] = useState<Set<string>>(() => {
+    try {
+      const stored = localStorage.getItem(`viewedQuizzes:${courseId}`)
+      return stored ? new Set(JSON.parse(stored)) : new Set()
+    } catch {
+      return new Set()
+    }
+  })
 
   const course = useMemo(() => {
     if (!courseId) return undefined
     if (/^\d+$/.test(courseId)) {
-      // backend mode uses offeringId; get course title from offeringDetails if available
-      const title = offeringDetails?.course_title || `Offering #${courseId}`
-      const description = offeringDetails?.course_code || 'Backend course offering'
-      return { id: courseId, title, description, assignmentsPast: [], assignmentsPresent: [], pyq: [], notes: [] }
+      // backend mode uses offeringId; we won't have local course meta
+      return { id: courseId, title: `Offering #${courseId}`, description: 'Backend course offering', assignmentsPast: [], assignmentsPresent: [], pyq: [], notes: [] }
     }
     const fromDefault = courses.find((c) => c.id === courseId)
     if (fromDefault) return fromDefault
     if (!user) return undefined
     const mine = getUserCourses(user.id)
     return mine.find((c) => c.id === courseId)
-  }, [courseId, user, offeringDetails, passedCourseTitle])
+  }, [courseId, user])
 
   // Compute present assignments (not past due date)
   const allPresentAssignments = useMemo(() => {
@@ -257,7 +278,71 @@ export default function CourseDetails() {
       total: result.length
     })
     return result
-  }, [allPresentAssignments, mySubmissions, myQuizAttempts, backendQuizzes, user?.role, isBackend, backendAssignments, course])
+  }, [allPresentAssignments, mySubmissions, myQuizAttempts, backendQuizzes, user?.role, isBackend, backendAssignments])
+
+  // Filter assignments and quizzes separately
+  const assignmentsOnly = useMemo(() =>
+    presentAssignments.filter((a: any) => !a.is_quiz),
+    [presentAssignments]
+  )
+
+  const quizzesOnly = useMemo(() =>
+    presentAssignments.filter((a: any) => a.is_quiz),
+    [presentAssignments]
+  )
+
+  // Sidebar tabs configuration
+  const sidebarTabs = useMemo((): TabItem[] => {
+    // Count unviewed unsubmitted assignments
+    const unviewedAssignments = assignmentsOnly.filter((a: any) => !a.isSubmitted && !viewedAssignments.has(String(a.id)))
+    const assignmentCount = unviewedAssignments.length > 0 ? unviewedAssignments.length : undefined
+
+    // Count unviewed unattempted quizzes
+    const unviewedQuizzes = quizzesOnly.filter((a: any) => !a.isSubmitted && !viewedQuizzes.has(String(a.id)))
+    const quizCount = unviewedQuizzes.length > 0 ? unviewedQuizzes.length : undefined
+
+    // Count unread discussion messages
+    const unreadCount = discussionMessages.filter(msg => !readMessageIds.has(msg.id)).length
+    const discussionCount = unreadCount > 0 ? unreadCount : undefined
+
+    const studentTabs: TabItem[] = [
+      { id: 'present', label: 'Assignments', icon: '📋', tooltip: 'View current assignments', badge: assignmentCount },
+      { id: 'quizzes', label: 'Quizzes', icon: '📝', tooltip: 'Available quizzes', badge: quizCount },
+      { id: 'past', label: 'Past', icon: '🕒', tooltip: 'View past assignments' },
+      { id: 'notes', label: 'Notes', icon: '📖', tooltip: 'Course notes and materials' },
+      { id: 'pyq', label: 'Previous Papers', icon: '📄', tooltip: 'Previous year questions' },
+      //{ id: 'quizzes_submitted', label: 'My Results', icon: '✅', tooltip: 'View quiz results' },
+      { id: 'progress', label: 'Progress', icon: '📊', tooltip: 'Track your progress' },
+      { id: 'videos', label: 'Videos', icon: '🎥', tooltip: 'Course video lectures' },
+      { id: 'discussion', label: 'Discussion', icon: '💬', tooltip: 'Discussion forum', badge: discussionCount },
+      { id: 'chatbot', label: 'AI Assistant', icon: '🤖', tooltip: 'AI-powered help' },
+      { id: 'pdfchat', label: 'PDF Q&A', icon: '📚', tooltip: 'Ask questions about PDFs' },
+    ]
+
+    const teacherTabs: TabItem[] = [
+      { id: 'present', label: 'Assignments', icon: '📋', tooltip: 'View all assignments' },
+      { id: 'quizzes', label: 'Quizzes', icon: '📝', tooltip: 'Manage quizzes' },
+      { id: 'manage', label: 'Create', icon: '➕', tooltip: 'Create new assignments' },
+      { id: 'submissions', label: 'Submissions', icon: '📥', tooltip: 'View student submissions' },
+      //{ id: 'progress', label: 'Progress', icon: '📊', tooltip: 'Student progress overview' },
+      { id: 'videos', label: 'Videos', icon: '🎥', tooltip: 'Manage video lectures' },
+      { id: 'notes', label: 'Notes', icon: '📖', tooltip: 'Course notes' },
+      { id: 'pyq', label: 'Previous Papers', icon: '📄', tooltip: 'Previous questions' },
+      { id: 'discussion', label: 'Discussion', icon: '💬', tooltip: 'Discussion forum', badge: discussionCount },
+    ]
+
+    const taTabs: TabItem[] = [
+      { id: 'present', label: 'Assignments', icon: '📋', tooltip: 'View assignments' },
+      { id: 'quizzes', label: 'Quizzes', icon: '📝', tooltip: 'View quizzes' },
+      { id: 'grading', label: 'Grading', icon: '✏️', tooltip: 'Grade submissions' },
+      { id: 'progress', label: 'Progress', icon: '📊', tooltip: 'Student progress' },
+      { id: 'discussion', label: 'Discussion', icon: '💬', tooltip: 'Discussion forum', badge: discussionCount },
+    ]
+
+    if (user?.role === 'teacher') return teacherTabs
+    if (user?.role === 'ta') return taTabs
+    return studentTabs
+  }, [user?.role, assignmentsOnly, quizzesOnly, discussionMessages, readMessageIds, viewedAssignments, viewedQuizzes])
 
   const [file, setFile] = useState<File | null>(null)
   const [linkUrl, setLinkUrl] = useState('')
@@ -291,6 +376,18 @@ export default function CourseDetails() {
   const [savedQuestions, setSavedQuestions] = useState<Record<string, boolean>>({}) // Track which questions have been saved
   const [isSavingCode, setIsSavingCode] = useState<Record<string, boolean>>({}) // Track saving state per question
   const [tabInternal, setTabInternal] = useState<string>('')
+
+  // Set course title in navbar and clear it on unmount
+  useEffect(() => {
+    const title = isBackend && offeringDetails
+      ? `${offeringDetails.course_code || ''} - ${offeringDetails.title || `Offering #${courseId}`}`
+      : course?.title || 'Course'
+    setCourseTitle(title)
+
+    return () => {
+      setCourseTitle(null)
+    }
+  }, [isBackend, offeringDetails, course, courseId, setCourseTitle])
 
   // Load code questions from backend or local storage
   useEffect(() => {
@@ -751,22 +848,16 @@ export default function CourseDetails() {
         try {
           const offering = await apiFetch<any>(`/api/student/courses/${courseId}`)
           console.log('Loaded offering details:', offering)
-          if (!cancelled) {
-            // Merge with existing details, but preserve passed title if it exists
-            setOfferingDetails((prev: any) => ({
-              ...offering,
-              course_title: passedCourseTitle || offering.course_title
-            }))
-          }
+          if (!cancelled) setOfferingDetails(offering)
         } catch (err) {
           console.error('Failed to load offering details:', err)
         }
-        try { 
+        try {
           console.log('Loading assignments...')
           const data = await apiFetch<any[]>(`/api/courses/${courseId}/assignments`)
           console.log('Loaded assignments:', data)
           console.log('Assignment types:', data?.map(a => ({ id: a.id, title: a.title, type: a.assignment_type })))
-          if (!cancelled) setBackendAssignments(data) 
+          if (!cancelled) setBackendAssignments(data)
         } catch { }
         try { const pyq = await apiFetch<any[]>(`/api/courses/${courseId}/pyqs`); if (!cancelled) setBackendPYQ(pyq) } catch { }
         try { const notes = await apiFetch<any[]>(`/api/courses/${courseId}/notes`); if (!cancelled) setBackendNotes(notes) } catch { }
@@ -829,6 +920,80 @@ export default function CourseDetails() {
         })
     }
   }, [tab, isBackend, courseId])
+
+  // Mark all current discussion messages as read when viewing the discussion tab
+  useEffect(() => {
+    if (tab === 'discussion' && discussionMessages.length > 0 && courseId) {
+      const newReadIds = new Set(readMessageIds)
+      let hasChanges = false
+
+      discussionMessages.forEach(msg => {
+        if (!newReadIds.has(msg.id)) {
+          newReadIds.add(msg.id)
+          hasChanges = true
+        }
+      })
+
+      if (hasChanges) {
+        setReadMessageIds(newReadIds)
+        try {
+          localStorage.setItem(`readMessages:${courseId}`, JSON.stringify(Array.from(newReadIds)))
+        } catch (e) {
+          console.error('Failed to save read messages:', e)
+        }
+      }
+    }
+  }, [tab, discussionMessages, courseId, readMessageIds])
+
+  // Mark assignments as viewed when viewing the present tab
+  useEffect(() => {
+    if (tab === 'present' && assignmentsOnly.length > 0 && courseId) {
+      const newViewedIds = new Set(viewedAssignments)
+      let hasChanges = false
+
+      assignmentsOnly.forEach(assignment => {
+        const assignmentId = String(assignment.id)
+        if (!newViewedIds.has(assignmentId)) {
+          newViewedIds.add(assignmentId)
+          hasChanges = true
+        }
+      })
+
+      if (hasChanges) {
+        setViewedAssignments(newViewedIds)
+        try {
+          localStorage.setItem(`viewedAssignments:${courseId}`, JSON.stringify(Array.from(newViewedIds)))
+        } catch (e) {
+          console.error('Failed to save viewed assignments:', e)
+        }
+      }
+    }
+  }, [tab, assignmentsOnly, courseId, viewedAssignments])
+
+  // Mark quizzes as viewed when viewing the quizzes tab
+  useEffect(() => {
+    if (tab === 'quizzes' && quizzesOnly.length > 0 && courseId) {
+      const newViewedIds = new Set(viewedQuizzes)
+      let hasChanges = false
+
+      quizzesOnly.forEach(quiz => {
+        const quizId = String(quiz.id)
+        if (!newViewedIds.has(quizId)) {
+          newViewedIds.add(quizId)
+          hasChanges = true
+        }
+      })
+
+      if (hasChanges) {
+        setViewedQuizzes(newViewedIds)
+        try {
+          localStorage.setItem(`viewedQuizzes:${courseId}`, JSON.stringify(Array.from(newViewedIds)))
+        } catch (e) {
+          console.error('Failed to save viewed quizzes:', e)
+        }
+      }
+    }
+  }, [tab, quizzesOnly, courseId, viewedQuizzes])
 
   // Load videos when the Videos tab is activated (backend mode)
   useEffect(() => {
@@ -940,27 +1105,19 @@ export default function CourseDetails() {
 
   return (
     <>
+      {/* Sidebar Navigation */}
+      <CourseSidebar
+        tabs={sidebarTabs}
+        activeTab={tab}
+        onTabChange={(tabId) => setTab(tabId as any)}
+        userRole={user?.role}
+        onSidebarToggle={(isOpen) => setSidebarOpen(isOpen)}
+      />
 
-      <div className="course-details-page">
+      <div className={`course-details-page course-content ${!sidebarOpen ? 'sidebar-closed' : ''}`}>
         <div className="container">
-          <header className="course-header">
-            <div className="course-header-content">
-              <button className="back-button" onClick={() => navigate(-1)} aria-label="Go back">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <path d="M19 12H5M12 19l-7-7 7-7"/>
-                </svg>
-              </button>
-              <div className="course-title-section">
-                <h1 className="course-title">{course?.title || 'Course'}</h1>
-                <p className="course-role">{user?.role.toUpperCase()} Dashboard</p>
-              </div>
-            </div>
-            <div className="course-header-actions">
-              
-            </div>
-          </header>
-
-          <nav className="tabs-modern">
+          {/* Old tabs hidden - keeping for reference but no longer displayed */}
+          <nav className="tabs-modern" style={{ display: 'none' }}>
             <div className="tabs-container">
               {user?.role === 'student' ? (
                 <>
@@ -1066,7 +1223,7 @@ export default function CourseDetails() {
           {tab === 'present' && (
             <PresentAssignmentsSection
               userRole={user?.role}
-              presentAssignments={presentAssignments as any[]}
+              presentAssignments={assignmentsOnly as any[]}
               isBackend={isBackend}
               onTeacherDelete={async (id: number) => {
                 try {
@@ -1080,7 +1237,7 @@ export default function CourseDetails() {
                 }
               }}
               onStudentClickSubmitPDF={(id: string) => setSelectedAssignmentId(id)}
-              onAttemptQuiz={(quizId: any) => { window.location.assign(`/quizzes/${quizId}`) }}
+              onAttemptQuiz={(quizId: any) => { location.assign(`/quizzes/${quizId}`) }}
               onStartCodeAttempt={(assignment: any) => { void startCodeAttempt(assignment) }}
               selectedAssignmentId={selectedAssignmentId}
               onChangeSelectedAssignmentId={(v: string) => setSelectedAssignmentId(v)}
@@ -1116,14 +1273,14 @@ export default function CourseDetails() {
                   push({ kind: 'error', message: 'Please select a code assignment' })
                   return
                 }
-                
+
                 // Find and load the selected assignment
                 const assignment = presentAssignments.find((a: any) => String(a.id) === codeAssignmentId)
                 if (!assignment) {
                   push({ kind: 'error', message: 'Assignment not found' })
                   return
                 }
-                
+
                 // Load assignment with questions if backend mode
                 if (isBackend) {
                   try {
@@ -1143,6 +1300,61 @@ export default function CourseDetails() {
                 }
               }}
             />
+          )}
+
+          {tab === 'quizzes' && (
+            <section className="card">
+              <h3>Available Quizzes</h3>
+              {quizzesOnly.length === 0 ? (
+                <p className="muted">No quizzes available at the moment.</p>
+              ) : (
+                <ul className="list">
+                  {quizzesOnly.map((quiz: any) => (
+                    <li key={quiz.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px', borderRadius: '6px', background: 'var(--bg-secondary)', marginBottom: '8px' }}>
+                      <div>
+                        <strong>{quiz.title}</strong>
+                        {quiz.due_at && (
+                          <div className="muted" style={{ fontSize: '13px', marginTop: '4px' }}>
+                            Due: {new Date(quiz.due_at).toLocaleString()}
+                          </div>
+                        )}
+                        {quiz.isSubmitted && (
+                          <span style={{
+                            display: 'inline-block',
+                            marginTop: '4px',
+                            padding: '2px 8px',
+                            borderRadius: '4px',
+                            fontSize: '12px',
+                            background: 'var(--secondary)',
+                            color: 'white'
+                          }}>
+                            ✓ Submitted
+                          </span>
+                        )}
+                      </div>
+                      <div style={{ display: 'flex', gap: '8px' }}>
+                        {!quiz.isSubmitted && (
+                          <button
+                            className="btn btn-primary"
+                            onClick={() => location.assign(`/quizzes/${quiz.quiz_id}`)}
+                          >
+                            Start Quiz
+                          </button>
+                        )}
+                        {quiz.isSubmitted && (
+                          <button
+                            className="btn"
+                            onClick={() => setTab('quizzes_submitted')}
+                          >
+                            View Results
+                          </button>
+                        )}
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </section>
           )}
 
           {tab === 'past' && (
@@ -1216,20 +1428,20 @@ export default function CourseDetails() {
                       <h4 style={{ marginTop: 0 }}>Assignment Details</h4>
                       <div style={{ marginBottom: 16 }}>
                         <div style={{ display: 'block', marginBottom: 6, fontWeight: 500 }}>Title *</div>
-                        <input 
-                          className="input" 
+                        <input
+                          className="input"
                           style={{ display: 'block', width: '100%', boxSizing: 'border-box' }}
-                          value={newAssnTitle} 
-                          onChange={(e) => setNewAssnTitle(e.target.value)} 
+                          value={newAssnTitle}
+                          onChange={(e) => setNewAssnTitle(e.target.value)}
                           placeholder="e.g., Research Paper - Topic Analysis"
                         />
                       </div>
                       <div style={{ marginBottom: 16 }}>
                         <div style={{ display: 'block', marginBottom: 6, fontWeight: 500 }}>Description</div>
-                        <textarea 
-                          className="input" 
+                        <textarea
+                          className="input"
                           style={{ display: 'block', width: '100%', boxSizing: 'border-box', minHeight: 72 }}
-                          value={newAssnDesc} 
+                          value={newAssnDesc}
                           onChange={(e) => setNewAssnDesc(e.target.value)}
                           placeholder="Optional assignment instructions..."
                           rows={3}
@@ -1238,31 +1450,31 @@ export default function CourseDetails() {
                       <div className="grid" style={{ gridTemplateColumns: '1fr 1fr', gap: 8 }}>
                         <div style={{ marginBottom: 16 }}>
                           <div style={{ display: 'block', marginBottom: 6, fontWeight: 500 }}>Release Time</div>
-                          <input 
-                            className="input" 
+                          <input
+                            className="input"
                             style={{ display: 'block', width: '100%', boxSizing: 'border-box' }}
-                            value={newAssnRelease} 
-                            onChange={(e) => setNewAssnRelease(e.target.value)} 
+                            value={newAssnRelease}
+                            onChange={(e) => setNewAssnRelease(e.target.value)}
                           />
                         </div>
                         <div style={{ marginBottom: 16 }}>
                           <div style={{ display: 'block', marginBottom: 6, fontWeight: 500 }}>Due Time</div>
-                          <input 
-                            className="input" 
+                          <input
+                            className="input"
                             style={{ display: 'block', width: '100%', boxSizing: 'border-box' }}
-                            value={newAssnDue} 
-                            onChange={(e) => setNewAssnDue(e.target.value)} 
+                            value={newAssnDue}
+                            onChange={(e) => setNewAssnDue(e.target.value)}
                           />
                         </div>
                       </div>
                       <div className="grid" style={{ gridTemplateColumns: '1fr 1fr', gap: 8 }}>
                         <div style={{ marginBottom: 16 }}>
                           <div style={{ display: 'block', marginBottom: 6, fontWeight: 500 }}>Max Score</div>
-                          <input 
-                            className="input" 
+                          <input
+                            className="input"
                             style={{ display: 'block', width: '100%', boxSizing: 'border-box' }}
                             type="number"
-                            value={newAssnMax} 
+                            value={newAssnMax}
                             onChange={(e) => setNewAssnMax(e.target.value)}
                             placeholder="100"
                           />
@@ -1270,10 +1482,10 @@ export default function CourseDetails() {
                         <div style={{ marginBottom: 16 }}>
                           <div style={{ display: 'block', marginBottom: 6, fontWeight: 500 }}>Allow Multiple Submissions</div>
                           <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
-                            <input 
-                              type="checkbox" 
-                              checked={newAssnMulti} 
-                              onChange={(e) => setNewAssnMulti(e.target.checked)} 
+                            <input
+                              type="checkbox"
+                              checked={newAssnMulti}
+                              onChange={(e) => setNewAssnMulti(e.target.checked)}
                             />
                             <span>{newAssnMulti ? 'Yes' : 'No'}</span>
                           </label>
@@ -1300,20 +1512,20 @@ export default function CourseDetails() {
                           <h4 style={{ marginTop: 0 }}>Assignment Details</h4>
                           <div style={{ marginBottom: 16 }}>
                             <div style={{ display: 'block', marginBottom: 6, fontWeight: 500 }}>Title *</div>
-                            <input 
-                              className="input" 
+                            <input
+                              className="input"
                               style={{ display: 'block', width: '100%', boxSizing: 'border-box' }}
-                              value={newAssnTitle} 
+                              value={newAssnTitle}
                               onChange={(e) => setNewAssnTitle(e.target.value)}
                               placeholder="e.g., Data Structures Lab - Week 5"
                             />
                           </div>
                           <div style={{ marginBottom: 16 }}>
                             <div style={{ display: 'block', marginBottom: 6, fontWeight: 500 }}>Description</div>
-                            <textarea 
-                              className="input" 
+                            <textarea
+                              className="input"
                               style={{ display: 'block', width: '100%', boxSizing: 'border-box', minHeight: 72 }}
-                              value={newAssnDesc} 
+                              value={newAssnDesc}
                               onChange={(e) => setNewAssnDesc(e.target.value)}
                               placeholder="Optional assignment instructions..."
                               rows={3}
@@ -1322,31 +1534,31 @@ export default function CourseDetails() {
                           <div className="grid" style={{ gridTemplateColumns: '1fr 1fr', gap: 8 }}>
                             <div style={{ marginBottom: 16 }}>
                               <div style={{ display: 'block', marginBottom: 6, fontWeight: 500 }}>Release Time</div>
-                              <input 
-                                className="input" 
+                              <input
+                                className="input"
                                 style={{ display: 'block', width: '100%', boxSizing: 'border-box' }}
-                                value={newAssnRelease} 
-                                onChange={(e) => setNewAssnRelease(e.target.value)} 
+                                value={newAssnRelease}
+                                onChange={(e) => setNewAssnRelease(e.target.value)}
                               />
                             </div>
                             <div style={{ marginBottom: 16 }}>
                               <div style={{ display: 'block', marginBottom: 6, fontWeight: 500 }}>Due Time</div>
-                              <input 
-                                className="input" 
+                              <input
+                                className="input"
                                 style={{ display: 'block', width: '100%', boxSizing: 'border-box' }}
-                                value={newAssnDue} 
-                                onChange={(e) => setNewAssnDue(e.target.value)} 
+                                value={newAssnDue}
+                                onChange={(e) => setNewAssnDue(e.target.value)}
                               />
                             </div>
                           </div>
                           <div className="grid" style={{ gridTemplateColumns: '1fr 1fr', gap: 8 }}>
                             <div style={{ marginBottom: 16 }}>
                               <div style={{ display: 'block', marginBottom: 6, fontWeight: 500 }}>Max Score</div>
-                              <input 
-                                className="input" 
+                              <input
+                                className="input"
                                 style={{ display: 'block', width: '100%', boxSizing: 'border-box' }}
                                 type="number"
-                                value={newAssnMax} 
+                                value={newAssnMax}
                                 onChange={(e) => setNewAssnMax(e.target.value)}
                                 placeholder="100"
                               />
@@ -1354,10 +1566,10 @@ export default function CourseDetails() {
                             <div style={{ marginBottom: 16 }}>
                               <div style={{ display: 'block', marginBottom: 6, fontWeight: 500 }}>Allow Multiple Submissions</div>
                               <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
-                                <input 
-                                  type="checkbox" 
-                                  checked={newAssnMulti} 
-                                  onChange={(e) => setNewAssnMulti(e.target.checked)} 
+                                <input
+                                  type="checkbox"
+                                  checked={newAssnMulti}
+                                  onChange={(e) => setNewAssnMulti(e.target.checked)}
                                 />
                                 <span>{newAssnMulti ? 'Yes' : 'No'}</span>
                               </label>
@@ -1373,75 +1585,75 @@ export default function CourseDetails() {
                           <h4 style={{ marginTop: 0 }}>Add Question</h4>
                           <div style={{ marginBottom: 16 }}>
                             <div style={{ display: 'block', marginBottom: 6, fontWeight: 500 }}>Title *</div>
-                            <input 
-                              className="input" 
+                            <input
+                              className="input"
                               style={{ display: 'block', width: '100%', boxSizing: 'border-box' }}
-                              value={newCodeQ.title} 
+                              value={newCodeQ.title}
                               onChange={(e) => setNewCodeQ(q => ({ ...q, title: e.target.value }))}
                               placeholder="e.g., Two Sum Problem"
                             />
                           </div>
                           <div style={{ marginBottom: 16 }}>
                             <div style={{ display: 'block', marginBottom: 6, fontWeight: 500 }}>Description *</div>
-                            <textarea 
-                              className="input" 
+                            <textarea
+                              className="input"
                               style={{ display: 'block', width: '100%', boxSizing: 'border-box', minHeight: 60 }}
-                              rows={3} 
-                              value={newCodeQ.description} 
+                              rows={3}
+                              value={newCodeQ.description}
                               onChange={(e) => setNewCodeQ(q => ({ ...q, description: e.target.value }))}
                               placeholder="Problem statement..."
                             />
                           </div>
                           <div style={{ marginBottom: 16 }}>
                             <div style={{ display: 'block', marginBottom: 6, fontWeight: 500 }}>Constraints</div>
-                            <input 
-                              className="input" 
+                            <input
+                              className="input"
                               style={{ display: 'block', width: '100%', boxSizing: 'border-box' }}
-                              value={newCodeQ.constraints} 
+                              value={newCodeQ.constraints}
                               onChange={(e) => setNewCodeQ(q => ({ ...q, constraints: e.target.value }))}
                               placeholder="e.g., 1 <= n <= 10^5"
                             />
                           </div>
                           <div style={{ marginBottom: 16 }}>
                             <div style={{ display: 'block', marginBottom: 6, fontWeight: 500 }}>Sample Input</div>
-                            <textarea 
-                              className="input" 
+                            <textarea
+                              className="input"
                               style={{ display: 'block', width: '100%', boxSizing: 'border-box', minHeight: 50 }}
-                              rows={2} 
-                              value={newCodeQ.sample_input} 
+                              rows={2}
+                              value={newCodeQ.sample_input}
                               onChange={(e) => setNewCodeQ(q => ({ ...q, sample_input: e.target.value }))}
                               placeholder="Example input..."
                             />
                           </div>
                           <div style={{ marginBottom: 16 }}>
                             <div style={{ display: 'block', marginBottom: 6, fontWeight: 500 }}>Sample Output</div>
-                            <textarea 
-                              className="input" 
+                            <textarea
+                              className="input"
                               style={{ display: 'block', width: '100%', boxSizing: 'border-box', minHeight: 50 }}
-                              rows={2} 
-                              value={newCodeQ.sample_output} 
+                              rows={2}
+                              value={newCodeQ.sample_output}
                               onChange={(e) => setNewCodeQ(q => ({ ...q, sample_output: e.target.value }))}
                               placeholder="Expected output..."
                             />
                           </div>
                           <div style={{ marginBottom: 16 }}>
                             <div style={{ display: 'block', marginBottom: 6, fontWeight: 500 }}>Test Input (Hidden)</div>
-                            <textarea 
-                              className="input" 
+                            <textarea
+                              className="input"
                               style={{ display: 'block', width: '100%', boxSizing: 'border-box', minHeight: 50 }}
-                              rows={2} 
-                              value={newCodeQ.test_input} 
+                              rows={2}
+                              value={newCodeQ.test_input}
                               onChange={(e) => setNewCodeQ(q => ({ ...q, test_input: e.target.value }))}
                               placeholder="Hidden test input..."
                             />
                           </div>
                           <div style={{ marginBottom: 16 }}>
                             <div style={{ display: 'block', marginBottom: 6, fontWeight: 500 }}>Expected Output (Hidden)</div>
-                            <textarea 
-                              className="input" 
+                            <textarea
+                              className="input"
                               style={{ display: 'block', width: '100%', boxSizing: 'border-box', minHeight: 50 }}
-                              rows={2} 
-                              value={newCodeQ.expected_output} 
+                              rows={2}
+                              value={newCodeQ.expected_output}
                               onChange={(e) => setNewCodeQ(q => ({ ...q, expected_output: e.target.value }))}
                               placeholder="Expected output for hidden test..."
                             />
@@ -1591,18 +1803,18 @@ export default function CourseDetails() {
                   <div className="code-submission-meta">
                     <span className="meta-badge">
                       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                        <path d="M9 11l3 3L22 4"/>
-                        <path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/>
+                        <path d="M9 11l3 3L22 4" />
+                        <path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11" />
                       </svg>
                       {selectedCodeAssignment.questions?.length || 0} Questions
                     </span>
                     {selectedCodeAssignment.due_at && (
                       <span className="meta-badge">
                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                          <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
-                          <line x1="16" y1="2" x2="16" y2="6"/>
-                          <line x1="8" y1="2" x2="8" y2="6"/>
-                          <line x1="3" y1="10" x2="21" y2="10"/>
+                          <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
+                          <line x1="16" y1="2" x2="16" y2="6" />
+                          <line x1="8" y1="2" x2="8" y2="6" />
+                          <line x1="3" y1="10" x2="21" y2="10" />
                         </svg>
                         Due: {new Date(selectedCodeAssignment.due_at).toLocaleDateString()}
                       </span>
@@ -1612,7 +1824,7 @@ export default function CourseDetails() {
                 <div className="code-submission-actions">
                   <button className="btn-back" onClick={() => { setTabInternal(''); setSelectedCodeAssignment(null) }}>
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                      <path d="M19 12H5M12 19l-7-7 7-7"/>
+                      <path d="M19 12H5M12 19l-7-7 7-7" />
                     </svg>
                     Back to Assignments
                   </button>
@@ -1621,217 +1833,217 @@ export default function CourseDetails() {
               <div className="code-submission-body">
                 {selectedCodeAssignment.questions && selectedCodeAssignment.questions.length > 0 ? (
                   <div className="questions-container">
-                  {selectedCodeAssignment.questions.map((q: CodeQuestion, idx: number) => (
-                    <div key={q.id} className="question-card">
-                      <div className="question-header">
-                        <div style={{ display: 'flex', alignItems: 'center' }}>
-                          <span className="question-number">{idx + 1}</span>
-                          <h3 className="question-title-text">{q.title || 'Untitled Question'}</h3>
-                        </div>
-                        <span className={`question-status ${savedQuestions[q.id] ? 'saved' : 'unsaved'}`}>
-                          {savedQuestions[q.id] ? (
-                            <>
-                              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
-                                <polyline points="20 6 9 17 4 12"/>
-                              </svg>
-                              Saved
-                            </>
-                          ) : (
-                            'Not Saved'
-                          )}
-                        </span>
-                      </div>
-                      <div className="question-body">
-                        <div className="question-description">{q.description}</div>
-                        {q.constraints && (
-                          <div className="constraints-box">
-                            <strong>⚠️ Constraints</strong>
-                            <p>{q.constraints}</p>
+                    {selectedCodeAssignment.questions.map((q: CodeQuestion, idx: number) => (
+                      <div key={q.id} className="question-card">
+                        <div className="question-header">
+                          <div style={{ display: 'flex', alignItems: 'center' }}>
+                            <span className="question-number">{idx + 1}</span>
+                            <h3 className="question-title-text">{q.title || 'Untitled Question'}</h3>
                           </div>
-                        )}
-                        {(() => {
-                          // Get sample test cases from test_cases array (backend) or direct properties (local)
-                          let sampleCases: any[] = []
-                          if (q.test_cases && Array.isArray(q.test_cases)) {
-                            sampleCases = q.test_cases.filter((tc: any) => tc.is_sample === true)
-                          } else if (q.sample_input && q.sample_output) {
-                            // Fallback to direct properties for local mode
-                            sampleCases = [{ input_text: q.sample_input, expected_text: q.sample_output }]
-                          }
-
-                          return sampleCases.length > 0 ? (
-                            <div className="test-cases-section">
-                              <div className="test-cases-title">
-                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                                  <path d="M9 11l3 3L22 4"/>
-                                  <path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/>
-                                </svg>
-                                Sample Test Cases
-                              </div>
-                              {sampleCases.map((tc: any, tcIdx: number) => (
-                                <div key={tcIdx} className="test-case-item">
-                                  <span className="test-case-label">Input</span>
-                                  <div className="test-case-content">{tc.input_text || '(empty)'}</div>
-                                  <span className="test-case-label" style={{ marginTop: 12, display: 'block' }}>Expected Output</span>
-                                  <div className="test-case-content">{tc.expected_text || '(empty)'}</div>
-                                </div>
-                              ))}
-                            </div>
-                          ) : null
-                        })()}
-                        
-                        <div className="code-editor-section">
-                          <div className="language-selector">
-                            <label>Programming Language</label>
-                            <select className="language-select" value={codeLang[q.id] || 'python'} onChange={(e) => setCodeLang(prev => ({ ...prev, [q.id]: e.target.value }))}>
-                              <option value="python">Python</option>
-                              <option value="java">Java</option>
-                              <option value="cpp">C++</option>
-                              <option value="c">C</option>
-                              <option value="javascript">JavaScript</option>
-                            </select>
-                          </div>
-                          
-                          <div className="code-editor">
-                            <textarea
-                              className="code-textarea"
-                              value={codeEditor[q.id] || ''}
-                              onChange={(e) => setCodeEditor(prev => ({ ...prev, [q.id]: e.target.value }))}
-                              placeholder="// Write your code here..."
-                            />
-                          </div>
-                        </div>
-
-                        <div className="code-actions">
-                          <button
-                            className="btn-run-code"
-                            onClick={() => void runCodeForQuestion(q)}
-                            disabled={!codeEditor[q.id]?.trim() || isRunningCode[q.id]}
-                          >
-                            {isRunningCode[q.id] ? (
+                          <span className={`question-status ${savedQuestions[q.id] ? 'saved' : 'unsaved'}`}>
+                            {savedQuestions[q.id] ? (
                               <>
-                                <span className="loading-indicator"></span>
-                                Running...
-                              </>
-                            ) : (
-                              <>
-                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                                  <polygon points="5 3 19 12 5 21 5 3"/>
-                                </svg>
-                                Run Code
-                              </>
-                            )}
-                          </button>
-                          <button
-                            className={`btn-save-code ${savedQuestions[q.id] ? 'saved' : ''}`}
-                            onClick={async () => {
-                              if (!codeEditor[q.id]?.trim()) {
-                                push({ kind: 'error', message: 'Write your code first' })
-                                return
-                              }
-                              setIsSavingCode(prev => ({ ...prev, [q.id]: true }))
-                              try {
-                                await apiFetch('/api/submissions/submit/code', {
-                                  method: 'POST',
-                                  body: {
-                                    assignment_id: Number(selectedCodeAssignment.id),
-                                    question_id: Number(q.id),
-                                    language: codeLang[q.id] || 'python',
-                                    code: codeEditor[q.id]
-                                  }
-                                })
-                                setSavedQuestions(prev => ({ ...prev, [q.id]: true }))
-                                push({ kind: 'success', message: `Question ${idx + 1} code saved successfully` })
-                              } catch (err: any) {
-                                push({ kind: 'error', message: err?.message || 'Failed to save code' })
-                              } finally {
-                                setIsSavingCode(prev => ({ ...prev, [q.id]: false }))
-                              }
-                            }}
-                            disabled={!codeEditor[q.id]?.trim() || isSavingCode[q.id]}
-                          >
-                            {isSavingCode[q.id] ? (
-                              <>
-                                <span className="loading-indicator"></span>
-                                Saving...
-                              </>
-                            ) : savedQuestions[q.id] ? (
-                              <>
-                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                                  <polyline points="20 6 9 17 4 12"/>
+                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
+                                  <polyline points="20 6 9 17 4 12" />
                                 </svg>
                                 Saved
                               </>
                             ) : (
-                              <>
-                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                                  <path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/>
-                                  <polyline points="17 21 17 13 7 13 7 21"/>
-                                  <polyline points="7 3 7 8 15 8"/>
-                                </svg>
-                                Save Code
-                              </>
+                              'Not Saved'
                             )}
-                          </button>
+                          </span>
                         </div>
+                        <div className="question-body">
+                          <div className="question-description">{q.description}</div>
+                          {q.constraints && (
+                            <div className="constraints-box">
+                              <strong>⚠️ Constraints</strong>
+                              <p>{q.constraints}</p>
+                            </div>
+                          )}
+                          {(() => {
+                            // Get sample test cases from test_cases array (backend) or direct properties (local)
+                            let sampleCases: any[] = []
+                            if (q.test_cases && Array.isArray(q.test_cases)) {
+                              sampleCases = q.test_cases.filter((tc: any) => tc.is_sample === true)
+                            } else if (q.sample_input && q.sample_output) {
+                              // Fallback to direct properties for local mode
+                              sampleCases = [{ input_text: q.sample_input, expected_text: q.sample_output }]
+                            }
 
-                        {isRunningCode[q.id] && (
-                          <div className="result-panel loading">
-                            <div className="result-header">
-                              <div className="result-icon loading">
-                                <span className="loading-indicator"></span>
+                            return sampleCases.length > 0 ? (
+                              <div className="test-cases-section">
+                                <div className="test-cases-title">
+                                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                    <path d="M9 11l3 3L22 4" />
+                                    <path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11" />
+                                  </svg>
+                                  Sample Test Cases
+                                </div>
+                                {sampleCases.map((tc: any, tcIdx: number) => (
+                                  <div key={tcIdx} className="test-case-item">
+                                    <span className="test-case-label">Input</span>
+                                    <div className="test-case-content">{tc.input_text || '(empty)'}</div>
+                                    <span className="test-case-label" style={{ marginTop: 12, display: 'block' }}>Expected Output</span>
+                                    <div className="test-case-content">{tc.expected_text || '(empty)'}</div>
+                                  </div>
+                                ))}
                               </div>
-                              <h4 className="result-title loading">Running test cases...</h4>
+                            ) : null
+                          })()}
+
+                          <div className="code-editor-section">
+                            <div className="language-selector">
+                              <label>Programming Language</label>
+                              <select className="language-select" value={codeLang[q.id] || 'python'} onChange={(e) => setCodeLang(prev => ({ ...prev, [q.id]: e.target.value }))}>
+                                <option value="python">Python</option>
+                                <option value="java">Java</option>
+                                <option value="cpp">C++</option>
+                                <option value="c">C</option>
+                                <option value="javascript">JavaScript</option>
+                              </select>
+                            </div>
+
+                            <div className="code-editor">
+                              <textarea
+                                className="code-textarea"
+                                value={codeEditor[q.id] || ''}
+                                onChange={(e) => setCodeEditor(prev => ({ ...prev, [q.id]: e.target.value }))}
+                                placeholder="// Write your code here..."
+                              />
                             </div>
                           </div>
-                        )}
 
-                        {runResults[q.id] && !isRunningCode[q.id] && (
-                          <div className={`result-panel ${runResults[q.id].ok ? 'success' : 'error'}`}>
-                            <div className="result-header">
-                              <div className={`result-icon ${runResults[q.id].ok ? 'success' : 'error'}`}>
-                                {runResults[q.id].ok ? '✓' : '✗'}
-                              </div>
-                              <h4 className={`result-title ${runResults[q.id].ok ? 'success' : 'error'}`}>
-                                {runResults[q.id].message || (runResults[q.id].ok ? 'Test Passed!' : 'Test Failed')}
-                              </h4>
-                            </div>
-                            <div className="result-content">
-                              {runResults[q.id].stdout !== undefined && runResults[q.id].stdout !== '' && (
-                                <div className="result-section">
-                                  <div className="result-section-title">Your Output</div>
-                                  <pre className="result-code">{runResults[q.id].stdout || '(empty)'}</pre>
-                                </div>
+                          <div className="code-actions">
+                            <button
+                              className="btn-run-code"
+                              onClick={() => void runCodeForQuestion(q)}
+                              disabled={!codeEditor[q.id]?.trim() || isRunningCode[q.id]}
+                            >
+                              {isRunningCode[q.id] ? (
+                                <>
+                                  <span className="loading-indicator"></span>
+                                  Running...
+                                </>
+                              ) : (
+                                <>
+                                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                    <polygon points="5 3 19 12 5 21 5 3" />
+                                  </svg>
+                                  Run Code
+                                </>
                               )}
-                              {runResults[q.id].expected && (
-                                <div className="result-section">
-                                  <div className="result-section-title">Expected Output</div>
-                                  <pre className="result-code">{runResults[q.id].expected}</pre>
-                                </div>
+                            </button>
+                            <button
+                              className={`btn-save-code ${savedQuestions[q.id] ? 'saved' : ''}`}
+                              onClick={async () => {
+                                if (!codeEditor[q.id]?.trim()) {
+                                  push({ kind: 'error', message: 'Write your code first' })
+                                  return
+                                }
+                                setIsSavingCode(prev => ({ ...prev, [q.id]: true }))
+                                try {
+                                  await apiFetch('/api/submissions/submit/code', {
+                                    method: 'POST',
+                                    body: {
+                                      assignment_id: Number(selectedCodeAssignment.id),
+                                      question_id: Number(q.id),
+                                      language: codeLang[q.id] || 'python',
+                                      code: codeEditor[q.id]
+                                    }
+                                  })
+                                  setSavedQuestions(prev => ({ ...prev, [q.id]: true }))
+                                  push({ kind: 'success', message: `Question ${idx + 1} code saved successfully` })
+                                } catch (err: any) {
+                                  push({ kind: 'error', message: err?.message || 'Failed to save code' })
+                                } finally {
+                                  setIsSavingCode(prev => ({ ...prev, [q.id]: false }))
+                                }
+                              }}
+                              disabled={!codeEditor[q.id]?.trim() || isSavingCode[q.id]}
+                            >
+                              {isSavingCode[q.id] ? (
+                                <>
+                                  <span className="loading-indicator"></span>
+                                  Saving...
+                                </>
+                              ) : savedQuestions[q.id] ? (
+                                <>
+                                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                    <polyline points="20 6 9 17 4 12" />
+                                  </svg>
+                                  Saved
+                                </>
+                              ) : (
+                                <>
+                                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                    <path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z" />
+                                    <polyline points="17 21 17 13 7 13 7 21" />
+                                    <polyline points="7 3 7 8 15 8" />
+                                  </svg>
+                                  Save Code
+                                </>
                               )}
-                              {runResults[q.id].stderr && runResults[q.id].stderr.trim() !== '' && (
-                                <div className="result-section">
-                                  <div className="result-section-title">Error Message</div>
-                                  <pre className="result-code error-text">{runResults[q.id].stderr}</pre>
-                                </div>
-                              )}
-                              {runResults[q.id].error && (
-                                <div className="result-section">
-                                  <div className="result-section-title">Error</div>
-                                  <pre className="result-code error-text">{runResults[q.id].error}</pre>
-                                </div>
-                              )}
-                            </div>
+                            </button>
                           </div>
-                        )}
+
+                          {isRunningCode[q.id] && (
+                            <div className="result-panel loading">
+                              <div className="result-header">
+                                <div className="result-icon loading">
+                                  <span className="loading-indicator"></span>
+                                </div>
+                                <h4 className="result-title loading">Running test cases...</h4>
+                              </div>
+                            </div>
+                          )}
+
+                          {runResults[q.id] && !isRunningCode[q.id] && (
+                            <div className={`result-panel ${runResults[q.id].ok ? 'success' : 'error'}`}>
+                              <div className="result-header">
+                                <div className={`result-icon ${runResults[q.id].ok ? 'success' : 'error'}`}>
+                                  {runResults[q.id].ok ? '✓' : '✗'}
+                                </div>
+                                <h4 className={`result-title ${runResults[q.id].ok ? 'success' : 'error'}`}>
+                                  {runResults[q.id].message || (runResults[q.id].ok ? 'Test Passed!' : 'Test Failed')}
+                                </h4>
+                              </div>
+                              <div className="result-content">
+                                {runResults[q.id].stdout !== undefined && runResults[q.id].stdout !== '' && (
+                                  <div className="result-section">
+                                    <div className="result-section-title">Your Output</div>
+                                    <pre className="result-code">{runResults[q.id].stdout || '(empty)'}</pre>
+                                  </div>
+                                )}
+                                {runResults[q.id].expected && (
+                                  <div className="result-section">
+                                    <div className="result-section-title">Expected Output</div>
+                                    <pre className="result-code">{runResults[q.id].expected}</pre>
+                                  </div>
+                                )}
+                                {runResults[q.id].stderr && runResults[q.id].stderr.trim() !== '' && (
+                                  <div className="result-section">
+                                    <div className="result-section-title">Error Message</div>
+                                    <pre className="result-code error-text">{runResults[q.id].stderr}</pre>
+                                  </div>
+                                )}
+                                {runResults[q.id].error && (
+                                  <div className="result-section">
+                                    <div className="result-section-title">Error</div>
+                                    <pre className="result-code error-text">{runResults[q.id].error}</pre>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          )}
+                        </div>
                       </div>
-                    </div>
-                  ))}
+                    ))}
                   </div>
                 ) : (
                   <p className="muted" style={{ textAlign: 'center', padding: '40px 20px' }}>No questions found for this assignment.</p>
                 )}
-                
+
                 {selectedCodeAssignment.questions && selectedCodeAssignment.questions.length > 0 && (
                   <div className="final-submission-panel">
                     <div className="final-submission-header">
@@ -1847,110 +2059,110 @@ export default function CourseDetails() {
                       </div>
                     </div>
                     <div className="progress-bar-container">
-                      <div 
-                        className="progress-bar" 
-                        style={{ 
-                          width: `${(selectedCodeAssignment.questions.filter((q: CodeQuestion) => savedQuestions[q.id]).length / selectedCodeAssignment.questions.length) * 100}%` 
+                      <div
+                        className="progress-bar"
+                        style={{
+                          width: `${(selectedCodeAssignment.questions.filter((q: CodeQuestion) => savedQuestions[q.id]).length / selectedCodeAssignment.questions.length) * 100}%`
                         }}
                       />
                     </div>
                     <button
                       className="btn-final-submit"
                       onClick={async () => {
-                      // Check if all questions have code
-                      const allHaveCode = selectedCodeAssignment.questions.every((q: CodeQuestion) => {
-                        return codeEditor[q.id]?.trim()
-                      })
+                        // Check if all questions have code
+                        const allHaveCode = selectedCodeAssignment.questions.every((q: CodeQuestion) => {
+                          return codeEditor[q.id]?.trim()
+                        })
 
-                      if (!allHaveCode) {
-                        push({ kind: 'error', message: 'Please write code for all questions before final submission' })
-                        return
-                      }
-
-                      // Check if all questions are saved
-                      const allSaved = selectedCodeAssignment.questions.every((q: CodeQuestion) => {
-                        return savedQuestions[q.id]
-                      })
-
-                      if (!allSaved) {
-                        const confirmSave = confirm('Some questions are not saved. Do you want to save all questions and submit?')
-                        if (!confirmSave) return
-
-                        // Save all unsaved questions first
-                        for (const q of selectedCodeAssignment.questions) {
-                          if (!savedQuestions[q.id] && codeEditor[q.id]?.trim()) {
-                            try {
-                              await apiFetch('/api/submissions/submit/code', {
-                                method: 'POST',
-                                body: {
-                                  assignment_id: Number(selectedCodeAssignment.id),
-                                  question_id: Number(q.id),
-                                  language: codeLang[q.id] || 'python',
-                                  code: codeEditor[q.id]
-                                }
-                              })
-                              setSavedQuestions(prev => ({ ...prev, [q.id]: true }))
-                            } catch (err: any) {
-                              push({ kind: 'error', message: `Failed to save question ${q.id}: ${err?.message}` })
-                              return
-                            }
-                          }
+                        if (!allHaveCode) {
+                          push({ kind: 'error', message: 'Please write code for all questions before final submission' })
+                          return
                         }
-                      }
 
-                      // Final submission - ensure all questions are saved, then mark as complete
-                      try {
-                        // Ensure all questions are saved (submit any unsaved ones)
-                        for (const q of selectedCodeAssignment.questions) {
-                          if (codeEditor[q.id]?.trim() && !savedQuestions[q.id]) {
-                            try {
-                              await apiFetch('/api/submissions/submit/code', {
-                                method: 'POST',
-                                body: {
-                                  assignment_id: Number(selectedCodeAssignment.id),
-                                  question_id: Number(q.id),
-                                  language: codeLang[q.id] || 'python',
-                                  code: codeEditor[q.id]
-                                }
-                              })
-                              setSavedQuestions(prev => ({ ...prev, [q.id]: true }))
-                            } catch (err: any) {
-                              push({ kind: 'error', message: `Failed to save question ${q.id}: ${err?.message}` })
-                              return
+                        // Check if all questions are saved
+                        const allSaved = selectedCodeAssignment.questions.every((q: CodeQuestion) => {
+                          return savedQuestions[q.id]
+                        })
+
+                        if (!allSaved) {
+                          const confirmSave = confirm('Some questions are not saved. Do you want to save all questions and submit?')
+                          if (!confirmSave) return
+
+                          // Save all unsaved questions first
+                          for (const q of selectedCodeAssignment.questions) {
+                            if (!savedQuestions[q.id] && codeEditor[q.id]?.trim()) {
+                              try {
+                                await apiFetch('/api/submissions/submit/code', {
+                                  method: 'POST',
+                                  body: {
+                                    assignment_id: Number(selectedCodeAssignment.id),
+                                    question_id: Number(q.id),
+                                    language: codeLang[q.id] || 'python',
+                                    code: codeEditor[q.id]
+                                  }
+                                })
+                                setSavedQuestions(prev => ({ ...prev, [q.id]: true }))
+                              } catch (err: any) {
+                                push({ kind: 'error', message: `Failed to save question ${q.id}: ${err?.message}` })
+                                return
+                              }
                             }
                           }
                         }
 
-                        // All questions are now saved. The submission is complete.
-                        // The backend creates/updates the submission when code is saved,
-                        // so all questions are already stored in the database.
+                        // Final submission - ensure all questions are saved, then mark as complete
+                        try {
+                          // Ensure all questions are saved (submit any unsaved ones)
+                          for (const q of selectedCodeAssignment.questions) {
+                            if (codeEditor[q.id]?.trim() && !savedQuestions[q.id]) {
+                              try {
+                                await apiFetch('/api/submissions/submit/code', {
+                                  method: 'POST',
+                                  body: {
+                                    assignment_id: Number(selectedCodeAssignment.id),
+                                    question_id: Number(q.id),
+                                    language: codeLang[q.id] || 'python',
+                                    code: codeEditor[q.id]
+                                  }
+                                })
+                                setSavedQuestions(prev => ({ ...prev, [q.id]: true }))
+                              } catch (err: any) {
+                                push({ kind: 'error', message: `Failed to save question ${q.id}: ${err?.message}` })
+                                return
+                              }
+                            }
+                          }
 
-                        push({ kind: 'success', message: 'Assignment submitted successfully! All questions have been saved and submitted.' })
+                          // All questions are now saved. The submission is complete.
+                          // The backend creates/updates the submission when code is saved,
+                          // so all questions are already stored in the database.
 
-                        // Reload submissions to update the list
-                        if (user?.role === 'student' && user?.id && courseId) {
-                          try {
-                            const submissions = await apiFetch<any[]>(`/api/student/courses/${courseId}/submissions`)
-                            setMySubmissions(submissions || [])
-                          } catch { }
+                          push({ kind: 'success', message: 'Assignment submitted successfully! All questions have been saved and submitted.' })
+
+                          // Reload submissions to update the list
+                          if (user?.role === 'student' && user?.id && courseId) {
+                            try {
+                              const submissions = await apiFetch<any[]>(`/api/student/courses/${courseId}/submissions`)
+                              setMySubmissions(submissions || [])
+                            } catch { }
+                          }
+
+                          // Close the code attempt view and go back
+                          setTabInternal('')
+                          setSelectedCodeAssignment(null)
+                          setCodeEditor({})
+                          setCodeLang({})
+                          setSavedQuestions({})
+                          setRunResults({})
+                        } catch (err: any) {
+                          push({ kind: 'error', message: err?.message || 'Final submission failed' })
                         }
-
-                        // Close the code attempt view and go back
-                        setTabInternal('')
-                        setSelectedCodeAssignment(null)
-                        setCodeEditor({})
-                        setCodeLang({})
-                        setSavedQuestions({})
-                        setRunResults({})
-                      } catch (err: any) {
-                        push({ kind: 'error', message: err?.message || 'Final submission failed' })
-                      }
                       }}
                       disabled={selectedCodeAssignment.questions.some((q: CodeQuestion) => !codeEditor[q.id]?.trim())}
                     >
                       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                        <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
-                        <polyline points="22 4 12 14.01 9 11.01"/>
+                        <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
+                        <polyline points="22 4 12 14.01 9 11.01" />
                       </svg>
                       Submit All Answers
                     </button>
@@ -2007,15 +2219,15 @@ export default function CourseDetails() {
               <div className="section-header">
                 <h2 className="section-title">
                   <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ marginRight: '8px', verticalAlign: 'middle' }}>
-                    <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
-                    <path d="M7 11V7a5 5 0 0110 0v4"/>
+                    <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+                    <path d="M7 11V7a5 5 0 0110 0v4" />
                   </svg>
                   AI Course Assistant
                 </h2>
                 <span className="assignment-count">
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ marginRight: '4px', verticalAlign: 'middle' }}>
-                    <circle cx="12" cy="12" r="10"/>
-                    <polyline points="12 6 12 12 16 14"/>
+                    <circle cx="12" cy="12" r="10" />
+                    <polyline points="12 6 12 12 16 14" />
                   </svg>
                   24/7 Available
                 </span>
@@ -2032,16 +2244,16 @@ export default function CourseDetails() {
               <div className="section-header">
                 <h2 className="section-title">
                   <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ marginRight: '8px', verticalAlign: 'middle' }}>
-                    <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/>
-                    <polyline points="14 2 14 8 20 8"/>
+                    <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" />
+                    <polyline points="14 2 14 8 20 8" />
                   </svg>
                   PDF Q&A Assistant
                 </h2>
                 <span className="assignment-count">
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ marginRight: '4px', verticalAlign: 'middle' }}>
-                    <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/>
-                    <polyline points="17 8 12 3 7 8"/>
-                    <line x1="12" y1="3" x2="12" y2="15"/>
+                    <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" />
+                    <polyline points="17 8 12 3 7 8" />
+                    <line x1="12" y1="3" x2="12" y2="15" />
                   </svg>
                   Upload & Ask
                 </span>

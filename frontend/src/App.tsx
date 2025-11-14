@@ -13,12 +13,14 @@ import QuizTake from './pages/student/QuizTake'
 import QuizGrader from './pages/teacher/QuizGrader'
 import StudentProgress from './pages/progress/StudentProgress'
 import CourseProgress from './pages/progress/CourseProgress'
+import { CourseProvider } from './context/CourseContext'
 
 function App() {
   // const { user } = useAuth()
 
   return (
-    <Layout>
+    <CourseProvider>
+      <Layout>
       <Routes>
         {/* Landing page - redirects to dashboard if logged in */}
         <Route path="/" element={<Landing />} />
@@ -109,7 +111,8 @@ function App() {
 
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
-    </Layout>
+      </Layout>
+    </CourseProvider>
   )
 }
 

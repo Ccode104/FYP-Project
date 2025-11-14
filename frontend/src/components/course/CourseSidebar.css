@@ -1,0 +1,346 @@
+/* Hamburger Menu Button */
+.sidebar-hamburger {
+  position: fixed;
+  top: 16px;
+  left: 16px;
+  width: 44px;
+  height: 44px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  cursor: pointer;
+  padding: 10px;
+  transition: all 0.2s ease;
+  z-index: 1001;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.sidebar-hamburger:hover {
+  background: var(--primary);
+  border-color: var(--primary);
+  box-shadow: 0 4px 12px rgba(79, 70, 229, 0.3);
+}
+
+.sidebar-hamburger:hover .hamburger-line {
+  background: white;
+}
+
+.dark .sidebar-hamburger {
+  background: var(--surface);
+  border-color: var(--border);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+
+.dark .sidebar-hamburger:hover {
+  background: var(--primary);
+  border-color: var(--primary);
+  box-shadow: 0 4px 12px rgba(99, 102, 241, 0.5);
+}
+
+.sidebar-hamburger:active {
+  transform: scale(0.95);
+}
+
+.hamburger-line {
+  width: 22px;
+  height: 2.5px;
+  background: var(--text);
+  border-radius: 2px;
+  transition: all 0.3s ease;
+}
+
+/* Course Sidebar - Modern Side Navigation */
+.course-sidebar {
+  position: fixed;
+  left: 0;
+  top: 76px;
+  height: calc(100vh - 76px);
+  width: 280px;
+  background: var(--surface);
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  z-index: 99;
+  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  overflow: hidden;
+}
+
+.dark .course-sidebar {
+  background: var(--bg-secondary);
+  border-right-color: var(--border);
+  box-shadow: 2px 0 12px rgba(0, 0, 0, 0.3);
+}
+
+.course-sidebar.closed {
+  transform: translateX(-280px);
+}
+
+.course-sidebar.open {
+  transform: translateX(0);
+}
+
+/* Navigation */
+.sidebar-nav {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 16px 12px 12px;
+}
+
+.sidebar-nav::-webkit-scrollbar {
+  width: 6px;
+}
+
+.sidebar-nav::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.sidebar-nav::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 3px;
+}
+
+.dark .sidebar-nav::-webkit-scrollbar-thumb {
+  background: var(--border-strong);
+}
+
+.nav-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+/* Navigation Items */
+.nav-item {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  border-radius: 8px;
+  background: transparent;
+  border: none;
+  color: var(--text-secondary);
+  font-size: 15px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  width: 100%;
+  text-align: left;
+  white-space: nowrap;
+}
+
+.nav-item:hover {
+  background: var(--bg-secondary);
+  color: var(--text);
+  transform: translateX(4px);
+}
+
+.dark .nav-item:hover {
+  background: var(--surface-elevated);
+}
+
+/* Active State with Glow Effect */
+.nav-item.active {
+  background: linear-gradient(135deg, var(--primary) 0%, var(--primary-hover) 100%);
+  color: white;
+  box-shadow: 
+    0 4px 12px rgba(79, 70, 229, 0.3),
+    0 0 0 1px rgba(79, 70, 229, 0.1),
+    inset 0 1px 0 rgba(255, 255, 255, 0.1);
+  transform: translateX(0);
+}
+
+.dark .nav-item.active {
+  box-shadow: 
+    0 4px 16px rgba(99, 102, 241, 0.4),
+    0 0 0 1px rgba(99, 102, 241, 0.2),
+    inset 0 1px 0 rgba(255, 255, 255, 0.1);
+}
+
+.nav-item.active:hover {
+  transform: translateX(0);
+  box-shadow: 
+    0 6px 16px rgba(79, 70, 229, 0.4),
+    0 0 0 1px rgba(79, 70, 229, 0.2),
+    inset 0 1px 0 rgba(255, 255, 255, 0.15);
+}
+
+/* Icon */
+.nav-icon {
+  font-size: 20px;
+  min-width: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 0.2s ease;
+}
+
+.nav-item.active .nav-icon {
+  transform: scale(1.1);
+}
+
+/* Label */
+.nav-label {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  animation: fadeIn 0.2s ease;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateX(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+/* Badge */
+.nav-badge {
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
+  border-radius: 10px;
+  background: #ef4444;
+  color: white;
+  font-size: 11px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation: pulse 2s infinite;
+}
+
+.nav-item.active .nav-badge {
+  background: rgba(255, 255, 255, 0.3);
+}
+
+@keyframes pulse {
+  0%, 100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.05);
+  }
+}
+
+/* Sidebar Overlay for mobile */
+.sidebar-overlay {
+  position: fixed;
+  top: 76px;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  z-index: 98;
+  display: none;
+}
+
+@media (max-width: 768px) {
+  .sidebar-overlay {
+    display: block;
+  }
+}
+
+/* Footer */
+.sidebar-footer {
+  padding: 16px;
+  border-top: 1px solid var(--border);
+  animation: fadeIn 0.2s ease;
+}
+
+.user-role-badge {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background: var(--bg-secondary);
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-secondary);
+}
+
+.dark .user-role-badge {
+  background: var(--surface-elevated);
+}
+
+.role-icon {
+  font-size: 16px;
+}
+
+.role-text {
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  font-weight: 600;
+}
+
+/* Responsive - Mobile */
+@media (max-width: 768px) {
+  .course-sidebar.closed {
+    transform: translateX(-280px);
+  }
+}
+
+/* Focus Styles for Accessibility */
+.nav-item:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+.sidebar-hamburger:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+/* Smooth Content Transitions */
+.course-content {
+  margin-left: 280px;
+  transition: margin-left 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.course-content.sidebar-closed {
+  margin-left: 0;
+}
+
+@media (max-width: 768px) {
+  .course-content,
+  .course-content.sidebar-closed {
+    margin-left: 0;
+  }
+}
+
+/* Section Fade Transition */
+.section-transition-enter {
+  opacity: 0;
+  transform: translateY(8px);
+}
+
+.section-transition-enter-active {
+  opacity: 1;
+  transform: translateY(0);
+  transition: opacity 0.3s ease, transform 0.3s ease;
+}
+
+.section-transition-exit {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.section-transition-exit-active {
+  opacity: 0;
+  transform: translateY(-8px);
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
