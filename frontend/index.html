@@ -4,32 +4,40 @@
     <meta charset="UTF-8" />
 
     <!-- Basic SEO -->
+    <!-- SEO means Search Optimization Techniques. This is what makes our website easily visible on search results --> 
     <meta name="description" content="Unified Academic Portal – A modern platform for academic management." />
     <meta name="keywords" content="Academic Portal, LMS, Courses, Assignments, Education" />
     <meta name="author" content="Unified Academic Portal Team" />
 
     <!-- Mobile & Theme -->
+   <!--Makes it compatible with mobile-->
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="theme-color" content="#0d6efd" />
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
 
     <!-- Preconnect Fonts -->
+     <!--Loads the fonts early to prevent from unstyled text flashing-->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 
     <!-- Icons -->
+    <!--It is displayed on the tab-->
+    <!--TO DO : Add icons for differet platforms-->
     <link rel="icon" type="image/svg+xml" href="/vite.svg" />
     
     <title>Unified Academic Portal</title>
   </head>
 
   <body>
+    <!--Displays when the react app is yet to load. Gets replaced by react app-->
     <div id="root">Loading...</div>
 
+    <!--It is rare not to support JS, but a fallback for such cases -->
     <noscript>You need to enable JavaScript to run this app.</noscript>
 
+    <!--Loads the React app and replaces this div with class 'root'-->
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
