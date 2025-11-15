@@ -1,22 +1,17 @@
-import { StrictMode } from 'react'
-import { createRoot } from 'react-dom/client'
-import './index.css'
-import App from './App.tsx'
-import { BrowserRouter } from 'react-router-dom'
-import { AuthProvider } from './context/AuthContext'
-import { ThemeProvider } from './context/ThemeContext'
-import { ToastProvider } from './components/ToastProvider'
+// src/main.tsx
 
-createRoot(document.getElementById('root')!).render(
+import { StrictMode } from "react";
+import { createRoot } from "react-dom/client";
+import "./index.css";
+import App from "./App";
+import { AppProviders } from "./AppProviders";
+
+const root = document.getElementById("root")!;
+
+createRoot(root).render(
   <StrictMode>
-    <BrowserRouter>
-      <ThemeProvider>
-        <ToastProvider>
-          <AuthProvider>
-            <App />
-          </AuthProvider>
-        </ToastProvider>
-      </ThemeProvider>
-    </BrowserRouter>
-  </StrictMode>,
-)
+    <AppProviders>
+      <App />
+    </AppProviders>
+  </StrictMode>
+);
