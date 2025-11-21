@@ -1,6 +1,6 @@
 // src/AppProviders.tsx
 
-import { ReactNode } from "react";
+import { ReactNode }   from "react";
 import { BrowserRouter } from "react-router-dom";
 import { AuthProvider } from "./context/AuthContext";
 import { ThemeProvider } from "./context/ThemeContext";

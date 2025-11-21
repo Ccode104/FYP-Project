@@ -1,43 +1,120 @@
-<!doctype html>
-<html lang="en">
-  <head>
-    <meta charset="UTF-8" />
+<!doctype html> <!-- Declares HTML5 document type -->
+
+<html lang="en"> <!-- Root HTML element; 'lang' improves SEO & accessibility -->
+
+  <head> <!-- Contains metadata, fonts, icons — not visible on the page -->
+
+    <meta charset="UTF-8" /> <!-- Ensures characters (emojis, symbols, accents) display correctly -->
 
     <!-- Basic SEO -->
-    <!-- SEO means Search Optimization Techniques. This is what makes our website easily visible on search results --> 
-    <meta name="description" content="Unified Academic Portal – A modern platform for academic management." />
-    <meta name="keywords" content="Academic Portal, LMS, Courses, Assignments, Education" />
-    <meta name="author" content="Unified Academic Portal Team" />
+    <!-- Helps search engines understand the website content -->
+
+    <meta 
+      name="description" 
+      content="Unified Academic Portal – A modern platform for academic management." 
+    /> <!-- Shown in Google search results below the title -->
+
+    <meta 
+      name="keywords" 
+      content="Academic Portal, LMS, Courses, Assignments, Education" 
+    /> <!-- Older SEO technique; still harmless to include -->
+
+    <meta name="author" content="Unified Academic Portal Team" /> <!-- Specifies the page's author -->
 
     <!-- Mobile & Theme -->
-   <!--Makes it compatible with mobile-->
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="theme-color" content="#0d6efd" />
-    <meta name="mobile-web-app-capable" content="yes" />
-    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <!-- Makes the website responsive and feel like a mobile app -->
+
+    <meta 
+      name="viewport" 
+      content="width=device-width, initial-scale=1.0" 
+    /> <!-- Ensures proper scaling on mobile devices -->
+
+    <meta name="theme-color" content="#0d6efd" /> <!-- Colors mobile browser top bar (Chrome on Android) -->
+
+    <meta name="mobile-web-app-capable" content="yes" /> <!-- Allows "Add to Home Screen" on Android -->
+
+    <meta name="apple-mobile-web-app-capable" content="yes" /> <!-- Enables web-app mode for iOS -->
 
     <!-- Preconnect Fonts -->
-     <!--Loads the fonts early to prevent from unstyled text flashing-->
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Prepares the browser to load fonts faster by making early network connections -->
+
+    <link rel="preconnect" href="https://fonts.googleapis.com"> <!-- Preconnect to Google Fonts server -->
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin> <!-- Preconnect to static font file host -->
+
+    <link 
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" 
+      rel="stylesheet"
+    /> <!-- Loads the Inter font to style the UI -->
 
     <!-- Icons -->
-    <!--It is displayed on the tab-->
-    <!--TO DO : Add icons for differet platforms-->
-    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
-    
-    <title>Unified Academic Portal</title>
+    <!-- Favicon that appears inside the browser tab -->
+
+    <link rel="icon" type="image/svg+xml" href="/vite.svg" /> <!-- Vite-supplied default favicon -->
+
+    <title>Unified Academic Portal</title> <!-- Browser tab title -->
+
   </head>
 
-  <body>
-    <!--Displays when the react app is yet to load. Gets replaced by react app-->
-    <div id="root">Loading...</div>
+  <body> <!-- Contains visible content and the React root mount point -->
 
-    <!--It is rare not to support JS, but a fallback for such cases -->
-    <noscript>You need to enable JavaScript to run this app.</noscript>
+    <div id="root">Loading...</div> <!-- Temporary text shown before React renders the app -->
 
-    <!--Loads the React app and replaces this div with class 'root'-->
-    <script type="module" src="/src/main.tsx"></script>
+    <noscript>You need to enable JavaScript to run this app.</noscript> <!-- Warning if JS is disabled -->
+
+    <script type="module" src="/src/main.tsx"></script> 
+    <!-- 
+      Loads the React entry point.
+      Vite turns this TypeScript module into optimized JavaScript.
+      React will take over the #root div above and render your application.
+    -->
+
   </body>
 </html>
+
+<!-- 
+==============================================
+          CODE DETAILS FOR THIS FILE
+==============================================
+
+1. Why <div id="root"></div> exists:
+   - React applications do not render HTML files directly.
+   - Instead, React renders everything into this single "root" div.
+   - main.tsx contains something like:
+       ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+     That code replaces this div's content entirely.
+
+2. How Vite uses this index.html:
+   - Unlike CRA, Vite directly serves this file during development.
+   - Vite scans <script type="module"> and imports /src/main.tsx.
+   - It compiles TypeScript, JSX, and modules on demand.
+   - During build, Vite injects optimized JS/CSS into this file.
+
+3. Why the script uses type="module":
+   - Modern browsers support ES modules.
+   - Allows using import/export syntax directly.
+   - Enables faster development and hot-module replacement (HMR).
+
+4. What the meta viewport tag does:
+   - Without it, the site appears zoomed-out on mobile devices.
+   - It ensures responsive layouts work correctly.
+
+5. Why we preconnect to Google font servers:
+   - Browsers create connections (DNS lookup, TLS handshake) early.
+   - This removes delays when fonts start loading.
+   - Improves UI loading speed.
+
+6. Why <noscript> exists:
+   - React apps require JavaScript.
+   - If JS is disabled, the user sees this message instead of a blank page.
+
+7. Why index.html rarely changes:
+   - It is a static “shell” of your React application.
+   - The real UI is built from React components.
+   - Developers modify this file mainly to:
+       - Add analytics scripts
+       - Add SEO tags
+       - Add fonts/icons
+       - Enable PWA support
+
+==============================================
+-->
