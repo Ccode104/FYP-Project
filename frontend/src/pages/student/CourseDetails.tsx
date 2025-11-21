@@ -315,8 +315,7 @@ export default function CourseDetails() {
       { id: 'progress', label: 'Progress', icon: '📊', tooltip: 'Track your progress' },
       { id: 'videos', label: 'Videos', icon: '🎥', tooltip: 'Course video lectures' },
       { id: 'discussion', label: 'Discussion', icon: '💬', tooltip: 'Discussion forum', badge: discussionCount },
-      { id: 'chatbot', label: 'AI Assistant', icon: '🤖', tooltip: 'AI-powered help' },
-      { id: 'pdfchat', label: 'PDF Q&A', icon: '📚', tooltip: 'Ask questions about PDFs' },
+      { id: 'chatbot', label: 'AI Assistant', icon: '🤖', tooltip: 'AI-powered help for courses and documents' },
     ]
 
     const teacherTabs: TabItem[] = [
@@ -2214,57 +2213,30 @@ export default function CourseDetails() {
             </div>
           )}
 
-          {tab === 'chatbot' && isBackend && (
-            <section className="assignments-section">
-              <div className="section-header">
-                <h2 className="section-title">
-                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ marginRight: '8px', verticalAlign: 'middle' }}>
-                    <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
-                    <path d="M7 11V7a5 5 0 0110 0v4" />
-                  </svg>
-                  AI Course Assistant
-                </h2>
-                <span className="assignment-count">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ marginRight: '4px', verticalAlign: 'middle' }}>
-                    <circle cx="12" cy="12" r="10" />
-                    <polyline points="12 6 12 12 16 14" />
-                  </svg>
-                  24/7 Available
-                </span>
-              </div>
-              <div className="ai-assistant-intro">
-                <div className="ai-icon">🤖</div>
-                <p>Get instant AI-powered answers to your course questions. Ask about lectures, assignments, concepts, and more.</p>
-              </div>
-              <Chatbot type="course" offeringId={Number(courseId)} />
-            </section>
-          )}
-          {tab === 'pdfchat' && isBackend && (
-            <section className="assignments-section">
-              <div className="section-header">
-                <h2 className="section-title">
-                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ marginRight: '8px', verticalAlign: 'middle' }}>
-                    <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" />
-                    <polyline points="14 2 14 8 20 8" />
-                  </svg>
-                  PDF Q&A Assistant
-                </h2>
-                <span className="assignment-count">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ marginRight: '4px', verticalAlign: 'middle' }}>
-                    <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" />
-                    <polyline points="17 8 12 3 7 8" />
-                    <line x1="12" y1="3" x2="12" y2="15" />
-                  </svg>
-                  Upload & Ask
-                </span>
-              </div>
-              <div className="ai-assistant-intro">
-                <div className="ai-icon">📄</div>
-                <p>Upload any document (PDF, DOCX, TXT) and ask questions about its content. Perfect for analyzing course materials, research papers, and study guides.</p>
-              </div>
-              <Chatbot type="pdf" />
-            </section>
-          )}
+         {tab === 'chatbot' && isBackend && (
+           <section className="assignments-section">
+             <div className="section-header">
+               <h2 className="section-title">
+                 <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ marginRight: '8px', verticalAlign: 'middle' }}>
+                   <path d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                 </svg>
+                 AI Assistant
+               </h2>
+               <span className="assignment-count">
+                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ marginRight: '4px', verticalAlign: 'middle' }}>
+                   <circle cx="12" cy="12" r="10" />
+                   <polyline points="12 6 12 12 16 14" />
+                 </svg>
+                 Course & Document Q&A
+               </span>
+             </div>
+             <div className="ai-assistant-intro">
+               <div className="ai-icon">🤖</div>
+               <p>Get AI-powered answers for course questions or upload documents for Q&A. Switch between Course Q&A and Document Q&A modes.</p>
+             </div>
+             <Chatbot courseId={courseId} />
+           </section>
+         )}
           {tab === 'videos' && isBackend && (
             <section className="assignments-section">
               <div className="section-header">

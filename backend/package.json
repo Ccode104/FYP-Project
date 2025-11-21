@@ -19,12 +19,13 @@
     "jsonwebtoken": "^9.0.0",
     "mammoth": "^1.11.0",
     "multer": "^1.4.5-lts.1",
+    "multer-storage-cloudinary": "^4.0.0",
     "pdf-parse": "^2.4.5",
     "pdfjs-dist": "^4.8.69",
-    "multer-storage-cloudinary": "^4.0.0",
     "pg": "^8.11.0",
     "swagger-jsdoc": "^6.2.8",
     "swagger-ui-express": "^5.0.1",
+    "tesseract.js": "^6.0.1",
     "uuid": "^9.0.0"
   },
   "devDependencies": {

@@ -65,17 +65,17 @@ export default function Login() {
   const RoleTabs = () => (
     <div className="role-tabs" role="tablist" aria-label="Select role">
       {[
-        { key: 'student', label: 'Student' },
-        { key: 'teacher', label: 'Teacher' },
-        { key: 'ta', label: 'TA' },
-        { key: 'admin', label: 'Admin' },
+        { key: 'student' as const, label: 'Student' },
+        { key: 'teacher' as const, label: 'Teacher' },
+        { key: 'ta' as const, label: 'TA' },
+        { key: 'admin' as const, label: 'Admin' },
       ].map(t => (
         <button
           key={t.key}
           role="tab"
-          aria-selected={role === (t.key as any)}
-          className={`role-tab ${role === (t.key as any) ? 'active' : ''}`}
-          onClick={() => setRole(t.key as any)}
+          aria-selected={role === t.key}
+          className={`role-tab ${role === t.key ? 'active' : ''}`}
+          onClick={() => setRole(t.key)}
           type="button"
         >
           {t.label}

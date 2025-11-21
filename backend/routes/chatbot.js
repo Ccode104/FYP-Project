@@ -1,23 +1,31 @@
 import express from 'express';
 import { requireAuth } from '../middleware/auth.js';
 import { upload } from '../middleware/upload.js';
-import { 
-  chatAboutCourse, 
-  uploadPDF, 
-  chatWithPDF,
-  listUserPDFs 
+import {
+  chatWithAI,
+  uploadDocument,
+  listUserDocuments,
+  saveChatSession,
+  loadUserChatSessions,
+  loadChatSession,
+  deleteChatSession
 } from '../controllers/chatbotController.js';
 
 const router = express.Router();
 
 router.use(requireAuth);
 
-// Course chatbot
-router.post('/course/:offeringId', chatAboutCourse);
+// Unified AI chat
+router.post('/chat', chatWithAI);
 
-// PDF chatbot
-router.post('/pdf/upload', upload.single('pdf'), uploadPDF);
-router.post('/pdf/:pdfId/chat', chatWithPDF);
-router.get('/pdfs', listUserPDFs);
+// Document upload and management
+router.post('/document/upload', upload.single('document'), uploadDocument);
+router.get('/documents', listUserDocuments);
+
+// Chat session management
+router.post('/chats', saveChatSession);
+router.get('/chats', loadUserChatSessions);
+router.get('/chats/:sessionId', loadChatSession);
+router.delete('/chats/:sessionId', deleteChatSession);
 
 export default router;

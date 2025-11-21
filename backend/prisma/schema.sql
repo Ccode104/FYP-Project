@@ -281,3 +281,36 @@ CREATE TABLE IF NOT EXISTS assignment_questions (
 -- Link code submission to assignment question (if provided)
 ALTER TABLE code_submissions
   ADD COLUMN IF NOT EXISTS assignment_question_id BIGINT REFERENCES assignment_questions(id);
+
+-- Chat system tables
+CREATE TABLE IF NOT EXISTS chat_sessions (
+  id BIGSERIAL PRIMARY KEY,
+  user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  title TEXT NOT NULL,
+  course_id BIGINT REFERENCES course_offerings(id) ON DELETE SET NULL,
+  created_at TIMESTAMPTZ DEFAULT now(),
+  updated_at TIMESTAMPTZ DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS chat_messages (
+  id BIGSERIAL PRIMARY KEY,
+  chat_session_id BIGINT NOT NULL REFERENCES chat_sessions(id) ON DELETE CASCADE,
+  role TEXT NOT NULL CHECK (role IN ('user', 'assistant', 'system')),
+  content TEXT NOT NULL,
+  timestamp TIMESTAMPTZ DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS chat_documents (
+  id BIGSERIAL PRIMARY KEY,
+  chat_session_id BIGINT NOT NULL REFERENCES chat_sessions(id) ON DELETE CASCADE,
+  document_id TEXT NOT NULL, -- UUID from in-memory store
+  filename TEXT NOT NULL,
+  used_ocr BOOLEAN DEFAULT false,
+  created_at TIMESTAMPTZ DEFAULT now()
+);
+
+-- Indexes for performance
+CREATE INDEX IF NOT EXISTS idx_chat_sessions_user ON chat_sessions(user_id);
+CREATE INDEX IF NOT EXISTS idx_chat_sessions_course ON chat_sessions(course_id);
+CREATE INDEX IF NOT EXISTS idx_chat_messages_session ON chat_messages(chat_session_id);
+CREATE INDEX IF NOT EXISTS idx_chat_documents_session ON chat_documents(chat_session_id);
