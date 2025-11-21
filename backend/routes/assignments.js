@@ -1,6 +1,6 @@
 import express from 'express';
 import { requireAuth, requireRole } from '../middleware/auth.js';
-import { createAssignment } from '../controllers/assignmentsController.js';
+import { createAssignment, getAssignment } from '../controllers/assignmentsController.js';
 import { publishAssignment, listAssignmentSubmissions, deleteAssignment, getAssignmentQuestions } from '../controllers/assignmentsController.js';
 
 const router = express.Router();
@@ -44,6 +44,8 @@ const router = express.Router();
  *       403:
  *         description: Forbidden - Requires faculty, ta, or admin role
  */
+router.get('/:id', requireAuth, getAssignment);
+
 router.post('/', requireAuth, requireRole('faculty','ta','admin'), createAssignment);
 
 /**

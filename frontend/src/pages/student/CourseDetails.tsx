@@ -101,6 +101,15 @@ export default function CourseDetails() {
   const [replyContent, setReplyContent] = useState('')
   const [offeringDetails, setOfferingDetails] = useState<any>(null)
   const [sidebarOpen, setSidebarOpen] = useState(true)
+
+  // Auto-close sidebar when switching tabs on mobile/small screens
+  const handleTabChange = (tabId: string) => {
+    setTab(tabId as any)
+    // Close sidebar on mobile when switching tabs
+    if (window.innerWidth < 768) {
+      setSidebarOpen(false)
+    }
+  }
   const [readMessageIds, setReadMessageIds] = useState<Set<number>>(() => {
     try {
       const stored = localStorage.getItem(`readMessages:${courseId}`)
@@ -367,15 +376,6 @@ export default function CourseDetails() {
     id: Date.now().toString(), title: '', description: '', constraints: '', sample_input: '', sample_output: '', test_input: '', expected_output: ''
   })
   const [selectedQuestionIds, setSelectedQuestionIds] = useState<Record<string, boolean>>({})
-  const [selectedCodeAssignment, setSelectedCodeAssignment] = useState<any>(null)
-  const [codeEditor, setCodeEditor] = useState<Record<string, string>>({})
-  const [codeLang, setCodeLang] = useState<Record<string, string>>({})
-  const [runResults, setRunResults] = useState<Record<string, any>>({})
-  const [isRunningCode, setIsRunningCode] = useState<Record<string, boolean>>({})
-  const [savedQuestions, setSavedQuestions] = useState<Record<string, boolean>>({}) // Track which questions have been saved
-  const [isSavingCode, setIsSavingCode] = useState<Record<string, boolean>>({}) // Track saving state per question
-  const [tabInternal, setTabInternal] = useState<string>('')
-
   // Set course title in navbar and clear it on unmount
   useEffect(() => {
     const title = isBackend && offeringDetails
@@ -409,58 +409,6 @@ export default function CourseDetails() {
     }
   }, [courseId, isBackend])
 
-  // Submit code assignment (backend endpoint assumed; fallback to localStorage)
-  const submitCodeAssignment = async () => {
-    if (!selectedCodeAssignment) return push({ kind: 'error', message: 'No code assignment selected' })
-    // build answers payload
-    const answers = Object.entries(codeEditor).reduce<Record<string, any>>((acc, [qid, src]) => {
-      acc[qid] = { source_code: src, language: codeLang[qid] ?? 'python' }
-      return acc
-    }, {})
-
-    if (isBackend) {
-      try {
-        await apiFetch('/api/submissions/submit/code', {
-          method: 'POST',
-          body: {
-            assignment_id: Number(selectedCodeAssignment.id),
-            answers
-          }
-        })
-        push({ kind: 'success', message: 'Code submitted' })
-        setShowCodeEditor(false)
-        // Reload submissions to update the list
-        if (user?.role === 'student' && user?.id && courseId) {
-          try {
-            const submissions = await apiFetch<any[]>(`/api/student/courses/${courseId}/submissions`)
-            setMySubmissions(submissions || [])
-          } catch { }
-        }
-      } catch (err: any) {
-        push({ kind: 'error', message: err?.message || 'Submission failed' })
-      }
-      return
-    }
-
-    // Local mode: persist to localStorage
-    try {
-      const key = `localCodeSubmissions:${courseId}`
-      const existing = JSON.parse(localStorage.getItem(key) || '[]')
-      existing.push({
-        id: Date.now().toString(),
-        assignment_id: selectedCodeAssignment.id,
-        student_name: user?.name ?? 'Student',
-        code: codeEditor,
-        langs: codeLang,
-        submitted_at: new Date().toISOString()
-      })
-      localStorage.setItem(key, JSON.stringify(existing))
-      push({ kind: 'success', message: 'Code saved locally' })
-      setShowCodeEditor(false)
-    } catch (err: any) {
-      push({ kind: 'error', message: err?.message || 'Failed to save locally' })
-    }
-  }
 
   const [newAssnTitle, setNewAssnTitle] = useState('')
   const [newAssnDesc, setNewAssnDesc] = useState('')
@@ -695,148 +643,13 @@ export default function CourseDetails() {
     }
   }
 
-  // Student: start attempting a code assignment (load questions then switch to attempt tab)
+  // Student: start attempting a code assignment (navigate to dedicated editor page)
   const startCodeAttempt = async (assignment: any) => {
-    if (!assignment) return
-    let qs: CodeQuestion[] = []
-    if (isBackend) {
-      try {
-        qs = await apiFetch<CodeQuestion[]>(`/api/assignments/${assignment.id}/questions`)
-      } catch (err: any) {
-        push({ kind: 'error', message: err?.message || 'Failed to load questions' })
-      }
-    } else {
-      // local: read mapping and load questions from local storage
-      const key = `customCodeAssignments:${courseId}`
-      const mapping = JSON.parse(localStorage.getItem(key) || '[]').find((x: any) => String(x.id) === String(assignment.id))
-      const ids = mapping?.question_ids || []
-      const all = loadLocalCodeQuestions(courseId!)
-      qs = all.filter(q => ids.includes(q.id))
-    }
-    setSelectedCodeAssignment({ ...assignment, questions: qs })
-    // prefill editors for each question
-    const editors: Record<string, string> = {}
-    const langs: Record<string, string> = {}
-    qs.forEach(q => { editors[q.id] = ''; langs[q.id] = 'python' })
-    setCodeEditor(editors)
-    setCodeLang(langs)
-    setRunResults({})
-    setSavedQuestions({}) // Reset saved questions when starting new attempt
-    setTabInternal('code_attempt')
-    setTab('quizzes') // keep outer tab consistent (optional)
+    if (!assignment || !courseId) return
+    // Navigate to the dedicated code editor page
+    navigate(`/courses/${courseId}/assignments/${assignment.id}/editor`)
   }
 
-  // run code for a question using judge endpoint (uses SAMPLE test cases, not hidden ones)
-  const runCodeForQuestion = async (q: CodeQuestion) => {
-    const src = codeEditor[q.id] ?? ''
-    const lang = codeLang[q.id] ?? 'python'
-    if (!src.trim()) return push({ kind: 'error', message: 'Write your code first' })
-
-    // Set loading state for this question
-    setIsRunningCode(prev => ({ ...prev, [q.id]: true }))
-
-    // Clear previous results for this question
-    setRunResults(prev => {
-      const updated = { ...prev }
-      delete updated[q.id]
-      return updated
-    })
-
-    // Get sample test case (for "Run Code", students should test against sample cases)
-    let sampleInput = ''
-    let sampleOutput = ''
-
-    // First try to get from test_cases array (from backend)
-    if (q.test_cases && Array.isArray(q.test_cases)) {
-      const sampleCase = q.test_cases.find((tc: any) => tc.is_sample === true)
-      if (sampleCase) {
-        sampleInput = sampleCase.input_text || ''
-        sampleOutput = sampleCase.expected_text || ''
-      }
-    }
-
-    // Fallback to direct properties (for local mode or older format)
-    if (!sampleInput && q.sample_input) {
-      sampleInput = q.sample_input
-      sampleOutput = q.sample_output || ''
-    }
-
-    if (!sampleInput) {
-      setIsRunningCode(prev => ({ ...prev, [q.id]: false }))
-      push({ kind: 'error', message: 'No sample test case available for this question' })
-      return
-    }
-
-    try {
-      const payload = {
-        source_code: src,
-        language: lang,
-        stdin: sampleInput // Use sample input, not hidden test input
-      }
-      const res = await apiFetch('/api/judge', { method: 'POST', body: payload })
-      const stdout = (res.stdout ?? '').toString()
-      const stderr = (res.stderr ?? '').toString()
-      const compileOutput = (res.compile_output ?? '').toString()
-
-      // Check if output matches expected sample output
-      const ok = stdout.trim() === sampleOutput.trim()
-
-      // Determine status message
-      let message = 'Failed'
-      if (res.status) {
-        if (res.status.id === 3) {
-          // Accepted
-          message = ok ? 'Passed' : 'Failed - Output mismatch'
-        } else if (res.status.id === 4) {
-          // Wrong Answer
-          message = 'Failed - Wrong Answer'
-        } else if (res.status.id === 5) {
-          // Time Limit Exceeded
-          message = 'Failed - Time Limit Exceeded'
-        } else if (res.status.id === 6) {
-          // Compilation Error
-          message = 'Failed - Compilation Error'
-        } else if (res.status.id === 7) {
-          // Runtime Error
-          message = 'Failed - Runtime Error'
-        } else {
-          message = res.status.description || 'Failed'
-        }
-      }
-
-      setRunResults(r => ({
-        ...r,
-        [q.id]: {
-          ok,
-          stdout,
-          stderr: stderr || compileOutput,
-          message,
-          status: res.status,
-          expected: sampleOutput,
-          actual: stdout
-        }
-      }))
-
-      if (ok) {
-        push({ kind: 'success', message: 'Sample test case passed!' })
-      } else {
-        push({ kind: 'error', message: `Sample test case failed. Expected: "${sampleOutput}", Got: "${stdout}"` })
-      }
-    } catch (err: any) {
-      setRunResults(r => ({
-        ...r,
-        [q.id]: {
-          ok: false,
-          message: err?.message || 'Judge failed',
-          error: err?.message || 'Execution error'
-        }
-      }))
-      push({ kind: 'error', message: err?.message || 'Judge service unavailable' })
-    } finally {
-      // Clear loading state
-      setIsRunningCode(prev => ({ ...prev, [q.id]: false }))
-    }
-  }
 
   // Load backend data once per offering id
   useEffect(() => {
@@ -1108,7 +921,7 @@ export default function CourseDetails() {
       <CourseSidebar
         tabs={sidebarTabs}
         activeTab={tab}
-        onTabChange={(tabId) => setTab(tabId as any)}
+        onTabChange={handleTabChange}
         userRole={user?.role}
         onSidebarToggle={(isOpen) => setSidebarOpen(isOpen)}
       />
@@ -1273,30 +1086,15 @@ export default function CourseDetails() {
                   return
                 }
 
-                // Find and load the selected assignment
+                // Find the selected assignment
                 const assignment = presentAssignments.find((a: any) => String(a.id) === codeAssignmentId)
                 if (!assignment) {
                   push({ kind: 'error', message: 'Assignment not found' })
                   return
                 }
 
-                // Load assignment with questions if backend mode
-                if (isBackend) {
-                  try {
-                    const questions = await apiFetch<any[]>(`/api/assignments/${codeAssignmentId}/questions`)
-                    setSelectedCodeAssignment({
-                      ...assignment,
-                      questions
-                    })
-                    setTabInternal('code-attempt')
-                  } catch (err: any) {
-                    push({ kind: 'error', message: err?.message || 'Failed to load assignment' })
-                    return
-                  }
-                } else {
-                  setSelectedCodeAssignment(assignment)
-                  setShowCodeEditor(true)
-                }
+                // Navigate to the dedicated code editor page
+                navigate(`/courses/${courseId}/assignments/${codeAssignmentId}/editor`)
               }}
             />
           )}
@@ -1791,385 +1589,6 @@ export default function CourseDetails() {
             </section>
           )}
 
-          {tabInternal === 'code_attempt' && selectedCodeAssignment && (
-            <section className="code-submission-view">
-              <div className="code-submission-header">
-                <div className="code-submission-title-section">
-                  <h2 className="code-submission-title">
-                    <span className="assignment-icon">💻</span>
-                    {selectedCodeAssignment.title}
-                  </h2>
-                  <div className="code-submission-meta">
-                    <span className="meta-badge">
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                        <path d="M9 11l3 3L22 4" />
-                        <path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11" />
-                      </svg>
-                      {selectedCodeAssignment.questions?.length || 0} Questions
-                    </span>
-                    {selectedCodeAssignment.due_at && (
-                      <span className="meta-badge">
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                          <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
-                          <line x1="16" y1="2" x2="16" y2="6" />
-                          <line x1="8" y1="2" x2="8" y2="6" />
-                          <line x1="3" y1="10" x2="21" y2="10" />
-                        </svg>
-                        Due: {new Date(selectedCodeAssignment.due_at).toLocaleDateString()}
-                      </span>
-                    )}
-                  </div>
-                </div>
-                <div className="code-submission-actions">
-                  <button className="btn-back" onClick={() => { setTabInternal(''); setSelectedCodeAssignment(null) }}>
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                      <path d="M19 12H5M12 19l-7-7 7-7" />
-                    </svg>
-                    Back to Assignments
-                  </button>
-                </div>
-              </div>
-              <div className="code-submission-body">
-                {selectedCodeAssignment.questions && selectedCodeAssignment.questions.length > 0 ? (
-                  <div className="questions-container">
-                    {selectedCodeAssignment.questions.map((q: CodeQuestion, idx: number) => (
-                      <div key={q.id} className="question-card">
-                        <div className="question-header">
-                          <div style={{ display: 'flex', alignItems: 'center' }}>
-                            <span className="question-number">{idx + 1}</span>
-                            <h3 className="question-title-text">{q.title || 'Untitled Question'}</h3>
-                          </div>
-                          <span className={`question-status ${savedQuestions[q.id] ? 'saved' : 'unsaved'}`}>
-                            {savedQuestions[q.id] ? (
-                              <>
-                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
-                                  <polyline points="20 6 9 17 4 12" />
-                                </svg>
-                                Saved
-                              </>
-                            ) : (
-                              'Not Saved'
-                            )}
-                          </span>
-                        </div>
-                        <div className="question-body">
-                          <div className="question-description">{q.description}</div>
-                          {q.constraints && (
-                            <div className="constraints-box">
-                              <strong>⚠️ Constraints</strong>
-                              <p>{q.constraints}</p>
-                            </div>
-                          )}
-                          {(() => {
-                            // Get sample test cases from test_cases array (backend) or direct properties (local)
-                            let sampleCases: any[] = []
-                            if (q.test_cases && Array.isArray(q.test_cases)) {
-                              sampleCases = q.test_cases.filter((tc: any) => tc.is_sample === true)
-                            } else if (q.sample_input && q.sample_output) {
-                              // Fallback to direct properties for local mode
-                              sampleCases = [{ input_text: q.sample_input, expected_text: q.sample_output }]
-                            }
-
-                            return sampleCases.length > 0 ? (
-                              <div className="test-cases-section">
-                                <div className="test-cases-title">
-                                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                                    <path d="M9 11l3 3L22 4" />
-                                    <path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11" />
-                                  </svg>
-                                  Sample Test Cases
-                                </div>
-                                {sampleCases.map((tc: any, tcIdx: number) => (
-                                  <div key={tcIdx} className="test-case-item">
-                                    <span className="test-case-label">Input</span>
-                                    <div className="test-case-content">{tc.input_text || '(empty)'}</div>
-                                    <span className="test-case-label" style={{ marginTop: 12, display: 'block' }}>Expected Output</span>
-                                    <div className="test-case-content">{tc.expected_text || '(empty)'}</div>
-                                  </div>
-                                ))}
-                              </div>
-                            ) : null
-                          })()}
-
-                          <div className="code-editor-section">
-                            <div className="language-selector">
-                              <label>Programming Language</label>
-                              <select className="language-select" value={codeLang[q.id] || 'python'} onChange={(e) => setCodeLang(prev => ({ ...prev, [q.id]: e.target.value }))}>
-                                <option value="python">Python</option>
-                                <option value="java">Java</option>
-                                <option value="cpp">C++</option>
-                                <option value="c">C</option>
-                                <option value="javascript">JavaScript</option>
-                              </select>
-                            </div>
-
-                            <div className="code-editor">
-                              <textarea
-                                className="code-textarea"
-                                value={codeEditor[q.id] || ''}
-                                onChange={(e) => setCodeEditor(prev => ({ ...prev, [q.id]: e.target.value }))}
-                                placeholder="// Write your code here..."
-                              />
-                            </div>
-                          </div>
-
-                          <div className="code-actions">
-                            <button
-                              className="btn-run-code"
-                              onClick={() => void runCodeForQuestion(q)}
-                              disabled={!codeEditor[q.id]?.trim() || isRunningCode[q.id]}
-                            >
-                              {isRunningCode[q.id] ? (
-                                <>
-                                  <span className="loading-indicator"></span>
-                                  Running...
-                                </>
-                              ) : (
-                                <>
-                                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                                    <polygon points="5 3 19 12 5 21 5 3" />
-                                  </svg>
-                                  Run Code
-                                </>
-                              )}
-                            </button>
-                            <button
-                              className={`btn-save-code ${savedQuestions[q.id] ? 'saved' : ''}`}
-                              onClick={async () => {
-                                if (!codeEditor[q.id]?.trim()) {
-                                  push({ kind: 'error', message: 'Write your code first' })
-                                  return
-                                }
-                                setIsSavingCode(prev => ({ ...prev, [q.id]: true }))
-                                try {
-                                  await apiFetch('/api/submissions/submit/code', {
-                                    method: 'POST',
-                                    body: {
-                                      assignment_id: Number(selectedCodeAssignment.id),
-                                      question_id: Number(q.id),
-                                      language: codeLang[q.id] || 'python',
-                                      code: codeEditor[q.id]
-                                    }
-                                  })
-                                  setSavedQuestions(prev => ({ ...prev, [q.id]: true }))
-                                  push({ kind: 'success', message: `Question ${idx + 1} code saved successfully` })
-                                } catch (err: any) {
-                                  push({ kind: 'error', message: err?.message || 'Failed to save code' })
-                                } finally {
-                                  setIsSavingCode(prev => ({ ...prev, [q.id]: false }))
-                                }
-                              }}
-                              disabled={!codeEditor[q.id]?.trim() || isSavingCode[q.id]}
-                            >
-                              {isSavingCode[q.id] ? (
-                                <>
-                                  <span className="loading-indicator"></span>
-                                  Saving...
-                                </>
-                              ) : savedQuestions[q.id] ? (
-                                <>
-                                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                                    <polyline points="20 6 9 17 4 12" />
-                                  </svg>
-                                  Saved
-                                </>
-                              ) : (
-                                <>
-                                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                                    <path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z" />
-                                    <polyline points="17 21 17 13 7 13 7 21" />
-                                    <polyline points="7 3 7 8 15 8" />
-                                  </svg>
-                                  Save Code
-                                </>
-                              )}
-                            </button>
-                          </div>
-
-                          {isRunningCode[q.id] && (
-                            <div className="result-panel loading">
-                              <div className="result-header">
-                                <div className="result-icon loading">
-                                  <span className="loading-indicator"></span>
-                                </div>
-                                <h4 className="result-title loading">Running test cases...</h4>
-                              </div>
-                            </div>
-                          )}
-
-                          {runResults[q.id] && !isRunningCode[q.id] && (
-                            <div className={`result-panel ${runResults[q.id].ok ? 'success' : 'error'}`}>
-                              <div className="result-header">
-                                <div className={`result-icon ${runResults[q.id].ok ? 'success' : 'error'}`}>
-                                  {runResults[q.id].ok ? '✓' : '✗'}
-                                </div>
-                                <h4 className={`result-title ${runResults[q.id].ok ? 'success' : 'error'}`}>
-                                  {runResults[q.id].message || (runResults[q.id].ok ? 'Test Passed!' : 'Test Failed')}
-                                </h4>
-                              </div>
-                              <div className="result-content">
-                                {runResults[q.id].stdout !== undefined && runResults[q.id].stdout !== '' && (
-                                  <div className="result-section">
-                                    <div className="result-section-title">Your Output</div>
-                                    <pre className="result-code">{runResults[q.id].stdout || '(empty)'}</pre>
-                                  </div>
-                                )}
-                                {runResults[q.id].expected && (
-                                  <div className="result-section">
-                                    <div className="result-section-title">Expected Output</div>
-                                    <pre className="result-code">{runResults[q.id].expected}</pre>
-                                  </div>
-                                )}
-                                {runResults[q.id].stderr && runResults[q.id].stderr.trim() !== '' && (
-                                  <div className="result-section">
-                                    <div className="result-section-title">Error Message</div>
-                                    <pre className="result-code error-text">{runResults[q.id].stderr}</pre>
-                                  </div>
-                                )}
-                                {runResults[q.id].error && (
-                                  <div className="result-section">
-                                    <div className="result-section-title">Error</div>
-                                    <pre className="result-code error-text">{runResults[q.id].error}</pre>
-                                  </div>
-                                )}
-                              </div>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <p className="muted" style={{ textAlign: 'center', padding: '40px 20px' }}>No questions found for this assignment.</p>
-                )}
-
-                {selectedCodeAssignment.questions && selectedCodeAssignment.questions.length > 0 && (
-                  <div className="final-submission-panel">
-                    <div className="final-submission-header">
-                      <div className="final-submission-info">
-                        <h4>Ready to Submit?</h4>
-                        <p className="progress-text">
-                          {(() => {
-                            const savedCount = selectedCodeAssignment.questions.filter((q: CodeQuestion) => savedQuestions[q.id]).length
-                            const totalCount = selectedCodeAssignment.questions.length
-                            return `${savedCount} of ${totalCount} questions saved`
-                          })()}
-                        </p>
-                      </div>
-                    </div>
-                    <div className="progress-bar-container">
-                      <div
-                        className="progress-bar"
-                        style={{
-                          width: `${(selectedCodeAssignment.questions.filter((q: CodeQuestion) => savedQuestions[q.id]).length / selectedCodeAssignment.questions.length) * 100}%`
-                        }}
-                      />
-                    </div>
-                    <button
-                      className="btn-final-submit"
-                      onClick={async () => {
-                        // Check if all questions have code
-                        const allHaveCode = selectedCodeAssignment.questions.every((q: CodeQuestion) => {
-                          return codeEditor[q.id]?.trim()
-                        })
-
-                        if (!allHaveCode) {
-                          push({ kind: 'error', message: 'Please write code for all questions before final submission' })
-                          return
-                        }
-
-                        // Check if all questions are saved
-                        const allSaved = selectedCodeAssignment.questions.every((q: CodeQuestion) => {
-                          return savedQuestions[q.id]
-                        })
-
-                        if (!allSaved) {
-                          const confirmSave = confirm('Some questions are not saved. Do you want to save all questions and submit?')
-                          if (!confirmSave) return
-
-                          // Save all unsaved questions first
-                          for (const q of selectedCodeAssignment.questions) {
-                            if (!savedQuestions[q.id] && codeEditor[q.id]?.trim()) {
-                              try {
-                                await apiFetch('/api/submissions/submit/code', {
-                                  method: 'POST',
-                                  body: {
-                                    assignment_id: Number(selectedCodeAssignment.id),
-                                    question_id: Number(q.id),
-                                    language: codeLang[q.id] || 'python',
-                                    code: codeEditor[q.id]
-                                  }
-                                })
-                                setSavedQuestions(prev => ({ ...prev, [q.id]: true }))
-                              } catch (err: any) {
-                                push({ kind: 'error', message: `Failed to save question ${q.id}: ${err?.message}` })
-                                return
-                              }
-                            }
-                          }
-                        }
-
-                        // Final submission - ensure all questions are saved, then mark as complete
-                        try {
-                          // Ensure all questions are saved (submit any unsaved ones)
-                          for (const q of selectedCodeAssignment.questions) {
-                            if (codeEditor[q.id]?.trim() && !savedQuestions[q.id]) {
-                              try {
-                                await apiFetch('/api/submissions/submit/code', {
-                                  method: 'POST',
-                                  body: {
-                                    assignment_id: Number(selectedCodeAssignment.id),
-                                    question_id: Number(q.id),
-                                    language: codeLang[q.id] || 'python',
-                                    code: codeEditor[q.id]
-                                  }
-                                })
-                                setSavedQuestions(prev => ({ ...prev, [q.id]: true }))
-                              } catch (err: any) {
-                                push({ kind: 'error', message: `Failed to save question ${q.id}: ${err?.message}` })
-                                return
-                              }
-                            }
-                          }
-
-                          // All questions are now saved. The submission is complete.
-                          // The backend creates/updates the submission when code is saved,
-                          // so all questions are already stored in the database.
-
-                          push({ kind: 'success', message: 'Assignment submitted successfully! All questions have been saved and submitted.' })
-
-                          // Reload submissions to update the list
-                          if (user?.role === 'student' && user?.id && courseId) {
-                            try {
-                              const submissions = await apiFetch<any[]>(`/api/student/courses/${courseId}/submissions`)
-                              setMySubmissions(submissions || [])
-                            } catch { }
-                          }
-
-                          // Close the code attempt view and go back
-                          setTabInternal('')
-                          setSelectedCodeAssignment(null)
-                          setCodeEditor({})
-                          setCodeLang({})
-                          setSavedQuestions({})
-                          setRunResults({})
-                        } catch (err: any) {
-                          push({ kind: 'error', message: err?.message || 'Final submission failed' })
-                        }
-                      }}
-                      disabled={selectedCodeAssignment.questions.some((q: CodeQuestion) => !codeEditor[q.id]?.trim())}
-                    >
-                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                        <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
-                        <polyline points="22 4 12 14.01 9 11.01" />
-                      </svg>
-                      Submit All Answers
-                    </button>
-                  </div>
-                )}
-              </div>
-            </section>
-          )}
 
           {showCodeEditor && viewingCodeSubmission && (
             <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>

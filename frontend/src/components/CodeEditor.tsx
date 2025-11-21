@@ -1,64 +1,112 @@
-import { useState } from 'react'
+import { useState, useRef, useEffect } from 'react'
+import Editor from '@monaco-editor/react'
+import type { editor } from 'monaco-editor'
 import './CodeEditor.css'
 
 interface CodeEditorProps {
   onSubmit: (code: string, language: string) => void
   defaultLanguage?: string
   disabled?: boolean
+  value?: string
+  onChange?: (code: string) => void
 }
 
-export default function CodeEditor({ onSubmit, defaultLanguage = 'python', disabled = false }: CodeEditorProps) {
-  const [code, setCode] = useState('')
-  const [language, setLanguage] = useState(defaultLanguage)
+const languageMap: { [key: string]: string } = {
+  python: 'python',
+  java: 'java',
+  cpp: 'cpp',
+  javascript: 'javascript',
+  c: 'c'
+}
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!code.trim()) {
-      alert('Please write some code before submitting')
-      return
+export default function CodeEditor({ defaultLanguage = 'python', disabled = false, value, onChange }: CodeEditorProps) {
+  const [code, setCode] = useState(value || '')
+  const editorRef = useRef<editor.IStandaloneCodeEditor | null>(null)
+
+  // Sync external value changes
+  useEffect(() => {
+    if (value !== undefined && value !== code) {
+      setCode(value)
     }
-    onSubmit(code, language)
+  }, [value])
+
+  const handleEditorDidMount = (editor: editor.IStandaloneCodeEditor, monacoInstance: typeof import('monaco-editor')) => {
+    editorRef.current = editor
+
+    // Configure Monaco Editor with VSCode-like features
+    monacoInstance.editor.defineTheme('vs-dark-custom', {
+      base: 'vs-dark',
+      inherit: true,
+      rules: [],
+      colors: {
+        'editor.background': '#1e1e1e',
+      }
+    })
+
+    // Set theme
+    monacoInstance.editor.setTheme('vs-dark-custom')
+  }
+
+  const handleEditorChange = (value: string | undefined) => {
+    const newCode = value || ''
+    setCode(newCode)
+    if (onChange) {
+      onChange(newCode)
+    }
   }
 
   return (
-    <form onSubmit={handleSubmit} className="code-editor-container">
-      <div className="code-editor-header">
-        <label className="field">
-          <span className="label">Language:</span>
-          <select 
-            className="select" 
-            value={language} 
-            onChange={(e) => setLanguage(e.target.value)}
-            disabled={disabled}
-          >
-            <option value="python">Python</option>
-            <option value="java">Java</option>
-            <option value="cpp">C++</option>
-            <option value="javascript">JavaScript</option>
-            <option value="c">C</option>
-          </select>
-        </label>
-      </div>
-      <textarea
-        className="code-editor-textarea"
+    <div className="code-editor-monaco">
+      <Editor
+        height="100%"
+        language={languageMap[defaultLanguage] || 'python'}
         value={code}
-        onChange={(e) => setCode(e.target.value)}
-        placeholder={`Write your ${language} code here...`}
-        disabled={disabled}
-        spellCheck={false}
+        onChange={handleEditorChange}
+        onMount={handleEditorDidMount}
+        options={{
+          minimap: { enabled: true },
+          fontSize: 14,
+          lineNumbers: 'on',
+          roundedSelection: false,
+          scrollBeyondLastLine: false,
+          automaticLayout: true,
+          tabSize: 2,
+          insertSpaces: true,
+          wordWrap: 'on',
+          folding: true,
+          lineDecorationsWidth: 10,
+          lineNumbersMinChars: 3,
+          renderWhitespace: 'selection',
+          cursorBlinking: 'blink',
+          cursorStyle: 'line',
+          contextmenu: true,
+          mouseWheelZoom: true,
+          multiCursorModifier: 'ctrlCmd',
+          accessibilitySupport: 'auto',
+          suggestOnTriggerCharacters: true,
+          acceptSuggestionOnEnter: 'on',
+          quickSuggestions: {
+            other: true,
+            comments: true,
+            strings: true
+          },
+          parameterHints: {
+            enabled: true
+          },
+          hover: {
+            enabled: true
+          },
+          bracketPairColorization: {
+            enabled: true
+          },
+          guides: {
+            bracketPairs: true,
+            indentation: true
+          },
+          readOnly: disabled
+        }}
+        theme="vs-dark"
       />
-      <div className="code-editor-footer">
-        <button 
-          type="submit" 
-          className="btn btn-primary"
-          disabled={disabled || !code.trim()}
-        >
-          Submit Code
-        </button>
-        <span className="muted">
-          Lines: {code.split('\n').length} | Characters: {code.length}
-        </span>
-      </div>
-    </form>
+    </div>
   )
 }

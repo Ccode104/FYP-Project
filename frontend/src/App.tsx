@@ -11,6 +11,7 @@ import StudentDashboard from './pages/student/StudentDashboard'
 import TeacherDashboard from './pages/teacher/TeacherDashboard'
 import AdminDashboard from './pages/admin/AdminDashboard'
 import CourseDetails from './pages/student/CourseDetails'
+import CodeEditorPage from './pages/student/CodeEditorPage'
 
 // Import the protected route wrapper for role-based access
 import ProtectedRoute from './routes/ProtectedRoute'
@@ -95,6 +96,16 @@ function App() {
             element={
               <ProtectedRoute roles={["student", "teacher", "ta"]}>
                 <CourseDetails />
+              </ProtectedRoute>
+            }
+          />
+
+          {/* Code editor page (accessible by student, teacher, TA) */}
+          <Route
+            path="/courses/:courseId/assignments/:assignmentId/editor"
+            element={
+              <ProtectedRoute roles={["student", "teacher", "ta"]}>
+                <CodeEditorPage />
               </ProtectedRoute>
             }
           />

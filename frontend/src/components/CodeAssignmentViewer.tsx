@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useToast } from './ToastProvider'
-// import CodeEditor from './CodeEditor'
+import CodeEditor from './CodeEditor'
 
 interface TestCase {
   id: number
@@ -255,18 +255,6 @@ export default function CodeAssignmentViewer({ assignmentId, onComplete }: CodeA
             {/* Code Editor */}
             <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
               <div style={{ marginBottom: 8, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <select
-                  className="select"
-                  value={currentLanguage}
-                  onChange={(e) => setLanguage(prev => ({ ...prev, [currentQuestion.id]: e.target.value }))}
-                  style={{ width: 150 }}
-                >
-                  <option value="python">Python</option>
-                  <option value="java">Java</option>
-                  <option value="cpp">C++</option>
-                  <option value="c">C</option>
-                  <option value="javascript">JavaScript</option>
-                </select>
                 <div style={{ display: 'flex', gap: 8 }}>
                   <button
                     className="btn"
@@ -285,21 +273,15 @@ export default function CodeAssignmentViewer({ assignmentId, onComplete }: CodeA
                 </div>
               </div>
 
-              <div style={{ flex: 1, border: '1px solid #ddd', borderRadius: 4, overflow: 'hidden' }}>
-                <textarea
+              <div style={{ flex: 1 }}>
+                <CodeEditor
                   value={currentCode}
-                  onChange={(e) => setCode(prev => ({ ...prev, [currentQuestion.id]: e.target.value }))}
-                  style={{
-                    width: '100%',
-                    height: '100%',
-                    padding: 12,
-                    fontFamily: 'monospace',
-                    fontSize: '14px',
-                    border: 'none',
-                    resize: 'none',
-                    outline: 'none'
+                  onChange={(code) => setCode(prev => ({ ...prev, [currentQuestion.id]: code }))}
+                  onSubmit={(code, lang) => {
+                    setCode(prev => ({ ...prev, [currentQuestion.id]: code }))
+                    setLanguage(prev => ({ ...prev, [currentQuestion.id]: lang }))
                   }}
-                  placeholder="Write your code here..."
+                  defaultLanguage={currentLanguage}
                 />
               </div>
 

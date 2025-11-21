@@ -94,6 +94,39 @@ res.json({ submissions: enhanced });
 
 }
 
+export async function getAssignment(req, res) {
+  const id = Number(req.params.id);
+  if (!id) return res.status(400).json({ error: 'Missing assignment id' });
+
+  // Get assignment with course offering details
+  const q = `
+    SELECT a.*, o.faculty_id, o.term, c.code as course_code, c.title as course_name
+    FROM assignments a
+    JOIN course_offerings o ON a.course_offering_id = o.id
+    JOIN courses c ON o.course_id = c.id
+    WHERE a.id = $1
+  `;
+  const r = await pool.query(q, [id]);
+  if (r.rowCount === 0) return res.status(404).json({ error: 'Assignment not found' });
+
+  const assignment = r.rows[0];
+
+  // Check if user has access to this assignment (enrolled in the course or faculty/admin)
+  if (req.user.role === 'student') {
+    const enrollCheck = await pool.query(
+      'SELECT 1 FROM enrollments WHERE course_offering_id = $1 AND student_id = $2',
+      [assignment.course_offering_id, req.user.id]
+    );
+    if (enrollCheck.rowCount === 0) {
+      return res.status(403).json({ error: 'Not enrolled in this course' });
+    }
+  } else if (req.user.role === 'faculty' && req.user.id !== assignment.faculty_id) {
+    return res.status(403).json({ error: 'Not authorized to view this assignment' });
+  }
+
+  res.json(assignment);
+}
+
 export async function deleteAssignment(req, res) {
   const id = Number(req.params.id);
   if (!id) return res.status(400).json({ error: 'Missing assignment id' });
