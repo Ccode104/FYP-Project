@@ -3,7 +3,7 @@
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
-  overflow: hidden;
+  overflow: auto;
   animation: fadeInUp 0.4s ease-out;
 }
 
@@ -123,7 +123,7 @@
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
-  overflow: hidden;
+  overflow: auto;
   box-shadow: var(--shadow-sm);
   transition: all 0.3s ease;
 }
@@ -327,7 +327,7 @@
   position: relative;
   border: 1px solid var(--border);
   border-radius: 10px;
-  overflow: hidden;
+  overflow: auto;
   background: #1e1e1e;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
 }
@@ -385,7 +385,7 @@
   cursor: pointer;
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   position: relative;
-  overflow: hidden;
+  overflow: auto;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
 }
 
@@ -589,7 +589,7 @@
   height: 8px;
   background: var(--bg-secondary);
   border-radius: 20px;
-  overflow: hidden;
+  overflow: auto;
   margin-bottom: 20px;
 }
 
@@ -617,7 +617,7 @@
   background: linear-gradient(135deg, #6366f1, #8b5cf6);
   box-shadow: 0 8px 16px rgba(99, 102, 241, 0.25);
   position: relative;
-  overflow: hidden;
+  overflow: auto;
 }
 
 .btn-final-submit::before {
@@ -677,7 +677,7 @@
 .console-section {
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
-  overflow: hidden;
+  overflow: auto;
   background: var(--surface);
   margin-top: 20px;
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
@@ -742,7 +742,7 @@
 .console-content {
   border-top: 1px solid var(--border);
   max-height: 600px;
-  overflow: hidden;
+  overflow: auto;
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
@@ -785,6 +785,12 @@
 }
 
 /* Test Cases Tab */
+.test-cases-content {
+  height: 100%;
+  overflow-y: auto;
+  padding: 0; /* Remove default padding since parent handles it */
+}
+
 .test-cases-content h4 {
   margin: 0 0 16px 0;
   font-size: 18px;
@@ -831,6 +837,7 @@
   border-radius: 10px;
   padding: 16px;
   transition: all 0.2s ease;
+  overflow: visible; /* Allow content to be visible */
 }
 
 .test-case-item:hover {
@@ -939,6 +946,7 @@
   background: var(--bg-secondary);
   border-radius: 6px;
   border: 1px solid var(--border);
+  flex-shrink: 0; /* Don't shrink this element */
 }
 
 .result-summary {
@@ -992,6 +1000,9 @@
   white-space: pre-wrap;
   overflow-x: auto;
   margin: 0;
+  max-height: 120px; /* Limit height of individual code blocks */
+  overflow-y: auto; /* Allow scrolling within code blocks */
+  word-break: break-all; /* Break long words to prevent overflow */
 }
 
 .result-detail.error pre {
@@ -1006,6 +1017,12 @@
 }
 
 /* Test Results Tab */
+.test-results-content {
+  height: 100%;
+  overflow-y: auto;
+  padding: 0; /* Remove default padding since parent handles it */
+}
+
 .test-results-content h4 {
   margin: 0 0 20px 0;
   font-size: 18px;
@@ -1151,16 +1168,38 @@
   z-index: 1000;
   display: flex;
   flex-direction: column;
-  overflow: hidden;
+  overflow: auto;
 }
 
 .question-tabs-compact {
   display: flex;
+  justify-content: space-between;
+  align-items: center;
   background: var(--bg-secondary);
   border-bottom: 1px solid var(--border);
-  padding: 0 20px;
-  gap: 8px;
+  padding: 12px 20px;
   flex-shrink: 0;
+}
+
+.question-navigation {
+  display: flex;
+  gap: 8px;
+}
+
+.code-editor-controls-compact {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.code-editor-controls-compact .language-selector {
+  display: flex;
+  align-items: center;
+}
+
+.code-editor-controls-compact .code-actions {
+  display: flex;
+  gap: 8px;
 }
 
 .question-tab {
@@ -1194,7 +1233,7 @@
 .code-editor-main-content {
   display: flex;
   flex: 1;
-  overflow: hidden;
+  overflow: auto;
 }
 
 .leetcode-left-pane {
@@ -1340,14 +1379,14 @@
   flex: 1;
   display: flex;
   flex-direction: column;
-  overflow: hidden;
+  overflow: auto;
 }
 
 .code-editor-full-container {
   flex: 1;
   display: flex;
   flex-direction: column;
-  overflow: hidden;
+  overflow: auto;
 }
 
 .code-editor-header {
@@ -1400,15 +1439,27 @@
 
 .code-editor-full-wrapper {
   flex: 1;
+  display: flex;
+  flex-direction: column;
   position: relative;
-  overflow: hidden;
+  overflow: auto;
+  min-height: 0; /* Allow flex shrinking */
+}
+
+.code-editor-area {
+  flex: 1;
+  min-height: 200px; /* Reduced minimum height since flex will handle sizing */
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  overflow: auto;
 }
 
 /* Console Section at Bottom of Right Pane */
 .console-section-bottom {
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
-  overflow: hidden;
+  overflow: auto;
   background: var(--surface);
   margin-top: 0;
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
@@ -1416,7 +1467,9 @@
 }
 
 .console-section-bottom.collapsed {
-  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+  height: 0;
+  overflow: auto;
+  border: none;
 }
 
 .console-header {
@@ -1477,7 +1530,7 @@
 .console-content {
   border-top: 1px solid var(--border);
   max-height: 600px;
-  overflow: hidden;
+  overflow: auto;
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
@@ -1523,6 +1576,185 @@
   transform: none;
 }
 
+/* Top Header */
+.code-editor-top-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 16px 24px;
+  background: var(--bg-secondary);
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.assignment-title {
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--text);
+  flex: 1;
+  text-align: center;
+}
+
+.btn-submit-assignment-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  background: linear-gradient(135deg, var(--primary), var(--secondary));
+  color: white;
+  border: none;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 0 2px 8px rgba(79, 70, 229, 0.25);
+}
+
+.btn-submit-assignment-header:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(79, 70, 229, 0.35);
+}
+
+.btn-submit-assignment-header:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
+}
+
+/* Code Editor Controls */
+.code-editor-controls {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 24px;
+  background: var(--bg-secondary);
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+/* Testcases Bar */
+.testcases-bar {
+  height: 500px;
+  border-top: 1px solid var(--border);
+  background: var(--surface);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  flex-shrink: 0;
+  overflow: hidden;
+}
+
+.testcases-bar.collapsed {
+  height: 40px;
+  overflow: auto;
+}
+
+.testcases-bar-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 20px;
+  background: var(--bg-secondary);
+  border-bottom: 1px solid var(--border);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.testcases-bar-header:hover {
+  background: var(--bg-hover);
+}
+
+.test-count {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--muted);
+  background: var(--surface);
+  padding: 2px 8px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+}
+
+.testcases-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 4px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--text);
+  transition: all 0.2s ease;
+  transform: rotate(0deg);
+}
+
+.testcases-toggle.expanded {
+  transform: rotate(180deg);
+  background: var(--primary);
+  color: white;
+  border-color: var(--primary);
+}
+
+.testcases-content {
+  height: calc(100% - 40px); /* Account for header height */
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+}
+
+.testcases-tabs {
+  display: flex;
+  background: var(--bg-secondary);
+  border-bottom: 1px solid var(--border);
+}
+
+.testcases-tab {
+  flex: 1;
+  padding: 12px 20px;
+  background: none;
+  border: none;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--muted);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  border-bottom: 2px solid transparent;
+  text-align: center;
+}
+
+.testcases-tab.active {
+  color: var(--primary);
+  border-bottom-color: var(--primary);
+  background: var(--surface);
+}
+
+.testcases-tab-content {
+  padding: 20px;
+  flex: 1; /* Take remaining space in flex container */
+  overflow-y: auto; /* Allow vertical scrolling */
+  box-sizing: border-box; /* Include padding in height calculation */
+  min-height: 0; /* Allow flex item to shrink */
+}
+
+.testcases-loading {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  color: var(--muted);
+  justify-content: center;
+  padding: 40px 20px;
+}
+
+.testcases-placeholder {
+  text-align: center;
+  color: var(--muted);
+  font-style: italic;
+  padding: 40px 20px;
+}
+
 /* Responsive adjustments for fullscreen layout */
 @media (max-width: 1024px) {
   .leetcode-left-pane {
@@ -1536,6 +1768,18 @@
     height: 100vh;
   }
 
+  .code-editor-top-header {
+    padding: 12px 16px;
+  }
+
+  .assignment-title {
+    font-size: 14px;
+  }
+
+  .code-editor-controls {
+    padding: 12px 16px;
+  }
+
   .leetcode-left-pane {
     width: 100%;
     border-right: none;
@@ -1547,18 +1791,6 @@
     flex-direction: column;
   }
 
-  .code-editor-header {
-    padding: 12px 16px;
-  }
-
-  .code-editor-header-left {
-    gap: 12px;
-  }
-
-  .assignment-title {
-    font-size: 14px;
-  }
-
   .question-tabs-compact {
     padding: 0 16px;
   }
@@ -1568,11 +1800,7 @@
     font-size: 13px;
   }
 
-  .test-cases-bar-header {
+  .testcases-bar-header {
     padding: 10px 16px;
-  }
-
-  .test-cases-bar-title {
-    font-size: 13px;
   }
 }

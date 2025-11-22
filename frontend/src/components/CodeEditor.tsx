@@ -21,6 +21,8 @@ const languageMap: { [key: string]: string } = {
 
 export default function CodeEditor({ defaultLanguage = 'python', disabled = false, value, onChange }: CodeEditorProps) {
   const [code, setCode] = useState(value || '')
+  const [isLoading, setIsLoading] = useState(true)
+  const [hasError, setHasError] = useState(false)
   const editorRef = useRef<editor.IStandaloneCodeEditor | null>(null)
 
   // Sync external value changes
@@ -29,6 +31,30 @@ export default function CodeEditor({ defaultLanguage = 'python', disabled = fals
       setCode(value)
     }
   }, [value])
+
+  // Timeout for loading - if editor doesn't load within 10 seconds, show error
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (isLoading) {
+        setHasError(true)
+        setIsLoading(false)
+      }
+    }, 10000)
+
+    return () => clearTimeout(timer)
+  }, [isLoading])
+
+  // Handle window resize to ensure Monaco Editor resizes properly
+  useEffect(() => {
+    const handleResize = () => {
+      if (editorRef.current) {
+        editorRef.current.layout()
+      }
+    }
+
+    window.addEventListener('resize', handleResize)
+    return () => window.removeEventListener('resize', handleResize)
+  }, [])
 
   const handleEditorDidMount = (editor: editor.IStandaloneCodeEditor, monacoInstance: typeof import('monaco-editor')) => {
     editorRef.current = editor
@@ -45,6 +71,9 @@ export default function CodeEditor({ defaultLanguage = 'python', disabled = fals
 
     // Set theme
     monacoInstance.editor.setTheme('vs-dark-custom')
+
+    // Editor is loaded
+    setIsLoading(false)
   }
 
   const handleEditorChange = (value: string | undefined) => {
@@ -55,8 +84,39 @@ export default function CodeEditor({ defaultLanguage = 'python', disabled = fals
     }
   }
 
+  if (hasError) {
+    return (
+      <div className="code-editor-monaco" style={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        color: '#d4d4d4',
+        fontSize: '14px',
+        background: '#1e1e1e',
+        border: '1px solid #3d3d3d',
+        borderRadius: '4px',
+        minHeight: '400px'
+      }}>
+        Failed to load code editor. Please check your internet connection and refresh the page.
+      </div>
+    )
+  }
+
   return (
     <div className="code-editor-monaco">
+      {isLoading && (
+        <div style={{
+          position: 'absolute',
+          top: '50%',
+          left: '50%',
+          transform: 'translate(-50%, -50%)',
+          color: '#d4d4d4',
+          fontSize: '14px',
+          zIndex: 10
+        }}>
+          Loading code editor...
+        </div>
+      )}
       <Editor
         height="100%"
         language={languageMap[defaultLanguage] || 'python'}
@@ -103,9 +163,19 @@ export default function CodeEditor({ defaultLanguage = 'python', disabled = fals
             bracketPairs: true,
             indentation: true
           },
-          readOnly: disabled
+          readOnly: disabled,
+          overviewRulerLanes: 0,
+          overviewRulerBorder: false,
+          hideCursorInOverviewRuler: true,
+          scrollbar: {
+            vertical: 'visible',
+            horizontal: 'visible',
+            useShadows: false,
+            verticalHasArrows: false,
+            horizontalHasArrows: false
+          }
         }}
-        theme="vs-dark"
+        theme="vs-dark-custom"
       />
     </div>
   )
