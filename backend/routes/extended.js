@@ -1,6 +1,6 @@
 import express from 'express';
 import { refreshToken, logout, requestPasswordReset, confirmPasswordReset } from '../controllers/authExtendedController.js';
-import { createSignedUpload, createSignedDownload } from '../controllers/filesController.js';
+import { createSignedUpload, createSignedDownload, createCloudinarySignedUrl } from '../controllers/filesController.js';
 import { createResource, listResources, deleteResource } from '../controllers/resourcesController.js';
 import { assignTA, removeTA } from '../controllers/taController.js';
 import { graderWebhook } from '../controllers/graderWebhookController.js';
@@ -17,6 +17,7 @@ router.post('/auth/password-reset/confirm', confirmPasswordReset);
 
 router.post('/files/signed-upload', requireAuth, createSignedUpload);
 router.get('/files/signed-download', requireAuth, createSignedDownload);
+router.get('/files/cloudinary-signed-url', requireAuth, createCloudinarySignedUrl);
 
 router.post('/resources', requireAuth, requireRole('faculty','ta','admin'), createResource);
 router.get('/resources', requireAuth, listResources);

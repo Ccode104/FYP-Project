@@ -31,14 +31,25 @@ export default function PyqList({
           </div>
         ) : (
           <div className="resources-grid">
-            {items.map((p) => (
-              <a
-                key={p.id}
-                href={p.storage_path}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="resource-card"
-              >
+            {items.map((p) => {
+              console.log('PyqList item:', { id: p.id, storage_path: p.storage_path, filename: p.filename, title: p.title });
+              return (
+                <div
+                  key={p.id}
+                  className="resource-card"
+                  style={{ cursor: 'pointer' }}
+                  onClick={(e) => {
+                    e.preventDefault();
+                    console.log('Opening PYQ PDF:', p.storage_path);
+                    if (!p.storage_path || p.storage_path === 'null' || p.storage_path === '') {
+                      alert('PDF file not available');
+                      return;
+                    }
+
+                    // Simply open the URL directly - Cloudinary URLs should be accessible
+                    window.open(p.storage_path, '_blank');
+                  }}
+                >
                 <div className="resource-icon">📄</div>
                 <div className="resource-info">
                   <h4 className="resource-title">{p.filename || p.title}</h4>
@@ -55,8 +66,9 @@ export default function PyqList({
                 >
                   <path d="M7 17L17 7M17 7H7M17 7V17" />
                 </svg>
-              </a>
-            ))}
+              </div>
+              );
+            })}
           </div>
         )
       ) : (

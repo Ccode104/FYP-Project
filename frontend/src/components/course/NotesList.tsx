@@ -31,14 +31,25 @@ export default function NotesList({
           </div>
         ) : (
           <div className="resources-grid">
-            {items.map((n) => (
-              <a
-                key={n.id}
-                href={n.storage_path}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="resource-card"
-              >
+            {items.map((n) => {
+              console.log('NotesList item:', { id: n.id, storage_path: n.storage_path, filename: n.filename, title: n.title });
+              return (
+                <div
+                  key={n.id}
+                  className="resource-card"
+                  style={{ cursor: 'pointer' }}
+                  onClick={(e) => {
+                    e.preventDefault();
+                    console.log('Opening notes PDF:', n.storage_path);
+                    if (!n.storage_path || n.storage_path === 'null' || n.storage_path === '') {
+                      alert('PDF file not available');
+                      return;
+                    }
+
+                    // Simply open the URL directly - Cloudinary URLs should be accessible
+                    window.open(n.storage_path, '_blank');
+                  }}
+                >
                 <div className="resource-icon">📚</div>
                 <div className="resource-info">
                   <h4 className="resource-title">{n.filename || n.title}</h4>
@@ -55,8 +66,9 @@ export default function NotesList({
                 >
                   <path d="M7 17L17 7M17 7H7M17 7V17" />
                 </svg>
-              </a>
-            ))}
+              </div>
+              );
+            })}
           </div>
         )
       ) : (
