@@ -1,5 +1,5 @@
 import { useParams, useNavigate } from 'react-router-dom'
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState, useRef } from 'react'
 import { useAuth } from '../../context/AuthContext'
 import { useCourse } from '../../context/CourseContext'
 import './CodeSubmissionView.css'
@@ -53,11 +53,28 @@ export default function CodeEditorPage() {
   const [activeConsoleTab, setActiveConsoleTab] = useState<'test-cases' | 'test-results'>('test-cases')
   const [customTestCases, setCustomTestCases] = useState<Record<string, Array<{ id: string, input: string, expected: string, result?: any }>>>({})
   const [testCaseResults, setTestCaseResults] = useState<Record<string, Record<string, any>>>({})
+  const [questionTimers, setQuestionTimers] = useState<Record<string, { startTime: number, elapsedTime: number }>>({})
+  const [currentQuestionStartTime, setCurrentQuestionStartTime] = useState<number>(Date.now())
+  const [currentQuestionElapsedTime, setCurrentQuestionElapsedTime] = useState<number>(0)
+  const previousQuestionRef = useRef<string | null>(null)
 
   // Get current question based on index
   const currentQuestion = useMemo(() => {
     return selectedCodeAssignment?.questions?.[currentQuestionIndex] || null
   }, [selectedCodeAssignment, currentQuestionIndex])
+
+  // Format elapsed time as HH:MM:SS
+  const formatElapsedTime = (milliseconds: number): string => {
+    const totalSeconds = Math.floor(milliseconds / 1000)
+    const hours = Math.floor(totalSeconds / 3600)
+    const minutes = Math.floor((totalSeconds % 3600) / 60)
+    const seconds = totalSeconds % 60
+
+    if (hours > 0) {
+      return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`
+    }
+    return `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`
+  }
 
   // Set course title in navbar and clear it on unmount
   useEffect(() => {
@@ -69,12 +86,69 @@ export default function CodeEditorPage() {
     }
   }, [selectedCodeAssignment, setCourseTitle])
 
+  // Timer effect - update current question elapsed time every second
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setCurrentQuestionElapsedTime(Date.now() - currentQuestionStartTime)
+    }, 1000)
+
+    return () => clearInterval(timer)
+  }, [currentQuestionStartTime])
+
+  // Handle question switching - save previous question time and start/restore timer for new question
+  useEffect(() => {
+    if (currentQuestion) {
+      const currentQuestionId = currentQuestion.id.toString()
+      const previousQuestionId = previousQuestionRef.current
+
+      // Save time for the previous question before switching
+      if (previousQuestionId && previousQuestionId !== currentQuestionId) {
+        setQuestionTimers(prev => ({
+          ...prev,
+          [previousQuestionId]: {
+            ...prev[previousQuestionId],
+            elapsedTime: currentQuestionElapsedTime
+          }
+        }))
+      }
+
+      // Handle timer for current question
+      const existingTimer = questionTimers[currentQuestionId]
+      const now = Date.now()
+
+      if (existingTimer) {
+        // Restore saved time for this question
+        setCurrentQuestionStartTime(now - existingTimer.elapsedTime)
+        setCurrentQuestionElapsedTime(existingTimer.elapsedTime)
+      } else {
+        // Start fresh timer for new question
+        setCurrentQuestionStartTime(now)
+        setCurrentQuestionElapsedTime(0)
+
+        // Initialize timer record
+        setQuestionTimers(prev => ({
+          ...prev,
+          [currentQuestionId]: {
+            startTime: now,
+            elapsedTime: 0
+          }
+        }))
+      }
+
+      // Update previous question ref
+      previousQuestionRef.current = currentQuestionId
+    }
+  }, [currentQuestion?.id])
+
   // Load assignment data
   useEffect(() => {
     if (!courseId || !assignmentId) return
 
     const loadAssignment = async () => {
       try {
+        // Load course/offering details for breadcrumb
+        const courseDetails = await apiFetch<any>(`/api/student/courses/${courseId}`)
+
         // Load assignment details
         const assignment = await apiFetch<any>(`/api/assignments/${assignmentId}`)
 
@@ -82,6 +156,11 @@ export default function CodeEditorPage() {
         const questions = await apiFetch<CodeQuestion[]>(`/api/assignments/${assignmentId}/questions`)
 
         setSelectedCodeAssignment({ ...assignment, questions })
+
+        // Set breadcrumb title: Dashboard > Course Name > Assignment Name > Code Editor
+        const courseName = courseDetails?.title || courseDetails?.course_code || `Course ${courseId}`
+        const breadcrumbTitle = `Dashboard > ${courseName} > ${assignment.title} > Code Editor`
+        setCourseTitle(breadcrumbTitle)
 
         // Initialize editors and languages
         const editors: Record<string, string> = {}
@@ -282,109 +361,20 @@ export default function CodeEditorPage() {
 
   return (
     <div className="code-editor-fullscreen">
-      {/* Top Header with Back Button, Assignment Title, and Submit Button */}
-      <div className="code-editor-top-header">
-        <button className="btn-back-compact" onClick={() => navigate(`/course/${courseId}`)}>
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <path d="M19 12H5M12 19l-7-7 7-7" />
-          </svg>
-          Back
-        </button>
-        <span className="assignment-title">{selectedCodeAssignment.title}</span>
-        {selectedCodeAssignment.questions && selectedCodeAssignment.questions.length > 1 && (
-          <button
-            className="btn-submit-assignment-header"
-            onClick={async () => {
-              // Check if all questions have code
-              const allHaveCode = selectedCodeAssignment.questions.every((q: CodeQuestion) => {
-                return codeEditor[q.id]?.trim()
-              })
-
-              if (!allHaveCode) {
-                push({ kind: 'error', message: 'Please write code for all questions before final submission' })
-                return
-              }
-
-              // Check if all questions are saved
-              const allSaved = selectedCodeAssignment.questions.every((q: CodeQuestion) => {
-                return savedQuestions[q.id]
-              })
-
-              if (!allSaved) {
-                const confirmSave = confirm('Some questions are not saved. Do you want to save all questions and submit?')
-                if (!confirmSave) return
-
-                // Save all unsaved questions first
-                for (const q of selectedCodeAssignment.questions) {
-                  if (!savedQuestions[q.id] && codeEditor[q.id]?.trim()) {
-                    try {
-                      await apiFetch('/api/submissions/submit/code', {
-                        method: 'POST',
-                        body: {
-                          assignment_id: Number(selectedCodeAssignment.id),
-                          question_id: Number(q.id),
-                          language: codeLang[q.id] || 'python',
-                          code: codeEditor[q.id]
-                        }
-                      })
-                      setSavedQuestions(prev => ({ ...prev, [q.id]: true }))
-                    } catch (err: any) {
-                      push({ kind: 'error', message: `Failed to save question ${q.id}: ${err?.message}` })
-                      return
-                    }
-                  }
-                }
-              }
-
-              // Final submission - ensure all questions are saved, then mark as complete
-              try {
-                // Ensure all questions are saved (submit any unsaved ones)
-                for (const q of selectedCodeAssignment.questions) {
-                  if (codeEditor[q.id]?.trim() && !savedQuestions[q.id]) {
-                    try {
-                      await apiFetch('/api/submissions/submit/code', {
-                        method: 'POST',
-                        body: {
-                          assignment_id: Number(selectedCodeAssignment.id),
-                          question_id: Number(q.id),
-                          language: codeLang[q.id] || 'python',
-                          code: codeEditor[q.id]
-                        }
-                      })
-                      setSavedQuestions(prev => ({ ...prev, [q.id]: true }))
-                    } catch (err: any) {
-                      push({ kind: 'error', message: `Failed to save question ${q.id}: ${err?.message}` })
-                      return
-                    }
-                  }
-                }
-
-                // All questions are now saved. The submission is complete.
-                // The backend creates/updates the submission when code is saved,
-                // so all questions are already stored in the database.
-
-                push({ kind: 'success', message: 'Assignment submitted successfully! All questions have been saved and submitted.' })
-
-                // Navigate back to course
-                navigate(`/course/${courseId}`)
-              } catch (err: any) {
-                push({ kind: 'error', message: err?.message || 'Final submission failed' })
-              }
-            }}
-            disabled={selectedCodeAssignment.questions.some((q: CodeQuestion) => !codeEditor[q.id]?.trim())}
-          >
+      {/* Merged Top Header with Back Button, Assignment Title, Question Navigation, and Controls */}
+      <div className="code-editor-merged-header">
+        {/* Left section: Back button and Assignment title */}
+        <div className="header-left-section">
+          <button className="btn-back-compact" onClick={() => navigate(-1)}>
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
-              <polyline points="22 4 12 14.01 9 11.01" />
+              <path d="M19 12H5M12 19l-7-7 7-7" />
             </svg>
-            Submit Assignment
+            Back
           </button>
-        )}
-      </div>
+          <span className="assignment-title">{selectedCodeAssignment.title}</span>
+        </div>
 
-      {/* Combined Question Navigation and Code Editor Controls */}
-      <div className="question-tabs-compact">
-        {/* Question Navigation */}
+        {/* Center section: Question Navigation */}
         {selectedCodeAssignment.questions && selectedCodeAssignment.questions.length > 1 && (
           <div className="question-navigation">
             {selectedCodeAssignment.questions.map((q: CodeQuestion, idx: number) => (
@@ -400,8 +390,17 @@ export default function CodeEditorPage() {
           </div>
         )}
 
-        {/* Code Editor Controls */}
-        <div className="code-editor-controls-compact">
+        {/* Right section: Timer, Language Selector, and Submit Button */}
+        <div className="header-right-section">
+          {/* Timer Display - moved adjacent to language selector */}
+          <div className="session-timer">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <circle cx="12" cy="12" r="10" />
+              <polyline points="12,6 12,12 16,14" />
+            </svg>
+            <span className="timer-text">{formatElapsedTime(currentQuestionElapsedTime)}</span>
+          </div>
+
           <div className="language-selector">
             <select
               className="language-select"
@@ -419,6 +418,8 @@ export default function CodeEditorPage() {
               <option value="javascript">JavaScript</option>
             </select>
           </div>
+
+          {/* Code Action Buttons */}
           <div className="code-actions">
             <button
               className={`btn-console-toggle ${consoleExpanded ? 'active' : ''}`}
@@ -495,6 +496,96 @@ export default function CodeEditorPage() {
               )}
             </button>
           </div>
+
+          {selectedCodeAssignment.questions && selectedCodeAssignment.questions.length > 1 && (
+            <button
+              className="btn-submit-assignment-header"
+              onClick={async () => {
+                // Check if all questions have code
+                const allHaveCode = selectedCodeAssignment.questions.every((q: CodeQuestion) => {
+                  return codeEditor[q.id]?.trim()
+                })
+
+                if (!allHaveCode) {
+                  push({ kind: 'error', message: 'Please write code for all questions before final submission' })
+                  return
+                }
+
+                // Check if all questions are saved
+                const allSaved = selectedCodeAssignment.questions.every((q: CodeQuestion) => {
+                  return savedQuestions[q.id]
+                })
+
+                if (!allSaved) {
+                  const confirmSave = confirm('Some questions are not saved. Do you want to save all questions and submit?')
+                  if (!confirmSave) return
+
+                  // Save all unsaved questions first
+                  for (const q of selectedCodeAssignment.questions) {
+                    if (!savedQuestions[q.id] && codeEditor[q.id]?.trim()) {
+                      try {
+                        await apiFetch('/api/submissions/submit/code', {
+                          method: 'POST',
+                          body: {
+                            assignment_id: Number(selectedCodeAssignment.id),
+                            question_id: Number(q.id),
+                            language: codeLang[q.id] || 'python',
+                            code: codeEditor[q.id]
+                          }
+                        })
+                        setSavedQuestions(prev => ({ ...prev, [q.id]: true }))
+                      } catch (err: any) {
+                        push({ kind: 'error', message: `Failed to save question ${q.id}: ${err?.message}` })
+                        return
+                      }
+                    }
+                  }
+                }
+
+                // Final submission - ensure all questions are saved, then mark as complete
+                try {
+                  // Ensure all questions are saved (submit any unsaved ones)
+                  for (const q of selectedCodeAssignment.questions) {
+                    if (codeEditor[q.id]?.trim() && !savedQuestions[q.id]) {
+                      try {
+                        await apiFetch('/api/submissions/submit/code', {
+                          method: 'POST',
+                          body: {
+                            assignment_id: Number(selectedCodeAssignment.id),
+                            question_id: Number(q.id),
+                            language: codeLang[q.id] || 'python',
+                            code: codeEditor[q.id]
+                          }
+                        })
+                        setSavedQuestions(prev => ({ ...prev, [q.id]: true }))
+                      } catch (err: any) {
+                        push({ kind: 'error', message: `Failed to save question ${q.id}: ${err?.message}` })
+                        return
+                      }
+                    }
+                  }
+
+                  // All questions are now saved. The submission is complete.
+                  // The backend creates/updates the submission when code is saved,
+                  // so all questions are already stored in the database.
+
+                  push({ kind: 'success', message: 'Assignment submitted successfully! All questions have been saved and submitted.' })
+
+                  // Navigate back to course
+                  navigate(`/course/${courseId}`)
+                } catch (err: any) {
+                  push({ kind: 'error', message: err?.message || 'Final submission failed' })
+                }
+              }}
+              disabled={selectedCodeAssignment.questions.some((q: CodeQuestion) => !codeEditor[q.id]?.trim())}
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
+                <polyline points="22 4 12 14.01 9 11.01" />
+              </svg>
+              Submit Assignment
+            </button>
+          )}
         </div>
       </div>
 

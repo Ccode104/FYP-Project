@@ -302,6 +302,7 @@
 
 .language-select {
   width: 200px;
+  height: 40px; /* Fixed height for consistent alignment */
   padding: 10px 14px;
   border: 1px solid var(--border);
   border-radius: 8px;
@@ -311,6 +312,7 @@
   font-weight: 600;
   cursor: pointer;
   transition: all 0.2s ease;
+  box-sizing: border-box; /* Include padding in height calculation */
 }
 
 .language-select:hover {
@@ -1171,14 +1173,114 @@
   overflow: auto;
 }
 
-.question-tabs-compact {
+/* Merged Header Layout */
+.code-editor-merged-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
   background: var(--bg-secondary);
   border-bottom: 1px solid var(--border);
-  padding: 12px 20px;
+  padding: 16px 24px;
   flex-shrink: 0;
+  gap: 24px;
+}
+
+.header-left-section {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex: 0 0 auto;
+}
+
+.header-left-section .assignment-title {
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--text);
+  margin: 0;
+}
+
+.question-navigation {
+  display: flex;
+  gap: 8px;
+  flex: 1;
+  justify-content: center;
+}
+
+.header-right-section {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex: 0 0 auto;
+}
+
+.header-right-section .code-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.btn-console-toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+}
+
+.btn-console-toggle:hover {
+  background: var(--bg-secondary);
+  border-color: var(--border-strong);
+}
+
+.btn-console-toggle.active {
+  background: var(--primary);
+  color: white;
+  border-color: var(--primary);
+}
+
+.btn-console-toggle svg {
+  width: 14px;
+  height: 14px;
+  transition: transform 0.2s ease;
+}
+
+.btn-console-toggle.active svg {
+  transform: rotate(180deg);
+}
+
+.session-timer {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+  background: var(--surface);
+  padding: 6px 12px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  height: 40px; /* Match language selector height */
+  box-sizing: border-box; /* Include padding in height calculation */
+}
+
+.session-timer svg {
+  width: 16px;
+  height: 16px;
+  color: var(--primary);
+}
+
+.timer-text {
+  font-family: 'Monaco', 'Menlo', monospace;
+  font-weight: 700;
+  color: var(--primary);
 }
 
 .question-navigation {
@@ -1755,10 +1857,51 @@
   padding: 40px 20px;
 }
 
-/* Responsive adjustments for fullscreen layout */
+/* Responsive adjustments for merged header */
+@media (max-width: 1200px) {
+  .code-editor-merged-header {
+    padding: 12px 20px;
+    gap: 16px;
+  }
+
+  .header-left-section .assignment-title {
+    font-size: 16px;
+  }
+
+  .question-navigation {
+    gap: 6px;
+  }
+}
+
 @media (max-width: 1024px) {
   .leetcode-left-pane {
     width: 350px;
+  }
+
+  .code-editor-merged-header {
+    flex-wrap: wrap;
+    padding: 12px 16px;
+  }
+
+  .header-left-section {
+    order: 1;
+    width: 100%;
+    justify-content: space-between;
+    margin-bottom: 8px;
+  }
+
+  .question-navigation {
+    order: 2;
+    justify-content: center;
+    width: 100%;
+    margin-bottom: 8px;
+  }
+
+  .header-right-section {
+    order: 3;
+    width: 100%;
+    justify-content: center;
+    gap: 12px;
   }
 }
 
@@ -1768,16 +1911,12 @@
     height: 100vh;
   }
 
-  .code-editor-top-header {
+  .code-editor-merged-header {
     padding: 12px 16px;
   }
 
-  .assignment-title {
+  .header-left-section .assignment-title {
     font-size: 14px;
-  }
-
-  .code-editor-controls {
-    padding: 12px 16px;
   }
 
   .leetcode-left-pane {
@@ -1791,16 +1930,42 @@
     flex-direction: column;
   }
 
-  .question-tabs-compact {
-    padding: 0 16px;
-  }
-
   .question-tab {
-    padding: 10px 12px;
-    font-size: 13px;
+    padding: 8px 10px;
+    font-size: 12px;
   }
 
   .testcases-bar-header {
     padding: 10px 16px;
+  }
+
+  .session-timer {
+    padding: 4px 8px;
+    font-size: 13px;
+  }
+
+  .language-select {
+    height: 36px;
+    font-size: 13px;
+  }
+
+  .btn-submit-assignment-header {
+    padding: 6px 12px;
+    font-size: 13px;
+  }
+
+  .btn-console-toggle {
+    padding: 6px 10px;
+    font-size: 12px;
+  }
+
+  .btn-run,
+  .btn-submit {
+    padding: 6px 10px;
+    font-size: 12px;
+  }
+
+  .header-right-section .code-actions {
+    gap: 6px;
   }
 }

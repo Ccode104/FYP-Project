@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react'
 import Editor from '@monaco-editor/react'
 import type { editor } from 'monaco-editor'
+import { apiFetch } from '../services/api'
 import './CodeEditor.css'
 
 interface CodeEditorProps {
@@ -19,11 +20,22 @@ const languageMap: { [key: string]: string } = {
   c: 'c'
 }
 
+interface TypingMetrics {
+  timestamp: number
+  charCount: number
+  speed: number // characters per second
+  isSuspicious: boolean
+}
+
 export default function CodeEditor({ defaultLanguage = 'python', disabled = false, value, onChange }: CodeEditorProps) {
   const [code, setCode] = useState(value || '')
   const [isLoading, setIsLoading] = useState(true)
   const [hasError, setHasError] = useState(false)
   const editorRef = useRef<editor.IStandaloneCodeEditor | null>(null)
+  const eventListenersRef = useRef<(() => void) | null>(null)
+  const typingMetricsRef = useRef<TypingMetrics[]>([])
+  const lastKeystrokeTimeRef = useRef<number>(Date.now())
+  const keystrokeBufferRef = useRef<string[]>([])
 
   // Sync external value changes
   useEffect(() => {
@@ -53,7 +65,13 @@ export default function CodeEditor({ defaultLanguage = 'python', disabled = fals
     }
 
     window.addEventListener('resize', handleResize)
-    return () => window.removeEventListener('resize', handleResize)
+    return () => {
+      window.removeEventListener('resize', handleResize)
+      // Clean up event listeners
+      if (eventListenersRef.current) {
+        eventListenersRef.current()
+      }
+    }
   }, [])
 
   const handleEditorDidMount = (editor: editor.IStandaloneCodeEditor, monacoInstance: typeof import('monaco-editor')) => {
@@ -72,12 +90,123 @@ export default function CodeEditor({ defaultLanguage = 'python', disabled = fals
     // Set theme
     monacoInstance.editor.setTheme('vs-dark-custom')
 
+    // Disable copy-paste functionality by overriding default commands
+    editor.addCommand(monacoInstance.KeyMod.CtrlCmd | monacoInstance.KeyCode.KeyC, () => {
+      // Do nothing - prevent copy
+      return
+    })
+    editor.addCommand(monacoInstance.KeyMod.CtrlCmd | monacoInstance.KeyCode.KeyV, () => {
+      // Do nothing - prevent paste
+      return
+    })
+    editor.addCommand(monacoInstance.KeyMod.CtrlCmd | monacoInstance.KeyCode.KeyX, () => {
+      // Do nothing - prevent cut
+      return
+    })
+
+    // Prevent context menu
+    editor.onContextMenu((e) => {
+      e.event.preventDefault()
+      e.event.stopPropagation()
+    })
+
+    // Add DOM event listeners to prevent copy/paste/cut
+    const editorDomNode = editor.getDomNode()
+    if (editorDomNode) {
+      const preventCopyPaste = (e: Event) => {
+        if (e.type === 'copy' || e.type === 'paste' || e.type === 'cut') {
+          e.preventDefault()
+          e.stopPropagation()
+          return false
+        }
+      }
+
+      const preventContextMenu = (e: Event) => {
+        e.preventDefault()
+        e.stopPropagation()
+      }
+
+      editorDomNode.addEventListener('copy', preventCopyPaste, true)
+      editorDomNode.addEventListener('paste', preventCopyPaste, true)
+      editorDomNode.addEventListener('cut', preventCopyPaste, true)
+      editorDomNode.addEventListener('contextmenu', preventContextMenu, true)
+
+      // Store cleanup function
+      eventListenersRef.current = () => {
+        editorDomNode.removeEventListener('copy', preventCopyPaste, true)
+        editorDomNode.removeEventListener('paste', preventCopyPaste, true)
+        editorDomNode.removeEventListener('cut', preventCopyPaste, true)
+        editorDomNode.removeEventListener('contextmenu', preventContextMenu, true)
+      }
+    }
+
     // Editor is loaded
     setIsLoading(false)
   }
 
+  // Analyze typing speed and detect suspicious patterns
+  const analyzeTypingSpeed = (newChars: string) => {
+    const now = Date.now()
+    const timeDiff = now - lastKeystrokeTimeRef.current
+    const charCount = newChars.length
+
+    // Calculate speed (characters per second)
+    const speed = charCount / (timeDiff / 1000)
+
+    // Flag as suspicious if speed is unrealistically high (> 10 chars/second for sustained input)
+    const isSuspicious = speed > 10 && charCount > 5
+
+    const metrics: TypingMetrics = {
+      timestamp: now,
+      charCount,
+      speed,
+      isSuspicious
+    }
+
+    typingMetricsRef.current.push(metrics)
+
+    // Keep only last 100 metrics
+    if (typingMetricsRef.current.length > 100) {
+      typingMetricsRef.current = typingMetricsRef.current.slice(-100)
+    }
+
+    // Log suspicious activity
+    if (isSuspicious) {
+      console.warn('Suspicious typing detected:', metrics)
+      // Send to backend for monitoring
+      sendTypingMetrics(metrics)
+    }
+
+    lastKeystrokeTimeRef.current = now
+  }
+
+  // Send typing metrics to backend
+  const sendTypingMetrics = async (metrics: TypingMetrics) => {
+    try {
+      await apiFetch('/api/monitoring/typing-metrics', {
+        method: 'POST',
+        body: {
+          metrics,
+          timestamp: new Date().toISOString(),
+          userAgent: navigator.userAgent
+        }
+      })
+    } catch (error) {
+      console.error('Failed to send typing metrics:', error)
+    }
+  }
+
   const handleEditorChange = (value: string | undefined) => {
     const newCode = value || ''
+    const oldCode = code
+
+    // Calculate the difference
+    if (newCode.length > oldCode.length) {
+      // Text was added
+      const addedChars = newCode.slice(oldCode.length)
+      analyzeTypingSpeed(addedChars)
+    }
+
     setCode(newCode)
     if (onChange) {
       onChange(newCode)
@@ -139,7 +268,7 @@ export default function CodeEditor({ defaultLanguage = 'python', disabled = fals
           renderWhitespace: 'selection',
           cursorBlinking: 'blink',
           cursorStyle: 'line',
-          contextmenu: true,
+          contextmenu: false, // Disable context menu (copy/paste options)
           mouseWheelZoom: true,
           multiCursorModifier: 'ctrlCmd',
           accessibilitySupport: 'auto',
@@ -164,6 +293,10 @@ export default function CodeEditor({ defaultLanguage = 'python', disabled = fals
             indentation: true
           },
           readOnly: disabled,
+          // Disable copy-paste related features
+          copyWithSyntaxHighlighting: false,
+          selectionHighlight: false,
+          occurrencesHighlight: "off",
           overviewRulerLanes: 0,
           overviewRulerBorder: false,
           hideCursorInOverviewRuler: true,

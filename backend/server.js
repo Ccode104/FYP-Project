@@ -16,6 +16,7 @@ import discussionsRoutes from './routes/discussions.js';
 import adminRoutes from './routes/admin.js';
 import codeQuestionsRoutes from './routes/codeQuestions.js';
 import chatbotRoutes from './routes/chatbot.js';
+import monitoringRoutes from './routes/monitoring.js';
 import videosRoutes from './routes/videos.js';
 import swaggerSpec from './swagger.js';
 
@@ -51,6 +52,7 @@ export async function startServer(port = 4000) {
   app.use('/api/admin', adminRoutes);
   app.use('/api/code-questions', codeQuestionsRoutes);
   app.use('/api/chatbot', chatbotRoutes);
+  app.use('/api/monitoring', monitoringRoutes);
   app.use('/api/videos', videosRoutes);
 
   app.get('/health', (req, res) => res.json({ ok: true }));
