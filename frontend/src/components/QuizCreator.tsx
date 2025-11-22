@@ -43,6 +43,8 @@ export default function QuizCreator({ courseOfferingId, onComplete }: QuizCreato
   const [startAt, setStartAt] = useState('')
   const [endAt, setEndAt] = useState('')
   const [maxScore, setMaxScore] = useState('100')
+  const [isProctored, setIsProctored] = useState(false)
+  const [timeLimit, setTimeLimit] = useState('')
   const [questions, setQuestions] = useState<QuizQuestion[]>([])
   const [currentQuestion, setCurrentQuestion] = useState('')
   const [currentType, setCurrentType] = useState<'mcq' | 'short' | 'true_false'>('mcq')
@@ -123,19 +125,23 @@ export default function QuizCreator({ courseOfferingId, onComplete }: QuizCreato
 
     setIsSubmitting(true)
     try {
-      await createQuizAssignment({
+      const quizData = {
         course_offering_id: Number(courseOfferingId),
         title,
         description,
         start_at: startAt || null,
         end_at: endAt || null,
         max_score: Number(maxScore) || 100,
+        is_proctored: isProctored,
+        time_limit: timeLimit ? Number(timeLimit) : null,
         questions: questions.map(q => ({
           question_text: q.question_text,
           question_type: q.question_type,
           metadata: q.metadata
         }))
-      })
+      }
+      console.log('Creating quiz with data:', quizData)
+      await createQuizAssignment(quizData)
       push({ kind: 'success', message: 'Quiz created successfully' })
       onComplete()
     } catch (e: any) {
@@ -203,6 +209,38 @@ export default function QuizCreator({ courseOfferingId, onComplete }: QuizCreato
             placeholder="100"
           />
         </div>
+
+        <div style={{ marginBottom: 16 }}>
+          <label style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <input
+              type="checkbox"
+              checked={isProctored}
+              onChange={(e) => setIsProctored(e.target.checked)}
+            />
+            <span style={{ fontWeight: 500 }}>Enable Proctoring</span>
+          </label>
+          <div className="muted" style={{ marginTop: 4, fontSize: '0.9em' }}>
+            Proctored quizzes enforce fullscreen mode, prevent tab switching, and have time limits.
+          </div>
+        </div>
+
+        {isProctored && (
+          <div style={{ marginBottom: 16 }}>
+            <div style={{ display: 'block', marginBottom: 6, fontWeight: 500 }}>Time Limit (minutes)</div>
+            <input
+              className="input"
+              style={{ display: 'block', width: '100%', boxSizing: 'border-box' }}
+              type="number"
+              value={timeLimit}
+              onChange={(e) => setTimeLimit(e.target.value)}
+              placeholder="e.g., 60"
+              min="1"
+            />
+            <div className="muted" style={{ marginTop: 4, fontSize: '0.9em' }}>
+              Leave empty for no time limit. Students must complete within this time.
+            </div>
+          </div>
+        )}
       </div>
 
       <div className="card" style={{ marginBottom: 16, padding: 16 }}>

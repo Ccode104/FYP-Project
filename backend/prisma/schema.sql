@@ -141,7 +141,9 @@ CREATE TABLE IF NOT EXISTS quizzes (
   title TEXT,
   start_at TIMESTAMPTZ,
   end_at TIMESTAMPTZ,
-  max_score NUMERIC(6,2) DEFAULT 100
+  max_score NUMERIC(6,2) DEFAULT 100,
+  is_proctored BOOLEAN DEFAULT false,
+  time_limit INTEGER -- time limit in minutes, null means no limit
 );
 
 CREATE TABLE IF NOT EXISTS quiz_questions (

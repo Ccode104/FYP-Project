@@ -49,9 +49,11 @@ export default function Chatbot({ courseId }: ChatbotProps) {
       setLoadingSessions(true)
       const { sessions } = await loadUserChatSessions()
       setChatSessions(sessions)
-      // Load the most recent chat if available
+      // Load the most recent chat if available, otherwise create a new one
       if (sessions.length > 0 && !currentChat) {
         await loadChatData(sessions[0].id)
+      } else if (sessions.length === 0 && !currentChat) {
+        await createNewChat()
       }
     } catch (error) {
       console.error('Failed to load chat sessions:', error)

@@ -256,17 +256,24 @@ export default function CourseDetails() {
 
     // Add quizzes with attempt status
     const quizzesWithStatus = (backendQuizzes || [])
-      .map((q: any) => ({
-        id: `quiz_${q.id}`,
-        title: q.title,
-        assignment_type: 'quiz',
-        due_at: q.end_at || q.due_at,
-        release_at: q.start_at,
-        is_quiz: true,
-        quiz_id: q.id,
-        quiz_data: q,
-        isSubmitted: attemptedQuizIds.has(String(q.id))
-      }))
+      .map((q: any) => {
+        const quizAttempts = myQuizAttempts.filter((a: any) => a.quiz_id === q.id)
+        const hasViolatedAttempt = quizAttempts.some((a: any) => a.violated)
+        return {
+          id: `quiz_${q.id}`,
+          title: q.title,
+          assignment_type: 'quiz',
+          due_at: q.end_at || q.due_at,
+          release_at: q.start_at,
+          is_quiz: true,
+          quiz_id: q.id,
+          quiz_data: q,
+          is_proctored: q.is_proctored,
+          time_limit: q.time_limit,
+          isSubmitted: attemptedQuizIds.has(String(q.id)),
+          isViolated: hasViolatedAttempt
+        }
+      })
     console.log('quizzesWithStatus count:', quizzesWithStatus.length)
 
     const result = [...assignmentsWithStatus, ...quizzesWithStatus]
@@ -1109,10 +1116,30 @@ export default function CourseDetails() {
                   {quizzesOnly.map((quiz: any) => (
                     <li key={quiz.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px', borderRadius: '6px', background: 'var(--bg-secondary)', marginBottom: '8px' }}>
                       <div>
-                        <strong>{quiz.title}</strong>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
+                          <strong>{quiz.title}</strong>
+                          {quiz.is_proctored && (
+                            <span style={{
+                              display: 'inline-block',
+                              padding: '2px 6px',
+                              borderRadius: '4px',
+                              fontSize: '11px',
+                              fontWeight: 'bold',
+                              background: '#dc2626',
+                              color: 'white'
+                            }}>
+                              🔒 PROCTORED
+                            </span>
+                          )}
+                        </div>
                         {quiz.due_at && (
                           <div className="muted" style={{ fontSize: '13px', marginTop: '4px' }}>
                             Due: {new Date(quiz.due_at).toLocaleString()}
+                          </div>
+                        )}
+                        {quiz.is_proctored && quiz.time_limit && (
+                          <div className="muted" style={{ fontSize: '12px', marginTop: '2px' }}>
+                            Time limit: {quiz.time_limit} minutes
                           </div>
                         )}
                         {quiz.isSubmitted && (
@@ -1130,7 +1157,20 @@ export default function CourseDetails() {
                         )}
                       </div>
                       <div style={{ display: 'flex', gap: '8px' }}>
-                        {!quiz.isSubmitted && (
+                        {quiz.isViolated && (
+                          <span style={{
+                            display: 'inline-block',
+                            padding: '4px 8px',
+                            borderRadius: '4px',
+                            fontSize: '12px',
+                            fontWeight: 'bold',
+                            background: '#ef4444',
+                            color: 'white'
+                          }}>
+                            🚫 SUSPENDED
+                          </span>
+                        )}
+                        {!quiz.isSubmitted && !quiz.isViolated && (
                           <button
                             className="btn btn-primary"
                             onClick={() => location.assign(`/quizzes/${quiz.quiz_id}`)}

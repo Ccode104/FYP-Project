@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState, useRef, useCallback } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useAuth } from '../../context/AuthContext'
 import { getQuiz, submitQuizAttempt, Quiz } from '../../services/quizzes'
@@ -20,11 +20,22 @@ export default function QuizTake() {
   const [result, setResult] = useState<{ score: number | null; needs_manual_grading: boolean } | null>(null)
   const [gradedAnswers, setGradedAnswers] = useState<Record<number, { student_answer: any; is_correct: boolean | null; correct_answer: any }>>({})
 
+  // Proctoring state
+  const [timeRemaining, setTimeRemaining] = useState<number | null>(null)
+  const [isFullscreen, setIsFullscreen] = useState(false)
+  const [violations, setViolations] = useState<string[]>([])
+  const [quizStarted, setQuizStarted] = useState(false)
+  const [cleanupProctoring, setCleanupProctoring] = useState<(() => void) | null>(null)
+  const timerRef = useRef<number | null>(null)
+  const fullscreenCheckRef = useRef<number | null>(null)
+  const submittedAttemptedRef = useRef(false)
+
   useEffect(() => {
     (async () => {
       if (!quizId) return
       try {
         const q = await getQuiz(Number(quizId))
+        console.log('Loaded quiz:', { id: q.id, title: q.title, is_proctored: q.is_proctored, time_limit: q.time_limit })
         setQuiz(q)
       } catch (e: any) {
         setErr(e?.message || 'Failed to load quiz')
@@ -33,6 +44,147 @@ export default function QuizTake() {
       }
     })()
   }, [quizId])
+
+  // Proctoring functions
+  const enterFullscreen = useCallback(async () => {
+    try {
+      if (document.documentElement.requestFullscreen) {
+        await document.documentElement.requestFullscreen()
+      } else if ((document.documentElement as any).webkitRequestFullscreen) {
+        await (document.documentElement as any).webkitRequestFullscreen()
+      } else if ((document.documentElement as any).mozRequestFullScreen) {
+        await (document.documentElement as any).mozRequestFullScreen()
+      } else if ((document.documentElement as any).msRequestFullscreen) {
+        await (document.documentElement as any).msRequestFullscreen()
+      }
+    } catch (error) {
+      console.error('Failed to enter fullscreen:', error)
+    }
+  }, [])
+
+  const checkFullscreen = useCallback(() => {
+    const isCurrentlyFullscreen = !!(
+      document.fullscreenElement ||
+      (document as any).webkitFullscreenElement ||
+      (document as any).mozFullScreenElement ||
+      (document as any).msFullscreenElement
+    )
+    setIsFullscreen(isCurrentlyFullscreen)
+    return isCurrentlyFullscreen
+  }, [])
+
+  const handleViolation = useCallback((violationType: string) => {
+    setViolations(prev => [...prev, `${new Date().toISOString()}: ${violationType}`])
+    if (!result && !submittedAttemptedRef.current) {
+      submittedAttemptedRef.current = true
+      push({ kind: 'error', message: `Proctoring violation: ${violationType}. Quiz suspended. Answers saved.` })
+
+      // Save answers locally
+      if (quiz && user) {
+        const savedData = {
+          quizId: quiz.id,
+          studentId: user.id,
+          answers,
+          violations,
+          timestamp: new Date().toISOString()
+        }
+        localStorage.setItem(`quiz_violation_${quiz.id}_${user.id}`, JSON.stringify(savedData))
+      }
+
+      // Submit violation attempt
+      if (quiz && user) {
+        handleViolationSubmit()
+      }
+
+      // Navigate back to quizzes
+      setTimeout(() => {
+        navigate(-1)
+      }, 2000)
+    } else {
+      push({ kind: 'error', message: `Proctoring violation: ${violationType}.` })
+    }
+  }, [push, quiz, user, result, answers, violations, navigate])
+
+  const startProctoring = useCallback(() => {
+    if (!quiz?.is_proctored) return
+
+    setQuizStarted(true)
+
+    // Initialize timer if time limit exists
+    if (quiz.time_limit) {
+      setTimeRemaining(quiz.time_limit * 60) // Convert minutes to seconds
+    }
+
+    // Enter fullscreen
+    enterFullscreen()
+
+    // Start monitoring fullscreen
+    fullscreenCheckRef.current = window.setInterval(() => {
+      if (!checkFullscreen()) {
+        handleViolation('Exited fullscreen mode')
+      }
+    }, 1000)
+
+    // Monitor tab visibility
+    const handleVisibilityChange = () => {
+      if (document.hidden) {
+        handleViolation('Switched tabs or minimized window')
+      }
+    }
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+
+    // Monitor window focus
+    const handleBlur = () => {
+      handleViolation('Window lost focus')
+    }
+    window.addEventListener('blur', handleBlur)
+
+    // Cleanup function
+    const cleanup = () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
+      window.removeEventListener('blur', handleBlur)
+    }
+    setCleanupProctoring(() => cleanup)
+    return cleanup
+  }, [quiz, enterFullscreen, checkFullscreen, handleViolation])
+
+  // Timer effect
+  useEffect(() => {
+    if (timeRemaining !== null && timeRemaining > 0 && quizStarted && !result) {
+      timerRef.current = window.setTimeout(() => {
+        setTimeRemaining(prev => {
+          if (prev !== null && prev <= 1) {
+            handleViolation('Time expired')
+            return 0
+          }
+          return prev ? prev - 1 : null
+        })
+      }, 1000)
+    }
+
+    return () => {
+      if (timerRef.current) {
+        clearTimeout(timerRef.current)
+      }
+    }
+  }, [timeRemaining, quizStarted, result, handleViolation])
+
+  // Stop proctoring when quiz submission starts or is submitted
+  useEffect(() => {
+    if (result || submitting) {
+      if (cleanupProctoring) cleanupProctoring()
+      if (timerRef.current) clearTimeout(timerRef.current)
+      if (fullscreenCheckRef.current) clearInterval(fullscreenCheckRef.current)
+    }
+  }, [result, submitting, cleanupProctoring])
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      if (timerRef.current) clearTimeout(timerRef.current)
+      if (fullscreenCheckRef.current) clearInterval(fullscreenCheckRef.current)
+    }
+  }, [])
 
   const canSubmit = useMemo(() => {
     if (!quiz) return false
@@ -44,33 +196,117 @@ export default function QuizTake() {
     })
   }, [quiz, answers])
 
-  const handleSubmit = async () => {
-    if (!quiz || !user) return
+  const handleSubmit = async (violated = false) => {
+    if (!quiz || !user || submitting || result) return
     setSubmitting(true)
     try {
       const res = await submitQuizAttempt({
         quiz_id: quiz.id,
         student_id: Number(user.id),
         answers,
+        violated
       })
       setResult({ score: res.attempt.score, needs_manual_grading: res.needs_manual_grading })
       setGradedAnswers(res.graded_answers as any)
-      push({ kind: 'success', message: 'Quiz submitted' })
+      if (!violated) {
+        push({ kind: 'success', message: 'Quiz submitted' })
+      }
     } catch (e: any) {
       push({ kind: 'error', message: e?.message || 'Submit failed' })
-    } finally {
-      setSubmitting(false)
+      // Don't reset submitting to prevent loops on repeated violations
     }
+  }
+
+  const handleViolationSubmit = () => {
+    handleSubmit(true)
   }
 
   if (loading) return <div className="container"><p className="muted">Loading…</p></div>
   if (err) return <div className="container"><div className="card" style={{ borderColor: '#ef4444', borderWidth: 1 }}>{err}</div></div>
   if (!quiz) return <div className="container"><p className="muted">Quiz not found</p></div>
 
+  // Show proctoring start screen for proctored quizzes
+  if (quiz.is_proctored && !quizStarted) {
+    return (
+      <div className="container" style={{ maxWidth: 600 }}>
+        <div className="card">
+          <h2>Proctored Quiz</h2>
+          <p>This quiz is proctored. You must:</p>
+          <ul style={{ marginLeft: 20, marginBottom: 20 }}>
+            <li>Keep the browser in fullscreen mode</li>
+            <li>Not switch tabs or minimize the window</li>
+            <li>Not lose focus from this window</li>
+            {quiz.time_limit && <li>Complete within {quiz.time_limit} minutes</li>}
+          </ul>
+          <p style={{ color: '#ef4444', fontWeight: 'bold' }}>
+            Violation of any proctoring rules will suspend the quiz. Answers will be saved and you will be returned to the course page.
+          </p>
+          <button
+            className="btn btn-primary"
+            onClick={startProctoring}
+            style={{ marginTop: 20 }}
+          >
+            Start Proctored Quiz
+          </button>
+        </div>
+      </div>
+    )
+  }
+
+  // Format time remaining
+  const formatTime = (seconds: number | null) => {
+    if (seconds === null) return ''
+    const mins = Math.floor(seconds / 60)
+    const secs = seconds % 60
+    return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`
+  }
+
   return (
     <div className="container" style={{ maxWidth: 900 }}>
       <header className="topbar">
-        <h2>{quiz.title}</h2>
+        <div>
+          <h2>
+            {quiz.title}
+            {quiz.is_proctored && (
+              <span style={{
+                display: 'inline-block',
+                marginLeft: '12px',
+                padding: '4px 8px',
+                borderRadius: '4px',
+                fontSize: '0.8em',
+                fontWeight: 'bold',
+                background: '#dc2626',
+                color: 'white'
+              }}>
+                🔒 PROCTORED
+              </span>
+            )}
+          </h2>
+          {quiz.is_proctored && (
+            <div style={{ display: 'flex', gap: 16, alignItems: 'center', marginTop: 8 }}>
+              {timeRemaining !== null && (
+                <div style={{
+                  color: timeRemaining < 300 ? '#ef4444' : timeRemaining < 600 ? '#f59e0b' : 'inherit',
+                  fontWeight: 'bold',
+                  fontSize: '1.2em'
+                }}>
+                  Time: {formatTime(timeRemaining)}
+                </div>
+              )}
+              <div style={{
+                color: isFullscreen ? '#10b981' : '#ef4444',
+                fontWeight: 'bold'
+              }}>
+                {isFullscreen ? '✓ Fullscreen' : '✗ Not Fullscreen'}
+              </div>
+              {violations.length > 0 && (
+                <div style={{ color: '#ef4444', fontWeight: 'bold' }}>
+                  Violations: {violations.length}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
         <div className="actions">
           <button className="btn btn-ghost" onClick={() => navigate(-1)}>Back</button>
         </div>

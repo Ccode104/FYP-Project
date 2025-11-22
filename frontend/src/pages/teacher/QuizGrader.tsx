@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useToast } from '../../components/ToastProvider'
-import { listQuizAttemptsForQuiz, gradeQuizAttempt } from '../../services/quizzes'
+import { listQuizAttemptsForQuiz, gradeQuizAttempt, deleteQuizAttempt } from '../../services/quizzes'
 import { useAuth } from '../../context/AuthContext'
 
 export default function QuizGrader() {
@@ -76,11 +76,35 @@ export default function QuizGrader() {
             <select className="select" value={selectedAttemptId} onChange={(e) => setSelectedAttemptId(e.target.value)}>
               <option value="">Select attempt</option>
               {attempts.map((a) => (
-                <option key={a.id} value={a.id}>{a.student_name || a.student_email} — #{a.id} — Score: {a.score ?? 'Pending'}</option>
+                <option key={a.id} value={a.id}>
+                  {a.student_name || a.student_email} — #{a.id} — Score: {a.score ?? 'Pending'}
+                  {a.violated ? ' 🚫 VIOLATED' : ''}
+                </option>
               ))}
             </select>
           </label>
           <button className="btn btn-primary" onClick={save} disabled={!selectedAttempt || Object.keys(decisions).length === 0}>Save</button>
+          {selectedAttempt?.violated && (
+            <button
+              className="btn btn-secondary"
+              onClick={async () => {
+                if (confirm('Reset this violated attempt? Student will be able to retake the quiz.')) {
+                  try {
+                    await deleteQuizAttempt(Number(selectedAttempt.id))
+                    push({ kind: 'success', message: 'Attempt reset. Student can now retake the quiz.' })
+                    // Reload attempts
+                    const ats = await listQuizAttemptsForQuiz(Number(quizId))
+                    setAttempts(ats)
+                    setSelectedAttemptId('')
+                  } catch (e: any) {
+                    push({ kind: 'error', message: e?.message || 'Failed to reset attempt' })
+                  }
+                }
+              }}
+            >
+              Reset Violated Attempt
+            </button>
+          )}
         </div>
       </div>
 

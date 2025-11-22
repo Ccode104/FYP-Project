@@ -1,6 +1,6 @@
 import express from 'express';
 import { requireAuth, requireRole } from '../middleware/auth.js';
-import { createQuiz, getQuiz, getQuizForGrading, submitQuizAttempt, listQuizAttempts, gradeQuizAttempt } from '../controllers/quizzesController.js';
+import { createQuiz, getQuiz, getQuizForGrading, submitQuizAttempt, listQuizAttempts, gradeQuizAttempt, deleteQuizAttempt } from '../controllers/quizzesController.js';
 
 const router = express.Router();
 
@@ -85,5 +85,8 @@ router.get('/:quizId/attempts', requireAuth, requireRole('faculty','ta','admin')
 
 // Manually grade short answers in an attempt
 router.patch('/attempts/:attemptId/grade', requireAuth, requireRole('faculty','ta','admin'), gradeQuizAttempt);
+
+// Delete a quiz attempt (for resetting violated attempts)
+router.delete('/attempts/:attemptId', requireAuth, requireRole('faculty','ta','admin'), deleteQuizAttempt);
 
 export default router;

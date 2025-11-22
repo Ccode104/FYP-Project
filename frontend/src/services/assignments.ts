@@ -11,6 +11,8 @@ export interface QuizAssignmentRequest {
   start_at: string | null
   end_at: string | null
   max_score: number
+  is_proctored?: boolean
+  time_limit?: number | null
   questions: {
     question_text: string
     question_type: 'mcq' | 'short' | 'true_false'

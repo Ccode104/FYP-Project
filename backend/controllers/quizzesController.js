@@ -33,13 +33,13 @@ export async function getQuiz(req, res) {
     // Parse metadata and remove correct answers for students
     const questions = questionsResult.rows.map(q => {
       const metadata = typeof q.metadata === 'string' ? JSON.parse(q.metadata) : q.metadata;
-      
+
       // Remove correct answer from metadata for students
       const studentMetadata = { ...metadata };
       if (q.question_type === 'mcq' || q.question_type === 'true_false') {
         delete studentMetadata.correct_answer;
       }
-      
+
       return {
         id: q.id,
         question_text: q.question_text,
@@ -47,11 +47,20 @@ export async function getQuiz(req, res) {
         metadata: studentMetadata
       };
     });
-    
-    res.json({
+
+    const responseData = {
       ...quiz,
       questions
+    };
+
+    console.log('Returning quiz data:', {
+      id: responseData.id,
+      title: responseData.title,
+      is_proctored: responseData.is_proctored,
+      time_limit: responseData.time_limit
     });
+
+    res.json(responseData);
   } catch (error) {
     console.error('Error fetching quiz:', error);
     res.status(500).json({ error: error.message || 'Failed to fetch quiz' });
@@ -96,10 +105,10 @@ export async function getQuizForGrading(req, res) {
 // Submit quiz attempt with auto-grading
 export async function submitQuizAttempt(req, res) {
   try {
-    const { quiz_id, student_id, answers } = req.body;
-    
-    if (!quiz_id || !student_id || !answers) {
-      return res.status(400).json({ error: 'quiz_id, student_id, and answers are required' });
+    const { quiz_id, student_id, answers, violated } = req.body;
+
+    if (!quiz_id || !student_id) {
+      return res.status(400).json({ error: 'quiz_id and student_id are required' });
     }
     
     const client = await pool.connect();
@@ -173,16 +182,17 @@ export async function submitQuizAttempt(req, res) {
       
       // Insert quiz attempt
       const attemptQuery = `
-        INSERT INTO quiz_attempts 
-        (quiz_id, student_id, started_at, finished_at, score, answers)
-        VALUES ($1, $2, NOW(), NOW(), $3, $4)
+        INSERT INTO quiz_attempts
+        (quiz_id, student_id, started_at, finished_at, score, answers, violated)
+        VALUES ($1, $2, NOW(), NOW(), $3, $4, $5)
         RETURNING *
       `;
       const attemptResult = await client.query(attemptQuery, [
         quiz_id,
         student_id,
         score,
-        JSON.stringify(gradedAnswers)
+        JSON.stringify(gradedAnswers),
+        violated || false
       ]);
       
       await client.query('COMMIT');
@@ -207,25 +217,35 @@ export async function submitQuizAttempt(req, res) {
 
 export async function createQuiz(req, res) {
   try {
-    const { course_offering_id, title, description, start_at, end_at, max_score, questions } = req.body;
-    
+    const { course_offering_id, title, description, start_at, end_at, max_score, questions, is_proctored, time_limit } = req.body;
+
+    console.log('Creating quiz with data:', {
+      course_offering_id,
+      title,
+      is_proctored,
+      time_limit,
+      questionCount: questions?.length || 0
+    });
+
     // Validate required fields
     if (!course_offering_id || !title) {
       return res.status(400).json({ error: 'course_offering_id and title are required' });
     }
-    
+
     const client = await pool.connect();
     try {
       await client.query('BEGIN');
-      
+
       // Create quiz
-      const quizQuery = `INSERT INTO quizzes (course_offering_id, title, start_at, end_at, max_score) VALUES ($1,$2,$3,$4,$5) RETURNING *`;
+      const quizQuery = `INSERT INTO quizzes (course_offering_id, title, start_at, end_at, max_score, is_proctored, time_limit) VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING *`;
       const quizResult = await client.query(quizQuery, [
-        course_offering_id, 
-        title, 
-        start_at || null, 
-        end_at || null, 
-        max_score || 100
+        course_offering_id,
+        title,
+        start_at || null,
+        end_at || null,
+        max_score || 100,
+        is_proctored || false,
+        time_limit || null
       ]);
       const quiz = quizResult.rows[0];
     
@@ -350,5 +370,22 @@ export async function gradeQuizAttempt(req, res) {
   } catch (error) {
     console.error('Error grading quiz attempt:', error);
     res.status(500).json({ error: error.message || 'Failed to grade attempt' });
+  }
+}
+
+// Delete a quiz attempt (for resetting violated attempts)
+export async function deleteQuizAttempt(req, res) {
+  try {
+    const { attemptId } = req.params;
+
+    const result = await pool.query('DELETE FROM quiz_attempts WHERE id = $1 RETURNING *', [attemptId]);
+    if (result.rowCount === 0) {
+      return res.status(404).json({ error: 'Attempt not found' });
+    }
+
+    res.json({ message: 'Attempt deleted successfully' });
+  } catch (error) {
+    console.error('Error deleting quiz attempt:', error);
+    res.status(500).json({ error: error.message || 'Failed to delete attempt' });
   }
 }

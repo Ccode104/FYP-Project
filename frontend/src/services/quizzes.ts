@@ -20,6 +20,8 @@ export interface Quiz {
   course_code?: string
   course_title?: string
   questions: QuizQuestion[]
+  is_proctored?: boolean
+  time_limit?: number | null // time limit in minutes
 }
 
 export interface QuizAttempt {
@@ -44,6 +46,7 @@ export async function submitQuizAttempt(data: {
   quiz_id: number
   student_id: number
   answers: Record<number, any>
+  violated?: boolean
 }): Promise<{
   message: string
   attempt: QuizAttempt
@@ -69,6 +72,12 @@ export async function gradeQuizAttempt(attemptId: number, decisions: Record<numb
   return apiFetch(`/api/quizzes/attempts/${attemptId}/grade`, {
     method: 'PATCH',
     body: { decisions }
+  })
+}
+
+export async function deleteQuizAttempt(attemptId: number) {
+  return apiFetch(`/api/quizzes/attempts/${attemptId}`, {
+    method: 'DELETE'
   })
 }
 
