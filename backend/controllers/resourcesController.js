@@ -64,8 +64,8 @@ export async function uploadResource(req, res) {
 
     // Insert into database
     const query = `
-      INSERT INTO resources (course_offering_id, uploaded_by, resource_type, storage_path, filename, file_size, mime_type)
-      VALUES ($1, $2, $3, $4, $5, $6, $7)
+      INSERT INTO resources (course_offering_id, uploaded_by, resource_type, storage_path, filename)
+      VALUES ($1, $2, $3, $4, $5)
       RETURNING *
     `;
     const values = [
@@ -73,9 +73,7 @@ export async function uploadResource(req, res) {
       req.user?.id,
       type,
       uploadResult.secure_url,
-      req.file.originalname,
-      req.file.size,
-      req.file.mimetype
+      req.file.originalname
     ];
 
     const result = await pool.query(query, values);

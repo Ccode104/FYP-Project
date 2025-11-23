@@ -2,9 +2,12 @@ import { useEffect, useState } from 'react'
 import { apiFetch } from '../../services/api'
 import '../CodeEditor.css'
 import './TeacherCodeSubmissionViewer.css'
+import RubricGradingForm from './RubricGradingForm'
+import type { RubricGrade } from '../../services/rubrics'
 
 function TeacherCodeSubmissionViewer({ submission, onGrade, push }: { submission: any; onGrade: (score: number, feedback: string) => void; push: any }) {
   const [showGradingForm, setShowGradingForm] = useState(false)
+  const [gradingMode, setGradingMode] = useState<'standard' | 'rubric'>('standard')
   const [score, setScore] = useState('')
   const [feedback, setFeedback] = useState('')
   const [runningTestCases, setRunningTestCases] = useState<Record<string, boolean>>({})
@@ -106,48 +109,110 @@ function TeacherCodeSubmissionViewer({ submission, onGrade, push }: { submission
     setFeedback('')
   }
 
+  const handleRubricGrade = async (rubricGrades: RubricGrade[], overallFeedback?: string) => {
+    try {
+      // Submit grade with rubric grades
+      await apiFetch('/api/assignments/submissions/grade', {
+        method: 'POST',
+        body: {
+          submission_id: submission.id,
+          rubric_grades: rubricGrades,
+          feedback: overallFeedback || ''
+        }
+      })
+
+      push({ kind: 'success', message: 'Assignment graded successfully with rubric' })
+      setShowGradingForm(false)
+
+      // Trigger parent component update
+      if (onGrade) {
+        // Calculate total score for display purposes
+        const totalScore = rubricGrades.reduce((sum, grade) => sum + grade.score, 0)
+        onGrade(totalScore, overallFeedback || '')
+      }
+    } catch (error: any) {
+      push({ kind: 'error', message: error?.message || 'Failed to submit rubric grade' })
+    }
+  }
+
   return (
     <div>
       {showGradingForm && (
         <div className="teacher-grading-form">
           <h4 style={{ marginTop: 0, marginBottom: '12px' }}>Grade Assignment</h4>
-          <form onSubmit={handleGradeSubmit} className="form-field">
-            <div>
-              <label className="form-label">
-                Score (0-100):
+
+          {/* Grading Mode Selection */}
+          <div style={{ marginBottom: '16px' }}>
+            <label className="form-label" style={{ display: 'block', marginBottom: '8px' }}>
+              Grading Method:
+            </label>
+            <div style={{ display: 'flex', gap: '12px' }}>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                <input
+                  type="radio"
+                  value="standard"
+                  checked={gradingMode === 'standard'}
+                  onChange={(e) => setGradingMode(e.target.value as 'standard' | 'rubric')}
+                />
+                Standard Grading
               </label>
-              <input
-                type="number"
-                min="0"
-                max="100"
-                step="0.1"
-                value={score}
-                onChange={(e) => setScore(e.target.value)}
-                required
-                className="form-input"
-              />
-            </div>
-            <div>
-              <label className="form-label">
-                Feedback (optional):
+              <label style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                <input
+                  type="radio"
+                  value="rubric"
+                  checked={gradingMode === 'rubric'}
+                  onChange={(e) => setGradingMode(e.target.value as 'standard' | 'rubric')}
+                />
+                Rubric Grading
               </label>
-              <textarea
-                value={feedback}
-                onChange={(e) => setFeedback(e.target.value)}
-                rows={4}
-                className="form-textarea"
-                placeholder="Provide feedback to the student..."
-              />
             </div>
-            <div style={{ display: 'flex', gap: 8 }}>
-              <button type="submit" className="btn btn-primary">
-                Submit Grade
-              </button>
-              <button type="button" className="btn" onClick={() => setShowGradingForm(false)}>
-                Cancel
-              </button>
-            </div>
-          </form>
+          </div>
+
+          {gradingMode === 'standard' ? (
+            <form onSubmit={handleGradeSubmit} className="form-field">
+              <div>
+                <label className="form-label">
+                  Score (0-100):
+                </label>
+                <input
+                  type="number"
+                  min="0"
+                  max="100"
+                  step="0.1"
+                  value={score}
+                  onChange={(e) => setScore(e.target.value)}
+                  required
+                  className="form-input"
+                />
+              </div>
+              <div>
+                <label className="form-label">
+                  Feedback (optional):
+                </label>
+                <textarea
+                  value={feedback}
+                  onChange={(e) => setFeedback(e.target.value)}
+                  rows={4}
+                  className="form-textarea"
+                  placeholder="Provide feedback to the student..."
+                />
+              </div>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button type="submit" className="btn btn-primary">
+                  Submit Grade
+                </button>
+                <button type="button" className="btn" onClick={() => setShowGradingForm(false)}>
+                  Cancel
+                </button>
+              </div>
+            </form>
+          ) : (
+            <RubricGradingForm
+              assignmentId={submission.assignment_id}
+              onGrade={handleRubricGrade}
+              push={push}
+            />
+          )}
         </div>
       )}
 

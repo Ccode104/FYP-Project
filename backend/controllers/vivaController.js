@@ -178,3 +178,81 @@ export async function updateVivaParticipantStatus(req, res) {
     res.status(500).json({ error: 'Failed to update participant status' });
   }
 }
+
+// Generate viva questions using TA agent
+export async function generateVivaQuestions(req, res) {
+  const { vivaSessionId, studentId, difficulty = 'medium', count = 3 } = req.body;
+
+  try {
+    // Verify the user has access to this viva session
+    const sessionCheck = await pool.query(`
+      SELECT vs.id, vs.course_offering_id, co.faculty_id
+      FROM viva_sessions vs
+      JOIN course_offerings co ON vs.course_offering_id = co.id
+      WHERE vs.id = $1
+    `, [vivaSessionId]);
+
+    if (sessionCheck.rowCount === 0) {
+      return res.status(404).json({ error: 'Viva session not found' });
+    }
+
+    const session = sessionCheck.rows[0];
+    if (req.user.role !== 'admin' && req.user.id !== session.faculty_id) {
+      return res.status(403).json({ error: 'Not authorized to generate questions for this viva session' });
+    }
+
+    // Get student submissions for context
+    const submissionsQuery = `
+      SELECT DISTINCT a.title, a.description, s.grade, s.feedback
+      FROM assignment_submissions s
+      JOIN assignments a ON s.assignment_id = a.id
+      JOIN course_offerings co ON a.course_offering_id = co.id
+      WHERE s.student_id = $1 AND co.id = $2
+      ORDER BY s.submitted_at DESC
+      LIMIT 5
+    `;
+    const submissions = await pool.query(submissionsQuery, [studentId, session.course_offering_id]);
+
+    // Use TA agent to generate questions
+    const { generateVivaQuestions: generateQuestions } = await import('../controllers/taAgentController.js');
+
+    // Mock request/response for TA agent
+    const mockReq = {
+      body: {
+        assignmentId: null, // We'll use session context instead
+        difficulty,
+        count
+      },
+      user: req.user
+    };
+
+    const mockRes = {
+      json: (data) => data,
+      status: (code) => ({ json: (data) => ({ ...data, status: code }) })
+    };
+
+    // Generate questions with viva context
+    const contextInfo = submissions.rows.map(sub =>
+      `Assignment: ${sub.title}\nGrade: ${sub.grade}\nFeedback: ${sub.feedback}`
+    ).join('\n\n');
+
+    // Temporarily modify the generateVivaQuestions to use viva context
+    const originalGenerateVivaQuestions = generateQuestions;
+    mockReq.body.context = `Viva Session Context:\n${contextInfo}\n\nGenerate ${count} viva questions at ${difficulty} difficulty level for this student based on their assignment performance.`;
+
+    const result = await generateQuestions(mockReq, mockRes);
+
+    res.json({
+      questions: result.questions || result,
+      generated_at: new Date().toISOString(),
+      context: {
+        studentId,
+        vivaSessionId,
+        submissions_count: submissions.rowCount
+      }
+    });
+  } catch (error) {
+    console.error('Error generating viva questions:', error);
+    res.status(500).json({ error: 'Failed to generate viva questions' });
+  }
+}

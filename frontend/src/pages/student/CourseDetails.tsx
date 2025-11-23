@@ -81,7 +81,7 @@ export default function CourseDetails() {
   // const [showQuestionForm, setShowQuestionForm] = useState(false)
   const [currentVideoTime, setCurrentVideoTime] = useState<number>(0)
   const videoRefForFaculty = useRef<HTMLVideoElement>(null)
-  const [assignmentCreationType, setAssignmentCreationType] = useState<'selection' | 'code' | 'quiz' | 'pdf'>('selection')
+  const [assignmentCreationType, setAssignmentCreationType] = useState<'selection' | 'code' | 'quiz' | 'pdf' | 'resources'>('selection')
   const [showVideoUpload, setShowVideoUpload] = useState(false)
   const isBackend = !!courseId && /^\d+$/.test(courseId)
   const toast = useToast()
@@ -1194,7 +1194,7 @@ export default function CourseDetails() {
                 <>
                   <h3>Create Assignment</h3>
                   <p className="muted" style={{ marginBottom: 16 }}>Choose the type of assignment you want to create:</p>
-                  <div className="grid" style={{ gridTemplateColumns: '1fr 1fr 1fr', gap: 16, maxWidth: 800 }}>
+                  <div className="grid" style={{ gridTemplateColumns: '1fr 1fr', gap: 16, maxWidth: 600 }}>
                     <button
                       className="btn btn-primary"
                       style={{ padding: 24, fontSize: 16, height: 120, display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', gap: 8 }}
@@ -1218,6 +1218,14 @@ export default function CourseDetails() {
                     >
                       <span style={{ fontSize: 32 }}>📄</span>
                       <span>PDF Submission</span>
+                    </button>
+                    <button
+                      className="btn btn-primary"
+                      style={{ padding: 24, fontSize: 16, height: 120, display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', gap: 8 }}
+                      onClick={() => setAssignmentCreationType('resources')}
+                    >
+                      <span style={{ fontSize: 32 }}>📚</span>
+                      <span>Upload Resources</span>
                     </button>
                   </div>
                 </>
@@ -1598,6 +1606,92 @@ export default function CourseDetails() {
             </section>
           )}
 
+          {user?.role === 'teacher' && tab === 'manage' && assignmentCreationType === 'resources' && (
+            <section className="card">
+              <div style={{ display: 'flex', alignItems: 'center', marginBottom: 16 }}>
+                <button className="btn" onClick={() => setAssignmentCreationType('selection')} style={{ marginRight: 8 }}>← Back</button>
+                <h3 style={{ margin: 0 }}>Upload Course Resources</h3>
+              </div>
+              <div className="form" style={{ maxWidth: 800 }}>
+                <div className="card" style={{ marginBottom: 16, padding: 16 }}>
+                  <h4 style={{ marginTop: 0 }}>Upload Resource</h4>
+                  <div style={{ marginBottom: 16 }}>
+                    <div style={{ display: 'block', marginBottom: 6, fontWeight: 500 }}>Resource Type *</div>
+                    <select
+                      className="input"
+                      style={{ display: 'block', width: '100%', boxSizing: 'border-box' }}
+                      value={newAssnType}
+                      onChange={(e) => setNewAssnType(e.target.value as 'file' | 'code' | 'link')}
+                    >
+                      <option value="pyq">Previous Year Questions (PYQ)</option>
+                      <option value="lecture_note">Lecture Notes</option>
+                    </select>
+                  </div>
+                  <div style={{ marginBottom: 16 }}>
+                    <div style={{ display: 'block', marginBottom: 6, fontWeight: 500 }}>File *</div>
+                    <input
+                      type="file"
+                      className="input"
+                      style={{ display: 'block', width: '100%', boxSizing: 'border-box' }}
+                      accept=".pdf,.doc,.docx,.txt"
+                      onChange={(e) => setFile(e.target.files?.[0] || null)}
+                    />
+                    <small className="muted" style={{ display: 'block', marginTop: 4 }}>
+                      Supported formats: PDF, DOC, DOCX, TXT
+                    </small>
+                  </div>
+                  <button
+                    className="btn btn-primary"
+                    onClick={async () => {
+                      if (!file || !courseId) {
+                        push({ kind: 'error', message: 'Please select a file' });
+                        return;
+                      }
+
+                      const formData = new FormData();
+                      formData.append('file', file);
+                      formData.append('type', newAssnType === 'pyq' ? 'pyq' : 'lecture_note');
+
+                      try {
+                        const response = await fetch(`/api/courses/${courseId}/resources`, {
+                          method: 'POST',
+                          headers: {
+                            'Authorization': `Bearer ${localStorage.getItem('token')}`
+                          },
+                          body: formData
+                        });
+
+                        if (!response.ok) {
+                          throw new Error('Upload failed');
+                        }
+
+                        const result = await response.json();
+                        push({ kind: 'success', message: 'Resource uploaded successfully' });
+
+                        // Refresh the resource lists
+                        try {
+                          const pyq = await apiFetch<any[]>(`/api/courses/${courseId}/pyqs`);
+                          setBackendPYQ(pyq);
+                        } catch { }
+                        try {
+                          const notes = await apiFetch<any[]>(`/api/courses/${courseId}/notes`);
+                          setBackendNotes(notes);
+                        } catch { }
+
+                        // Reset form
+                        setFile(null);
+                        setNewAssnType('file');
+                      } catch (error: any) {
+                        push({ kind: 'error', message: error?.message || 'Upload failed' });
+                      }
+                    }}
+                  >
+                    Upload Resource
+                  </button>
+                </div>
+              </div>
+            </section>
+          )}
 
           {showCodeEditor && viewingCodeSubmission && (
             <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>

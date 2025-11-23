@@ -2,7 +2,8 @@ import { useAuth } from "../../context/AuthContext";
 import { useNavigate } from "react-router-dom";
 import "./TeacherDashboard.css";
 import { useEffect, useState } from "react";
-import { getTADashboardData, TADashboardData } from "../../services/ta";
+import { getTADashboardData } from "/src/services/ta";
+import type { TADashboardData } from "/src/services/ta";
 import TAAgentChat from "../../components/TAAgentChat";
 
 function LoadingSkeleton() {

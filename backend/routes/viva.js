@@ -1,6 +1,6 @@
 import express from 'express';
 import { requireAuth, requireRole } from '../middleware/auth.js';
-import { createVivaSession, getVivaSessions, getVivaSessionDetails, gradeVivaParticipant, updateVivaParticipantStatus } from '../controllers/vivaController.js';
+import { createVivaSession, getVivaSessions, getVivaSessionDetails, gradeVivaParticipant, updateVivaParticipantStatus, generateVivaQuestions } from '../controllers/vivaController.js';
 
 const router = express.Router();
 
@@ -166,5 +166,46 @@ router.post('/grade', requireAuth, requireRole('faculty','ta','admin'), gradeViv
  *         description: Forbidden
  */
 router.post('/participant/status', requireAuth, requireRole('faculty','ta','admin'), updateVivaParticipantStatus);
+
+/**
+ * @swagger
+ * /api/viva/generate-questions:
+ *   post:
+ *     summary: Generate viva questions using AI for a specific student
+ *     tags: [Viva]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - vivaSessionId
+ *               - studentId
+ *             properties:
+ *               vivaSessionId:
+ *                 type: integer
+ *               studentId:
+ *                 type: integer
+ *               difficulty:
+ *                 type: string
+ *                 enum: [easy, medium, hard]
+ *                 default: medium
+ *               count:
+ *                 type: integer
+ *                 default: 3
+ *     responses:
+ *       200:
+ *         description: Questions generated successfully
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Forbidden
+ *       404:
+ *         description: Viva session not found
+ */
+router.post('/generate-questions', requireAuth, requireRole('faculty','ta','admin'), generateVivaQuestions);
 
 export default router;

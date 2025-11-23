@@ -200,10 +200,9 @@ export async function getAssignmentQuestions(req, res) {
 export async function gradeSubmission(req, res) {
   try {
     const submissionId = Number(req.params.id);
-    const { grade, feedback } = req.body;
+    const { grade, feedback, rubricGrades } = req.body;
 
     if (!submissionId) return res.status(400).json({ error: 'Missing submission id' });
-    if (grade === undefined || grade === null) return res.status(400).json({ error: 'Grade is required' });
 
     // Verify the user has permission to grade this submission
     const checkQ = `
@@ -223,16 +222,59 @@ export async function gradeSubmission(req, res) {
       return res.status(403).json({ error: 'Not authorized to grade this submission' });
     }
 
-    // Update the submission with grade
-    const updateQ = `
-      UPDATE assignment_submissions
-      SET grade = $1, feedback = $2, graded_at = NOW(), graded_by = $3
-      WHERE id = $4
-      RETURNING *
-    `;
-    const updateR = await pool.query(updateQ, [grade, feedback || '', req.user.id, submissionId]);
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
 
-    res.json(updateR.rows[0]);
+      let finalGrade = grade;
+
+      // If rubric grades are provided, calculate total grade and store individual criteria grades
+      if (rubricGrades && Array.isArray(rubricGrades) && rubricGrades.length > 0) {
+        // Delete existing rubric grades for this submission
+        await client.query('DELETE FROM rubric_grades WHERE submission_id = $1', [submissionId]);
+
+        // Insert new rubric grades
+        let totalWeightedScore = 0;
+        let totalWeight = 0;
+
+        for (const rg of rubricGrades) {
+          await client.query(`
+            INSERT INTO rubric_grades (submission_id, criterion_id, score, feedback, graded_by, graded_at)
+            VALUES ($1, $2, $3, $4, $5, NOW())
+          `, [submissionId, rg.criterionId, rg.score, rg.feedback || '', req.user.id]);
+
+          // Get criterion weight for calculation
+          const criterionResult = await client.query('SELECT weight FROM rubric_criteria WHERE id = $1', [rg.criterionId]);
+          if (criterionResult.rowCount > 0) {
+            const weight = criterionResult.rows[0].weight;
+            totalWeightedScore += (rg.score * weight);
+            totalWeight += weight;
+          }
+        }
+
+        // Calculate final grade if not provided
+        if (finalGrade === undefined || finalGrade === null) {
+          finalGrade = totalWeight > 0 ? totalWeightedScore / totalWeight : 0;
+        }
+      }
+
+      // Update the submission with grade
+      const updateQ = `
+        UPDATE assignment_submissions
+        SET grade = $1, feedback = $2, graded_at = NOW(), graded_by = $3
+        WHERE id = $4
+        RETURNING *
+      `;
+      const updateR = await client.query(updateQ, [finalGrade, feedback || '', req.user.id, submissionId]);
+
+      await client.query('COMMIT');
+      res.json(updateR.rows[0]);
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
   } catch (err) {
     console.error('Error grading submission:', err);
     res.status(500).json({ error: err.message || 'Failed to grade submission' });

@@ -27,6 +27,8 @@ import proctoringAnalyticsRoutes from './routes/proctoringAnalytics.js';
 import messagesRoutes from './routes/messages.js';
 import taRoutes from './routes/ta.js';
 import vivaRoutes from './routes/viva.js';
+import rubricsRoutes from './routes/rubrics.js';
+import supportRoutes from './routes/support.js';
 import swaggerSpec from './swagger.js';
 
 export async function startServer(port = 4000) {
@@ -80,6 +82,8 @@ export async function startServer(port = 4000) {
   app.use('/api/messages', messagesRoutes);
   app.use('/api/ta', taRoutes);
   app.use('/api/viva', vivaRoutes);
+  app.use('/api/rubrics', rubricsRoutes);
+  app.use('/api/support', supportRoutes);
 
   app.get('/health', (req, res) => res.json({ ok: true }));
 
