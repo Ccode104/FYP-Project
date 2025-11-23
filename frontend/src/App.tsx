@@ -22,6 +22,8 @@ import Layout from './components/Layout'
 // Quiz-related pages
 import QuizTake from './pages/student/QuizTake'
 import QuizGrader from './pages/teacher/QuizGrader'
+import SuspendedQuizzes from './pages/teacher/SuspendedQuizzes'
+import ProctoringDashboard from './pages/teacher/ProctoringDashboard'
 
 // Progress / analytics pages
 import StudentProgress from './pages/progress/StudentProgress'
@@ -127,6 +129,26 @@ function App() {
             element={
               <ProtectedRoute roles={["teacher", "ta"]}>
                 <QuizGrader />
+              </ProtectedRoute>
+            }
+          />
+
+          {/* Suspended quizzes management (teacher or TA only) */}
+          <Route
+            path="/teacher/suspended-quizzes"
+            element={
+              <ProtectedRoute roles={["teacher", "ta"]}>
+                <SuspendedQuizzes />
+              </ProtectedRoute>
+            }
+          />
+
+          {/* Proctoring analytics dashboard (teacher or TA only) */}
+          <Route
+            path="/teacher/proctoring-dashboard"
+            element={
+              <ProtectedRoute roles={["teacher", "ta"]}>
+                <ProctoringDashboard />
               </ProtectedRoute>
             }
           />

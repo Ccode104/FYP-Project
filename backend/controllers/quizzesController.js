@@ -102,15 +102,15 @@ export async function getQuizForGrading(req, res) {
   }
 }
 
-// Submit quiz attempt with auto-grading
+// Submit quiz attempt with auto-grading and proctoring integration
 export async function submitQuizAttempt(req, res) {
   try {
-    const { quiz_id, student_id, answers, violated } = req.body;
+    const { quiz_id, student_id, answers, proctoring_session_id } = req.body;
 
     if (!quiz_id || !student_id) {
       return res.status(400).json({ error: 'quiz_id and student_id are required' });
     }
-    
+
     const client = await pool.connect();
     try {
       await client.query('BEGIN');
@@ -121,7 +121,42 @@ export async function submitQuizAttempt(req, res) {
         await client.query('ROLLBACK');
         return res.status(409).json({ error: 'You have already submitted this quiz.' });
       }
-      
+
+      // Check proctoring violations if session exists
+      let violationStatus = { violated: false, critical_violations: 0, total_violations: 0 };
+      if (proctoring_session_id) {
+        const violationsQuery = `
+          SELECT severity, COUNT(*) as count
+          FROM proctoring_violations
+          WHERE session_id = $1
+          GROUP BY severity
+        `;
+        const violationsResult = await client.query(violationsQuery, [proctoring_session_id]);
+
+        let totalViolations = 0;
+        let criticalViolations = 0;
+
+        violationsResult.rows.forEach(row => {
+          const count = parseInt(row.count);
+          totalViolations += count;
+          if (parseInt(row.severity) >= 3) { // Critical violations
+            criticalViolations += count;
+          }
+        });
+
+        violationStatus = {
+          violated: criticalViolations > 0,
+          critical_violations: criticalViolations,
+          total_violations: totalViolations
+        };
+
+        // Update proctoring session as completed
+        await client.query(
+          'UPDATE proctoring_sessions SET status = $1, ended_at = NOW() WHERE id = $2',
+          ['completed', proctoring_session_id]
+        );
+      }
+
       // Get quiz questions with correct answers
       const questionsQuery = `
         SELECT id, question_text, question_type, metadata
@@ -134,27 +169,27 @@ export async function submitQuizAttempt(req, res) {
         ...q,
         metadata: typeof q.metadata === 'string' ? JSON.parse(q.metadata) : q.metadata
       }));
-      
+
       // Get quiz max score
       const quizQuery = `SELECT max_score FROM quizzes WHERE id = $1`;
       const quizResult = await client.query(quizQuery, [quiz_id]);
       const maxScore = quizResult.rows[0]?.max_score || 100;
-      
+
       // Auto-grade answers
       let totalQuestions = questions.length;
       let correctAnswers = 0;
-      
+
       const gradedAnswers = {};
-      
+
       questions.forEach(question => {
         const studentAnswer = answers[question.id];
         const correctAnswer = question.metadata.correct_answer;
-        
+
         if (question.question_type === 'mcq' || question.question_type === 'true_false') {
           // Auto-grade MCQ and True/False
           const isCorrect = String(studentAnswer) === String(correctAnswer);
           if (isCorrect) correctAnswers++;
-          
+
           gradedAnswers[question.id] = {
             student_answer: studentAnswer,
             is_correct: isCorrect,
@@ -169,39 +204,72 @@ export async function submitQuizAttempt(req, res) {
           };
         }
       });
-      
-      // Calculate score based on auto-graded questions
-      // For quizzes with short answers, score will be partial until manual grading
-      const autoGradedCount = questions.filter(q => 
+
+      // Calculate base score based on auto-graded questions
+      const autoGradedCount = questions.filter(q =>
         q.question_type === 'mcq' || q.question_type === 'true_false'
       ).length;
-      
-      const score = autoGradedCount > 0 
-        ? (correctAnswers / autoGradedCount) * maxScore 
+
+      let baseScore = autoGradedCount > 0
+        ? (correctAnswers / autoGradedCount) * maxScore
         : null; // null if all questions need manual grading
-      
+
+      // Apply proctoring penalties
+      let finalScore = baseScore;
+      let scorePenalty = 0;
+
+      if (violationStatus.violated) {
+        // Zero score for critical violations (as per user requirements)
+        finalScore = 0;
+        scorePenalty = baseScore || 0;
+      }
+
       // Insert quiz attempt
       const attemptQuery = `
         INSERT INTO quiz_attempts
-        (quiz_id, student_id, started_at, finished_at, score, answers, violated)
-        VALUES ($1, $2, NOW(), NOW(), $3, $4, $5)
+        (quiz_id, student_id, started_at, finished_at, score, answers, violated, proctoring_session_id, suspension_reason)
+        VALUES ($1, $2, NOW(), NOW(), $3, $4, $5, $6, $7)
         RETURNING *
       `;
+
+      const suspensionReason = violationStatus.violated
+        ? `Quiz suspended due to ${violationStatus.critical_violations} critical proctoring violation(s)`
+        : null;
+
       const attemptResult = await client.query(attemptQuery, [
         quiz_id,
         student_id,
-        score,
+        finalScore,
         JSON.stringify(gradedAnswers),
-        violated || false
+        violationStatus.violated,
+        proctoring_session_id || null,
+        suspensionReason
       ]);
-      
+
+      // Update proctoring analytics if session exists
+      if (proctoring_session_id) {
+        await updateProctoringAnalytics(client, proctoring_session_id);
+      }
+
+      // Update quiz performance stats and check achievements (only for non-violated attempts)
+      if (!violationStatus.violated && finalScore !== null) {
+        await updateQuizGamificationStats(client, student_id, finalScore, quiz_id);
+      }
+
       await client.query('COMMIT');
-      
+
       res.status(201).json({
-        message: 'Quiz submitted successfully',
+        message: violationStatus.violated ? 'Quiz submitted with violations - score penalized' : 'Quiz submitted successfully',
         attempt: attemptResult.rows[0],
         graded_answers: gradedAnswers,
-        needs_manual_grading: totalQuestions !== autoGradedCount
+        needs_manual_grading: totalQuestions !== autoGradedCount,
+        proctoring_result: {
+          violated: violationStatus.violated,
+          total_violations: violationStatus.total_violations,
+          critical_violations: violationStatus.critical_violations,
+          score_penalty: scorePenalty,
+          final_score: finalScore
+        }
       });
     } catch (error) {
       await client.query('ROLLBACK');
@@ -373,6 +441,275 @@ export async function gradeQuizAttempt(req, res) {
   }
 }
 
+// Helper function to update proctoring analytics
+async function updateProctoringAnalytics(client, sessionId) {
+  // Calculate violation statistics
+  const violationsQuery = `
+    SELECT
+      COUNT(*) as total_violations,
+      COUNT(CASE WHEN severity = 1 THEN 1 END) as severity_1,
+      COUNT(CASE WHEN severity = 2 THEN 1 END) as severity_2,
+      COUNT(CASE WHEN severity = 3 THEN 1 END) as severity_3,
+      COUNT(CASE WHEN severity = 4 THEN 1 END) as severity_4
+    FROM proctoring_violations
+    WHERE session_id = $1
+  `;
+
+  const violationsResult = await client.query(violationsQuery, [sessionId]);
+  const violationStats = violationsResult.rows[0];
+
+  // Get session duration
+  const sessionQuery = 'SELECT started_at, ended_at FROM proctoring_sessions WHERE id = $1';
+  const sessionResult = await client.query(sessionQuery, [sessionId]);
+  const session = sessionResult.rows[0];
+
+  const duration = session.ended_at
+    ? Math.floor((new Date(session.ended_at) - new Date(session.started_at)) / 1000)
+    : Math.floor((new Date() - new Date(session.started_at)) / 1000);
+
+  // Calculate compliance score (0-100, lower violations = higher score)
+  const totalViolations = parseInt(violationStats.total_violations) || 0;
+  const complianceScore = Math.max(0, 100 - (totalViolations * 10)); // Deduct 10 points per violation
+
+  // Determine risk level
+  let riskLevel = 'low';
+  if (totalViolations >= 5) riskLevel = 'critical';
+  else if (totalViolations >= 3) riskLevel = 'high';
+  else if (totalViolations >= 1) riskLevel = 'medium';
+
+  // Upsert analytics
+  await client.query(`
+    INSERT INTO proctoring_analytics
+    (session_id, total_violations, violations_by_severity, session_duration_seconds, compliance_score, risk_level)
+    VALUES ($1, $2, $3, $4, $5, $6)
+    ON CONFLICT (session_id) DO UPDATE SET
+      total_violations = EXCLUDED.total_violations,
+      violations_by_severity = EXCLUDED.violations_by_severity,
+      session_duration_seconds = EXCLUDED.session_duration_seconds,
+      compliance_score = EXCLUDED.compliance_score,
+      risk_level = EXCLUDED.risk_level,
+      updated_at = now()
+  `, [
+    sessionId,
+    totalViolations,
+    JSON.stringify({
+      1: parseInt(violationStats.severity_1) || 0,
+      2: parseInt(violationStats.severity_2) || 0,
+      3: parseInt(violationStats.severity_3) || 0,
+      4: parseInt(violationStats.severity_4) || 0
+    }),
+    duration,
+    complianceScore,
+    riskLevel
+  ]);
+}
+
+// Suspend a quiz attempt (teacher-controlled)
+export async function suspendQuizAttempt(req, res) {
+  try {
+    const { attemptId } = req.params;
+    const { reason, suspendedBy } = req.body;
+
+    if (!reason || !suspendedBy) {
+      return res.status(400).json({ error: 'reason and suspendedBy are required' });
+    }
+
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+
+      // Update quiz attempt with suspension
+      const updateQuery = `
+        UPDATE quiz_attempts
+        SET suspension_reason = $1, suspended_at = NOW(), resumed_at = NULL
+        WHERE id = $2
+        RETURNING *
+      `;
+      const attemptResult = await client.query(updateQuery, [reason, attemptId]);
+
+      if (attemptResult.rowCount === 0) {
+        await client.query('ROLLBACK');
+        return res.status(404).json({ error: 'Quiz attempt not found' });
+      }
+
+      // Update proctoring session status if exists
+      const sessionQuery = `
+        UPDATE proctoring_sessions
+        SET status = 'suspended'
+        WHERE quiz_attempt_id = $1
+      `;
+      await client.query(sessionQuery, [attemptId]);
+
+      await client.query('COMMIT');
+
+      // Notify student via WebSocket if session exists
+      const sessionCheck = await client.query('SELECT session_token FROM proctoring_sessions WHERE quiz_attempt_id = $1', [attemptId]);
+      if (sessionCheck.rows.length > 0) {
+        const io = req.app.get('io');
+        if (io) {
+          io.to(`proctoring-${sessionCheck.rows[0].session_token}`).emit('session-suspended', {
+            reason,
+            suspendedBy,
+            timestamp: new Date().toISOString()
+          });
+        }
+      }
+
+      res.json({
+        message: 'Quiz attempt suspended successfully',
+        attempt: attemptResult.rows[0]
+      });
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
+  } catch (error) {
+    console.error('Error suspending quiz attempt:', error);
+    res.status(500).json({ error: error.message || 'Failed to suspend attempt' });
+  }
+}
+
+// Resume a suspended quiz attempt (teacher-controlled)
+export async function resumeQuizAttempt(req, res) {
+  try {
+    const { attemptId } = req.params;
+    const { resumedBy } = req.body;
+
+    if (!resumedBy) {
+      return res.status(400).json({ error: 'resumedBy is required' });
+    }
+
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+
+      // Update quiz attempt to resume
+      const updateQuery = `
+        UPDATE quiz_attempts
+        SET resumed_at = NOW()
+        WHERE id = $1 AND suspended_at IS NOT NULL
+        RETURNING *
+      `;
+      const attemptResult = await client.query(updateQuery, [attemptId]);
+
+      if (attemptResult.rowCount === 0) {
+        await client.query('ROLLBACK');
+        return res.status(404).json({ error: 'Suspended quiz attempt not found' });
+      }
+
+      // Update proctoring session status if exists
+      const sessionQuery = `
+        UPDATE proctoring_sessions
+        SET status = 'active'
+        WHERE quiz_attempt_id = $1
+      `;
+      await client.query(sessionQuery, [attemptId]);
+
+      await client.query('COMMIT');
+
+      // Notify student via WebSocket if session exists
+      const sessionCheck = await client.query('SELECT session_token FROM proctoring_sessions WHERE quiz_attempt_id = $1', [attemptId]);
+      if (sessionCheck.rows.length > 0) {
+        const io = req.app.get('io');
+        if (io) {
+          io.to(`proctoring-${sessionCheck.rows[0].session_token}`).emit('session-resumed', {
+            resumedBy,
+            timestamp: new Date().toISOString()
+          });
+        }
+      }
+
+      res.json({
+        message: 'Quiz attempt resumed successfully',
+        attempt: attemptResult.rows[0]
+      });
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
+  } catch (error) {
+    console.error('Error resuming quiz attempt:', error);
+    res.status(500).json({ error: error.message || 'Failed to resume attempt' });
+  }
+}
+
+// Get suspended quiz attempts for a teacher
+export async function getSuspendedAttempts(req, res) {
+  try {
+    const teacherId = req.user?.id;
+    if (!teacherId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    // Get courses taught by this teacher
+    const coursesQuery = `
+      SELECT DISTINCT co.id as course_offering_id
+      FROM course_offerings co
+      JOIN faculty_course_offerings fco ON co.id = fco.course_offering_id
+      WHERE fco.faculty_id = $1
+    `;
+    const coursesResult = await pool.query(coursesQuery, [teacherId]);
+
+    if (coursesResult.rows.length === 0) {
+      return res.json({ suspended_attempts: [] });
+    }
+
+    const courseOfferingIds = coursesResult.rows.map(row => row.course_offering_id);
+
+    // Get suspended quiz attempts for these courses
+    const attemptsQuery = `
+      SELECT
+        qa.*,
+        u.name as student_name,
+        u.email as student_email,
+        q.title as quiz_title,
+        c.code as course_code,
+        c.title as course_title,
+        ps.session_token,
+        ps.status as proctoring_status
+      FROM quiz_attempts qa
+      JOIN users u ON qa.student_id = u.id
+      JOIN quizzes q ON qa.quiz_id = q.id
+      JOIN course_offerings co ON q.course_offering_id = co.id
+      JOIN courses c ON co.course_id = c.id
+      LEFT JOIN proctoring_sessions ps ON qa.proctoring_session_id = ps.id
+      WHERE co.id = ANY($1)
+        AND qa.suspended_at IS NOT NULL
+        AND qa.resumed_at IS NULL
+      ORDER BY qa.suspended_at DESC
+    `;
+
+    const attemptsResult = await pool.query(attemptsQuery, [courseOfferingIds]);
+
+    // Get violation details for each attempt
+    const suspendedAttempts = await Promise.all(
+      attemptsResult.rows.map(async (attempt) => {
+        if (attempt.proctoring_session_id) {
+          const violationsQuery = `
+            SELECT violation_type, severity, description, timestamp
+            FROM proctoring_violations
+            WHERE session_id = $1
+            ORDER BY timestamp DESC
+            LIMIT 10
+          `;
+          const violationsResult = await pool.query(violationsQuery, [attempt.proctoring_session_id]);
+          attempt.violations = violationsResult.rows;
+        }
+        return attempt;
+      })
+    );
+
+    res.json({ suspended_attempts: suspendedAttempts });
+  } catch (error) {
+    console.error('Error fetching suspended attempts:', error);
+    res.status(500).json({ error: error.message || 'Failed to fetch suspended attempts' });
+  }
+}
+
 // Delete a quiz attempt (for resetting violated attempts)
 export async function deleteQuizAttempt(req, res) {
   try {
@@ -387,5 +724,145 @@ export async function deleteQuizAttempt(req, res) {
   } catch (error) {
     console.error('Error deleting quiz attempt:', error);
     res.status(500).json({ error: error.message || 'Failed to delete attempt' });
+  }
+}
+
+// Helper function to update quiz gamification stats and check achievements
+async function updateQuizGamificationStats(client, userId, score, quizId) {
+  try {
+    // Get quiz details for score calculation
+    const quizQuery = 'SELECT max_score FROM quizzes WHERE id = $1';
+    const quizResult = await client.query(quizQuery, [quizId]);
+    const quiz = quizResult.rows[0];
+
+    if (!quiz) return;
+
+    // Calculate score percentage
+    const scorePercentage = quiz.max_score > 0 ? (score / quiz.max_score) * 100 : 0;
+
+    // Get current stats
+    const statsQuery = 'SELECT * FROM user_gamification_stats WHERE user_id = $1';
+    const statsResult = await client.query(statsQuery, [userId]);
+    let stats = statsResult.rows[0];
+
+    if (!stats) {
+      // Create initial stats
+      const insertResult = await client.query(
+        'INSERT INTO user_gamification_stats (user_id) VALUES ($1) RETURNING *',
+        [userId]
+      );
+      stats = insertResult.rows[0];
+    }
+
+    // Update quiz stats
+    const updates = {
+      quizzes_completed: stats.quizzes_completed + 1,
+      total_quiz_score: stats.total_quiz_score + score,
+      last_quiz_date: new Date().toISOString().split('T')[0]
+    };
+
+    // Calculate new average
+    updates.average_quiz_score = Math.round((updates.total_quiz_score / updates.quizzes_completed) * 100) / 100;
+
+    // Check for perfect score (100%)
+    if (scorePercentage >= 100) {
+      updates.perfect_quiz_scores = (stats.perfect_quiz_scores || 0) + 1;
+    }
+
+    // Check for high score (90%+)
+    if (scorePercentage >= 90) {
+      updates.high_quiz_scores = (stats.high_quiz_scores || 0) + 1;
+    }
+
+    // Update database
+    await client.query(`
+      UPDATE user_gamification_stats SET
+        quizzes_completed = $1,
+        perfect_quiz_scores = $2,
+        high_quiz_scores = $3,
+        total_quiz_score = $4,
+        average_quiz_score = $5,
+        last_quiz_date = $6,
+        total_points = total_points + 10,
+        updated_at = now()
+      WHERE user_id = $7
+    `, [
+      updates.quizzes_completed,
+      updates.perfect_quiz_scores || stats.perfect_quiz_scores || 0,
+      updates.high_quiz_scores || stats.high_quiz_scores || 0,
+      updates.total_quiz_score,
+      updates.average_quiz_score,
+      updates.last_quiz_date,
+      userId
+    ]);
+
+    // Check and unlock quiz achievements
+    await checkQuizAchievements(client, userId, updates);
+
+  } catch (error) {
+    console.error('Error updating quiz gamification stats:', error);
+    // Don't throw error to avoid breaking quiz submission
+  }
+}
+
+// Helper function to check and unlock quiz achievements
+async function checkQuizAchievements(client, userId, stats) {
+  try {
+    const unlockedAchievements = [];
+
+    // Get all quiz achievements
+    const achievements = await client.query(
+      "SELECT * FROM achievements WHERE category = 'quiz' AND is_active = true"
+    );
+
+    for (const achievement of achievements.rows) {
+      // Check if user already has this achievement
+      const existing = await client.query(
+        'SELECT 1 FROM user_achievements WHERE user_id = $1 AND achievement_id = $2',
+        [userId, achievement.id]
+      );
+
+      if (existing.rows.length > 0) continue; // Already unlocked
+
+      let shouldUnlock = false;
+
+      // Check achievement requirements
+      switch (achievement.requirement_type) {
+        case 'quizzes_completed':
+          shouldUnlock = stats.quizzes_completed >= achievement.requirement_value;
+          break;
+        case 'perfect_quiz_score':
+          shouldUnlock = (stats.perfect_quiz_scores || 0) >= achievement.requirement_value;
+          break;
+        case 'high_quiz_scores':
+          shouldUnlock = (stats.high_quiz_scores || 0) >= achievement.requirement_value;
+          break;
+        case 'consistent_quiz_performance':
+          shouldUnlock = stats.average_quiz_score >= 80;
+          break;
+        // Add more achievement types as needed
+      }
+
+      if (shouldUnlock) {
+        // Unlock achievement
+        await client.query(
+          'INSERT INTO user_achievements (user_id, achievement_id) VALUES ($1, $2)',
+          [userId, achievement.id]
+        );
+
+        // Add achievement points
+        await client.query(
+          'UPDATE user_gamification_stats SET total_points = total_points + $1 WHERE user_id = $2',
+          [achievement.points_reward, userId]
+        );
+
+        unlockedAchievements.push(achievement);
+      }
+    }
+
+    return unlockedAchievements;
+  } catch (error) {
+    console.error('Error checking quiz achievements:', error);
+    return [];
   }
 }

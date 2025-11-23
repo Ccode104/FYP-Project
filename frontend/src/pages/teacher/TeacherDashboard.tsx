@@ -69,6 +69,12 @@ export default function TeacherDashboard() {
           <button className="btn btn-secondary" onClick={() => navigate('/profile')}>
             👤 Profile
           </button>
+          <button className="btn btn-primary" onClick={() => navigate('/teacher/suspended-quizzes')}>
+            🚫 Suspended Quizzes
+          </button>
+          <button className="btn btn-outline" onClick={() => navigate('/teacher/proctoring-dashboard')}>
+            📊 Proctoring Analytics
+          </button>
         </div>
       </div>
 

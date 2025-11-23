@@ -46,12 +46,19 @@ export async function submitQuizAttempt(data: {
   quiz_id: number
   student_id: number
   answers: Record<number, any>
-  violated?: boolean
+  proctoring_session_id?: number
 }): Promise<{
   message: string
   attempt: QuizAttempt
   graded_answers: Record<number, any>
   needs_manual_grading: boolean
+  proctoring_result?: {
+    violated: boolean
+    total_violations: number
+    critical_violations: number
+    score_penalty: number
+    final_score: number | null
+  }
 }> {
   return apiFetch('/api/quizzes/attempts', {
     method: 'POST',
@@ -79,6 +86,38 @@ export async function deleteQuizAttempt(attemptId: number) {
   return apiFetch(`/api/quizzes/attempts/${attemptId}`, {
     method: 'DELETE'
   })
+}
+
+// Proctoring management functions
+export async function suspendQuizAttempt(attemptId: number, reason: string, suspendedBy: number) {
+  return apiFetch(`/api/quizzes/attempts/${attemptId}/suspend`, {
+    method: 'POST',
+    body: { reason, suspendedBy }
+  })
+}
+
+export async function resumeQuizAttempt(attemptId: number, resumedBy: number) {
+  return apiFetch(`/api/quizzes/attempts/${attemptId}/resume`, {
+    method: 'POST',
+    body: { resumedBy }
+  })
+}
+
+export async function getSuspendedAttempts() {
+  return apiFetch('/api/quizzes/suspended-attempts')
+}
+
+// Proctoring analytics functions
+export async function getProctoringDashboard() {
+  return apiFetch('/api/proctoring-analytics/dashboard')
+}
+
+export async function getQuizAnalytics(quizId: number) {
+  return apiFetch(`/api/proctoring-analytics/quiz/${quizId}`)
+}
+
+export async function getStudentProctoringHistory(studentId: number) {
+  return apiFetch(`/api/proctoring-analytics/student/${studentId}`)
 }
 
 // Runtime shims for TS-only exports

@@ -1,13 +1,15 @@
 import { useEffect, useMemo, useState, useRef, useCallback } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
+import { useParams } from 'react-router-dom'
 import { useAuth } from '../../context/AuthContext'
 import { getQuiz, submitQuizAttempt, Quiz } from '../../services/quizzes'
 import { useToast } from '../../components/ToastProvider'
+import { proctoringService } from '../../services/proctoring'
+import type { ProctoringConfig, ProctoringStatus } from '../../services/proctoring'
+import { createProctoringSession, getProctoringConfig } from '../../services/proctoringApi'
 
 export default function QuizTake() {
   const { quizId } = useParams()
   const { user } = useAuth()
-  const navigate = useNavigate()
   const { push } = useToast()
 
   const [quiz, setQuiz] = useState<Quiz | null>(null)
@@ -17,18 +19,34 @@ export default function QuizTake() {
   // answers keyed by question id
   const [answers, setAnswers] = useState<Record<number, any>>({})
   const [submitting, setSubmitting] = useState(false)
-  const [result, setResult] = useState<{ score: number | null; needs_manual_grading: boolean } | null>(null)
+  const [result, setResult] = useState<{
+    score: number | null;
+    needs_manual_grading: boolean;
+    proctoring_result?: {
+      violated: boolean;
+      total_violations: number;
+      critical_violations: number;
+      score_penalty: number;
+      final_score: number | null;
+    }
+  } | null>(null)
   const [gradedAnswers, setGradedAnswers] = useState<Record<number, { student_answer: any; is_correct: boolean | null; correct_answer: any }>>({})
 
   // Proctoring state
   const [timeRemaining, setTimeRemaining] = useState<number | null>(null)
-  const [isFullscreen, setIsFullscreen] = useState(false)
-  const [violations, setViolations] = useState<string[]>([])
   const [quizStarted, setQuizStarted] = useState(false)
-  const [cleanupProctoring, setCleanupProctoring] = useState<(() => void) | null>(null)
-  const timerRef = useRef<number | null>(null)
-  const fullscreenCheckRef = useRef<number | null>(null)
+  const [proctoringConfig, setProctoringConfig] = useState<ProctoringConfig | null>(null)
+  const [proctoringStatus, setProctoringStatus] = useState<ProctoringStatus | null>(null)
+  const [proctoringSession, setProctoringSession] = useState<any>(null)
+  const [isInitializingProctoring, setIsInitializingProctoring] = useState(false)
+  const [checkingPermissions, setCheckingPermissions] = useState(false)
+  const [permissionsGranted, setPermissionsGranted] = useState(false)
+  const [isSuspended, setIsSuspended] = useState(false)
+  const [showResumePrompt, setShowResumePrompt] = useState(false)
+  const [resumeCountdown, setResumeCountdown] = useState(10)
   const submittedAttemptedRef = useRef(false)
+  const sessionCheckInterval = useRef<number | null>(null)
+  const resumeTimeout = useRef<number | null>(null)
 
   useEffect(() => {
     (async () => {
@@ -37,152 +55,407 @@ export default function QuizTake() {
         const q = await getQuiz(Number(quizId))
         console.log('Loaded quiz:', { id: q.id, title: q.title, is_proctored: q.is_proctored, time_limit: q.time_limit })
         setQuiz(q)
-      } catch (e: any) {
-        setErr(e?.message || 'Failed to load quiz')
+
+        // Check if there's a suspended quiz attempt
+        if (q.is_proctored && user) {
+          try {
+            // Check for active/suspended proctoring sessions
+            const activeSessionResponse = await fetch(`/api/proctoring/sessions/active/${user.id}/${q.id}`, {
+              headers: {
+                'Authorization': `Bearer ${localStorage.getItem('token')}`
+              }
+            });
+            const activeSessionData = await activeSessionResponse.json();
+
+            if (activeSessionData.session) {
+              const session = activeSessionData.session;
+              if (session.status === 'suspended') {
+                setIsSuspended(true);
+                setShowResumePrompt(true);
+                // Start 10-second countdown for auto-suspension
+                setResumeCountdown(10);
+                resumeTimeout.current = window.setTimeout(() => {
+                  // Auto-suspend if not resumed
+                  setShowResumePrompt(false);
+                  setIsSuspended(true);
+                  push({ kind: 'error', message: 'Quiz automatically suspended due to timeout.' });
+                }, 10000);
+              } else if (session.status === 'active') {
+                // Resume existing active session
+                setProctoringSession(session);
+                setQuizStarted(true);
+                // Continue with existing timer
+                if (session.quiz_attempt_id) {
+                  // Calculate remaining time based on server time
+                  const attemptStart = new Date(session.attempt_started_at);
+                  const now = new Date();
+                  const elapsed = Math.floor((now.getTime() - attemptStart.getTime()) / 1000);
+                  const totalLimit = q.time_limit * 60; // Convert to seconds
+                  const remaining = Math.max(0, totalLimit - elapsed);
+                  setTimeRemaining(remaining);
+                }
+              }
+            }
+          } catch (error) {
+            console.warn('Could not check suspended status:', error)
+          }
+        }
+
+        // Load proctoring configuration if quiz is proctored
+        if (q.is_proctored) {
+          try {
+            const configResponse = await getProctoringConfig(Number(quizId))
+            setProctoringConfig(configResponse.config)
+            console.log('Loaded proctoring config:', configResponse.config)
+          } catch (configError) {
+            console.warn('Failed to load proctoring config, using defaults:', configError)
+            // Use default config
+            setProctoringConfig({
+              webcam_required: true,
+              screen_monitoring: true,
+              audio_monitoring: false,
+              face_detection_required: true,
+              max_warnings: 3,
+              auto_suspend_severity: 3,
+              allow_recovery: true,
+              recovery_wait_seconds: 30,
+              violation_score_penalty: 1.0,
+              suspension_requires_teacher: true,
+              live_monitoring_enabled: false,
+              record_sessions: true
+            })
+          }
+        }
+      } catch (e: unknown) {
+        const error = e as Error
+        setErr(error?.message || 'Failed to load quiz')
       } finally {
         setLoading(false)
       }
     })()
-  }, [quizId])
+  }, [quizId, user])
 
-  // Proctoring functions
-  const enterFullscreen = useCallback(async () => {
+  // Permission checking functions
+  const checkAndRequestPermissions = useCallback(async (): Promise<boolean> => {
+    if (!proctoringConfig) return false;
+
+    setCheckingPermissions(true);
     try {
-      if (document.documentElement.requestFullscreen) {
-        await document.documentElement.requestFullscreen()
-      } else if ((document.documentElement as any).webkitRequestFullscreen) {
-        await (document.documentElement as any).webkitRequestFullscreen()
-      } else if ((document.documentElement as any).mozRequestFullScreen) {
-        await (document.documentElement as any).mozRequestFullScreen()
-      } else if ((document.documentElement as any).msRequestFullscreen) {
-        await (document.documentElement as any).msRequestFullscreen()
-      }
-    } catch (error) {
-      console.error('Failed to enter fullscreen:', error)
-    }
-  }, [])
+      const permissions = [];
 
-  const checkFullscreen = useCallback(() => {
-    const isCurrentlyFullscreen = !!(
-      document.fullscreenElement ||
-      (document as any).webkitFullscreenElement ||
-      (document as any).mozFullScreenElement ||
-      (document as any).msFullscreenElement
-    )
-    setIsFullscreen(isCurrentlyFullscreen)
-    return isCurrentlyFullscreen
-  }, [])
-
-  const handleViolation = useCallback((violationType: string) => {
-    setViolations(prev => [...prev, `${new Date().toISOString()}: ${violationType}`])
-    if (!result && !submittedAttemptedRef.current) {
-      submittedAttemptedRef.current = true
-      push({ kind: 'error', message: `Proctoring violation: ${violationType}. Quiz suspended. Answers saved.` })
-
-      // Save answers locally
-      if (quiz && user) {
-        const savedData = {
-          quizId: quiz.id,
-          studentId: user.id,
-          answers,
-          violations,
-          timestamp: new Date().toISOString()
+      // Check camera permission if webcam monitoring is required
+      if (proctoringConfig.webcam_required) {
+        try {
+          const cameraPermission = await navigator.permissions.query({ name: 'camera' as PermissionName });
+          if (cameraPermission.state === 'denied') {
+            throw new Error('Camera permission denied');
+          }
+          // Try to get camera access to trigger permission prompt
+          const stream = await navigator.mediaDevices.getUserMedia({
+            video: { width: 640, height: 480 },
+            audio: false
+          });
+          stream.getTracks().forEach(track => track.stop()); // Stop immediately
+          permissions.push('camera');
+        } catch (error) {
+          console.error('Camera permission error:', error);
+          push({ kind: 'error', message: 'Camera access is required for this proctored quiz. Please enable camera permissions and try again.' });
+          return false;
         }
-        localStorage.setItem(`quiz_violation_${quiz.id}_${user.id}`, JSON.stringify(savedData))
       }
 
-      // Submit violation attempt
-      if (quiz && user) {
-        handleViolationSubmit()
+      // Check microphone permission if audio monitoring is required
+      if (proctoringConfig.audio_monitoring) {
+        try {
+          const micPermission = await navigator.permissions.query({ name: 'microphone' as PermissionName });
+          if (micPermission.state === 'denied') {
+            throw new Error('Microphone permission denied');
+          }
+          // Try to get microphone access to trigger permission prompt
+          const stream = await navigator.mediaDevices.getUserMedia({
+            video: false,
+            audio: true
+          });
+          stream.getTracks().forEach(track => track.stop()); // Stop immediately
+          permissions.push('microphone');
+        } catch (error) {
+          console.error('Microphone permission error:', error);
+          push({ kind: 'error', message: 'Microphone access is required for this proctored quiz. Please enable microphone permissions and try again.' });
+          return false;
+        }
       }
 
-      // Navigate back to quizzes
-      setTimeout(() => {
-        navigate(-1)
-      }, 2000)
-    } else {
-      push({ kind: 'error', message: `Proctoring violation: ${violationType}.` })
+      setPermissionsGranted(true);
+      console.log('Permissions granted:', permissions);
+      return true;
+    } catch (error) {
+      console.error('Permission check failed:', error);
+      push({ kind: 'error', message: 'Failed to check permissions. Please refresh and try again.' });
+      return false;
+    } finally {
+      setCheckingPermissions(false);
     }
-  }, [push, quiz, user, result, answers, violations, navigate])
+  }, [proctoringConfig, push]);
 
-  const startProctoring = useCallback(() => {
-    if (!quiz?.is_proctored) return
+  // Proctoring functions - using advanced proctoring service
+  const initializeAdvancedProctoring = useCallback(async () => {
+    if (!quiz || !user || !proctoringConfig) return
 
-    setQuizStarted(true)
+    try {
+      setIsInitializingProctoring(true)
 
-    // Initialize timer if time limit exists
-    if (quiz.time_limit) {
-      setTimeRemaining(quiz.time_limit * 60) // Convert minutes to seconds
+      // Create proctoring session on backend
+      const session = await createProctoringSession({
+        student_id: Number(user.id),
+        device_info: {
+          userAgent: navigator.userAgent,
+          platform: navigator.platform,
+          language: navigator.language,
+          screenResolution: `${screen.width}x${screen.height}`,
+          timezone: Intl.DateTimeFormat().resolvedOptions().timeZone
+        },
+        browser_info: {
+          cookiesEnabled: navigator.cookieEnabled,
+          online: navigator.onLine,
+          hardwareConcurrency: navigator.hardwareConcurrency
+        },
+        webcam_enabled: proctoringConfig.webcam_required,
+        screen_monitoring_enabled: proctoringConfig.screen_monitoring,
+        audio_monitoring_enabled: proctoringConfig.audio_monitoring
+      })
+
+      setProctoringSession(session)
+
+      // Generate session token for WebSocket connection
+      const sessionToken = session.session_token
+
+      // Initialize proctoring service
+      await proctoringService.initializeSession(sessionToken, proctoringConfig, 'student')
+
+      // Set up status change listener
+      proctoringService.onStatusChange((status) => {
+        setProctoringStatus(status)
+
+        // Handle suspension
+        if (status.isSuspended && !submittedAttemptedRef.current) {
+          submittedAttemptedRef.current = true
+          push({ kind: 'error', message: 'Quiz suspended due to proctoring violations. Contact your instructor.' })
+
+          // Auto-submit with violation flag
+          setTimeout(() => {
+            handleSubmit(true)
+          }, 1000)
+        }
+      })
+
+      // Set up violation listener
+      proctoringService.onViolation((violation) => {
+        if (violation.severity >= 3) {
+          push({ kind: 'error', message: `Critical violation: ${violation.description}` })
+        } else if (violation.severity === 2) {
+          push({ kind: 'info', message: `Warning: ${violation.description}` })
+        }
+      })
+
+      console.log('Advanced proctoring initialized successfully')
+    } catch (error) {
+      console.error('Failed to initialize advanced proctoring:', error)
+      push({ kind: 'error', message: 'Failed to initialize proctoring system. Please refresh and try again.' })
+    } finally {
+      setIsInitializingProctoring(false)
     }
+  }, [quiz, user, proctoringConfig, push])
 
-    // Enter fullscreen
-    enterFullscreen()
+  const startAdvancedProctoring = useCallback(async () => {
+    if (!quiz?.is_proctored || !proctoringConfig) return
 
-    // Start monitoring fullscreen
-    fullscreenCheckRef.current = window.setInterval(() => {
-      if (!checkFullscreen()) {
-        handleViolation('Exited fullscreen mode')
+    try {
+      setQuizStarted(true)
+
+      // Initialize timer if time limit exists
+      if (quiz.time_limit) {
+        setTimeRemaining(quiz.time_limit * 60) // Convert minutes to seconds
       }
-    }, 1000)
 
-    // Monitor tab visibility
-    const handleVisibilityChange = () => {
-      if (document.hidden) {
-        handleViolation('Switched tabs or minimized window')
-      }
+      // Initialize advanced proctoring
+      await initializeAdvancedProctoring()
+
+      // Start monitoring
+      await proctoringService.startMonitoring()
+
+      console.log('Advanced proctoring started successfully')
+    } catch (error) {
+      console.error('Failed to start advanced proctoring:', error)
+      push({ kind: 'error', message: 'Failed to start proctoring system. Please try again.' })
+      setQuizStarted(false)
     }
-    document.addEventListener('visibilitychange', handleVisibilityChange)
+  }, [quiz, proctoringConfig, initializeAdvancedProctoring, push])
 
-    // Monitor window focus
-    const handleBlur = () => {
-      handleViolation('Window lost focus')
-    }
-    window.addEventListener('blur', handleBlur)
-
-    // Cleanup function
-    const cleanup = () => {
-      document.removeEventListener('visibilitychange', handleVisibilityChange)
-      window.removeEventListener('blur', handleBlur)
-    }
-    setCleanupProctoring(() => cleanup)
-    return cleanup
-  }, [quiz, enterFullscreen, checkFullscreen, handleViolation])
-
-  // Timer effect
+  // Timer effect - simplified since proctoring service handles violations
   useEffect(() => {
     if (timeRemaining !== null && timeRemaining > 0 && quizStarted && !result) {
-      timerRef.current = window.setTimeout(() => {
+      const timer = window.setTimeout(() => {
         setTimeRemaining(prev => {
           if (prev !== null && prev <= 1) {
-            handleViolation('Time expired')
+            // Time expired - suspend the session
+            proctoringService.suspendSession('Quiz time expired')
             return 0
           }
           return prev ? prev - 1 : null
         })
       }, 1000)
+      return () => clearTimeout(timer)
+    }
+  }, [timeRemaining, quizStarted, result])
+
+  // Resume quiz function
+  const resumeQuiz = useCallback(async () => {
+    if (!proctoringSession) return
+
+    try {
+      // Clear resume timeout
+      if (resumeTimeout.current) {
+        clearTimeout(resumeTimeout.current)
+        resumeTimeout.current = null
+      }
+
+      // Resume the session
+      const resumeResponse = await fetch(`/api/proctoring/sessions/${proctoringSession.id}/resume`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+        },
+        body: JSON.stringify({ resumed_by: user?.id })
+      })
+
+      if (resumeResponse.ok) {
+        setShowResumePrompt(false)
+        setIsSuspended(false)
+        setQuizStarted(true)
+
+        // Reconnect to proctoring service
+        await proctoringService.connect(proctoringSession.session_token, user?.id || 0, 'student')
+
+        // Start monitoring
+        await proctoringService.startMonitoring()
+
+        push({ kind: 'success', message: 'Quiz resumed successfully!' })
+      } else {
+        throw new Error('Failed to resume quiz')
+      }
+    } catch (error) {
+      console.error('Error resuming quiz:', error)
+      push({ kind: 'error', message: 'Failed to resume quiz. Please try again.' })
+    }
+  }, [proctoringSession, user, push])
+
+  // Countdown effect for resume prompt
+  useEffect(() => {
+    if (showResumePrompt && resumeCountdown > 0) {
+      const countdownInterval = setInterval(() => {
+        setResumeCountdown(prev => {
+          if (prev <= 1) {
+            setShowResumePrompt(false)
+            setIsSuspended(true)
+            push({ kind: 'error', message: 'Quiz automatically suspended due to timeout.' })
+            return 0
+          }
+          return prev - 1
+        })
+      }, 1000)
+
+      return () => clearInterval(countdownInterval)
+    }
+  }, [showResumePrompt, resumeCountdown, push])
+
+  // Navigation protection - prevent accidental navigation during quiz
+  useEffect(() => {
+    if (!quizStarted || result) return
+
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      // Start grace period for navigation attempt
+      if (!proctoringStatus?.gracePeriodActive) {
+        proctoringService.startGracePeriod({
+          type: 'navigation_attempt',
+          severity: 3,
+          description: 'Attempted to refresh or navigate away'
+        }, 5)
+      }
+
+      // Show confirmation dialog
+      e.preventDefault()
+      e.returnValue = 'Are you sure you want to leave? Your quiz progress may be lost.'
+      return e.returnValue
     }
 
+    const handlePopState = (e: PopStateEvent) => {
+      // Prevent back button during quiz
+      if (!proctoringStatus?.gracePeriodActive) {
+        proctoringService.startGracePeriod({
+          type: 'back_button_pressed',
+          severity: 3,
+          description: 'Pressed back button during quiz'
+        }, 5)
+      }
+      // Prevent the navigation
+      window.history.pushState(null, '', window.location.href)
+    }
+
+    // Add event listeners
+    window.addEventListener('beforeunload', handleBeforeUnload)
+    window.addEventListener('popstate', handlePopState)
+
+    // Prevent back button by pushing current state
+    window.history.pushState(null, '', window.location.href)
+
     return () => {
-      if (timerRef.current) {
-        clearTimeout(timerRef.current)
+      window.removeEventListener('beforeunload', handleBeforeUnload)
+      window.removeEventListener('popstate', handlePopState)
+    }
+  }, [quizStarted, result, proctoringStatus?.gracePeriodActive])
+
+  // Heartbeat mechanism to keep session alive
+  useEffect(() => {
+    if (!quizStarted || !proctoringSession) return
+
+    const sendHeartbeat = async () => {
+      try {
+        await fetch(`/api/proctoring/sessions/${proctoringSession.id}/heartbeat`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${localStorage.getItem('token')}`
+          }
+        })
+      } catch (error) {
+        console.warn('Heartbeat failed:', error)
       }
     }
-  }, [timeRemaining, quizStarted, result, handleViolation])
+
+    // Send heartbeat every 30 seconds
+    const heartbeatInterval = setInterval(sendHeartbeat, 30000)
+
+    // Send initial heartbeat
+    sendHeartbeat()
+
+    return () => clearInterval(heartbeatInterval)
+  }, [quizStarted, proctoringSession])
 
   // Stop proctoring when quiz submission starts or is submitted
   useEffect(() => {
     if (result || submitting) {
-      if (cleanupProctoring) cleanupProctoring()
-      if (timerRef.current) clearTimeout(timerRef.current)
-      if (fullscreenCheckRef.current) clearInterval(fullscreenCheckRef.current)
+      proctoringService.stopMonitoring()
     }
-  }, [result, submitting, cleanupProctoring])
+  }, [result, submitting])
 
   // Cleanup on unmount
   useEffect(() => {
     return () => {
-      if (timerRef.current) clearTimeout(timerRef.current)
-      if (fullscreenCheckRef.current) clearInterval(fullscreenCheckRef.current)
+      proctoringService.stopMonitoring()
+      // Clear any pending timeouts
+      if (resumeTimeout.current) {
+        clearTimeout(resumeTimeout.current)
+      }
     }
   }, [])
 
@@ -204,16 +477,30 @@ export default function QuizTake() {
         quiz_id: quiz.id,
         student_id: Number(user.id),
         answers,
-        violated
+        proctoring_session_id: proctoringSession?.id
       })
-      setResult({ score: res.attempt.score, needs_manual_grading: res.needs_manual_grading })
+
+      setResult({
+        score: res.attempt.score,
+        needs_manual_grading: res.needs_manual_grading,
+        proctoring_result: res.proctoring_result
+      })
       setGradedAnswers(res.graded_answers as any)
-      if (!violated) {
-        push({ kind: 'success', message: 'Quiz submitted' })
+
+      if (res.proctoring_result?.violated) {
+        push({
+          kind: 'error',
+          message: `Quiz submitted with violations. Score: 0 (penalized due to ${res.proctoring_result.critical_violations} critical violation(s))`
+        })
+      } else {
+        push({ kind: 'success', message: 'Quiz submitted successfully' })
       }
-    } catch (e: any) {
-      push({ kind: 'error', message: e?.message || 'Submit failed' })
+    } catch (e: unknown) {
+      const error = e as Error
+      push({ kind: 'error', message: error?.message || 'Submit failed' })
       // Don't reset submitting to prevent loops on repeated violations
+    } finally {
+      setSubmitting(false)
     }
   }
 
@@ -230,23 +517,81 @@ export default function QuizTake() {
     return (
       <div className="container" style={{ maxWidth: 600 }}>
         <div className="card">
-          <h2>Proctored Quiz</h2>
-          <p>This quiz is proctored. You must:</p>
+          <h2>Advanced Proctored Quiz</h2>
+          <p>This quiz uses advanced proctoring technology. You must:</p>
           <ul style={{ marginLeft: 20, marginBottom: 20 }}>
             <li>Keep the browser in fullscreen mode</li>
             <li>Not switch tabs or minimize the window</li>
             <li>Not lose focus from this window</li>
+            {proctoringConfig?.webcam_required && <li>Keep your face visible to the camera</li>}
+            {proctoringConfig?.audio_monitoring && <li>Minimize background noise</li>}
             {quiz.time_limit && <li>Complete within {quiz.time_limit} minutes</li>}
           </ul>
+          <div style={{ background: '#fef3c7', padding: 15, borderRadius: 4, marginBottom: 20 }}>
+            <strong>Advanced Monitoring:</strong>
+            <ul style={{ margin: '10px 0 0 20px', fontSize: '0.9em' }}>
+              {proctoringConfig?.webcam_required && <li>Face detection and tracking</li>}
+              {proctoringConfig?.screen_monitoring && <li>Screen sharing detection</li>}
+              {proctoringConfig?.audio_monitoring && <li>Audio monitoring</li>}
+              <li>Real-time violation reporting</li>
+            </ul>
+          </div>
+
+          {/* Permission Check Section */}
+          {(proctoringConfig?.webcam_required || proctoringConfig?.audio_monitoring) && !permissionsGranted && (
+            <div style={{ background: '#f0f9ff', padding: 15, borderRadius: 4, marginBottom: 20, border: '1px solid #0ea5e9' }}>
+              <h3 style={{ margin: '0 0 10px 0', color: '#0ea5e9' }}>📷 Permission Required</h3>
+              <p style={{ margin: '0 0 15px 0', fontSize: '0.9em' }}>
+                This proctored quiz requires access to your camera
+                {proctoringConfig?.audio_monitoring && ' and microphone'}.
+                Please grant permissions when prompted.
+              </p>
+              <button
+                className="btn btn-outline"
+                onClick={checkAndRequestPermissions}
+                disabled={checkingPermissions}
+                style={{ borderColor: '#0ea5e9', color: '#0ea5e9' }}
+              >
+                {checkingPermissions ? 'Checking Permissions...' : 'Grant Camera Access'}
+              </button>
+            </div>
+          )}
+
+          {/* Success message when permissions granted */}
+          {permissionsGranted && (
+            <div style={{ background: '#f0fdf4', padding: 15, borderRadius: 4, marginBottom: 20, border: '1px solid #22c55e' }}>
+              <p style={{ margin: 0, color: '#15803d', fontWeight: 'bold' }}>
+                ✅ Permissions granted successfully!
+              </p>
+            </div>
+          )}
+
+          {isSuspended && (
+            <div style={{ background: '#fef2f2', padding: 15, borderRadius: 4, marginBottom: 20, border: '1px solid #fecaca' }}>
+              <h3 style={{ margin: '0 0 10px 0', color: '#dc2626' }}>⚠️ Suspended Quiz</h3>
+              <p style={{ margin: 0, color: '#dc2626' }}>
+                Your previous quiz attempt was suspended due to proctoring violations.
+                You may resume it now, but be aware that further violations will result in permanent suspension.
+              </p>
+            </div>
+          )}
+
           <p style={{ color: '#ef4444', fontWeight: 'bold' }}>
-            Violation of any proctoring rules will suspend the quiz. Answers will be saved and you will be returned to the course page.
+            Critical violations will immediately suspend the quiz. Teacher intervention may be required to resume.
           </p>
+
           <button
             className="btn btn-primary"
-            onClick={startProctoring}
+            onClick={startAdvancedProctoring}
+            disabled={isInitializingProctoring || ((proctoringConfig?.webcam_required || proctoringConfig?.audio_monitoring) && !permissionsGranted)}
             style={{ marginTop: 20 }}
           >
-            Start Proctored Quiz
+            {isInitializingProctoring
+              ? 'Initializing Proctoring...'
+              : isSuspended
+                ? 'Resume Suspended Quiz'
+                : 'Start Advanced Proctored Quiz'
+            }
           </button>
         </div>
       </div>
@@ -263,6 +608,112 @@ export default function QuizTake() {
 
   return (
     <div className="container" style={{ maxWidth: 900 }}>
+      {/* Resume Quiz Prompt */}
+      {showResumePrompt && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          background: 'rgba(239, 68, 68, 0.95)',
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 9999,
+          color: 'white',
+          fontSize: '1.2em',
+          textAlign: 'center',
+          padding: '20px'
+        }}>
+          <div style={{ fontSize: '3em', marginBottom: '20px' }}>⏰</div>
+          <h2 style={{ margin: '0 0 10px 0', color: 'white' }}>Resume Your Quiz</h2>
+          <p style={{ margin: '0 0 20px 0', fontSize: '1.1em' }}>
+            You have an active suspended quiz session. Would you like to resume it?
+          </p>
+          <div style={{
+            fontSize: '4em',
+            fontWeight: 'bold',
+            margin: '20px 0',
+            color: resumeCountdown <= 3 ? '#ff6b6b' : 'white'
+          }}>
+            {resumeCountdown}
+          </div>
+          <p style={{ margin: '0 0 30px 0' }}>
+            Quiz will be permanently suspended in {resumeCountdown} second{resumeCountdown !== 1 ? 's' : ''} if not resumed.
+          </p>
+          <button
+            className="btn btn-primary"
+            onClick={resumeQuiz}
+            style={{
+              fontSize: '1.2em',
+              padding: '15px 30px',
+              background: 'white',
+              color: '#dc2626',
+              border: 'none',
+              borderRadius: '8px',
+              cursor: 'pointer'
+            }}
+          >
+            Resume Quiz
+          </button>
+        </div>
+      )}
+
+      {/* Grace Period Warning Overlay */}
+      {proctoringStatus?.gracePeriodActive && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          background: 'rgba(239, 68, 68, 0.95)',
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 9999,
+          color: 'white',
+          fontSize: '1.2em',
+          textAlign: 'center',
+          padding: '20px'
+        }}>
+          <div style={{ fontSize: '3em', marginBottom: '20px' }}>⚠️</div>
+          <h2 style={{ margin: '0 0 10px 0', color: 'white' }}>Proctoring Violation Detected</h2>
+          <p style={{ margin: '0 0 20px 0', fontSize: '1.1em' }}>
+            {proctoringStatus.gracePeriodViolation?.description}
+          </p>
+          <div style={{
+            fontSize: '4em',
+            fontWeight: 'bold',
+            margin: '20px 0',
+            color: proctoringStatus.gracePeriodTimeLeft <= 2 ? '#ff6b6b' : 'white'
+          }}>
+            {proctoringStatus.gracePeriodTimeLeft}
+          </div>
+          <p style={{ margin: '0 0 30px 0' }}>
+            Quiz will be suspended in {proctoringStatus.gracePeriodTimeLeft} second{proctoringStatus.gracePeriodTimeLeft !== 1 ? 's' : ''} if not corrected.
+          </p>
+          <button
+            className="btn btn-primary"
+            onClick={() => proctoringService.returnToFullscreen()}
+            style={{
+              fontSize: '1.2em',
+              padding: '15px 30px',
+              background: 'white',
+              color: '#dc2626',
+              border: 'none',
+              borderRadius: '8px',
+              cursor: 'pointer'
+            }}
+          >
+            Return to Fullscreen
+          </button>
+        </div>
+      )}
+
       <header className="topbar">
         <div>
           <h2>
@@ -282,34 +733,121 @@ export default function QuizTake() {
               </span>
             )}
           </h2>
-          {quiz.is_proctored && (
-            <div style={{ display: 'flex', gap: 16, alignItems: 'center', marginTop: 8 }}>
+          {quiz.is_proctored && proctoringStatus && (
+            <div style={{ display: 'flex', gap: 16, alignItems: 'center', marginTop: 8, flexWrap: 'wrap' }}>
               {timeRemaining !== null && (
                 <div style={{
-                  color: timeRemaining < 300 ? '#ef4444' : timeRemaining < 600 ? '#f59e0b' : 'inherit',
+                  background: timeRemaining < 300 ? '#fee2e2' : timeRemaining < 600 ? '#fef3c7' : '#f0fdf4',
+                  border: `2px solid ${timeRemaining < 300 ? '#ef4444' : timeRemaining < 600 ? '#f59e0b' : '#22c55e'}`,
+                  color: timeRemaining < 300 ? '#dc2626' : timeRemaining < 600 ? '#d97706' : '#15803d',
                   fontWeight: 'bold',
-                  fontSize: '1.2em'
+                  fontSize: '1.4em',
+                  padding: '8px 16px',
+                  borderRadius: '8px',
+                  textAlign: 'center',
+                  minWidth: '120px'
                 }}>
-                  Time: {formatTime(timeRemaining)}
+                  ⏱️ {formatTime(timeRemaining)}
                 </div>
               )}
+
+              {/* Connection Status */}
               <div style={{
-                color: isFullscreen ? '#10b981' : '#ef4444',
-                fontWeight: 'bold'
+                color: proctoringStatus.isConnected ? '#10b981' : '#ef4444',
+                fontWeight: 'bold',
+                fontSize: '0.9em'
               }}>
-                {isFullscreen ? '✓ Fullscreen' : '✗ Not Fullscreen'}
+                {proctoringStatus.isConnected ? '● Connected' : '● Disconnected'}
               </div>
-              {violations.length > 0 && (
-                <div style={{ color: '#ef4444', fontWeight: 'bold' }}>
-                  Violations: {violations.length}
+
+              {/* Fullscreen Status */}
+              <div style={{
+                color: proctoringStatus.isFullscreen ? '#10b981' : '#ef4444',
+                fontWeight: 'bold',
+                fontSize: '0.9em'
+              }}>
+                {proctoringStatus.isFullscreen ? '✓ Fullscreen' : '✗ Not Fullscreen'}
+              </div>
+
+              {/* Webcam Status */}
+              {proctoringConfig?.webcam_required && (
+                <div style={{
+                  color: proctoringStatus.faceDetected ? '#10b981' : '#f59e0b',
+                  fontWeight: 'bold',
+                  fontSize: '0.9em'
+                }}>
+                  {proctoringStatus.webcamActive
+                    ? (proctoringStatus.faceDetected ? '👤 Face OK' : '👤 Face Not Detected')
+                    : '📷 Camera Off'
+                  }
+                </div>
+              )}
+
+              {/* Audio Status */}
+              {proctoringConfig?.audio_monitoring && (
+                <div style={{
+                  color: proctoringStatus.audioDetected ? '#f59e0b' : '#10b981',
+                  fontWeight: 'bold',
+                  fontSize: '0.9em'
+                }}>
+                  {proctoringStatus.audioDetected ? '🎤 Audio Detected' : '🔇 Quiet'}
+                </div>
+              )}
+
+              {/* Screen Sharing Status */}
+              {proctoringConfig?.screen_monitoring && proctoringStatus.screenSharing && (
+                <div style={{
+                  color: '#ef4444',
+                  fontWeight: 'bold',
+                  fontSize: '0.9em'
+                }}>
+                  🚨 Screen Sharing
+                </div>
+              )}
+
+              {/* Violations Count */}
+              {proctoringStatus.violations.length > 0 && (
+                <div style={{
+                  color: proctoringStatus.warningCount >= (proctoringConfig?.max_warnings || 3) ? '#ef4444' : '#f59e0b',
+                  fontWeight: 'bold',
+                  fontSize: '0.9em'
+                }}>
+                  ⚠️ Violations: {proctoringStatus.violations.length}
+                </div>
+              )}
+
+              {/* Grace Period Status */}
+              {proctoringStatus.gracePeriodActive && (
+                <div style={{
+                  color: '#f59e0b',
+                  fontWeight: 'bold',
+                  fontSize: '0.9em',
+                  background: '#fef3c7',
+                  padding: '4px 8px',
+                  borderRadius: '4px',
+                  border: '2px solid #f59e0b'
+                }}>
+                  ⚠️ VIOLATION: {proctoringStatus.gracePeriodTimeLeft}s
+                </div>
+              )}
+
+              {/* Suspension Status */}
+              {proctoringStatus.isSuspended && (
+                <div style={{
+                  color: '#ef4444',
+                  fontWeight: 'bold',
+                  fontSize: '0.9em',
+                  background: '#fee2e2',
+                  padding: '4px 8px',
+                  borderRadius: '4px'
+                }}>
+                  🚫 QUIZ SUSPENDED
                 </div>
               )}
             </div>
           )}
         </div>
-        <div className="actions">
-          <button className="btn btn-ghost" onClick={() => navigate(-1)}>Back</button>
-        </div>
+        {/* Back button removed for proctored quizzes - navigation protection prevents accidental exit */}
       </header>
 
       <div className="card" style={{ marginBottom: 16 }}>

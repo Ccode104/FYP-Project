@@ -23,6 +23,7 @@
     "pdf-parse": "^2.4.5",
     "pdfjs-dist": "^4.8.69",
     "pg": "^8.11.0",
+    "socket.io": "^4.8.1",
     "swagger-jsdoc": "^6.2.8",
     "swagger-ui-express": "^5.0.1",
     "tesseract.js": "^6.0.1",

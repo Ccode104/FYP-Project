@@ -46,7 +46,7 @@ export async function getLeaderboard(req, res) {
     const { type, referenceId, limit = 50, period = 'all' } = req.query;
     const userId = req.user?.id;
 
-    if (!['assignment', 'course', 'global'].includes(type)) {
+    if (!['assignment', 'course', 'quiz', 'global'].includes(type)) {
       return res.status(400).json({ error: 'Invalid leaderboard type' });
     }
 
@@ -63,6 +63,29 @@ export async function getLeaderboard(req, res) {
         LIMIT $1
       `;
       params = [limit];
+    } else if (type === 'quiz') {
+      if (!referenceId) {
+        return res.status(400).json({ error: 'Quiz ID required for quiz leaderboards' });
+      }
+
+      // Quiz leaderboard - exclude violated attempts
+      query = `
+        SELECT
+          qa.score,
+          qa.finished_at as submission_date,
+          NULL as time_spent_seconds,
+          u.name as user_name,
+          u.email as user_email,
+          ROW_NUMBER() OVER (ORDER BY qa.score DESC, qa.finished_at ASC) as rank
+        FROM quiz_attempts qa
+        JOIN users u ON qa.student_id = u.id
+        WHERE qa.quiz_id = $1
+          AND qa.violated = false
+          AND qa.score IS NOT NULL
+        ORDER BY qa.score DESC, qa.finished_at ASC
+        LIMIT $2
+      `;
+      params = [referenceId, limit];
     } else {
       if (!referenceId) {
         return res.status(400).json({ error: 'Reference ID required for assignment/course leaderboards' });
@@ -84,15 +107,36 @@ export async function getLeaderboard(req, res) {
     // Get current user's rank if requested
     let userRank = null;
     if (userId) {
-      const rankQuery = type === 'global'
-        ? `SELECT rank FROM leaderboards WHERE leaderboard_type = 'global' AND user_id = $1 ORDER BY submission_date DESC LIMIT 1`
-        : `SELECT rank FROM leaderboards WHERE leaderboard_type = $1 AND reference_id = $2 AND user_id = $3 ORDER BY submission_date DESC LIMIT 1`;
+      if (type === 'quiz') {
+        // For quiz leaderboards, calculate rank from quiz attempts
+        const rankQuery = `
+          SELECT rank FROM (
+            SELECT
+              student_id,
+              ROW_NUMBER() OVER (ORDER BY score DESC, finished_at ASC) as rank
+            FROM quiz_attempts
+            WHERE quiz_id = $1
+              AND violated = false
+              AND score IS NOT NULL
+          ) ranked
+          WHERE student_id = $2
+        `;
+        const rankResult = await pool.query(rankQuery, [referenceId, userId]);
 
-      const rankParams = type === 'global' ? [userId] : [type, referenceId, userId];
-      const rankResult = await pool.query(rankQuery, rankParams);
+        if (rankResult.rowCount > 0) {
+          userRank = rankResult.rows[0].rank;
+        }
+      } else {
+        const rankQuery = type === 'global'
+          ? `SELECT rank FROM leaderboards WHERE leaderboard_type = 'global' AND user_id = $1 ORDER BY submission_date DESC LIMIT 1`
+          : `SELECT rank FROM leaderboards WHERE leaderboard_type = $1 AND reference_id = $2 AND user_id = $3 ORDER BY submission_date DESC LIMIT 1`;
 
-      if (rankResult.rowCount > 0) {
-        userRank = rankResult.rows[0].rank;
+        const rankParams = type === 'global' ? [userId] : [type, referenceId, userId];
+        const rankResult = await pool.query(rankQuery, rankParams);
+
+        if (rankResult.rowCount > 0) {
+          userRank = rankResult.rows[0].rank;
+        }
       }
     }
 
