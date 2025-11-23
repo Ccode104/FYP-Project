@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
+import { useNavigate } from 'react-router-dom';
 import { getUserProfile, updateUserProfile } from '../../services/users';
 import type { UserProfile } from '../../services/users';
 import { useToast } from '../../components/ToastProvider';
@@ -8,6 +9,7 @@ import './TAProfile.css';
 
 export default function TAProfile() {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const { push } = useToast();
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
@@ -94,9 +96,14 @@ export default function TAProfile() {
             <span className="role-badge ta">Teaching Assistant</span>
           </div>
           <p className="profile-email">{profile.email}</p>
-          <button className="btn btn-secondary" onClick={handleEdit}>
-            Edit Profile
-          </button>
+          <div className="profile-actions">
+            <button className="btn btn-primary" onClick={() => navigate('/dashboard/ta')}>
+              📊 Go to Dashboard
+            </button>
+            <button className="btn btn-secondary" onClick={handleEdit}>
+              Edit Profile
+            </button>
+          </div>
         </div>
       </div>
 

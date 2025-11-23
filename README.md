@@ -8,7 +8,7 @@ Edu Portal is a comprehensive educational platform designed to facilitate online
 
 - **Role-Based Access Control**: Separate interfaces and permissions for students, teachers, TAs, and admins
 - **Course Management**: Create and manage course offerings with enrollment capabilities
-- **Assignment System**: Support for file uploads and code-based assignments with automated grading
+- **Assignment System**: Support for file uploads and code-based assignments with automated grading and plagiarism detection
 - **Quiz System**: Create and manage quizzes with proctoring capabilities
 - **Interactive Videos**: Video content with embedded questions and progress tracking
 - **Code Challenges**: Programming questions with test case validation and code execution
@@ -139,6 +139,10 @@ The system uses PostgreSQL with the following core entities:
 - **proctoring_sessions**: Quiz monitoring sessions
 - **violation_logs**: Proctoring violation records
 
+#### Academic Integrity
+- **plagiarism_checks**: Plagiarism detection check records
+- **plagiarism_matches**: Detailed similarity matches between submissions
+
 ## API Endpoints
 
 The API is fully documented with Swagger and organized by functionality:
@@ -166,6 +170,9 @@ The API is fully documented with Swagger and organized by functionality:
 - `POST /:id/publish` - Publish assignment
 - `GET /:id/submissions` - List assignment submissions
 - `POST /submissions/:id/grade` - Grade submission
+- `GET /:id/plagiarism-checks` - Get plagiarism check history
+- `POST /:id/run-plagiarism-check` - Run plagiarism check
+- `GET /:id/plagiarism-matches/:checkId` - Get detailed plagiarism matches
 
 ### Quizzes (`/api/quizzes`)
 - `POST /` - Create quiz
@@ -195,6 +202,39 @@ The API is fully documented with Swagger and organized by functionality:
 - **Videos**: Video content management
 - **Messages**: Direct messaging system
 - **Monitoring**: System health and analytics
+
+## Plagiarism Detection System
+
+The Edu Portal includes a comprehensive plagiarism detection system that supports multiple assignment types:
+
+### Supported Assignment Types
+- **Code Assignments**: Uses Stanford Moss (Measure of Software Similarity) for detecting code plagiarism
+- **File Assignments**: Supports text documents including:
+  - Plain text files (.txt)
+  - PDF documents (.pdf)
+  - Microsoft Word documents (.docx)
+  - Other text-based formats
+
+### Features
+- **Real-time Checking**: Automatic plagiarism detection on each submission
+- **Manual Triggers**: Faculty can manually run checks anytime
+- **Similarity Scoring**: Percentage-based similarity scores for file assignments
+- **Detailed Reports**: Moss provides HTML reports with highlighted matching sections
+- **Database Storage**: All check results and matches are stored for audit trails
+
+### Technical Implementation
+- **Code Detection**: Integrates with Stanford Moss via Perl script execution
+- **Text Analysis**: Uses string-similarity library for document comparison
+- **File Processing**: Extracts text from PDFs and Word documents using pdf-parse and mammoth
+- **API Integration**: RESTful endpoints for check management and result retrieval
+
+### Setup Requirements
+- **Perl Installation**: Required for Moss code checking (Strawberry Perl recommended for Windows)
+- **Moss Account**: Register at http://theory.stanford.edu/~aiken/moss/ for production use
+- **Node Dependencies**: string-similarity, pdf-parse, mammoth (already included)
+
+### Usage
+Faculty can access plagiarism controls in the assignment details panel for supported assignment types. The system automatically runs checks on new submissions and provides historical check data with direct links to detailed reports.
 
 ## Frontend Structure
 

@@ -31,6 +31,9 @@ import PresentAssignmentsSection from '../../components/course/PresentAssignment
 import TeacherAssignments from '../../components/course/TeacherAssignments'
 import { listDiscussionMessages, postDiscussionMessage, type DiscussionMessage } from '../../services/discussion'
 import CourseSidebar, { type TabItem } from '../../components/course/CourseSidebar'
+import LiveLectureViewer from '../../components/LiveLectureViewer'
+import LiveLectureBroadcaster from '../../components/LiveLectureBroadcaster'
+import { getLiveLecturesByCourse } from '../../services/liveLectures'
 
 // Add CodeQuestion type for frontend usage
 interface CodeQuestion {
@@ -67,10 +70,14 @@ export default function CourseDetails() {
   const { user } = useAuth()
   const navigate = useNavigate()
   const { setCourseTitle } = useCourse()
-  const [tab, setTab] = useState<'assignment' | 'present' | 'past' | 'pyq' | 'notes' | 'quizzes' | 'quizzes_submitted' | 'manage' | 'submissions' | 'grading' | 'progress' | 'discussion' | 'chatbot' | 'pdfchat' | 'videos'>('present')
+  const [tab, setTab] = useState<'assignment' | 'present' | 'past' | 'pyq' | 'notes' | 'quizzes' | 'quizzes_submitted' | 'manage' | 'submissions' | 'grading' | 'progress' | 'discussion' | 'chatbot' | 'pdfchat' | 'videos' | 'live-lectures'>('present')
   const [backendVideos, setBackendVideos] = useState<any[]>([])
   const [selectedVideo, setSelectedVideo] = useState<any | null>(null)
   const [videoQuestions, setVideoQuestions] = useState<any[]>([])
+  const [liveLectures, setLiveLectures] = useState<any[]>([])
+  const [selectedLiveLecture, setSelectedLiveLecture] = useState<any | null>(null)
+  const [showLiveLectureViewer, setShowLiveLectureViewer] = useState(false)
+  const [showLiveLectureBroadcaster, setShowLiveLectureBroadcaster] = useState(false)
   // const [showQuestionForm, setShowQuestionForm] = useState(false)
   const [currentVideoTime, setCurrentVideoTime] = useState<number>(0)
   const videoRefForFaculty = useRef<HTMLVideoElement>(null)
@@ -290,6 +297,7 @@ export default function CourseDetails() {
       //{ id: 'quizzes_submitted', label: 'My Results', icon: '✅', tooltip: 'View quiz results' },
       { id: 'progress', label: 'Progress', icon: '📊', tooltip: 'Track your progress' },
       { id: 'videos', label: 'Videos', icon: '🎥', tooltip: 'Course video lectures' },
+      { id: 'live-lectures', label: 'Live Lectures', icon: '📺', tooltip: 'Live video lectures' },
       { id: 'discussion', label: 'Discussion', icon: '💬', tooltip: 'Discussion forum', badge: discussionCount },
       { id: 'chatbot', label: 'AI Assistant', icon: '🤖', tooltip: 'AI-powered help for courses and documents' },
     ]
@@ -301,6 +309,7 @@ export default function CourseDetails() {
       { id: 'submissions', label: 'Submissions', icon: '📥', tooltip: 'View student submissions' },
       //{ id: 'progress', label: 'Progress', icon: '📊', tooltip: 'Student progress overview' },
       { id: 'videos', label: 'Videos', icon: '🎥', tooltip: 'Manage video lectures' },
+      { id: 'live-lectures', label: 'Live Lectures', icon: '📺', tooltip: 'Manage live lectures' },
       { id: 'notes', label: 'Notes', icon: '📖', tooltip: 'Course notes' },
       { id: 'pyq', label: 'Previous Papers', icon: '📄', tooltip: 'Previous questions' },
       { id: 'discussion', label: 'Discussion', icon: '💬', tooltip: 'Discussion forum', badge: discussionCount },
@@ -770,6 +779,22 @@ export default function CourseDetails() {
         } catch (err) {
           console.error('Failed to load videos for course offering:', err)
           if (!cancelled) setBackendVideos([])
+        }
+      })()
+    return () => { cancelled = true }
+  }, [tab, isBackend, courseId])
+
+  // Load live lectures when the Live Lectures tab is activated (backend mode)
+  useEffect(() => {
+    if (tab !== 'live-lectures' || !isBackend || !courseId) return
+    let cancelled = false
+      ; (async () => {
+        try {
+          const lecturesData = await getLiveLecturesByCourse(courseId)
+          if (!cancelled) setLiveLectures(lecturesData.lectures || [])
+        } catch (err) {
+          console.error('Failed to load live lectures for course offering:', err)
+          if (!cancelled) setLiveLectures([])
         }
       })()
     return () => { cancelled = true }
@@ -1818,6 +1843,167 @@ export default function CourseDetails() {
                 </>
               )}
             </section>
+          )}
+
+          {tab === 'live-lectures' && isBackend && (
+            <section className="assignments-section">
+              <div className="section-header">
+                <h2 className="section-title">Live Lectures</h2>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                  <span className="assignment-count">{liveLectures.length} lectures</span>
+                  {user?.role === 'teacher' && (
+                    <button className="btn btn-primary" onClick={() => setShowLiveLectureBroadcaster(true)}>
+                      📺 Start Live Lecture
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {liveLectures.length === 0 ? (
+                <p className="muted">No live lectures scheduled for this course.</p>
+              ) : (
+                <div style={{ overflowX: 'auto' }}>
+                  <table className="table">
+                    <thead>
+                      <tr>
+                        <th>Title</th>
+                        <th>Status</th>
+                        <th>Scheduled</th>
+                        <th>Started</th>
+                        <th>Participants</th>
+                        <th>Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {liveLectures.map((lecture: any) => (
+                        <tr key={lecture.id}>
+                          <td>
+                            <div>
+                              <strong>{lecture.title}</strong>
+                              {lecture.description && (
+                                <div className="muted" style={{ fontSize: '0.875rem', marginTop: '4px' }}>
+                                  {lecture.description.length > 100 ? lecture.description.substring(0, 100) + '...' : lecture.description}
+                                </div>
+                              )}
+                            </div>
+                          </td>
+                          <td>
+                            <span style={{
+                              display: 'inline-block',
+                              padding: '4px 8px',
+                              borderRadius: '4px',
+                              fontSize: '0.875rem',
+                              fontWeight: 'bold',
+                              background: lecture.status === 'live' ? '#28a745' : lecture.status === 'scheduled' ? '#ffc107' : '#6c757d',
+                              color: 'white'
+                            }}>
+                              {lecture.status.toUpperCase()}
+                            </span>
+                          </td>
+                          <td>
+                            {lecture.scheduled_at ? new Date(lecture.scheduled_at).toLocaleString() : 'N/A'}
+                          </td>
+                          <td>
+                            {lecture.started_at ? new Date(lecture.started_at).toLocaleString() : 'Not started'}
+                          </td>
+                          <td>{lecture.participant_count || 0}</td>
+                          <td>
+                            {lecture.status === 'live' && (
+                              <button
+                                className="btn btn-primary"
+                                onClick={() => {
+                                  setSelectedLiveLecture(lecture);
+                                  setShowLiveLectureViewer(true);
+                                }}
+                              >
+                                Join
+                              </button>
+                            )}
+                            {user?.role === 'teacher' && lecture.status === 'scheduled' && (
+                              <button
+                                className="btn btn-success"
+                                onClick={async () => {
+                                  try {
+                                    const { startLiveLecture } = await import('../../services/liveLectures');
+                                    await startLiveLecture(lecture.id);
+                                    // Refresh lectures
+                                    const lecturesData = await getLiveLecturesByCourse(courseId!);
+                                    setLiveLectures(lecturesData.lectures || []);
+                                    push({ kind: 'success', message: 'Live lecture started' });
+                                  } catch (err: any) {
+                                    push({ kind: 'error', message: err?.message || 'Failed to start lecture' });
+                                  }
+                                }}
+                              >
+                                Start
+                              </button>
+                            )}
+                            {user?.role === 'teacher' && lecture.status === 'live' && (
+                              <button
+                                className="btn btn-danger"
+                                onClick={async () => {
+                                  try {
+                                    const { endLiveLecture } = await import('../../services/liveLectures');
+                                    await endLiveLecture(lecture.id);
+                                    // Refresh lectures
+                                    const lecturesData = await getLiveLecturesByCourse(courseId!);
+                                    setLiveLectures(lecturesData.lectures || []);
+                                    push({ kind: 'success', message: 'Live lecture ended' });
+                                  } catch (err: any) {
+                                    push({ kind: 'error', message: err?.message || 'Failed to end lecture' });
+                                  }
+                                }}
+                              >
+                                End
+                              </button>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </section>
+          )}
+
+          {/* Live Lecture Viewer Modal */}
+          {showLiveLectureViewer && selectedLiveLecture && (
+            <LiveLectureViewer
+              lectureId={selectedLiveLecture.id}
+              userId={user?.id || 0}
+              userName={user?.name || 'Student'}
+              userRole={user?.role || 'student'}
+              onClose={() => {
+                setShowLiveLectureViewer(false);
+                setSelectedLiveLecture(null);
+              }}
+            />
+          )}
+
+          {/* Live Lecture Broadcaster Modal */}
+          {showLiveLectureBroadcaster && (
+            <Modal
+              open={showLiveLectureBroadcaster}
+              onClose={() => setShowLiveLectureBroadcaster(false)}
+              title="Create Live Lecture"
+            >
+              <LiveLectureBroadcaster
+                courseOfferingId={courseId || ''}
+                onLectureCreated={async () => {
+                  // Refresh lectures list
+                  try {
+                    const lecturesData = await getLiveLecturesByCourse(courseId!);
+                    setLiveLectures(lecturesData.lectures || []);
+                    setShowLiveLectureBroadcaster(false);
+                    push({ kind: 'success', message: 'Live lecture created successfully' });
+                  } catch (err: any) {
+                    push({ kind: 'error', message: err?.message || 'Failed to refresh lectures' });
+                  }
+                }}
+                onClose={() => setShowLiveLectureBroadcaster(false)}
+              />
+            </Modal>
           )}
 
           {/* Video Upload Modal */}

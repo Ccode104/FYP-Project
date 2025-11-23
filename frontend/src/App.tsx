@@ -9,6 +9,7 @@ import Forgot from './pages/Forgot'
 import Reset from './pages/Reset'
 import StudentDashboard from './pages/student/StudentDashboard'
 import TeacherDashboard from './pages/teacher/TeacherDashboard'
+import TADashboard from './pages/teacher/TADashboard'
 import AdminDashboard from './pages/admin/AdminDashboard'
 import CourseDetails from './pages/student/CourseDetails'
 import CodeEditorPage from './pages/student/CodeEditorPage'
@@ -73,12 +74,12 @@ function App() {
             }
           />
 
-          {/* TA dashboard (same component as admin dashboard here) */}
+          {/* TA dashboard */}
           <Route
             path="/dashboard/ta"
             element={
               <ProtectedRoute roles={["ta"]}>
-                <AdminDashboard />
+                <TADashboard />
               </ProtectedRoute>
             }
           />

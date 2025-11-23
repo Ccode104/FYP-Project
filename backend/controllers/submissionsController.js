@@ -1,5 +1,6 @@
 import { pool } from '../db/index.js';
 import { calculateGamifiedScore, updateUserGamificationStats, checkAndUnlockAchievements, updateLeaderboards } from '../utils/gamification.js';
+import { runPlagiarismCheck } from '../utils/plagiarism.js';
 
 
 export async function submitFileAssignment(req, res) {
@@ -22,6 +23,11 @@ export async function submitFileAssignment(req, res) {
       await pool.query(`INSERT INTO submission_files (submission_id, storage_path, filename, file_size, mime_type)
                         VALUES ($1,$2,$3,$4,$5)`, [submission.id, url, f.originalname, f.size, f.mimetype]);
     }
+
+    // Run plagiarism check asynchronously (don't block response)
+    runPlagiarismCheck(assignment_id).catch(err => {
+      console.error('File plagiarism check failed:', err);
+    });
 
     res.json({ submission });
   } catch (err) {
@@ -308,6 +314,11 @@ export async function submitCodeAssignment(req, res) {
     if (scoreData.totalScore > 0) {
       await updateLeaderboards(student_id, assignment_id, assignment.course_offering_id, scoreData.totalScore, timeSpent);
     }
+
+    // Run plagiarism check asynchronously (don't block response)
+    runPlagiarismCheck(assignment_id).catch(err => {
+      console.error('Plagiarism check failed:', err);
+    });
 
     res.json({
       submission,

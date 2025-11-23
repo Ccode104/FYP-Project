@@ -5,10 +5,13 @@ import {
   getCourseResources,
   getCoursePYQs,
   getCourseNotes,
-  getCourseAssignments
+  getCourseAssignments,
+  uploadResource,
+  deleteResource,
+  getResourceById,
+  updateResource
 } from '../controllers/resourcesController.js';
 import { getCodeQuestions } from '../controllers/codeQuestionsController.js';
-import { uploadResource } from '../controllers/resourcesController.js';
 import { offeringOverview } from '../controllers/coursesController.js';
 
 const router = express.Router();
@@ -331,6 +334,95 @@ router.delete('/offerings/:offeringId/enroll', requireAuth, requireRole('student
  *         description: Unauthorized
  */
 router.post('/:offeringId/resources', uploadResource);
+
+/**
+ * @swagger
+ * /api/courses/resources/{id}:
+ *   get:
+ *     summary: Get a specific resource by ID
+ *     tags: [Courses]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Resource details
+ *       401:
+ *         description: Unauthorized
+ *       404:
+ *         description: Resource not found
+ */
+router.get('/resources/:id', getResourceById);
+
+/**
+ * @swagger
+ * /api/courses/resources/{id}:
+ *   put:
+ *     summary: Update resource metadata
+ *     tags: [Courses]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               filename:
+ *                 type: string
+ *               title:
+ *                 type: string
+ *               description:
+ *                 type: string
+ *     responses:
+ *       200:
+ *         description: Resource updated successfully
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Forbidden
+ *       404:
+ *         description: Resource not found
+ */
+router.put('/resources/:id', requireRole('faculty','ta','admin'), updateResource);
+
+/**
+ * @swagger
+ * /api/courses/resources/{id}:
+ *   delete:
+ *     summary: Delete a resource
+ *     tags: [Courses]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Resource deleted successfully
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Forbidden
+ *       404:
+ *         description: Resource not found
+ */
+router.delete('/resources/:id', requireRole('faculty','ta','admin'), deleteResource);
 
 /**
  * @swagger

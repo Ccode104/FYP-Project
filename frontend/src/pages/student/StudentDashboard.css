@@ -139,7 +139,7 @@
 /* Dashboard Grid */
 .dashboard-grid {
   display: grid;
-  grid-template-columns: 2fr 1fr;
+  grid-template-columns: 1fr;
   gap: 32px;
   animation: fadeInUp 0.8s ease-out 0.6s both;
 }

@@ -29,3 +29,17 @@ export async function createQuizAssignment(data: QuizAssignmentRequest) {
     body: data
   })
 }
+
+export async function getPlagiarismChecks(assignmentId: number) {
+  return apiFetch<{ checks: unknown[] }>(`/api/assignments/${assignmentId}/plagiarism-checks`)
+}
+
+export async function runPlagiarismCheck(assignmentId: number) {
+  return apiFetch(`/api/assignments/${assignmentId}/run-plagiarism-check`, {
+    method: 'POST'
+  })
+}
+
+export async function getPlagiarismMatches(assignmentId: number, checkId: number) {
+  return apiFetch<{ matches: unknown[] }>(`/api/assignments/${assignmentId}/plagiarism-matches/${checkId}`)
+}

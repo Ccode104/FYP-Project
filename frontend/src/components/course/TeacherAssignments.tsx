@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { apiFetch } from "../../services/api";
+import { getPlagiarismChecks, runPlagiarismCheck, getPlagiarismMatches } from "../../services/assignments";
 
 export default function TeacherAssignments({
   assignments,
@@ -12,11 +13,14 @@ export default function TeacherAssignments({
   const [selected, setSelected] = useState<any>(null);
   const [loading, setLoading] = useState(false);
   const [submissions, setSubmissions] = useState<any[]>([]);
+  const [plagiarismChecks, setPlagiarismChecks] = useState<any[]>([]);
+  const [plagiarismLoading, setPlagiarismLoading] = useState(false);
 
   const load = async (id: string) => {
     if (!id) {
       setSubmissions([]);
       setSelected(null);
+      setPlagiarismChecks([]);
       return;
     }
     setLoading(true);
@@ -27,9 +31,23 @@ export default function TeacherAssignments({
       setSubmissions(data.submissions || []);
       const assn = assignments.find((a: any) => String(a.id) === String(id));
       setSelected(assn);
+
+      // Load plagiarism checks for assignments that support it
+      if (assn?.assignment_type === 'code' || assn?.assignment_type === 'file') {
+        try {
+          const plagiarismData = await getPlagiarismChecks(Number(id));
+          setPlagiarismChecks(plagiarismData.checks || []);
+        } catch (error) {
+          console.error('Failed to load plagiarism checks:', error);
+          setPlagiarismChecks([]);
+        }
+      } else {
+        setPlagiarismChecks([]);
+      }
     } catch {
       setSubmissions([]);
       setSelected(null);
+      setPlagiarismChecks([]);
     } finally {
       setLoading(false);
     }
@@ -96,6 +114,51 @@ export default function TeacherAssignments({
                 <div className="assignment-detail-item">
                   <span className="detail-label">Max Score:</span>
                   <span className="detail-value">{selected.max_score}</span>
+                </div>
+              )}
+
+              {(selected.assignment_type === 'code' || selected.assignment_type === 'file') && (
+                <div className="assignment-detail-item">
+                  <span className="detail-label">Plagiarism Checks:</span>
+                  <div className="plagiarism-controls">
+                    <button
+                      className="btn btn-sm btn-primary"
+                      onClick={async () => {
+                        setPlagiarismLoading(true);
+                        try {
+                          await runPlagiarismCheck(Number(selectedId));
+                          // Reload checks
+                          const data = await getPlagiarismChecks(Number(selectedId));
+                          setPlagiarismChecks(data.checks || []);
+                        } catch (error) {
+                          console.error('Failed to run plagiarism check:', error);
+                          alert('Failed to run plagiarism check');
+                        } finally {
+                          setPlagiarismLoading(false);
+                        }
+                      }}
+                      disabled={plagiarismLoading}
+                    >
+                      {plagiarismLoading ? 'Running...' : 'Run Plagiarism Check'}
+                    </button>
+                    {plagiarismChecks.length > 0 && (
+                      <div className="plagiarism-reports">
+                        <h5>Recent Checks:</h5>
+                        {plagiarismChecks.slice(0, 3).map((check: any) => (
+                          <div key={check.id} className="plagiarism-check-item">
+                            <span>{new Date(check.checked_at).toLocaleString()}</span>
+                            <span className={`status-${check.status}`}>{check.status}</span>
+                            {check.report_url && (
+                              <a href={check.report_url} target="_blank" rel="noopener noreferrer">
+                                View Report
+                              </a>
+                            )}
+                            <span>{check.match_count || 0} matches</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
                 </div>
               )}
             </div>

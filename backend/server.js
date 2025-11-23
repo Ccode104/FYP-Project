@@ -20,10 +20,13 @@ import codeQuestionsRoutes from './routes/codeQuestions.js';
 import chatbotRoutes from './routes/chatbot.js';
 import monitoringRoutes from './routes/monitoring.js';
 import videosRoutes from './routes/videos.js';
+import liveLecturesRoutes from './routes/liveLectures.js';
 import gamificationRoutes from './routes/gamification.js';
 import proctoringRoutes from './routes/proctoring.js';
 import proctoringAnalyticsRoutes from './routes/proctoringAnalytics.js';
 import messagesRoutes from './routes/messages.js';
+import taRoutes from './routes/ta.js';
+import vivaRoutes from './routes/viva.js';
 import swaggerSpec from './swagger.js';
 
 export async function startServer(port = 4000) {
@@ -70,10 +73,13 @@ export async function startServer(port = 4000) {
   app.use('/api/chatbot', chatbotRoutes);
   app.use('/api/monitoring', monitoringRoutes);
   app.use('/api/videos', videosRoutes);
+  app.use('/api/live-lectures', liveLecturesRoutes);
   app.use('/api/gamification', gamificationRoutes);
   app.use('/api/proctoring-analytics', proctoringAnalyticsRoutes);
   app.use('/api/proctoring', proctoringRoutes);
   app.use('/api/messages', messagesRoutes);
+  app.use('/api/ta', taRoutes);
+  app.use('/api/viva', vivaRoutes);
 
   app.get('/health', (req, res) => res.json({ ok: true }));
 
@@ -168,6 +174,114 @@ export async function startServer(port = 4000) {
       // Notify student of resume
       socket.to(`proctoring-${sessionToken}`).emit('session-resumed', {
         resumedBy,
+        timestamp: new Date().toISOString()
+      });
+    });
+
+    // Live lecture events
+    socket.on('join-live-lecture', (data) => {
+      const { lectureId, userId, userType } = data;
+      console.log(`User ${userId} (${userType}) joining live lecture: ${lectureId}`);
+
+      // Join lecture-specific room
+      socket.join(`lecture-${lectureId}`);
+
+      // Join role-specific room for teachers
+      if (userType === 'faculty' || userType === 'admin' || userType === 'ta') {
+        socket.join(`lecture-teachers-${lectureId}`);
+      }
+
+      socket.emit('lecture-joined', { lectureId, status: 'connected' });
+    });
+
+    socket.on('leave-live-lecture', (data) => {
+      const { lectureId, userId } = data;
+      console.log(`User ${userId} leaving live lecture: ${lectureId}`);
+
+      socket.leave(`lecture-${lectureId}`);
+      socket.leave(`lecture-teachers-${lectureId}`);
+
+      socket.emit('lecture-left', { lectureId, status: 'disconnected' });
+    });
+
+    // WebRTC signaling for live lectures
+    socket.on('webrtc-offer', (data) => {
+      const { lectureId, offer, fromUserId, toUserId } = data;
+      console.log(`WebRTC offer from ${fromUserId} to ${toUserId} in lecture ${lectureId}`);
+
+      // Send offer to specific user in the lecture room
+      socket.to(`lecture-${lectureId}`).emit('webrtc-offer', {
+        lectureId,
+        offer,
+        fromUserId,
+        toUserId
+      });
+    });
+
+    socket.on('webrtc-answer', (data) => {
+      const { lectureId, answer, fromUserId, toUserId } = data;
+      console.log(`WebRTC answer from ${fromUserId} to ${toUserId} in lecture ${lectureId}`);
+
+      // Send answer to specific user in the lecture room
+      socket.to(`lecture-${lectureId}`).emit('webrtc-answer', {
+        lectureId,
+        answer,
+        fromUserId,
+        toUserId
+      });
+    });
+
+    socket.on('webrtc-ice-candidate', (data) => {
+      const { lectureId, candidate, fromUserId, toUserId } = data;
+      console.log(`WebRTC ICE candidate from ${fromUserId} to ${toUserId} in lecture ${lectureId}`);
+
+      // Send ICE candidate to specific user in the lecture room
+      socket.to(`lecture-${lectureId}`).emit('webrtc-ice-candidate', {
+        lectureId,
+        candidate,
+        fromUserId,
+        toUserId
+      });
+    });
+
+    // Live lecture chat
+    socket.on('lecture-chat-message', (data) => {
+      const { lectureId, message, userId, userName } = data;
+      console.log(`Chat message in lecture ${lectureId} from ${userId}: ${message}`);
+
+      // Broadcast message to all participants in the lecture
+      socket.to(`lecture-${lectureId}`).emit('lecture-chat-message', {
+        lectureId,
+        message,
+        userId,
+        userName,
+        timestamp: new Date().toISOString()
+      });
+    });
+
+    // Teacher controls
+    socket.on('lecture-mute-participant', (data) => {
+      const { lectureId, participantId, mutedBy } = data;
+      console.log(`Muting participant ${participantId} in lecture ${lectureId} by ${mutedBy}`);
+
+      // Send mute command to specific participant
+      socket.to(`lecture-${lectureId}`).emit('lecture-muted', {
+        lectureId,
+        participantId,
+        mutedBy,
+        timestamp: new Date().toISOString()
+      });
+    });
+
+    socket.on('lecture-unmute-participant', (data) => {
+      const { lectureId, participantId, unmutedBy } = data;
+      console.log(`Unmuting participant ${participantId} in lecture ${lectureId} by ${unmutedBy}`);
+
+      // Send unmute command to specific participant
+      socket.to(`lecture-${lectureId}`).emit('lecture-unmuted', {
+        lectureId,
+        participantId,
+        unmutedBy,
         timestamp: new Date().toISOString()
       });
     });
