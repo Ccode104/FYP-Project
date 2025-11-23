@@ -1,4 +1,5 @@
 import { pool } from '../db/index.js';
+import { logger } from '../utils/logger.js';
 
 // Helper to check if user is super admin
 async function isSuperAdmin(userId) {
@@ -27,7 +28,7 @@ export async function adminListMaterials(req, res) {
     `, params);
     res.json({ materials: r.rows });
   } catch (err) {
-    console.error('adminListMaterials', err);
+    logger.error('adminListMaterials error', err);
     res.status(500).json({ error: 'Internal server error' });
   }
 }
@@ -447,5 +448,40 @@ export async function adminDeleteUser(req, res) {
   } catch (err) {
     console.error('adminDeleteUser', err);
     res.status(500).json({ error: 'Internal server error' });
+  }
+}
+
+export async function adminGetOverview(req, res) {
+  try {
+    // Get total users count
+    const usersResult = await pool.query('SELECT COUNT(*) as count FROM users');
+    const totalUsers = parseInt(usersResult.rows[0].count);
+
+    // Get active courses (courses with current/future offerings)
+    const coursesResult = await pool.query(`
+      SELECT COUNT(DISTINCT c.id) as count
+      FROM courses c
+      JOIN course_offerings co ON c.id = co.course_id
+      WHERE co.end_date >= CURRENT_DATE OR co.end_date IS NULL
+    `);
+    const activeCourses = parseInt(coursesResult.rows[0].count);
+
+    // Get total assignments
+    const assignmentsResult = await pool.query('SELECT COUNT(*) as count FROM assignments');
+    const totalAssignments = parseInt(assignmentsResult.rows[0].count);
+
+    // Get total submissions
+    const submissionsResult = await pool.query('SELECT COUNT(*) as count FROM assignment_submissions');
+    const totalSubmissions = parseInt(submissionsResult.rows[0].count);
+
+    res.json({
+      totalUsers,
+      activeCourses,
+      totalAssignments,
+      totalSubmissions
+    });
+  } catch (err) {
+    console.error('Error fetching overview:', err);
+    res.status(500).json({ error: err?.message || 'Failed to fetch overview' });
   }
 }

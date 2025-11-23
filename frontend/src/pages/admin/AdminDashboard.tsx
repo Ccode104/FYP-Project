@@ -4,7 +4,7 @@ import { useAuth } from '../../context/AuthContext'
 import { useNavigate } from 'react-router-dom'
 import CourseCard from '../../components/CourseCard'
 import './AdminDashboard.css'
-import { listUsers, getUserOverview, updateUser, deleteUser, listDepartments, createDepartment, getCoursesByDepartment, getCourseDetails, getAssignmentsByOffering, getAssignmentsByFaculty, getSubmissionsByAssignment, assignFacultyToCourse } from '../../services/admin'
+import { listUsers, getUserOverview, updateUser, deleteUser, listDepartments, createDepartment, getCoursesByDepartment, getCourseDetails, getAssignmentsByOffering, getAssignmentsByFaculty, getSubmissionsByAssignment, assignFacultyToCourse, getOverview } from '../../services/admin'
 import { createCourse, createOffering, listCourses } from '../../services/courses'
 import { register } from '../../services/auth'
 import { useToast } from '../../components/ToastProvider'
@@ -34,6 +34,7 @@ export default function AdminDashboard() {
   const [loadError, setLoadError] = useState<string>('')
   const [isLoading, setIsLoading] = useState(false)
   const [userSearch, setUserSearch] = useState('')
+  const [userSearchType, setUserSearchType] = useState<'all' | 'name' | 'email' | 'roll_number'>('all')
   const [userDeptFilter, setUserDeptFilter] = useState('')
   const [showUserDetailsModal, setShowUserDetailsModal] = useState(false)
   const [hasSearched, setHasSearched] = useState(false)
@@ -58,26 +59,123 @@ export default function AdminDashboard() {
       void loadUsers()
     }
   }, [isAdmin])
-const filterUsers = (users: User[], search: string, role: string, dept: string): User[] => {
-  return users.filter(u =>
-    (search === '' ||
-      (u.name || '').toLowerCase().includes(search.toLowerCase()) ||
-      u.email.toLowerCase().includes(search.toLowerCase()) ||
-      (u.roll_number || '').toLowerCase().includes(search.toLowerCase())
-    ) &&
+// Advanced search scoring function
+const calculateSearchScore = (text: string, searchTerm: string): number => {
+  if (!text || !searchTerm) return 0
+
+  const textLower = text.toLowerCase()
+  const searchLower = searchTerm.toLowerCase()
+
+  // Exact match (highest priority)
+  if (textLower === searchLower) return 100
+
+  // Starts with (very high priority)
+  if (textLower.startsWith(searchLower)) return 80
+
+  // Word boundary match (word starts with search term)
+  const words = textLower.split(/\s+/)
+  if (words.some(word => word.startsWith(searchLower))) return 60
+
+  // Contains match (medium priority)
+  if (textLower.includes(searchLower)) return 40
+
+  // Partial word match (low priority - any word contains the search term)
+  if (words.some(word => word.includes(searchLower))) return 20
+
+  return 0
+}
+
+// Advanced search and sort function for any array of items
+const advancedSearchAndSort = <T,>(
+  items: T[],
+  searchTerm: string,
+  getSearchFields: (item: T) => string[],
+  getSortKey: (item: T) => string
+): T[] => {
+  const term = searchTerm.trim()
+
+  if (!term) {
+    return items.sort((a, b) => getSortKey(a).localeCompare(getSortKey(b)))
+  }
+
+  const scoredItems = items.map(item => {
+    let totalScore = 0
+    const fields = getSearchFields(item)
+
+    fields.forEach(field => {
+      const score = calculateSearchScore(field, term)
+      totalScore += score
+    })
+
+    return { item, score: totalScore }
+  })
+
+  return scoredItems
+    .filter(item => item.score > 0)
+    .sort((a, b) => {
+      // Sort by score descending, then by sort key ascending
+      if (a.score !== b.score) return b.score - a.score
+      return getSortKey(a.item).localeCompare(getSortKey(b.item))
+    })
+    .map(item => item.item)
+}
+
+// Advanced user search with scoring and sorting
+const filterUsers = (users: User[], search: string, searchType: 'all' | 'name' | 'email' | 'roll_number', role: string, dept: string): User[] => {
+  const searchTerm = search.trim()
+
+  // First filter by role and department
+  let filtered = users.filter(u =>
     (role === '' || u.role === role) &&
     (dept === '' || u.department_id?.toString() === dept)
   )
+
+  // If no search term, return filtered results sorted by name
+  if (!searchTerm) {
+    return filtered.sort((a, b) => (a.name || a.email).localeCompare(b.name || b.email))
+  }
+
+  // Calculate scores for each user
+  const scoredUsers = filtered.map(user => {
+    let totalScore = 0
+    const fieldsToSearch = searchType === 'all'
+      ? ['name', 'email', 'roll_number']
+      : [searchType]
+
+    fieldsToSearch.forEach(field => {
+      let fieldValue = ''
+      if (field === 'name') fieldValue = user.name || ''
+      else if (field === 'email') fieldValue = user.email
+      else if (field === 'roll_number') fieldValue = user.roll_number || ''
+
+      const score = calculateSearchScore(fieldValue, searchTerm)
+      totalScore += score
+    })
+
+    return { user, score: totalScore }
+  })
+
+  // Filter out users with no matches and sort by score (descending), then by name
+  return scoredUsers
+    .filter(item => item.score > 0)
+    .sort((a, b) => {
+      // Sort by score descending
+      if (a.score !== b.score) return b.score - a.score
+      // If scores are equal, sort alphabetically by name
+      return (a.user.name || a.user.email).localeCompare(b.user.name || b.user.email)
+    })
+    .map(item => item.user)
 }
 const filteredUsers = useMemo(() =>
-  usersList ? filterUsers(usersList, userSearch, roleFilter, userDeptFilter) : [],
-  [usersList, userSearch, roleFilter, userDeptFilter]
+  usersList ? filterUsers(usersList, userSearch, userSearchType, roleFilter, userDeptFilter) : [],
+  [usersList, userSearch, userSearchType, roleFilter, userDeptFilter]
 )
 
   // Data Explorer state
   const [departments, setDepartments] = useState<any[]>([])
   const [selectedDept, setSelectedDept] = useState<any>(null)
   const [deptSearch, setDeptSearch] = useState('')
+  const [deptSearchType, setDeptSearchType] = useState<'all' | 'code' | 'name'>('all')
   const [deptCourses, setDeptCourses] = useState<any[]>([])
   const [selectedCourse, setSelectedCourse] = useState<any>(null)
   const [courseDetails, setCourseDetails] = useState<any>(null)
@@ -92,6 +190,7 @@ const filteredUsers = useMemo(() =>
   const [adminCourses, setAdminCourses] = useState<any[]>([])
   const [loadingCourses, setLoadingCourses] = useState(false)
   const [courseSearch, setCourseSearch] = useState('')
+  const [courseSearchType, setCourseSearchType] = useState<'all' | 'code' | 'title'>('all')
   const [courseDeptFilter, setCourseDeptFilter] = useState('')
 
   const [showCreateCourse, setShowCreateCourse] = useState(false)
@@ -150,6 +249,18 @@ const filteredUsers = useMemo(() =>
       console.error('Error loading admin courses:', err)
     } finally {
       setLoadingCourses(false)
+    }
+  }
+
+  const loadOverview = async () => {
+    try {
+      setLoadingOverview(true)
+      const stats = await getOverview()
+      setOverviewStats(stats)
+    } catch (err) {
+      console.error('Error loading overview:', err)
+    } finally {
+      setLoadingOverview(false)
     }
   }
 
@@ -228,6 +339,12 @@ const filteredUsers = useMemo(() =>
     }
   }, [isAdmin, tab])
 
+  useEffect(() => {
+    if (isAdmin && tab === 'overview') {
+      void loadOverview()
+    }
+  }, [isAdmin, tab])
+
   if (!isAdmin) {
     // TA view as before
     return (
@@ -254,7 +371,7 @@ const filteredUsers = useMemo(() =>
   }
 
   return (
-    <div className="container container-wide dashboard-page student-theme">
+    <div className="container container-wide dashboard-page admin-theme">
       <div className="dashboard-header">
         <div className="welcome-section">
           <h1 className="dashboard-title h2 text-primary">Welcome back, {user?.name}!</h1>
@@ -284,14 +401,27 @@ const filteredUsers = useMemo(() =>
             <button className="btn btn-primary" onClick={() => setShowCreateUser(true)}>Create User</button>
           </div>
           <div className="filters" style={{ marginBottom: '16px' }}>
-            <input
-              className="input"
-              type="text"
-              placeholder="Search by keyword (name, email, roll number)..."
-              value={userSearch}
-              onChange={(e) => setUserSearch(e.target.value)}
-              style={{ width: '100%', marginBottom: '12px' }}
-            />
+            <div style={{ display: 'flex', gap: '12px', marginBottom: '12px' }}>
+              <input
+                className="input"
+                type="text"
+                placeholder="Search users..."
+                value={userSearch}
+                onChange={(e) => setUserSearch(e.target.value)}
+                style={{ flex: 1 }}
+              />
+              <select
+                className="input"
+                value={userSearchType}
+                onChange={(e) => setUserSearchType(e.target.value as 'all' | 'name' | 'email' | 'roll_number')}
+                style={{ width: '150px' }}
+              >
+                <option value="all">All Fields</option>
+                <option value="name">Name</option>
+                <option value="email">Email</option>
+                <option value="roll_number">Roll Number</option>
+              </select>
+            </div>
             <select
               className="input"
               value={userDeptFilter}
@@ -320,7 +450,7 @@ const filteredUsers = useMemo(() =>
               Error: {loadError}
             </div>
           )}
-          {roleFilter !== '' && userDeptFilter !== '' && hasSearched ? (
+          {roleFilter !== '' && hasSearched ? (
             <div className="grid" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(450px, 1fr))', gap: 16 }}>
               {filteredUsers.map((u) => (
                 <div key={u.id} className="card user-card">
@@ -373,7 +503,7 @@ const filteredUsers = useMemo(() =>
               ))}
             </div>
           ) : (
-            <p>Please select user type, department, and click search to view users.</p>
+            <p>Please select user type and click search to view users.</p>
           )}
           
         </section>
@@ -386,19 +516,32 @@ const filteredUsers = useMemo(() =>
             <h3>Courses</h3>
             <button className="btn btn-primary" onClick={() => setTab('departments')}>Create Course</button>
           </div>
-          <div className="filters" style={{ display: 'flex', gap: '12px', marginBottom: '16px' }}>
-            <input
-              className="input"
-              type="text"
-              placeholder="Search by course code or title..."
-              value={courseSearch}
-              onChange={(e) => setCourseSearch(e.target.value)}
-              style={{ flex: 1 }}
-            />
+          <div className="filters" style={{ marginBottom: '16px' }}>
+            <div style={{ display: 'flex', gap: '12px', marginBottom: '12px' }}>
+              <input
+                className="input"
+                type="text"
+                placeholder="Search courses..."
+                value={courseSearch}
+                onChange={(e) => setCourseSearch(e.target.value)}
+                style={{ flex: 1 }}
+              />
+              <select
+                className="input"
+                value={courseSearchType}
+                onChange={(e) => setCourseSearchType(e.target.value as 'all' | 'code' | 'title')}
+                style={{ width: '150px' }}
+              >
+                <option value="all">All Fields</option>
+                <option value="code">Code</option>
+                <option value="title">Title</option>
+              </select>
+            </div>
             <select
               className="input"
               value={courseDeptFilter}
               onChange={(e) => setCourseDeptFilter(e.target.value)}
+              style={{ width: '100%' }}
             >
               <option value="">All Departments</option>
               {departments.map((d: any) => (
@@ -412,11 +555,16 @@ const filteredUsers = useMemo(() =>
             <div className="courses-list">
               <div>
                 {(() => {
-                const filteredCourses = adminCourses.filter((course) =>
-                  (courseSearch === '' ||
-                    course.code?.toLowerCase().includes(courseSearch.toLowerCase()) ||
-                    course.title?.toLowerCase().includes(courseSearch.toLowerCase())) &&
-                  (courseDeptFilter === '' || course.department_id == courseDeptFilter)
+                const filteredCourses = advancedSearchAndSort(
+                  adminCourses.filter(course => courseDeptFilter === '' || course.department_id == courseDeptFilter),
+                  courseSearch,
+                  (course) => {
+                    if (courseSearchType === 'all') return [course.code || '', course.title || '']
+                    if (courseSearchType === 'code') return [course.code || '']
+                    if (courseSearchType === 'title') return [course.title || '']
+                    return [course.code || '', course.title || '']
+                  },
+                  (course) => course.code || course.title || ''
                 )
                 return filteredCourses.map((course) => (
                   <div key={course.id} className="card course-admin-card">
@@ -456,18 +604,40 @@ const filteredUsers = useMemo(() =>
             <h3>Departments</h3>
             <button className="btn btn-primary" onClick={() => setShowCreateDept(true)}>Create Department</button>
           </div>
-          <div className="filters" style={{ display: 'flex', gap: '12px', marginBottom: '16px' }}>
-            <input
-              className="input"
-              type="text"
-              placeholder="Search by name or code..."
-              value={deptSearch}
-              onChange={(e) => setDeptSearch(e.target.value)}
-              style={{ flex: 1 }}
-            />
+          <div className="filters" style={{ marginBottom: '16px' }}>
+            <div style={{ display: 'flex', gap: '12px', marginBottom: '12px' }}>
+              <input
+                className="input"
+                type="text"
+                placeholder="Search departments..."
+                value={deptSearch}
+                onChange={(e) => setDeptSearch(e.target.value)}
+                style={{ flex: 1 }}
+              />
+              <select
+                className="input"
+                value={deptSearchType}
+                onChange={(e) => setDeptSearchType(e.target.value as 'all' | 'code' | 'name')}
+                style={{ width: '150px' }}
+              >
+                <option value="all">All Fields</option>
+                <option value="code">Code</option>
+                <option value="name">Name</option>
+              </select>
+            </div>
           </div>
           <div className="departments-list">
-            {departments.filter(d => deptSearch === '' || d.name.toLowerCase().includes(deptSearch.toLowerCase()) || d.code.toLowerCase().includes(deptSearch.toLowerCase())).map((d: any) => (
+            {advancedSearchAndSort(
+              departments,
+              deptSearch,
+              (dept) => {
+                if (deptSearchType === 'all') return [dept.code || '', dept.name || '']
+                if (deptSearchType === 'code') return [dept.code || '']
+                if (deptSearchType === 'name') return [dept.name || '']
+                return [dept.code || '', dept.name || '']
+              },
+              (dept) => dept.code || dept.name || ''
+            ).map((d: any) => (
               <div key={d.id} className="department-item">
                 <strong>{d.code}</strong> — {d.name}
               </div>
@@ -491,19 +661,27 @@ const filteredUsers = useMemo(() =>
           <div className="stats-grid">
             <div className="stat-card">
               <h3>Total Users</h3>
-              <p className="stat-number">Loading...</p>
+              <p className="stat-number">
+                {loadingOverview ? 'Loading...' : (overviewStats?.totalUsers || 0)}
+              </p>
             </div>
             <div className="stat-card">
               <h3>Active Courses</h3>
-              <p className="stat-number">Loading...</p>
+              <p className="stat-number">
+                {loadingOverview ? 'Loading...' : (overviewStats?.activeCourses || 0)}
+              </p>
             </div>
             <div className="stat-card">
               <h3>Assignments</h3>
-              <p className="stat-number">Loading...</p>
+              <p className="stat-number">
+                {loadingOverview ? 'Loading...' : (overviewStats?.totalAssignments || 0)}
+              </p>
             </div>
             <div className="stat-card">
               <h3>Submissions</h3>
-              <p className="stat-number">Loading...</p>
+              <p className="stat-number">
+                {loadingOverview ? 'Loading...' : (overviewStats?.totalSubmissions || 0)}
+              </p>
             </div>
           </div>
           <div className="quick-actions">

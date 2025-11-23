@@ -4,6 +4,7 @@ import { useAuth } from '../../context/AuthContext'
 import { useEffect, useState } from 'react'
 import './StudentDashboard.css'
 import Modal from '../../components/Modal'
+import Messaging from '../../components/Messaging'
 import { getEnrolledCourses, enrollSelf } from '../../services/student'
 import { enrollStudent, unenrollStudent } from '../../services/courses'
 import { useToast } from '../../components/ToastProvider'
@@ -267,11 +268,12 @@ export default function StudentDashboard() {
       </div>
 
 
-      <div className="courses-section">
-        <div className="section-header">
-          <h3 className="section-title h3">Your Courses</h3>
-          <span className="courses-count text-sm font-medium text-secondary">{offerings.length} courses enrolled</span>
-        </div>
+      <div className="dashboard-grid">
+        <div className="courses-section">
+          <div className="section-header">
+            <h3 className="section-title h3">Your Courses</h3>
+            <span className="courses-count text-sm font-medium text-secondary">{offerings.length} courses enrolled</span>
+          </div>
 
         {err && (
           <div className="error-banner">
@@ -329,6 +331,11 @@ export default function StudentDashboard() {
             })}
           </div>
         )}
+        </div>
+
+        <div className="messaging-section">
+          <Messaging />
+        </div>
       </div>
 
       <Modal open={enrOpen} onClose={() => setEnrOpen(false)} title={(user?.role === 'student') ? 'Enroll in Offering' : 'Enroll Student'} actions={(

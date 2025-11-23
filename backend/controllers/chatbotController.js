@@ -6,11 +6,13 @@ import * as pdfjsLib from "pdfjs-dist/legacy/build/pdf.mjs";
 import mammoth from "mammoth";
 import { createWorker } from 'tesseract.js';
 import axios from 'axios';
+import { initializeChatbotAgent, updatePdfTextStore } from "../agents/chatbotAgents.js";
+import { logger } from "../utils/logger.js";
 
 // In-memory PDF text store (avoid DB writes)
 const pdfTextStore = new Map();
 
-// Initialize Groq client
+// Initialize Groq client (still needed for some functions)
 const groqApiKey = process.env.GROQ_API_KEY;
 if (!groqApiKey || groqApiKey === "gsk_your_api_key_here") {
   console.warn(
@@ -21,6 +23,16 @@ if (!groqApiKey || groqApiKey === "gsk_your_api_key_here") {
 const groq = new Groq({
   apiKey: groqApiKey || "gsk_your_api_key_here", // Add to .env file
 });
+
+// Initialize the agent
+let chatbotAgent = null;
+(async () => {
+  try {
+    chatbotAgent = await initializeChatbotAgent();
+  } catch (error) {
+    console.error("Failed to initialize chatbot agent:", error);
+  }
+})();
 
 /* ------------------------------------------------------------------
  * 🧠 CHAT ABOUT A COURSE
@@ -36,49 +48,27 @@ export async function chatAboutCourse(req, res) {
       return res.status(400).json({ error: "Message is required" });
     }
 
-    const courseData = await pool.query(
-      `
-      SELECT c.code, c.title, c.description, o.term, o.section,
-             u.name as faculty_name
-      FROM course_offerings o
-      JOIN courses c ON o.course_id = c.id
-      LEFT JOIN users u ON o.faculty_id = u.id
-      WHERE o.id = $1
-    `,
-      [offeringId]
-    );
-
-    if (courseData.rowCount === 0) {
-      return res.status(404).json({ error: "Course not found" });
+    if (!chatbotAgent) {
+      return res.status(500).json({ error: "Chatbot agent not initialized" });
     }
 
-    const course = courseData.rows[0];
+    // Prepare input for the agent
+    const agentInput = `Course ID: ${offeringId}
+Document IDs: none
+Enable Web Search: false
+User Question: ${message}
 
-    const context = `You are a helpful AI assistant for ${course.code} - ${
-      course.title
-    }.
-Course Description: ${course.description || "No description available"}
-Term: ${course.term}, Section: ${course.section}
-Professor: ${course.faculty_name}
+Chat History:
+${history.map(h => `${h.role}: ${h.content}`).join('\n')}
 
-Answer student questions about this course. Be helpful, concise, and accurate.`;
+Please answer the user's question about this specific course using available tools if needed.`;
 
-    const messages = [
-      { role: "system", content: context },
-      ...history.map((h) => ({ role: h.role, content: h.content })),
-      { role: "user", content: message },
-    ];
-
-    const completion = await groq.chat.completions.create({
-      messages,
-      model: "llama-3.3-70b-versatile",
-      temperature: 0.7,
-      max_tokens: 1024,
+    // Call the agent
+    const result = await chatbotAgent.call({
+      input: agentInput,
     });
 
-    const reply =
-      completion.choices[0]?.message?.content ||
-      "Sorry, I could not generate a response.";
+    const reply = result.output || "Sorry, I could not generate a response.";
 
     res.json({ reply, timestamp: new Date().toISOString() });
   } catch (err) {
@@ -299,6 +289,9 @@ export async function uploadDocument(req, res) {
       usedOCR,
     });
 
+    // Update the agent's PDF store
+    updatePdfTextStore(pdfTextStore);
+
     res.json({
       success: true,
       documentId: id,
@@ -328,39 +321,27 @@ export async function chatWithDocument(req, res) {
       return res.status(400).json({ error: "Message is required" });
     }
 
-    const doc = pdfTextStore.get(documentId);
-    if (!doc) {
-      return res.status(404).json({ error: "Document not found or expired" });
+    if (!chatbotAgent) {
+      return res.status(500).json({ error: "Chatbot agent not initialized" });
     }
 
-    const documentContent = doc.content.substring(0, 15000); // Limit to ~15k chars
+    // Prepare input for the agent
+    const agentInput = `Course ID: none
+Document IDs: ${documentId}
+Enable Web Search: false
+User Question: ${message}
 
-    const context = `You are a helpful AI assistant. Answer questions based on the following document content.
+Chat History:
+${history.map(h => `${h.role}: ${h.content}`).join('\n')}
 
-Document: ${doc.filename}
-${doc.usedOCR ? '(Text extracted using OCR)' : ''}
+Please answer the user's question about the uploaded document using available tools if needed.`;
 
-Content:
-${documentContent}
-
-Answer the user's question based on this document. If the answer is not in the document, say so.`;
-
-    const messages = [
-      { role: "system", content: context },
-      ...history.map((h) => ({ role: h.role, content: h.content })),
-      { role: "user", content: message },
-    ];
-
-    const completion = await groq.chat.completions.create({
-      messages,
-      model: "llama-3.3-70b-versatile",
-      temperature: 0.5,
-      max_tokens: 1024,
+    // Call the agent
+    const result = await chatbotAgent.call({
+      input: agentInput,
     });
 
-    const reply =
-      completion.choices[0]?.message?.content ||
-      "Sorry, I could not generate a response.";
+    const reply = result.output || "Sorry, I could not generate a response.";
 
     res.json({ reply, timestamp: new Date().toISOString() });
   } catch (err) {
@@ -378,127 +359,72 @@ Answer the user's question based on this document. If the answer is not in the d
 export async function chatWithAI(req, res) {
   try {
     const { courseId, documentIds = [], message, history = [], enableWebSearch = false } = req.body;
+    const userId = req.user?.id;
+
+    logger.info('Chatbot request', {
+      userId,
+      courseId,
+      documentIds: documentIds.length,
+      messageLength: message?.length,
+      enableWebSearch
+    });
 
     if (!message) {
+      logger.warn('Chatbot request missing message', { userId });
       return res.status(400).json({ error: "Message is required" });
     }
 
-    let contextParts = [];
-
-    // Add course context if courseId provided
-    if (courseId) {
-      try {
-        const courseData = await pool.query(
-          `
-          SELECT c.code, c.title, c.description, o.term, o.section,
-                 u.name as faculty_name
-          FROM course_offerings o
-          JOIN courses c ON o.course_id = c.id
-          LEFT JOIN users u ON o.faculty_id = u.id
-          WHERE o.id = $1
-        `,
-          [courseId]
-        );
-
-        if (courseData.rowCount > 0) {
-          const course = courseData.rows[0];
-          contextParts.push(`Course Information:
-Course: ${course.code} - ${course.title}
-Description: ${course.description || "No description available"}
-Term: ${course.term}, Section: ${course.section}
-Professor: ${course.faculty_name || "Not assigned"}`);
-
-          // Add course notes
-          try {
-            const notesData = await pool.query(
-              `SELECT title, description FROM resources WHERE course_offering_id = $1 AND resource_type = 'lecture_note' LIMIT 5`,
-              [courseId]
-            );
-            if (notesData.rows.length > 0) {
-              contextParts.push(`Course Notes:
-${notesData.rows.map(note => `- ${note.title}: ${note.description || 'No description'}`).join('\n')}`);
-            }
-          } catch (notesErr) {
-            console.error("Error fetching course notes:", notesErr);
-          }
-
-          // Add PYQs
-          try {
-            const pyqData = await pool.query(
-              `SELECT title, description FROM resources WHERE course_offering_id = $1 AND resource_type = 'pyq' LIMIT 5`,
-              [courseId]
-            );
-            if (pyqData.rows.length > 0) {
-              contextParts.push(`Previous Year Questions (PYQs):
-${pyqData.rows.map(pyq => `- ${pyq.title}: ${pyq.description || 'No description'}`).join('\n')}`);
-            }
-          } catch (pyqErr) {
-            console.error("Error fetching PYQs:", pyqErr);
-          }
-        }
-      } catch (courseErr) {
-        console.error("Error fetching course data:", courseErr);
-      }
+    if (!chatbotAgent) {
+      logger.error('Chatbot agent not initialized');
+      return res.status(500).json({ error: "Chatbot agent not initialized" });
     }
 
-    // Add document contexts
-    for (const docId of documentIds) {
-      const doc = pdfTextStore.get(docId);
-      if (doc) {
-        const docContent = doc.content.substring(0, 8000); // Limit each doc to ~8k chars to leave room for other context
-        contextParts.push(`Document: ${doc.filename}
-${doc.usedOCR ? '(Text extracted using OCR)' : ''}
-Content:
-${docContent}`);
-      }
-    }
+    // Prepare input for the agent
+    const agentInput = `Course ID: ${courseId || 'none'}
+Document IDs: ${documentIds.join(', ') || 'none'}
+Enable Web Search: ${enableWebSearch}
+User Question: ${message}
 
-    // Perform web search if enabled (complements other context)
-    let webSearchResult = null;
-    if (enableWebSearch) {
-      webSearchResult = await performWebSearch(message);
-      if (webSearchResult) {
-        contextParts.push(`Web Search Result for "${message}":
-Title: ${webSearchResult.title}
-Information: ${webSearchResult.snippet}
-Source: ${webSearchResult.source}`);
-      }
-    }
+Chat History:
+${history.map(h => `${h.role}: ${h.content}`).join('\n')}
 
-    // Build system prompt
-    let systemPrompt = "You are a helpful AI assistant for students.";
-    if (contextParts.length > 0) {
-      systemPrompt += " Use the following information to answer questions:\n\n" + contextParts.join("\n\n");
-      systemPrompt += "\n\nAnswer based on the provided information. If the answer isn't in the provided information, say so clearly.";
-    } else {
-      systemPrompt += " Answer general questions helpfully and accurately.";
-    }
+Please answer the user's question using available tools if needed.`;
 
-    const messages = [
-      { role: "system", content: systemPrompt },
-      ...history.map((h) => ({ role: h.role, content: h.content })),
-      { role: "user", content: message },
-    ];
-
-    const completion = await groq.chat.completions.create({
-      messages,
-      model: "llama-3.3-70b-versatile",
-      temperature: 0.7,
-      max_tokens: 1024,
+    // Call the agent
+    const result = await chatbotAgent.call({
+      input: agentInput,
     });
 
-    const reply =
-      completion.choices[0]?.message?.content ||
-      "Sorry, I could not generate a response.";
+    const reply = result.output || "Sorry, I could not generate a response.";
+
+    // Check if web search was used (from agent's intermediate steps if available)
+    let usedWebSearch = false;
+    let webSearchResult = null;
+
+    if (result.intermediateSteps) {
+      for (const step of result.intermediateSteps) {
+        if (step.action.tool === 'web_search') {
+          usedWebSearch = true;
+          webSearchResult = step.observation;
+          break;
+        }
+      }
+    }
+
+    logger.info('Chatbot response generated', {
+      userId,
+      replyLength: reply.length,
+      usedWebSearch
+    });
 
     res.json({
       reply,
       timestamp: new Date().toISOString(),
-      usedWebSearch: !!webSearchResult,
-      webSearchResult: webSearchResult
+      usedWebSearch,
+      webSearchResult
     });
   } catch (err) {
-    console.error("chatWithAI error:", err);
+    logger.error("chatWithAI error:", err, { userId: req.user?.id });
     res
       .status(500)
       .json({ error: "Failed to process chat", details: err.message });

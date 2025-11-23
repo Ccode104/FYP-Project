@@ -74,3 +74,7 @@ export async function getSubmissionsByAssignment(assignmentId: number) {
 export async function assignFacultyToCourse(courseId: number, facultyIds: number[]) {
   return apiFetch(`/api/admin/courses/${courseId}/assign-faculty`, { method: 'POST', body: { faculty_ids: facultyIds } })
 }
+
+export async function getOverview() {
+  return apiFetch<{ totalUsers: number; activeCourses: number; totalAssignments: number; totalSubmissions: number }>('/api/admin/overview')
+}

@@ -4,7 +4,7 @@ import { pool } from '../db/index.js';
 export async function getQuiz(req, res) {
   try {
     const { quizId } = req.params;
-    
+
     // Get quiz details
     const quizQuery = `
       SELECT q.*, c.code as course_code, c.title as course_title
@@ -802,6 +802,49 @@ async function updateQuizGamificationStats(client, userId, score, quizId) {
   } catch (error) {
     console.error('Error updating quiz gamification stats:', error);
     // Don't throw error to avoid breaking quiz submission
+  }
+}
+
+// Grade a quiz attempt with overall grade and feedback
+export async function gradeQuizAttemptOverall(req, res) {
+  try {
+    const attemptId = Number(req.params.attemptId);
+    const { grade, feedback } = req.body;
+
+    if (!attemptId) return res.status(400).json({ error: 'Missing attempt id' });
+    if (grade === undefined || grade === null) return res.status(400).json({ error: 'Grade is required' });
+
+    // Verify the user has permission to grade this attempt
+    const checkQ = `
+      SELECT qa.id, qa.quiz_id, q.course_offering_id, co.faculty_id
+      FROM quiz_attempts qa
+      JOIN quizzes q ON qa.quiz_id = q.id
+      JOIN course_offerings co ON q.course_offering_id = co.id
+      WHERE qa.id = $1
+    `;
+    const checkR = await pool.query(checkQ, [attemptId]);
+    if (checkR.rowCount === 0) return res.status(404).json({ error: 'Attempt not found' });
+
+    const attempt = checkR.rows[0];
+
+    // Check if current user is faculty for this offering or admin
+    if (req.user.role !== 'admin' && req.user.id !== attempt.faculty_id) {
+      return res.status(403).json({ error: 'Not authorized to grade this attempt' });
+    }
+
+    // Update the attempt with grade
+    const updateQ = `
+      UPDATE quiz_attempts
+      SET grade = $1, feedback = $2, graded_at = NOW(), graded_by = $3
+      WHERE id = $4
+      RETURNING *
+    `;
+    const updateR = await pool.query(updateQ, [grade, feedback || '', req.user.id, attemptId]);
+
+    res.json(updateR.rows[0]);
+  } catch (err) {
+    console.error('Error grading quiz attempt:', err);
+    res.status(500).json({ error: err.message || 'Failed to grade attempt' });
   }
 }
 

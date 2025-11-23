@@ -1,7 +1,7 @@
 import express from 'express';
 import { requireAuth, requireRole } from '../middleware/auth.js';
 import { createAssignment, getAssignment } from '../controllers/assignmentsController.js';
-import { publishAssignment, listAssignmentSubmissions, deleteAssignment, getAssignmentQuestions } from '../controllers/assignmentsController.js';
+import { publishAssignment, listAssignmentSubmissions, deleteAssignment, getAssignmentQuestions, gradeSubmission } from '../controllers/assignmentsController.js';
 
 const router = express.Router();
 
@@ -117,6 +117,8 @@ router.post('/:id/publish', requireAuth, requireRole('faculty','admin'), publish
  *         description: Assignment not found
  */
 router.get('/:id/submissions', requireAuth, requireRole('faculty','ta','admin'), listAssignmentSubmissions);
+
+router.post('/submissions/:id/grade', requireAuth, requireRole('faculty','admin'), gradeSubmission);
 
 router.get('/:id/questions', requireAuth, getAssignmentQuestions);
 

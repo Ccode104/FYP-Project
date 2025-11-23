@@ -11,7 +11,7 @@
   gap: 24px;
   margin-bottom: 40px;
   padding: 32px;
-  background: linear-gradient(135deg, rgba(79, 70, 229, 0.08), rgba(16, 185, 129, 0.08));
+  background: linear-gradient(135deg, rgba(100, 116, 139, 0.05), rgba(148, 163, 184, 0.05));
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-sm);
@@ -136,9 +136,22 @@
   left: 100%;
 }
 
+/* Dashboard Grid */
+.dashboard-grid {
+  display: grid;
+  grid-template-columns: 2fr 1fr;
+  gap: 32px;
+  animation: fadeInUp 0.8s ease-out 0.6s both;
+}
+
 /* Courses Section */
 .courses-section {
   animation: fadeInUp 0.8s ease-out 0.6s both;
+}
+
+/* Messaging Section */
+.messaging-section {
+  animation: fadeInUp 0.8s ease-out 0.8s both;
 }
 
 @keyframes fadeInUp {
@@ -472,33 +485,38 @@
   .dashboard-page {
     padding: 20px;
   }
-  
+
   .dashboard-header {
     padding: 20px;
     margin: -20px -20px 20px -20px;
   }
-  
+
   .dashboard-title {
     font-size: 28px;
   }
-  
+
   .dashboard-actions {
     gap: 16px;
   }
-  
+
+  .dashboard-grid {
+    grid-template-columns: 1fr;
+    gap: 24px;
+  }
+
   .courses-grid {
     grid-template-columns: repeat(2, 1fr);
     gap: 20px;
   }
-  
+
   .empty-courses-state {
     padding: 40px 20px;
   }
-  
+
   .empty-state-title {
     font-size: 22px;
   }
-  
+
   .empty-state-description {
     font-size: 15px;
   }
@@ -532,8 +550,13 @@
     font-size: 13px;
   }
   
+  .dashboard-grid {
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
+
   .courses-section {
-    padding: 12px;
+    padding: 0;
   }
   
   .courses-grid {

@@ -11,7 +11,7 @@
   gap: 24px;
   margin-bottom: 40px;
   padding: 32px;
-  background: linear-gradient(135deg, rgba(245, 158, 11, 0.08), rgba(249, 115, 22, 0.08));
+  background: linear-gradient(135deg, rgba(100, 116, 139, 0.05), rgba(148, 163, 184, 0.05));
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-sm);

@@ -12,3 +12,4 @@ export async function health(req, res) {
     res.status(500).json({ ok: false, error: err?.message || 'db error' });
   }
 }
+

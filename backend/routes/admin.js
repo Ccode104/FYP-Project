@@ -17,11 +17,15 @@ import {
   adminGetAssignmentsByFacultyId,
   adminGetSubmissions,
   adminAssignFacultyToCourse,
+  adminGetOverview,
 } from '../controllers/adminPanelController.js';
 
 const router = express.Router();
 
 router.use(requireAuth, requireRole('admin'));
+
+// Overview
+router.get('/overview', adminGetOverview);
 
 // Study materials
 router.get('/materials', adminListMaterials);

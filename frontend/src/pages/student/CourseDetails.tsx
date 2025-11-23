@@ -64,7 +64,7 @@ function saveLocalCodeQuestions(courseId: string, items: CodeQuestion[]) {
 
 export default function CourseDetails() {
   const { courseId } = useParams()
-  const { user, logout } = useAuth()
+  const { user } = useAuth()
   const navigate = useNavigate()
   const { setCourseTitle } = useCourse()
   const [tab, setTab] = useState<'assignment' | 'present' | 'past' | 'pyq' | 'notes' | 'quizzes' | 'quizzes_submitted' | 'manage' | 'submissions' | 'grading' | 'progress' | 'discussion' | 'chatbot' | 'pdfchat' | 'videos'>('present')
@@ -152,19 +152,14 @@ export default function CourseDetails() {
 
   // Compute present assignments (not past due date)
   const allPresentAssignments = useMemo(() => {
-    console.log('=== allPresentAssignments recalculating ===')
-    console.log('isBackend:', isBackend)
-    console.log('backendAssignments:', backendAssignments)
     if (isBackend) {
       const filtered = backendAssignments.filter((a: any) => {
         if (!a.due_at) return true
         const dueDate = new Date(a.due_at)
         const now = new Date()
         const isPast = dueDate < now
-        console.log(`Assignment ${a.id} (${a.title}): due_at=${a.due_at}, isPast=${isPast}`)
         return !isPast
       })
-      console.log('Filtered present assignments:', filtered)
       return filtered
     }
     return course?.assignmentsPresent || []
@@ -180,30 +175,17 @@ export default function CourseDetails() {
 
   // For students: filter out submitted assignments and combine with unsubmitted quizzes
   const presentAssignments = useMemo(() => {
-    console.log('=== presentAssignments memo recalculating ===')
-    console.log('user?.role:', user?.role)
-    console.log('allPresentAssignments count:', allPresentAssignments?.length)
-    console.log('allPresentAssignments:', allPresentAssignments?.map(a => ({ id: a.id, title: a.title })))
-    console.log('mySubmissions:', mySubmissions)
-    console.log('mySubmissions count:', mySubmissions?.length)
-    console.log('myQuizAttempts count:', myQuizAttempts?.length)
-    console.log('backendQuizzes count:', backendQuizzes?.length)
-    console.log('isBackend:', isBackend)
-
     if (user?.role !== 'student') {
-      console.log('Not a student, returning all assignments')
       return allPresentAssignments
     }
 
     if (!isBackend) {
-      console.log('Not backend mode, returning all assignments')
       return allPresentAssignments
     }
 
     // IMPORTANT: Only filter if submissions have been loaded (not null)
     // If mySubmissions is null, we haven't loaded them yet, so show all assignments with isSubmitted: false
     if (mySubmissions === null) {
-      console.log('Submissions not loaded yet (null), showing all assignments with isSubmitted: false')
       const assignmentsWithStatus = allPresentAssignments.map((a: any) => ({
         ...a,
         isSubmitted: false
@@ -227,17 +209,14 @@ export default function CourseDetails() {
     const submittedAssignmentIds = new Set(
       mySubmissions.map((s: any) => {
         const id = s.assignment_id || s.id // Handle both submission formats
-        console.log('Submission:', { submission_id: s.id, assignment_id: s.assignment_id, using: id })
         return String(id)
       })
     )
-    console.log('submittedAssignmentIds:', Array.from(submittedAssignmentIds))
 
     // Get set of attempted quiz IDs
     const attemptedQuizIds = new Set(
       (myQuizAttempts || []).map((a: any) => String(a.quiz_id))
     )
-    console.log('attemptedQuizIds:', Array.from(attemptedQuizIds))
 
     // Add submission status to assignments instead of filtering them out
     const sourceAssignments = (isBackend && Array.isArray(backendAssignments) && user?.role === 'student')
@@ -246,13 +225,11 @@ export default function CourseDetails() {
     const assignmentsWithStatus = sourceAssignments.map((a: any) => {
       const assignmentId = String(a.id)
       const isSubmitted = submittedAssignmentIds.has(assignmentId)
-      console.log(`Assignment ${assignmentId} (${a.title}): isSubmitted=${isSubmitted}, assignment_type=${a.assignment_type}`)
       return {
         ...a,
         isSubmitted
       }
     })
-    console.log('assignmentsWithStatus count:', assignmentsWithStatus.length)
 
     // Add quizzes with attempt status
     const quizzesWithStatus = (backendQuizzes || [])
@@ -274,25 +251,8 @@ export default function CourseDetails() {
           isViolated: hasViolatedAttempt
         }
       })
-    console.log('quizzesWithStatus count:', quizzesWithStatus.length)
 
     const result = [...assignmentsWithStatus, ...quizzesWithStatus]
-    console.log('Final presentAssignments count:', result.length)
-    console.log('Final result details:', result.map(r => ({
-      id: r.id,
-      title: r.title,
-      assignment_type: r.assignment_type,
-      is_quiz: r.is_quiz,
-      isSubmitted: r.isSubmitted
-    })))
-    console.log('presentAssignments status:', {
-      allPresentAssignments: allPresentAssignments.length,
-      mySubmissionsLoaded: mySubmissions !== null,
-      mySubmissionsCount: mySubmissions?.length || 0,
-      assignmentsWithStatus: assignmentsWithStatus.length,
-      quizzesWithStatus: quizzesWithStatus.length,
-      total: result.length
-    })
     return result
   }, [allPresentAssignments, mySubmissions, myQuizAttempts, backendQuizzes, user?.role, isBackend, backendAssignments])
 
@@ -579,15 +539,11 @@ export default function CourseDetails() {
           requestBody.test_cases = testCases
         }
 
-        console.log('Creating code question with body:', requestBody)
-
         // Create the question
         const created = await apiFetch('/api/code-questions', {
           method: 'POST',
           body: requestBody
         })
-
-        console.log('Question created:', created)
 
         // Reload questions from backend
         try {
@@ -666,16 +622,12 @@ export default function CourseDetails() {
         // Load offering details first
         try {
           const offering = await apiFetch<any>(`/api/student/courses/${courseId}`)
-          console.log('Loaded offering details:', offering)
           if (!cancelled) setOfferingDetails(offering)
         } catch (err) {
           console.error('Failed to load offering details:', err)
         }
         try {
-          console.log('Loading assignments...')
           const data = await apiFetch<any[]>(`/api/courses/${courseId}/assignments`)
-          console.log('Loaded assignments:', data)
-          console.log('Assignment types:', data?.map(a => ({ id: a.id, title: a.title, type: a.assignment_type })))
           if (!cancelled) setBackendAssignments(data)
         } catch { }
         try { const pyq = await apiFetch<any[]>(`/api/courses/${courseId}/pyqs`); if (!cancelled) setBackendPYQ(pyq) } catch { }
@@ -693,15 +645,7 @@ export default function CourseDetails() {
         // Load student's submissions to track which assignments have been submitted
         if (user?.role === 'student' && user?.id) {
           try {
-            console.log('Loading student submissions...')
             const submissions = await apiFetch<any[]>(`/api/student/courses/${courseId}/submissions`)
-            console.log('Loaded submissions:', submissions)
-            console.log('Submission details:', submissions?.map(s => ({
-              id: s.id,
-              assignment_id: s.assignment_id,
-              student_id: s.student_id,
-              submitted_at: s.submitted_at
-            })))
             if (!cancelled) setMySubmissions(submissions || [])
           } catch (err) {
             console.error('Failed to load student submissions:', err)

@@ -23,6 +23,7 @@ import videosRoutes from './routes/videos.js';
 import gamificationRoutes from './routes/gamification.js';
 import proctoringRoutes from './routes/proctoring.js';
 import proctoringAnalyticsRoutes from './routes/proctoringAnalytics.js';
+import messagesRoutes from './routes/messages.js';
 import swaggerSpec from './swagger.js';
 
 export async function startServer(port = 4000) {
@@ -72,6 +73,7 @@ export async function startServer(port = 4000) {
   app.use('/api/gamification', gamificationRoutes);
   app.use('/api/proctoring-analytics', proctoringAnalyticsRoutes);
   app.use('/api/proctoring', proctoringRoutes);
+  app.use('/api/messages', messagesRoutes);
 
   app.get('/health', (req, res) => res.json({ ok: true }));
 

@@ -11,12 +11,12 @@ export default function Login() {
     setError('');
 
     try {
-      const response = await login(email, password);
-      console.log('Login successful:', response);
+      await login(email, password);
       alert('Login successful!');
-    } catch (err: any) {
-      console.error('Login failed:', err.message);
-      setError(err.message);
+    } catch (err: unknown) {
+      const errorMessage = err instanceof Error ? err.message : 'Login failed';
+      console.error('Login failed:', errorMessage);
+      setError(errorMessage);
     }
   };
 

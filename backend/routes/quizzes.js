@@ -1,6 +1,6 @@
 import express from 'express';
 import { requireAuth, requireRole } from '../middleware/auth.js';
-import { createQuiz, getQuiz, getQuizForGrading, submitQuizAttempt, listQuizAttempts, gradeQuizAttempt, deleteQuizAttempt, suspendQuizAttempt, resumeQuizAttempt, getSuspendedAttempts } from '../controllers/quizzesController.js';
+import { createQuiz, getQuiz, getQuizForGrading, submitQuizAttempt, listQuizAttempts, gradeQuizAttempt, gradeQuizAttemptOverall, deleteQuizAttempt, suspendQuizAttempt, resumeQuizAttempt, getSuspendedAttempts } from '../controllers/quizzesController.js';
 
 const router = express.Router();
 
@@ -71,6 +71,9 @@ const router = express.Router();
  */
 router.post('/', requireAuth, requireRole('faculty','admin'), createQuiz);
 
+// Get suspended attempts for a teacher
+router.get('/suspended-attempts', requireAuth, requireRole('faculty','ta','admin'), getSuspendedAttempts);
+
 // Get quiz for students (without correct answers)
 router.get('/:quizId', requireAuth, getQuiz);
 
@@ -86,14 +89,14 @@ router.get('/:quizId/attempts', requireAuth, requireRole('faculty','ta','admin')
 // Manually grade short answers in an attempt
 router.patch('/attempts/:attemptId/grade', requireAuth, requireRole('faculty','ta','admin'), gradeQuizAttempt);
 
+// Grade quiz attempt with overall grade and feedback
+router.post('/attempts/:attemptId/grade-overall', requireAuth, requireRole('faculty','admin'), gradeQuizAttemptOverall);
+
 // Suspend a quiz attempt (teacher-controlled)
 router.post('/attempts/:attemptId/suspend', requireAuth, requireRole('faculty','ta','admin'), suspendQuizAttempt);
 
 // Resume a suspended quiz attempt (teacher-controlled)
 router.post('/attempts/:attemptId/resume', requireAuth, requireRole('faculty','ta','admin'), resumeQuizAttempt);
-
-// Get suspended attempts for a teacher
-router.get('/suspended-attempts', requireAuth, requireRole('faculty','ta','admin'), getSuspendedAttempts);
 
 // Delete a quiz attempt (for resetting violated attempts)
 router.delete('/attempts/:attemptId', requireAuth, requireRole('faculty','ta','admin'), deleteQuizAttempt);

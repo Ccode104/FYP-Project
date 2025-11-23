@@ -11,7 +11,7 @@
   gap: 24px;
   margin-bottom: 40px;
   padding: 32px;
-  background: linear-gradient(135deg, rgba(79, 70, 229, 0.08), rgba(16, 185, 129, 0.08));
+  background: linear-gradient(135deg, rgba(100, 116, 139, 0.05), rgba(148, 163, 184, 0.05));
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-sm);
@@ -55,7 +55,7 @@
   color: var(--text);
   margin: 0 0 8px;
   letter-spacing: -0.03em;
-  background: linear-gradient(135deg, var(--primary), var(--secondary));
+  background: linear-gradient(135deg, #7c3aed, #a855f7);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
@@ -103,8 +103,8 @@
   }
 }
 
-.student-theme .dashboard-actions .btn-primary {
-  background: linear-gradient(135deg, var(--primary), var(--secondary));
+.admin-theme .dashboard-actions .btn-primary {
+  background: linear-gradient(135deg, #7c3aed, #a855f7);
   color: #ffffff;
   border-color: transparent;
   box-shadow: var(--shadow-sm);
@@ -115,13 +115,13 @@
   overflow: hidden;
 }
 
-.student-theme .dashboard-actions .btn-primary:hover {
-  background: linear-gradient(135deg, var(--primary-hover), var(--secondary-hover));
+.admin-theme .dashboard-actions .btn-primary:hover {
+  background: linear-gradient(135deg, #5b21b6, #7c2d12);
   transform: translateY(-2px);
   box-shadow: var(--shadow-md);
 }
 
-.student-theme .dashboard-actions .btn-primary::before {
+.admin-theme .dashboard-actions .btn-primary::before {
   content: '';
   position: absolute;
   top: 0;
@@ -132,7 +132,7 @@
   transition: left 0.5s ease;
 }
 
-.student-theme .dashboard-actions .btn-primary:hover::before {
+.admin-theme .dashboard-actions .btn-primary:hover::before {
   left: 100%;
 }
 
@@ -159,7 +159,7 @@
   margin-bottom: 24px;
 }
 
-.student-theme .section-title {
+.admin-theme .section-title {
   color: var(--text);
   font-size: 24px;
   font-weight: 600;
@@ -354,7 +354,7 @@
 }
 
 .empty-state-action {
-  background: linear-gradient(135deg, var(--primary), var(--secondary));
+  background: linear-gradient(135deg, #7c3aed, #a855f7);
   color: white;
   border: none;
   padding: 12px 24px;

@@ -196,3 +196,46 @@ export async function getAssignmentQuestions(req, res) {
   }
 }
 
+// Grade a submission
+export async function gradeSubmission(req, res) {
+  try {
+    const submissionId = Number(req.params.id);
+    const { grade, feedback } = req.body;
+
+    if (!submissionId) return res.status(400).json({ error: 'Missing submission id' });
+    if (grade === undefined || grade === null) return res.status(400).json({ error: 'Grade is required' });
+
+    // Verify the user has permission to grade this submission
+    const checkQ = `
+      SELECT s.id, s.assignment_id, a.course_offering_id, o.faculty_id
+      FROM assignment_submissions s
+      JOIN assignments a ON s.assignment_id = a.id
+      JOIN course_offerings o ON a.course_offering_id = o.id
+      WHERE s.id = $1
+    `;
+    const checkR = await pool.query(checkQ, [submissionId]);
+    if (checkR.rowCount === 0) return res.status(404).json({ error: 'Submission not found' });
+
+    const submission = checkR.rows[0];
+
+    // Check if current user is faculty for this offering or admin
+    if (req.user.role !== 'admin' && req.user.id !== submission.faculty_id) {
+      return res.status(403).json({ error: 'Not authorized to grade this submission' });
+    }
+
+    // Update the submission with grade
+    const updateQ = `
+      UPDATE assignment_submissions
+      SET grade = $1, feedback = $2, graded_at = NOW(), graded_by = $3
+      WHERE id = $4
+      RETURNING *
+    `;
+    const updateR = await pool.query(updateQ, [grade, feedback || '', req.user.id, submissionId]);
+
+    res.json(updateR.rows[0]);
+  } catch (err) {
+    console.error('Error grading submission:', err);
+    res.status(500).json({ error: err.message || 'Failed to grade submission' });
+  }
+}
+
