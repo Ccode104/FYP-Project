@@ -33,6 +33,10 @@ export async function updateUser(id: number, patch: Partial<{ role: 'student'|'f
   return apiFetch(`/api/admin/users/${id}`, { method: 'PATCH', body: patch })
 }
 
+export async function deleteUser(id: number) {
+  return apiFetch(`/api/admin/users/${id}`, { method: 'DELETE' })
+}
+
 export async function getUserOverview(id: number) {
   return apiFetch(`/api/admin/users/${id}/overview`)
 }
@@ -40,6 +44,10 @@ export async function getUserOverview(id: number) {
 // Departments
 export async function listDepartments() {
   return apiFetch<{ departments: any[] }>('/api/admin/departments')
+}
+
+export async function createDepartment(code: string, name: string) {
+  return apiFetch('/api/admin/departments', { method: 'POST', body: { code, name } })
 }
 
 // Hierarchical navigation

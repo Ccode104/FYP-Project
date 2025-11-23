@@ -1,12 +1,22 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useMemo } from 'react'
 import { courses } from '../../data/mock'
 import { useAuth } from '../../context/AuthContext'
 import { useNavigate } from 'react-router-dom'
 import CourseCard from '../../components/CourseCard'
 import './AdminDashboard.css'
-import { listUsers, getUserOverview, getCoursesByDepartment, getCourseDetails, getAssignmentsByOffering, getAssignmentsByFaculty, getSubmissionsByAssignment, assignFacultyToCourse } from '../../services/admin'
-import { createCourse, createOffering } from '../../services/courses'
+import { listUsers, getUserOverview, updateUser, deleteUser, listDepartments, createDepartment, getCoursesByDepartment, getCourseDetails, getAssignmentsByOffering, getAssignmentsByFaculty, getSubmissionsByAssignment, assignFacultyToCourse } from '../../services/admin'
+import { createCourse, createOffering, listCourses } from '../../services/courses'
+import { register } from '../../services/auth'
 import { useToast } from '../../components/ToastProvider'
+interface User {
+  id: number;
+  name?: string;
+  email: string;
+  role: 'student' | 'faculty' | 'ta' | 'admin';
+  department_id?: number;
+  roll_number?: string;
+  is_active?: boolean;
+}
 
 export default function AdminDashboard() {
   const { user, logout} = useAuth()
@@ -14,21 +24,25 @@ export default function AdminDashboard() {
   const { push } = useToast()
 
   const isAdmin = user?.role === 'admin'
-  const [tab, setTab] = useState<'explorer' | 'users' | 'courses'>('explorer')
+  const [tab, setTab] = useState<'overview' | 'users' | 'courses' | 'departments' | 'materials' | 'reports'>('overview')
 
   // Users state
-  const [roleFilter, setRoleFilter] = useState<'student' | 'faculty' | 'ta' | 'admin' | ''>('student')
-  const [usersList, setUsersList] = useState<any[]>([])
-  const [selectedUser, setSelectedUser] = useState<any>(null)
+  const [roleFilter, setRoleFilter] = useState<'student' | 'faculty' | 'ta' | 'admin' | ''>('')
+  const [usersList, setUsersList] = useState<User[]>([])
+  const [selectedUser, setSelectedUser] = useState<User | null>(null)
   const [selectedOverview, setSelectedOverview] = useState<any>(null)
   const [loadError, setLoadError] = useState<string>('')
   const [isLoading, setIsLoading] = useState(false)
+  const [userSearch, setUserSearch] = useState('')
+  const [userDeptFilter, setUserDeptFilter] = useState('')
+  const [showUserDetailsModal, setShowUserDetailsModal] = useState(false)
+  const [hasSearched, setHasSearched] = useState(false)
 
   const loadUsers = async () => {
     try {
       setIsLoading(true)
       setLoadError('')
-      const r = await listUsers(roleFilter || undefined)
+      const r = await listUsers()
       setUsersList(r.users || [])
     } catch (err: any) {
       console.error('Error loading users:', err)
@@ -43,11 +57,27 @@ export default function AdminDashboard() {
     if (isAdmin) {
       void loadUsers()
     }
-  }, [isAdmin, roleFilter])
+  }, [isAdmin])
+const filterUsers = (users: User[], search: string, role: string, dept: string): User[] => {
+  return users.filter(u =>
+    (search === '' ||
+      (u.name || '').toLowerCase().includes(search.toLowerCase()) ||
+      u.email.toLowerCase().includes(search.toLowerCase()) ||
+      (u.roll_number || '').toLowerCase().includes(search.toLowerCase())
+    ) &&
+    (role === '' || u.role === role) &&
+    (dept === '' || u.department_id?.toString() === dept)
+  )
+}
+const filteredUsers = useMemo(() =>
+  usersList ? filterUsers(usersList, userSearch, roleFilter, userDeptFilter) : [],
+  [usersList, userSearch, roleFilter, userDeptFilter]
+)
 
   // Data Explorer state
   const [departments, setDepartments] = useState<any[]>([])
   const [selectedDept, setSelectedDept] = useState<any>(null)
+  const [deptSearch, setDeptSearch] = useState('')
   const [deptCourses, setDeptCourses] = useState<any[]>([])
   const [selectedCourse, setSelectedCourse] = useState<any>(null)
   const [courseDetails, setCourseDetails] = useState<any>(null)
@@ -57,6 +87,12 @@ export default function AdminDashboard() {
   const [assignmentSubmissions, setAssignmentSubmissions] = useState<any[]>([])
   const [selectedFaculty, setSelectedFaculty] = useState<any>(null)
   const [facultyAssignments, setFacultyAssignments] = useState<any[]>([])
+
+  // Admin Courses state
+  const [adminCourses, setAdminCourses] = useState<any[]>([])
+  const [loadingCourses, setLoadingCourses] = useState(false)
+  const [courseSearch, setCourseSearch] = useState('')
+  const [courseDeptFilter, setCourseDeptFilter] = useState('')
 
   const [showCreateCourse, setShowCreateCourse] = useState(false)
   const [newCode, setNewCode] = useState('')
@@ -69,6 +105,16 @@ export default function AdminDashboard() {
 
   const [showOfferCourse, setShowOfferCourse] = useState(false)
   const [offerForCourse, setOfferForCourse] = useState<any>(null)
+
+  // Create user modal
+  const [showCreateUser, setShowCreateUser] = useState(false)
+  const [newUser, setNewUser] = useState({ name: '', email: '', password: '', role: 'student', department_id: '', roll_number: '' })
+  const [creatingUser, setCreatingUser] = useState(false)
+
+  // Create department modal
+  const [showCreateDept, setShowCreateDept] = useState(false)
+  const [newDept, setNewDept] = useState({ code: '', name: '' })
+  const [creatingDept, setCreatingDept] = useState(false)
   const [offerTerm, setOfferTerm] = useState('W25')
   const [offerSection, setOfferSection] = useState('A')
   const [offerFacultyId, setOfferFacultyId] = useState<number | ''>('')
@@ -77,6 +123,10 @@ export default function AdminDashboard() {
   const [offerEnd, setOfferEnd] = useState('')
   const [savingOffering, setSavingOffering] = useState(false)
 
+  // Overview state
+  const [overviewStats, setOverviewStats] = useState<any>(null)
+  const [loadingOverview, setLoadingOverview] = useState(false)
+
   const loadDepartments = async () => {
     try {
       const { listDepartments } = await import('../../services/admin')
@@ -84,6 +134,22 @@ export default function AdminDashboard() {
       setDepartments(r.departments)
     } catch (err) {
       console.error('Error loading departments:', err)
+    }
+  }
+
+  const loadAdminCourses = async () => {
+    try {
+      setLoadingCourses(true)
+      const r = await listCourses()
+      const coursesWithDetails = await Promise.all(r.map(async (c: any) => {
+        const details = await getCourseDetails(c.id)
+        return { ...c, offerings: details.offerings || [] }
+      }))
+      setAdminCourses(coursesWithDetails)
+    } catch (err) {
+      console.error('Error loading admin courses:', err)
+    } finally {
+      setLoadingCourses(false)
     }
   }
 
@@ -151,8 +217,14 @@ export default function AdminDashboard() {
   }
 
   useEffect(() => {
-    if (isAdmin && tab === 'explorer') {
+    if (isAdmin && (tab === 'courses' || tab === 'departments')) {
       void loadDepartments()
+    }
+  }, [isAdmin, tab])
+
+  useEffect(() => {
+    if (isAdmin && tab === 'courses') {
+      void loadAdminCourses()
     }
   }, [isAdmin, tab])
 
@@ -188,408 +260,292 @@ export default function AdminDashboard() {
           <h1 className="dashboard-title h2 text-primary">Welcome back, {user?.name}!</h1>
           <p className="dashboard-subtitle text-lg text-secondary leading-relaxed">Manage users, courses, and explore system data</p>
         </div>
+        <div className="dashboard-actions">
+          <button className="btn btn-secondary" onClick={() => navigate('/profile')}>
+            👤 Profile
+          </button>
+        </div>
       </div>
 
-      {false && tab === 'users' && (
+      {/* Tab Navigation */}
+      <div className="tabs">
+        <button className={`tab ${tab === 'overview' ? 'active' : ''}`} onClick={() => setTab('overview')}>Overview</button>
+        <button className={`tab ${tab === 'users' ? 'active' : ''}`} onClick={() => setTab('users')}>Users</button>
+        <button className={`tab ${tab === 'courses' ? 'active' : ''}`} onClick={() => setTab('courses')}>Courses</button>
+        <button className={`tab ${tab === 'departments' ? 'active' : ''}`} onClick={() => setTab('departments')}>Departments</button>
+        <button className={`tab ${tab === 'materials' ? 'active' : ''}`} onClick={() => setTab('materials')}>Materials</button>
+        <button className={`tab ${tab === 'reports' ? 'active' : ''}`} onClick={() => setTab('reports')}>Reports</button>
+      </div>
+
+      {tab === 'users' && (
         <section className="card">
-          <h3>Users</h3>
-          <div className="grid" style={{ gridTemplateColumns: '260px 1fr', gap: 16 }}>
-            <div>
-              <div className="form" style={{ marginBottom: 12 }}>
-                <div className="grid" style={{ gridTemplateColumns: '1fr', gap: 8 }}>
-                  <button className={`btn ${roleFilter === 'student' ? 'btn-primary' : ''}`} onClick={() => setRoleFilter('student')}>Students</button>
-                  <button className={`btn ${roleFilter === 'faculty' ? 'btn-primary' : ''}`} onClick={() => setRoleFilter('faculty')}>Teachers</button>
-                  <button className={`btn ${roleFilter === 'ta' ? 'btn-primary' : ''}`} onClick={() => setRoleFilter('ta')}>TAs</button>
-                </div>
-              </div>
-              {isLoading && (
-                <div style={{ marginBottom: 8, fontSize: '0.9em', color: '#666' }}>Loading...</div>
-              )}
-              {loadError && (
-                <div style={{ marginBottom: 8, padding: 8, backgroundColor: '#fee', color: '#c00', borderRadius: 4 }}>
-                  Error: {loadError}
-                </div>
-              )}
-              {!isLoading && !loadError && (
-                <div style={{ marginBottom: 8, fontSize: '0.9em', color: '#666' }}>
-                  Showing {usersList.length} {roleFilter}(s)
-                </div>
-              )}
-              <ul className="list" style={{ maxHeight: 500, overflowY: 'auto' }}>
-                {usersList.map((u) => (
-                  <li key={u.id}>
-                    <button className="btn" onClick={async () => {
-                      setSelectedUser(u)
-                      setSelectedOverview(null)
-                      const ov = await getUserOverview(u.id)
-                      setSelectedOverview(ov)
-                    }} style={{ width: '100%', textAlign: 'left' }}>
-                      <strong>{u.name || u.email}</strong>
-                      <span className="muted"> — {u.email}</span>
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            </div>
-            <div>
-              {!selectedUser ? (
-                <p className="muted">Select a user to view details</p>
-              ) : !selectedOverview ? (
-                <p className="muted">Loading…</p>
-              ) : (
-                <div className="card">
-                  <h4 style={{ marginTop: 0 }}>{selectedUser.name || selectedUser.email}</h4>
-                  <div className="muted" style={{ marginBottom: 8 }}>{selectedUser.email} — {selectedUser.role}</div>
-                  {selectedOverview.student && (
-                    <>
-                      <h5>Enrolled Courses</h5>
-                      <ul className="list">
-                        {selectedOverview.student.enrollments.map((e: any) => (
-                          <li key={e.offering_id}>{e.course_code} — {e.course_title} [{e.term}{e.section ? '-' + e.section : ''}] · Faculty: {e.faculty_name}</li>
-                        ))}
-                      </ul>
-                    </>
-                  )}
-                  {selectedOverview.faculty && (
-                    <>
-                      <h5>Offerings</h5>
-                      <ul className="list">
-                        {selectedOverview.faculty.offerings.map((o: any) => (
-                          <li key={o.offering_id}>
-                            {o.course_code} — {o.course_title} [{o.term}{o.section ? '-' + o.section : ''}]
-                            {o.students?.length ? (
-                              <ul className="list" style={{ marginTop: 6 }}>
-                                {o.students.map((s: any) => (
-                                  <li key={s.id}>{s.name || s.email} <span className="muted">({s.email})</span></li>
-                                ))}
-                              </ul>
-                            ) : <div className="muted">No enrolled students yet.</div>}
-                          </li>
-                        ))}
-                      </ul>
-                    </>
-                  )}
-                  {selectedOverview.ta && (
-                    <>
-                      <h5>TA Assignments</h5>
-                      <ul className="list">
-                        {selectedOverview.ta.assignments.map((a: any) => (
-                          <li key={a.offering_id}>{a.course_code} — {a.course_title} [{a.term}{a.section ? '-' + a.section : ''}]</li>
-                        ))}
-                      </ul>
-                    </>
-                  )}
-                </div>
-              )}
+          <div className="section-header">
+            <h3>Users</h3>
+            <button className="btn btn-primary" onClick={() => setShowCreateUser(true)}>Create User</button>
+          </div>
+          <div className="filters" style={{ marginBottom: '16px' }}>
+            <input
+              className="input"
+              type="text"
+              placeholder="Search by keyword (name, email, roll number)..."
+              value={userSearch}
+              onChange={(e) => setUserSearch(e.target.value)}
+              style={{ width: '100%', marginBottom: '12px' }}
+            />
+            <select
+              className="input"
+              value={userDeptFilter}
+              onChange={(e) => setUserDeptFilter(e.target.value)}
+              style={{ width: '100%', marginBottom: '12px' }}
+            >
+              <option value="">All Departments</option>
+              {departments.map((d: any) => (
+                <option key={d.id} value={d.id}>{d.name}</option>
+              ))}
+            </select>
+            <button className="btn btn-primary" onClick={() => setHasSearched(true)} style={{ width: '100%' }}>Search</button>
+          </div>
+          <div className="form" style={{ marginBottom: 12 }}>
+            <div className="grid" style={{ gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>
+              <button className={`btn ${roleFilter === 'student' ? 'btn-primary' : ''}`} onClick={() => setRoleFilter('student')}>Students</button>
+              <button className={`btn ${roleFilter === 'faculty' ? 'btn-primary' : ''}`} onClick={() => setRoleFilter('faculty')}>Teachers</button>
+              <button className={`btn ${roleFilter === 'ta' ? 'btn-primary' : ''}`} onClick={() => setRoleFilter('ta')}>TAs</button>
             </div>
           </div>
+          {isLoading && (
+            <div style={{ marginBottom: 8, fontSize: '0.9em', color: '#666' }}>Loading...</div>
+          )}
+          {loadError && (
+            <div style={{ marginBottom: 8, padding: 8, backgroundColor: '#fee', color: '#c00', borderRadius: 4 }}>
+              Error: {loadError}
+            </div>
+          )}
+          {roleFilter !== '' && userDeptFilter !== '' && hasSearched ? (
+            <div className="grid" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(450px, 1fr))', gap: 16 }}>
+              {filteredUsers.map((u) => (
+                <div key={u.id} className="card user-card">
+                  <div style={{ marginBottom: 12 }}>
+                    <strong>{u.name || u.email}</strong>
+                    <div className="muted">{u.email} ({u.role})</div>
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                    <button className="btn btn-secondary" onClick={async () => {
+                      setSelectedUser(u)
+                      setSelectedOverview(null)
+                      setShowUserDetailsModal(true)
+                      const ov = await getUserOverview(u.id)
+                      setSelectedOverview(ov)
+                    }}>View Details</button>
+                    <button className="btn btn-secondary" onClick={async () => {
+                      // Edit logic
+                      const newName = prompt('Enter new name:', u.name || '')
+                      const newRole = prompt('Enter new role (student/faculty/ta/admin):', u.role)
+                      const newDept = prompt('Enter department ID (or leave empty):', u.department_id?.toString() || '')
+                      const newActive = confirm(`Is active? Currently: ${u.is_active}`)
+                      if (newName !== null || newRole !== null || newDept !== null) {
+                        try {
+                          await updateUser(u.id, {
+                            name: newName || undefined,
+                            role: newRole as 'student'|'faculty'|'ta'|'admin' || undefined,
+                            department_id: newDept ? Number(newDept) : null,
+                            is_active: newActive
+                          })
+                          push({ kind: 'success', message: 'User updated' })
+                          loadUsers()
+                        } catch (e: any) {
+                          push({ kind: 'error', message: e?.message || 'Failed to update' })
+                        }
+                      }
+                    }}>Edit</button>
+                    <button className="btn btn-danger" onClick={async () => {
+                      if (confirm(`Delete user ${u.name || u.email}?`)) {
+                        try {
+                          await deleteUser(u.id)
+                          push({ kind: 'success', message: 'User deleted' })
+                          loadUsers()
+                        } catch (e: any) {
+                          push({ kind: 'error', message: e?.message || 'Failed to delete' })
+                        }
+                      }
+                    }}>Delete</button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p>Please select user type, department, and click search to view users.</p>
+          )}
+          
+        </section>
+        
+      ) }
+
+      {tab === 'courses' && (
+        <section className="card">
+          <div className="section-header">
+            <h3>Courses</h3>
+            <button className="btn btn-primary" onClick={() => setTab('departments')}>Create Course</button>
+          </div>
+          <div className="filters" style={{ display: 'flex', gap: '12px', marginBottom: '16px' }}>
+            <input
+              className="input"
+              type="text"
+              placeholder="Search by course code or title..."
+              value={courseSearch}
+              onChange={(e) => setCourseSearch(e.target.value)}
+              style={{ flex: 1 }}
+            />
+            <select
+              className="input"
+              value={courseDeptFilter}
+              onChange={(e) => setCourseDeptFilter(e.target.value)}
+            >
+              <option value="">All Departments</option>
+              {departments.map((d: any) => (
+                <option key={d.id} value={d.id}>{d.name}</option>
+              ))}
+            </select>
+          </div>
+          {loadingCourses ? (
+            <p>Loading courses...</p>
+          ) : (
+            <div className="courses-list">
+              <div>
+                {(() => {
+                const filteredCourses = adminCourses.filter((course) =>
+                  (courseSearch === '' ||
+                    course.code?.toLowerCase().includes(courseSearch.toLowerCase()) ||
+                    course.title?.toLowerCase().includes(courseSearch.toLowerCase())) &&
+                  (courseDeptFilter === '' || course.department_id == courseDeptFilter)
+                )
+                return filteredCourses.map((course) => (
+                  <div key={course.id} className="card course-admin-card">
+                    <div className="course-header">
+                      <h4 className="course-title">{course.code} - {course.title}</h4>
+                      <p className="course-description">{course.description}</p>
+                      <p className="course-credits">Credits: {course.credits || 'N/A'}</p>
+                    </div>
+                    <div className="course-offerings">
+                      <h5>Offerings:</h5>
+                      {course.offerings && course.offerings.length > 0 ? (
+                        course.offerings.map((offering: any) => (
+                          <div key={offering.offering_id} className="offering-item">
+                            <p><strong>Term:</strong> {offering.term} {offering.section ? `Section ${offering.section}` : ''}</p>
+                            <p><strong>Faculty:</strong> {offering.faculty_name || 'N/A'}</p>
+                            <p><strong>Enrolled Students:</strong> {offering.students?.length || 0}</p>
+                            <p><strong>Duration:</strong> {offering.start_date ? new Date(offering.start_date).toLocaleDateString() : 'N/A'} to {offering.end_date ? new Date(offering.end_date).toLocaleDateString() : 'N/A'}</p>
+                            <p><strong>Capacity:</strong> {offering.max_capacity || 'Unlimited'}</p>
+                          </div>
+                        ))
+                      ) : (
+                        <p>No offerings yet.</p>
+                      )}
+                    </div>
+                  </div>
+                ))
+              })()}
+            </div>
+            </div>
+          )}
         </section>
       )}
 
-      {false && tab === 'courses' && (
+      {tab === 'departments' && (
         <section className="card">
-          <h3>Courses (read-only)</h3>
-          <div className="grid grid-cards">
-            {courses.map((c) => (
-              <CourseCard key={c.id} course={c} onClick={() => navigate(`/courses/${c.id}`)} />
+          <div className="section-header">
+            <h3>Departments</h3>
+            <button className="btn btn-primary" onClick={() => setShowCreateDept(true)}>Create Department</button>
+          </div>
+          <div className="filters" style={{ display: 'flex', gap: '12px', marginBottom: '16px' }}>
+            <input
+              className="input"
+              type="text"
+              placeholder="Search by name or code..."
+              value={deptSearch}
+              onChange={(e) => setDeptSearch(e.target.value)}
+              style={{ flex: 1 }}
+            />
+          </div>
+          <div className="departments-list">
+            {departments.filter(d => deptSearch === '' || d.name.toLowerCase().includes(deptSearch.toLowerCase()) || d.code.toLowerCase().includes(deptSearch.toLowerCase())).map((d: any) => (
+              <div key={d.id} className="department-item">
+                <strong>{d.code}</strong> — {d.name}
+              </div>
             ))}
           </div>
         </section>
       )}
 
-      {tab === 'explorer' && (
-        <section className="courses-section">
-          {/* Breadcrumb Navigation */}
-          <div className="breadcrumb-navigation">
-            <div className="breadcrumb-label">
-              Navigation Path
+      {tab === 'materials' && (
+        <section className="card">
+          <div className="section-header">
+            <h3>Study Materials</h3>
+            <button className="btn btn-primary" onClick={() => alert('Upload functionality coming soon!')}>Upload Material</button>
+          </div>
+          <p className="muted">Materials management coming soon...</p>
+        </section>
+      )}
+
+      {tab === 'overview' && (
+        <section className="overview-section">
+          <div className="stats-grid">
+            <div className="stat-card">
+              <h3>Total Users</h3>
+              <p className="stat-number">Loading...</p>
             </div>
-            <div className="breadcrumb-path">
-              {!selectedDept && <span className="breadcrumb-next">Select a department to begin</span>}
-              {selectedDept && (
-                <>
-                  <span 
-                    className="breadcrumb-item" 
-                    onClick={() => {
-                      setSelectedCourse(null)
-                      setCourseDetails(null)
-                      setSelectedOffering(null)
-                      setSelectedAssignment(null)
-                      setSelectedFaculty(null)
-                      setOfferingAssignments([])
-                      setFacultyAssignments([])
-                      setAssignmentSubmissions([])
-                    }}
-                  >
-                    {selectedDept.name}
-                  </span>
-                  {!selectedCourse && <span className="breadcrumb-next">/ Select a course</span>}
-                </>
-              )}
-              {selectedCourse && (
-                <>
-                  <span className="breadcrumb-separator">/</span>
-                  <span 
-                    className="breadcrumb-item"
-                    onClick={() => {
-                      setSelectedOffering(null)
-                      setSelectedAssignment(null)
-                      setSelectedFaculty(null)
-                      setOfferingAssignments([])
-                      setFacultyAssignments([])
-                      setAssignmentSubmissions([])
-                    }}
-                  >
-                    {selectedCourse.code}
-                  </span>
-                  {!selectedOffering && !selectedFaculty && <span className="breadcrumb-next">/ Select offering or professor</span>}
-                </>
-              )}
-              {selectedOffering && (
-                <>
-                  <span className="breadcrumb-separator">/</span>
-                  <span 
-                    className="breadcrumb-item"
-                    onClick={() => {
-                      setSelectedAssignment(null)
-                      setAssignmentSubmissions([])
-                    }}
-                  >
-                    {selectedOffering.term}-{selectedOffering.section}
-                  </span>
-                  {!selectedAssignment && <span className="breadcrumb-next">/ Select assignment</span>}
-                </>
-              )}
-              {selectedFaculty && (
-                <>
-                  <span className="breadcrumb-separator">/</span>
-                  <span 
-                    className="breadcrumb-item"
-                    onClick={() => {
-                      setSelectedAssignment(null)
-                      setAssignmentSubmissions([])
-                    }}
-                  >
-                    {selectedFaculty.faculty_name}
-                  </span>
-                  {!selectedAssignment && <span className="breadcrumb-next">/ Select assignment</span>}
-                </>
-              )}
-              {selectedAssignment && (
-                <>
-                  <span className="breadcrumb-separator">/</span>
-                  <span className="breadcrumb-current">{selectedAssignment.title}</span>
-                </>
-              )}
+            <div className="stat-card">
+              <h3>Active Courses</h3>
+              <p className="stat-number">Loading...</p>
+            </div>
+            <div className="stat-card">
+              <h3>Assignments</h3>
+              <p className="stat-number">Loading...</p>
+            </div>
+            <div className="stat-card">
+              <h3>Submissions</h3>
+              <p className="stat-number">Loading...</p>
             </div>
           </div>
-
-          <div className="explorer-layout">
-            {/* Sidebar */}
-            <div className="departments-sidebar">
-              <h3 className="sidebar-title">
-                Departments
-              </h3>
-              <div className="departments-list">
-                {departments.map((d) => (
-                  <button
-                    key={d.id}
-                    onClick={() => selectDepartment(d)}
-                    className={`department-item ${selectedDept?.id === d.id ? 'active' : ''}`}
-                  >
-                    {d.name}
-                  </button>
-                ))}
-              </div>
-            </div>
-            {/* Main Content */}
-            <div className="explorer-content">
-              {!selectedDept && (
-                <div className="empty-explorer-state">
-                  <div className="empty-state-icon">
-                    <svg width="64" height="64" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                      <path d="M19 11H13L11 13L9 11H3M21 20H3C2.44772 20 2 19.5523 2 19V5C2 4.44772 2.44772 4 3 4H21C21.5523 4 22 4.44772 22 5V19C22 19.5523 21.5523 20 21 20Z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                    </svg>
-                  </div>
-                  <h3 className="empty-state-title">Welcome to Admin Data Explorer</h3>
-                  <p className="empty-state-description">Select a department from the sidebar to get started</p>
-                </div>
-              )}
-              {selectedDept && !selectedCourse && (
-                <div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
-                    <h3 className="content-title" style={{ margin: 0 }}>
-                      Courses in {selectedDept.name}
-                    </h3>
-                    <button 
-                      className="btn btn-primary"
-                      onClick={() => setShowCreateCourse(true)}
-                    >
-                      + Create Course
-                    </button>
-                  </div>
-                  <div className="courses-cards-grid">
-                    {deptCourses.map((c) => (
-                      <div
-                        key={c.id}
-                        className="course-info-card"
-                        style={{ position: 'relative' }}
-                      >
-                        <div onClick={() => selectCourse(c)} style={{ cursor: 'pointer' }}>
-                          <div className="course-code">{c.code}</div>
-                          <div className="course-title">{c.title}</div>
-                          {c.credits && <div className="course-credits">{c.credits} credits</div>}
-                        </div>
-                        <button
-                          aria-label="Course actions"
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            setOfferForCourse(c)
-                            setShowOfferCourse(true)
-                          }}
-                          style={{ 
-                            position: 'absolute', 
-                            top: '12px', 
-                            right: '12px',
-                            background: 'transparent', 
-                            border: 'none', 
-                            cursor: 'pointer', 
-                            fontSize: '18px',
-                            color: 'var(--text-secondary)',
-                            padding: '4px 8px'
-                          }}
-                        >
-                          ⋮
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-              {selectedCourse && !selectedOffering && !selectedFaculty && courseDetails && (
-                <div>
-                  <div className="course-header">
-                    <h3 className="content-title">{selectedCourse.code} — {selectedCourse.title}</h3>
-                    <p className="course-description">{selectedCourse.description}</p>
-                  </div>
-                  <h4 className="section-subtitle">Course Offerings</h4>
-                  {courseDetails.offerings.length === 0 ? (
-                    <p className="empty-message">No offerings available</p>
-                  ) : (
-                    <div className="offerings-list">
-                      {courseDetails.offerings.map((o: any) => (
-                        <div key={o.offering_id} className="offering-card">
-                          <div className="offering-actions">
-                            <button
-                              onClick={() => selectOffering(o)}
-                              className="btn btn-primary"
-                            >
-                              {o.term} - Section {o.section}
-                            </button>
-                            {o.faculty_name && (
-                              <button
-                                onClick={() => selectFaculty(o)}
-                                className="btn btn-secondary"
-                              >
-                                {o.faculty_name}
-                              </button>
-                            )}
-                          </div>
-                          <div className="students-section">
-                            <div className="students-header">
-                              Enrolled Students ({o.students.length})
-                            </div>
-                            {o.students.length === 0 ? (
-                              <span className="empty-text">No students enrolled</span>
-                            ) : (
-                              <div className="students-tags">
-                                {o.students.slice(0, 5).map((s: any) => (
-                                  <span key={s.id} className="student-tag">
-                                    {s.name}
-                                  </span>
-                                ))}
-                                {o.students.length > 5 && (
-                                  <span className="more-students">+{o.students.length - 5} more</span>
-                                )}
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              )}
-              {selectedFaculty && !selectedAssignment && (
-                <div>
-                  <h4 className="content-title">All Assignments by {selectedFaculty.faculty_name}</h4>
-                  <p className="content-subtitle">Course: {selectedCourse.code}</p>
-                  {facultyAssignments.length === 0 ? (
-                    <p className="empty-message">No assignments published</p>
-                  ) : (
-                    <div className="assignments-list">
-                      {facultyAssignments.map((a) => (
-                        <button key={a.id} className="assignment-item" onClick={() => selectAssignment(a)}>
-                          <strong>{a.title}</strong> — {a.course_code} ({a.term}-{a.section}) — Due: {new Date(a.due_date).toLocaleDateString()} ({a.total_marks} marks)
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              )}
-              {selectedOffering && !selectedAssignment && (
-                <div>
-                  <h4 className="content-title">Assignments for {selectedCourse.code} ({selectedOffering.term}-{selectedOffering.section})</h4>
-                  <p className="content-subtitle">Professor: {selectedOffering.faculty_name}</p>
-                  {offeringAssignments.length === 0 ? (
-                    <p className="empty-message">No assignments published</p>
-                  ) : (
-                    <div className="assignments-list">
-                      {offeringAssignments.map((a) => (
-                        <button key={a.id} className="assignment-item" onClick={() => selectAssignment(a)}>
-                          <strong>{a.title}</strong> — Due: {new Date(a.due_date).toLocaleDateString()} ({a.total_marks} marks)
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              )}
-              {selectedAssignment && (
-                <div>
-                  <h4 className="content-title">{selectedAssignment.title}</h4>
-                  <p className="assignment-description">{selectedAssignment.description}</p>
-                  <div className="assignment-meta">Due: {new Date(selectedAssignment.due_date).toLocaleString()} | Total Marks: {selectedAssignment.total_marks}</div>
-                  <h5 className="section-subtitle">Submissions ({assignmentSubmissions.length})</h5>
-                  {assignmentSubmissions.length === 0 ? (
-                    <p className="empty-message">No submissions yet</p>
-                  ) : (
-                    <table className="submissions-table">
-                      <thead>
-                        <tr>
-                          <th>Student</th>
-                          <th>Submitted</th>
-                          <th>Marks</th>
-                          <th>Graded By</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {assignmentSubmissions.map((s) => (
-                          <tr key={s.id}>
-                            <td>{s.student_name} ({s.roll_number})</td>
-                            <td>{new Date(s.submitted_at).toLocaleString()}</td>
-                            <td>{s.marks_obtained ?? 'Not graded'} / {selectedAssignment.total_marks}</td>
-                            <td>{s.grader_name || 'N/A'}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  )}
-                </div>
-              )}
+          <div className="quick-actions">
+            <h3>Quick Actions</h3>
+            <div className="actions-grid">
+              <button className="btn btn-primary" onClick={() => setTab('users')}>Manage Users</button>
+              <button className="btn btn-primary" onClick={() => setTab('courses')}>Create Course</button>
+              <button className="btn btn-primary" onClick={() => setTab('departments')}>Add Department</button>
+              <button className="btn btn-primary" onClick={() => setTab('materials')}>Upload Material</button>
             </div>
           </div>
         </section>
       )}
+
+      {tab === 'reports' && (
+        <section className="card">
+          <h3>Reports & Analytics</h3>
+          <div className="reports-grid">
+            <div className="report-card">
+              <h4>User Activity</h4>
+              <p>View user login patterns and activity metrics</p>
+              <button className="btn btn-secondary">Generate Report</button>
+            </div>
+            <div className="report-card">
+              <h4>Course Performance</h4>
+              <p>Analyze course enrollment and completion rates</p>
+              <button className="btn btn-secondary">Generate Report</button>
+            </div>
+            <div className="report-card">
+              <h4>Assignment Statistics</h4>
+              <p>Review submission rates and grading analytics</p>
+              <button className="btn btn-secondary">Generate Report</button>
+            </div>
+            <div className="report-card">
+              <h4>System Usage</h4>
+              <p>Monitor overall platform usage and performance</p>
+              <button className="btn btn-secondary">Generate Report</button>
+            </div>
+          </div>
+        </section>
+      )}
+
       {showCreateCourse && selectedDept && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50, backdropFilter: 'blur(4px)', padding: '20px', overflowY: 'auto' }}>
           <div className="card" style={{ width: '100%', maxWidth: 520, background: 'var(--surface)', borderRadius: 'var(--radius-lg)', padding: 24, boxShadow: '0 20px 50px rgba(0,0,0,0.3)', border: '1px solid var(--border)', margin: 'auto', maxHeight: '90vh', overflowY: 'auto' }}>
@@ -712,6 +668,151 @@ export default function AdminDashboard() {
           </div>
         </div>
       )}
+
+      {showCreateUser && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50, backdropFilter: 'blur(4px)', padding: '20px', overflowY: 'auto' }}>
+          <div className="card" style={{ width: '100%', maxWidth: 520, background: 'var(--surface)', borderRadius: 'var(--radius-lg)', padding: 24, boxShadow: '0 20px 50px rgba(0,0,0,0.3)', border: '1px solid var(--border)', margin: 'auto', maxHeight: '90vh', overflowY: 'auto' }}>
+            <h3 className="h4" style={{ marginTop: 0, marginBottom: 20, color: 'var(--text)' }}>Create New User</h3>
+            <div className="form" style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+              <input className="input" value={newUser.name} onChange={(e) => setNewUser({ ...newUser, name: e.target.value })} placeholder="Full Name" />
+              <input className="input" type="email" value={newUser.email} onChange={(e) => setNewUser({ ...newUser, email: e.target.value })} placeholder="Email Address" />
+              <input className="input" type="password" value={newUser.password} onChange={(e) => setNewUser({ ...newUser, password: e.target.value })} placeholder="Password" />
+              <select className="input" value={newUser.role} onChange={(e) => setNewUser({ ...newUser, role: e.target.value as any })}>
+                <option value="student">Student</option>
+                <option value="faculty">Faculty</option>
+                <option value="ta">Teaching Assistant</option>
+                <option value="admin">Admin</option>
+              </select>
+              <select className="input" value={newUser.department_id} onChange={(e) => setNewUser({ ...newUser, department_id: e.target.value })}>
+                <option value="">Select Department (Optional)</option>
+                {departments.map((d: any) => (
+                  <option key={d.id} value={d.id}>{d.name}</option>
+                ))}
+              </select>
+              <input className="input" value={newUser.roll_number} onChange={(e) => setNewUser({ ...newUser, roll_number: e.target.value })} placeholder="Roll Number (Optional)" />
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 12, marginTop: 24 }}>
+              <button className="btn btn-secondary" onClick={() => setShowCreateUser(false)} disabled={creatingUser}>Cancel</button>
+              <button
+                className="btn btn-primary"
+                onClick={async () => {
+                  if (!newUser.name || !newUser.email || !newUser.password) return
+                  try {
+                    setCreatingUser(true)
+                    await register(newUser.name, newUser.email, newUser.password, newUser.role as any, newUser.department_id ? Number(newUser.department_id) : undefined, newUser.roll_number || undefined)
+                    setShowCreateUser(false)
+                    setNewUser({ name: '', email: '', password: '', role: 'student', department_id: '', roll_number: '' })
+                    push({ kind: 'success', message: 'User created successfully' })
+                    loadUsers()
+                  } catch (e: any) {
+                    push({ kind: 'error', message: e?.message || 'Failed to create user' })
+                  } finally {
+                    setCreatingUser(false)
+                  }
+                }}
+                disabled={creatingUser || !newUser.name || !newUser.email || !newUser.password}
+              >
+                {creatingUser ? 'Creating…' : 'Create User'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showCreateDept && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50, backdropFilter: 'blur(4px)', padding: '20px', overflowY: 'auto' }}>
+          <div className="card" style={{ width: '100%', maxWidth: 520, background: 'var(--surface)', borderRadius: 'var(--radius-lg)', padding: 24, boxShadow: '0 20px 50px rgba(0,0,0,0.3)', border: '1px solid var(--border)', margin: 'auto', maxHeight: '90vh', overflowY: 'auto' }}>
+            <h3 className="h4" style={{ marginTop: 0, marginBottom: 20, color: 'var(--text)' }}>Create New Department</h3>
+            <div className="form" style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+              <input className="input" value={newDept.code} onChange={(e) => setNewDept({ ...newDept, code: e.target.value.toUpperCase() })} placeholder="Department Code (e.g., CSE)" />
+              <input className="input" value={newDept.name} onChange={(e) => setNewDept({ ...newDept, name: e.target.value })} placeholder="Department Name (e.g., Computer Science and Engineering)" />
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 12, marginTop: 24 }}>
+              <button className="btn btn-secondary" onClick={() => setShowCreateDept(false)} disabled={creatingDept}>Cancel</button>
+              <button
+                className="btn btn-primary"
+                onClick={async () => {
+                  if (!newDept.code || !newDept.name) return
+                  try {
+                    setCreatingDept(true)
+                    await createDepartment(newDept.code, newDept.name)
+                    setShowCreateDept(false)
+                    setNewDept({ code: '', name: '' })
+                    push({ kind: 'success', message: 'Department created successfully' })
+                    loadDepartments()
+                  } catch (e: any) {
+                    push({ kind: 'error', message: e?.message || 'Failed to create department' })
+                  } finally {
+                    setCreatingDept(false)
+                  }
+                }}
+                disabled={creatingDept || !newDept.code || !newDept.name}
+              >
+                {creatingDept ? 'Creating…' : 'Create Department'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showUserDetailsModal && selectedUser && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50, backdropFilter: 'blur(4px)', padding: '20px', overflowY: 'auto' }}>
+          <div className="card" style={{ width: '100%', maxWidth: 600, background: 'var(--surface)', borderRadius: 'var(--radius-lg)', padding: 24, boxShadow: '0 20px 50px rgba(0,0,0,0.3)', border: '1px solid var(--border)', margin: 'auto', maxHeight: '90vh', overflowY: 'auto' }}>
+            <h3 className="h4" style={{ marginTop: 0, marginBottom: 20, color: 'var(--text)' }}>User Details</h3>
+            {!selectedOverview ? (
+              <p>Loading…</p>
+            ) : (
+              <div>
+                <h4 style={{ marginTop: 0 }}>{selectedUser.name || selectedUser.email}</h4>
+                <div className="muted" style={{ marginBottom: 8 }}>{selectedUser.email} — {selectedUser.role}</div>
+                {selectedOverview.student && (
+                  <>
+                    <h5>Enrolled Courses</h5>
+                    <ul className="list">
+                      {selectedOverview.student.enrollments.map((e: any) => (
+                        <li key={e.offering_id}>{e.course_code} — {e.course_title} [{e.term}{e.section ? '-' + e.section : ''}] · Faculty: {e.faculty_name}</li>
+                      ))}
+                    </ul>
+                  </>
+                )}
+                {selectedOverview.faculty && (
+                  <>
+                    <h5>Offerings</h5>
+                    <ul className="list">
+                      {selectedOverview.faculty.offerings.map((o: any) => (
+                        <li key={o.offering_id}>
+                          {o.course_code} — {o.course_title} [{o.term}{o.section ? '-' + o.section : ''}]
+                          {o.students?.length ? (
+                            <ul className="list" style={{ marginTop: 6 }}>
+                              {o.students.map((s: any) => (
+                                <li key={s.id}>{s.name || s.email} <span className="muted">({s.email})</span></li>
+                              ))}
+                            </ul>
+                          ) : <div className="muted">No enrolled students yet.</div>}
+                        </li>
+                      ))}
+                    </ul>
+                  </>
+                )}
+                {selectedOverview.ta && (
+                  <>
+                    <h5>TA Assignments</h5>
+                    <ul className="list">
+                      {selectedOverview.ta.assignments.map((a: any) => (
+                        <li key={a.offering_id}>{a.course_code} — {a.course_title} [{a.term}{a.section ? '-' + a.section : ''}]</li>
+                      ))}
+                    </ul>
+                  </>
+                )}
+              </div>
+            )}
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 12, marginTop: 24 }}>
+              <button className="btn btn-secondary" onClick={() => setShowUserDetailsModal(false)}>Close</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
+           

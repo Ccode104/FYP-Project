@@ -1969,3 +1969,95 @@
     gap: 6px;
   }
 }
+
+/* Gamification Sidebar */
+.gamification-sidebar {
+  position: fixed;
+  top: 0;
+  right: 0;
+  width: 350px;
+  height: 100vh;
+  background: var(--surface);
+  border-left: 1px solid var(--border);
+  z-index: 999;
+  transform: translateX(100%);
+  transition: transform 0.3s ease;
+  overflow-y: auto;
+}
+
+.code-editor-fullscreen .gamification-sidebar {
+  transform: translateX(0);
+}
+
+.gamification-content {
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.gamification-section {
+  margin-bottom: 0;
+}
+
+/* Gamification Toggle Button */
+.btn-gamification-toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+}
+
+.btn-gamification-toggle:hover {
+  background: var(--bg-secondary);
+  border-color: var(--border-strong);
+}
+
+.btn-gamification-toggle.active {
+  background: linear-gradient(135deg, #4ade80, #22c55e);
+  color: white;
+  border-color: #22c55e;
+}
+
+.btn-gamification-toggle svg {
+  width: 14px;
+  height: 14px;
+  transition: transform 0.2s ease;
+}
+
+.btn-gamification-toggle.active svg {
+  transform: rotate(45deg);
+}
+
+/* Responsive adjustments for gamification */
+@media (max-width: 1200px) {
+  .gamification-sidebar {
+    width: 300px;
+  }
+}
+
+@media (max-width: 1024px) {
+  .gamification-sidebar {
+    width: 280px;
+  }
+}
+
+@media (max-width: 768px) {
+  .gamification-sidebar {
+    width: 100%;
+    transform: translateY(100%);
+  }
+
+  .code-editor-fullscreen .gamification-sidebar {
+    transform: translateY(0);
+  }
+}

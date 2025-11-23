@@ -1,4 +1,5 @@
 import { pool } from '../db/index.js';
+import { calculateGamifiedScore, updateUserGamificationStats, checkAndUnlockAchievements, updateLeaderboards } from '../utils/gamification.js';
 
 
 export async function submitFileAssignment(req, res) {
@@ -31,7 +32,7 @@ export async function submitFileAssignment(req, res) {
 
 export async function submitCodeAssignment(req, res) {
   try {
-    const { assignment_id, language, code, question_id } = req.body;
+    const { assignment_id, language, code, question_id, started_at, time_spent_seconds } = req.body;
     const student_id = Number(req.user?.id);
     if (!assignment_id || !student_id || !language || !code) {
       return res.status(400).json({ error: 'Missing required fields: assignment_id, language, code' });
@@ -39,7 +40,7 @@ export async function submitCodeAssignment(req, res) {
 
     // Check if assignment exists and get its type
     const assignmentCheck = await pool.query(
-      `SELECT id, assignment_type, allow_multiple_submissions FROM assignments WHERE id = $1`,
+      `SELECT id, assignment_type, allow_multiple_submissions, course_offering_id FROM assignments WHERE id = $1`,
       [assignment_id]
     );
     if (assignmentCheck.rowCount === 0) {
@@ -99,6 +100,21 @@ export async function submitCodeAssignment(req, res) {
       codeSubmission = codeSubR.rows[0];
     }
 
+    // Get question difficulty for gamification
+    let questionDifficulty = 'medium';
+    if (question_id) {
+      const questionQ = await pool.query('SELECT difficulty FROM code_questions WHERE id = $1', [question_id]);
+      if (questionQ.rowCount > 0) {
+        questionDifficulty = questionQ.rows[0].difficulty || 'medium';
+      }
+    }
+
+    // Initialize gamification data
+    let allTestsPassed = false;
+    let totalExecutionTime = 0;
+    let totalMemoryUsed = 0;
+    let testCaseCount = 0;
+
     // If question_id is provided, run test cases using Judge0
     let testResults = null;
     if (question_id) {
@@ -112,17 +128,18 @@ export async function submitCodeAssignment(req, res) {
           ORDER BY id
         `;
         const testCaseR = await pool.query(testCaseQ, [question_id]);
-        
+
         // Run test cases and collect results
         const testCaseResults = [];
-        
+        let passedTests = 0;
+
         for (const testCase of testCaseR.rows) {
           const stdin = testCase.input_text || '';
           const expectedOutput = testCase.expected_text || '';
-          
+
           // Log for debugging
           console.log(`Running test case ${testCase.id} with stdin: "${stdin}", expected: "${expectedOutput}"`);
-          
+
           // Skip test cases with no input (some test cases might not need input)
           // But for most cases, we need input
           if (stdin === '' && testCase.input_path === null) {
@@ -154,16 +171,24 @@ export async function submitCodeAssignment(req, res) {
           // Execute code (this will run synchronously)
           await executeCode(mockReq, mockRes);
 
+          testCaseCount++;
+
           // Update code_submission with test results
           if (testResults && !testResults.error) {
-            const passed = testResults.passed !== null ? testResults.passed : 
-                          (testResults.stdout && expectedOutput && 
+            const passed = testResults.passed !== null ? testResults.passed :
+                          (testResults.stdout && expectedOutput &&
                            testResults.stdout.trim() === expectedOutput.trim());
-            
+
+            if (passed) passedTests++;
+
+            // Accumulate execution metrics
+            if (testResults.time) totalExecutionTime += testResults.time;
+            if (testResults.memory) totalMemoryUsed = Math.max(totalMemoryUsed, testResults.memory);
+
             // Store summary in code_submissions
             await pool.query(
-              `UPDATE code_submissions 
-               SET test_results = $1, run_output = $2 
+              `UPDATE code_submissions
+               SET test_results = $1, run_output = $2
                WHERE id = $3`,
               [
                 JSON.stringify({
@@ -184,11 +209,11 @@ export async function submitCodeAssignment(req, res) {
               const testcaseId = testCaseR.rows[0].id;
               // Use code_testcase_id column (added by migration) to reference code_question_testcases
               await pool.query(
-                `INSERT INTO code_submission_results 
+                `INSERT INTO code_submission_results
                  (code_submission_id, code_testcase_id, passed, student_output, error_output, execution_time_ms)
                  VALUES ($1, $2, $3, $4, $5, $6)
-                 ON CONFLICT (code_submission_id, code_testcase_id) 
-                 DO UPDATE SET 
+                 ON CONFLICT (code_submission_id, code_testcase_id)
+                 DO UPDATE SET
                    passed = EXCLUDED.passed,
                    student_output = EXCLUDED.student_output,
                    error_output = EXCLUDED.error_output,
@@ -204,33 +229,101 @@ export async function submitCodeAssignment(req, res) {
                 ]
               );
             }
-
-            // If test passes, auto-grade (optional - you can enable this)
-            if (passed && assignment_question_id) {
-              // Get points for this question
-              const pointsQ = `SELECT points FROM assignment_questions WHERE id = $1`;
-              const pointsR = await pool.query(pointsQ, [assignment_question_id]);
-              if (pointsR.rowCount > 0) {
-                const points = pointsR.rows[0].points;
-                // Optionally update submission score automatically
-                // await pool.query(
-                //   `UPDATE assignment_submissions SET final_score = COALESCE(final_score, 0) + $1 WHERE id = $2`,
-                //   [points, submission.id]
-                // );
-              }
-            }
           }
         }
+
+        // Check if all tests passed
+        allTestsPassed = testCaseCount > 0 && passedTests === testCaseCount;
+
       } catch (judgeErr) {
         console.error('Error running test cases:', judgeErr);
         // Don't fail the submission if test execution fails
       }
     }
 
-    res.json({ 
+    // Calculate gamified score
+    const timeSpent = time_spent_seconds || 0;
+    const scoreData = calculateGamifiedScore({
+      allTestsPassed,
+      timeSpentSeconds: timeSpent,
+      difficulty: questionDifficulty,
+      attempts: submission.attempt || 1,
+      codeLength: code.length,
+      executionTime: totalExecutionTime,
+      memoryUsed: totalMemoryUsed
+    });
+
+    // Update code submission with gamification data
+    const completedAt = started_at ? new Date(Date.parse(started_at) + timeSpent * 1000) : new Date();
+    await pool.query(
+      `UPDATE code_submissions SET
+        started_at = $1,
+        completed_at = $2,
+        time_spent_seconds = $3,
+        gamified_score = $4,
+        attempts_count = $5,
+        efficiency_score = $6
+      WHERE id = $7`,
+      [
+        started_at || completedAt.toISOString(),
+        completedAt.toISOString(),
+        timeSpent,
+        scoreData.totalScore,
+        submission.attempt || 1,
+        scoreData.efficiencyBonus,
+        codeSubmission.id
+      ]
+    );
+
+    // Update user gamification stats
+    let isFirstSolve = false;
+    if (question_id && allTestsPassed) {
+      // Check if this is the first time solving this question
+      const previousSolve = await pool.query(
+        `SELECT 1 FROM code_submissions cs
+         JOIN assignment_submissions ass ON cs.submission_id = ass.id
+         WHERE cs.assignment_question_id IS NOT NULL
+         AND ass.student_id = $1
+         AND cs.id != $2
+         AND EXISTS (
+           SELECT 1 FROM assignment_questions aq
+           WHERE aq.id = cs.assignment_question_id
+           AND aq.question_id = $3
+         )
+         AND (cs.test_results->>'passed')::boolean = true`,
+        [student_id, codeSubmission.id, question_id]
+      );
+      isFirstSolve = previousSolve.rowCount === 0;
+    }
+
+    const updatedStats = await updateUserGamificationStats(student_id, scoreData, isFirstSolve, questionDifficulty);
+
+    // Check for achievements
+    const unlockedAchievements = await checkAndUnlockAchievements(student_id, updatedStats, {
+      totalScore: scoreData.totalScore,
+      timeSpentSeconds: timeSpent
+    });
+
+    // Update leaderboards
+    if (scoreData.totalScore > 0) {
+      await updateLeaderboards(student_id, assignment_id, assignment.course_offering_id, scoreData.totalScore, timeSpent);
+    }
+
+    res.json({
       submission,
-      code_submission: codeSubmission,
-      test_results: testResults
+      code_submission: {
+        ...codeSubmission,
+        gamified_score: scoreData.totalScore,
+        score_breakdown: scoreData.breakdown
+      },
+      test_results: testResults,
+      gamification: {
+        score: scoreData.totalScore,
+        breakdown: scoreData.breakdown,
+        user_stats: updatedStats,
+        unlocked_achievements: unlockedAchievements,
+        all_tests_passed: allTestsPassed
+      }
     });
   } catch (err) {
     console.error('Error submitting code assignment:', err);

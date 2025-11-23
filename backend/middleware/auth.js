@@ -9,6 +9,12 @@ export function requireAuth(req, res, next) {
   try {
     const payload = jwt.verify(token, JWT_SECRET);
     req.user = { id: payload.id, role: payload.role, email: payload.email };
+    // If admin, check if super
+    if (payload.role === 'admin') {
+      // We need to query DB here, but since it's middleware, we need to make it async
+      // For now, we'll handle it in controllers where needed, or modify to async
+      // Actually, to keep it simple, we'll query in controllers
+    }
     return next();
   } catch (err) {
     return res.status(401).json({ error: 'Invalid token' });

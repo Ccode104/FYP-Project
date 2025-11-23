@@ -65,6 +65,11 @@ export default function TeacherDashboard() {
             Manage your courses and create new offerings
           </p>
         </div>
+        <div className="dashboard-actions">
+          <button className="btn btn-secondary" onClick={() => navigate('/profile')}>
+            👤 Profile
+          </button>
+        </div>
       </div>
 
       <div className="section-container">

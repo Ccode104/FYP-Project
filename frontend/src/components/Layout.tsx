@@ -154,11 +154,11 @@ export default function Layout({ children }: { children: ReactNode }) {
                 </button>
                 {showUserDropdown && (
                   <div className="user-dropdown-menu">
-                    <button 
+                    <button
                       className="dropdown-item"
                       onClick={() => {
                         setShowUserDropdown(false)
-                        // Profile action - do nothing for now
+                        navigate('/profile')
                       }}
                     >
                       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">

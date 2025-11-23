@@ -26,6 +26,7 @@ import QuizGrader from './pages/teacher/QuizGrader'
 // Progress / analytics pages
 import StudentProgress from './pages/progress/StudentProgress'
 import CourseProgress from './pages/progress/CourseProgress'
+import Profile from './pages/Profile'
 
 // Global course context provider
 import { CourseProvider } from './context/CourseContext'
@@ -146,6 +147,16 @@ function App() {
             element={
               <ProtectedRoute roles={["teacher", "ta"]}>
                 <CourseProgress />
+              </ProtectedRoute>
+            }
+          />
+
+          {/* User profile (all authenticated users) */}
+          <Route
+            path="/profile"
+            element={
+              <ProtectedRoute roles={["student", "teacher", "ta", "admin"]}>
+                <Profile />
               </ProtectedRoute>
             }
           />

@@ -259,6 +259,7 @@ export default function StudentDashboard() {
           <p className="dashboard-subtitle text-lg text-secondary leading-relaxed">Manage your courses and track your progress</p>
         </div>
         <div className="dashboard-actions">
+          
           <button className="btn btn-primary" onClick={() => setEnrOpen(true)}>
             {(user?.role === 'ta' || user?.role === 'teacher') ? ' Enroll Student' : ' Enroll Course '}
           </button>

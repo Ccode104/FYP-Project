@@ -18,6 +18,7 @@ import codeQuestionsRoutes from './routes/codeQuestions.js';
 import chatbotRoutes from './routes/chatbot.js';
 import monitoringRoutes from './routes/monitoring.js';
 import videosRoutes from './routes/videos.js';
+import gamificationRoutes from './routes/gamification.js';
 import swaggerSpec from './swagger.js';
 
 export async function startServer(port = 4000) {
@@ -54,6 +55,7 @@ export async function startServer(port = 4000) {
   app.use('/api/chatbot', chatbotRoutes);
   app.use('/api/monitoring', monitoringRoutes);
   app.use('/api/videos', videosRoutes);
+  app.use('/api/gamification', gamificationRoutes);
 
   app.get('/health', (req, res) => res.json({ ok: true }));
 

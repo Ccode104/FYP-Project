@@ -7,7 +7,9 @@ import {
   adminDeleteMaterial,
   adminListUsers,
   adminUpdateUser,
+  adminDeleteUser,
   adminListDepartments,
+  adminCreateDepartment,
   adminUserOverview,
   adminGetCoursesByDepartment,
   adminGetCourseDetails,
@@ -30,10 +32,12 @@ router.delete('/materials/:id', adminDeleteMaterial);
 // User management
 router.get('/users', adminListUsers); // ?role=student|faculty|ta|admin
 router.patch('/users/:id', adminUpdateUser); // update role / department / is_active
+router.delete('/users/:id', adminDeleteUser); // delete user
 router.get('/users/:id/overview', (req, res) => adminUserOverview(req, res));
 
 // Departments
 router.get('/departments', adminListDepartments);
+router.post('/departments', adminCreateDepartment);
 
 // Hierarchical navigation
 router.get('/departments/:departmentId/courses', adminGetCoursesByDepartment);

@@ -1,0 +1,229 @@
+.achievement-container {
+  background: #1e1e1e;
+  border: 1px solid #3d3d3d;
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+
+.achievement-container.compact {
+  border: none;
+  box-shadow: none;
+  background: transparent;
+}
+
+.achievement-header {
+  background: #2d2d2d;
+  padding: 16px 20px;
+  border-bottom: 1px solid #3d3d3d;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.achievement-header h3 {
+  margin: 0;
+  color: #ffffff;
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.achievement-count {
+  color: #cccccc;
+  font-size: 14px;
+}
+
+.achievement-loading,
+.achievement-error,
+.achievement-empty {
+  padding: 40px 20px;
+  text-align: center;
+  color: #cccccc;
+}
+
+.loading-spinner {
+  width: 24px;
+  height: 24px;
+  border: 2px solid #3d3d3d;
+  border-top: 2px solid #4ade80;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  margin: 0 auto 16px;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+.achievement-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  gap: 16px;
+  padding: 20px;
+}
+
+.achievement-container.compact .achievement-grid {
+  grid-template-columns: repeat(auto-fill, minmax(80px, 1fr));
+  gap: 12px;
+  padding: 16px;
+}
+
+.achievement-badge {
+  background: #2d2d2d;
+  border: 2px solid #404040;
+  border-radius: 8px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  transition: all 0.2s;
+  position: relative;
+  overflow: hidden;
+}
+
+.achievement-container.compact .achievement-badge {
+  padding: 12px;
+  border-radius: 6px;
+}
+
+.achievement-badge.unlocked {
+  border-color: #4ade80;
+  background: linear-gradient(135deg, rgba(74, 222, 128, 0.1) 0%, rgba(74, 222, 128, 0.05) 100%);
+}
+
+.achievement-badge.locked {
+  opacity: 0.6;
+  filter: grayscale(50%);
+}
+
+.achievement-badge.legendary {
+  border-color: #fbbf24;
+  background: linear-gradient(135deg, rgba(251, 191, 36, 0.1) 0%, rgba(251, 191, 36, 0.05) 100%);
+}
+
+.achievement-badge.epic {
+  border-color: #a855f7;
+  background: linear-gradient(135deg, rgba(168, 85, 247, 0.1) 0%, rgba(168, 85, 247, 0.05) 100%);
+}
+
+.achievement-badge.rare {
+  border-color: #3b82f6;
+  background: linear-gradient(135deg, rgba(59, 130, 246, 0.1) 0%, rgba(59, 130, 246, 0.05) 100%);
+}
+
+.badge-icon {
+  font-size: 32px;
+  margin-bottom: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px;
+  height: 48px;
+}
+
+.achievement-container.compact .badge-icon {
+  font-size: 24px;
+  width: 36px;
+  height: 36px;
+  margin-bottom: 4px;
+}
+
+.locked-icon {
+  font-size: 24px;
+  opacity: 0.7;
+}
+
+.achievement-container.compact .locked-icon {
+  font-size: 18px;
+}
+
+.badge-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.badge-name {
+  color: #ffffff;
+  font-weight: 600;
+  font-size: 12px;
+  line-height: 1.2;
+}
+
+.achievement-container.compact .badge-name {
+  font-size: 10px;
+}
+
+.badge-description {
+  color: #cccccc;
+  font-size: 10px;
+  line-height: 1.3;
+  flex: 1;
+}
+
+.achievement-container.compact .badge-description {
+  display: none;
+}
+
+.badge-reward {
+  color: #4ade80;
+  font-size: 9px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.achievement-container.compact .badge-reward {
+  display: none;
+}
+
+.badge-rarity-indicator {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 20px;
+  height: 4px;
+  border-radius: 0 8px 0 4px;
+}
+
+.achievement-container.compact .badge-rarity-indicator {
+  width: 16px;
+  height: 3px;
+  border-radius: 0 6px 0 3px;
+}
+
+/* Hover effects */
+.achievement-badge:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+}
+
+.achievement-badge.unlocked:hover {
+  border-color: #22c55e;
+}
+
+/* Responsive design */
+@media (max-width: 768px) {
+  .achievement-grid {
+    grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+    gap: 12px;
+    padding: 16px;
+  }
+
+  .achievement-container.compact .achievement-grid {
+    grid-template-columns: repeat(auto-fill, minmax(70px, 1fr));
+    gap: 8px;
+    padding: 12px;
+  }
+
+  .achievement-badge {
+    padding: 12px;
+  }
+
+  .achievement-container.compact .achievement-badge {
+    padding: 8px;
+  }
+}

@@ -27,3 +27,10 @@ export async function loginWithGoogle(credential: string, role: 'student' | 'tea
   });
   return data;
 }
+
+export async function register(name: string, email: string, password: string, role: 'student' | 'faculty' | 'ta' | 'admin' = 'student', department_id?: number, roll_number?: string) {
+  return apiFetch('/api/auth/register', {
+    method: 'POST',
+    body: { name, email, password, role, department_id, roll_number },
+  });
+}

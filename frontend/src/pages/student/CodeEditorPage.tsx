@@ -6,6 +6,9 @@ import './CodeSubmissionView.css'
 import { useToast } from '../../components/ToastProvider'
 import { apiFetch } from '../../services/api'
 import CodeEditor from '../../components/CodeEditor'
+import Leaderboard from '../../components/Leaderboard'
+import AchievementBadge from '../../components/AchievementBadge'
+import UserStats from '../../components/UserStats'
 
 // Add CodeQuestion type for frontend usage
 interface CodeQuestion {
@@ -56,6 +59,8 @@ export default function CodeEditorPage() {
   const [questionTimers, setQuestionTimers] = useState<Record<string, { startTime: number, elapsedTime: number }>>({})
   const [currentQuestionStartTime, setCurrentQuestionStartTime] = useState<number>(Date.now())
   const [currentQuestionElapsedTime, setCurrentQuestionElapsedTime] = useState<number>(0)
+  const [showGamification, setShowGamification] = useState<boolean>(false)
+  const [gamificationData, setGamificationData] = useState<any>(null)
   const previousQuestionRef = useRef<string | null>(null)
 
   // Get current question based on index
@@ -422,6 +427,16 @@ export default function CodeEditorPage() {
           {/* Code Action Buttons */}
           <div className="code-actions">
             <button
+              className={`btn-gamification-toggle ${showGamification ? 'active' : ''}`}
+              onClick={() => setShowGamification(!showGamification)}
+              title={showGamification ? 'Hide gamification' : 'Show gamification'}
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+              </svg>
+              {showGamification ? 'Hide Stats' : 'Show Stats'}
+            </button>
+            <button
               className={`btn-console-toggle ${consoleExpanded ? 'active' : ''}`}
               onClick={() => setConsoleExpanded(!consoleExpanded)}
               title={consoleExpanded ? 'Hide console' : 'Show console'}
@@ -460,15 +475,42 @@ export default function CodeEditorPage() {
                 }
                 setIsSavingCode(prev => ({ ...prev, [currentQuestion.id]: true }))
                 try {
-                  await apiFetch('/api/submissions/submit/code', {
+                  const submissionResult = await apiFetch('/api/submissions/submit/code', {
                     method: 'POST',
                     body: {
                       assignment_id: Number(selectedCodeAssignment.id),
                       question_id: Number(currentQuestion.id),
                       language: codeLang[currentQuestion.id] || 'python',
-                      code: codeEditor[currentQuestion.id]
+                      code: codeEditor[currentQuestion.id],
+                      started_at: questionTimers[currentQuestion.id]?.startTime ? new Date(questionTimers[currentQuestion.id].startTime).toISOString() : undefined,
+                      time_spent_seconds: Math.floor(currentQuestionElapsedTime / 1000)
                     }
                   })
+
+                  // Handle gamification data
+                  if (submissionResult.gamification) {
+                    setGamificationData(submissionResult.gamification)
+
+                    // Show achievement notifications
+                    if (submissionResult.gamification.unlocked_achievements?.length > 0) {
+                      submissionResult.gamification.unlocked_achievements.forEach((achievement: any) => {
+                        push({
+                          kind: 'success',
+                          message: `🏆 Achievement Unlocked: ${achievement.name}! +${achievement.points_reward} points`
+                        })
+                      })
+                    }
+
+                    // Show score feedback
+                    const score = submissionResult.gamification.score
+                    if (score > 0) {
+                      push({
+                        kind: 'success',
+                        message: `🎯 Scored ${score} points! ${submissionResult.gamification.all_tests_passed ? 'All tests passed!' : 'Keep trying!'}`
+                      })
+                    }
+                  }
+
                   setSavedQuestions(prev => ({ ...prev, [currentQuestion.id]: true }))
                   push({ kind: 'success', message: `Question ${currentQuestionIndex + 1} code saved successfully` })
                 } catch (err: any) {
@@ -861,6 +903,41 @@ export default function CodeEditorPage() {
         </div>
 
       </div>
+
+      {/* Gamification Sidebar */}
+      {showGamification && (
+        <div className="gamification-sidebar">
+          <div className="gamification-content">
+            {/* User Stats */}
+            <div className="gamification-section">
+              <UserStats compact />
+            </div>
+
+            {/* Assignment Leaderboard */}
+            <div className="gamification-section">
+              <Leaderboard
+                type="assignment"
+                referenceId={selectedCodeAssignment?.id}
+                limit={10}
+              />
+            </div>
+
+            {/* Achievements */}
+            <div className="gamification-section">
+              <AchievementBadge compact />
+            </div>
+
+            {/* Course Leaderboard */}
+            <div className="gamification-section">
+              <Leaderboard
+                type="course"
+                referenceId={selectedCodeAssignment?.course_offering_id}
+                limit={10}
+              />
+            </div>
+          </div>
+        </div>
+      )}
 
     </div>
   )

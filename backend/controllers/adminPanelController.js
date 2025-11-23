@@ -1,5 +1,11 @@
 import { pool } from '../db/index.js';
 
+// Helper to check if user is super admin
+async function isSuperAdmin(userId) {
+  const r = await pool.query('SELECT is_super FROM admins WHERE user_id = $1', [userId]);
+  return r.rowCount > 0 && r.rows[0].is_super;
+}
+
 export async function adminListMaterials(req, res) {
   try {
     const { departmentId, courseId, material, q } = req.query;
@@ -88,6 +94,15 @@ export async function adminListUsers(req, res) {
     const clauses = [];
     const params = [];
     if (role) { params.push(role); clauses.push(`u.role = $${params.length}`); }
+
+    // Check if super admin
+    const superAdmin = await isSuperAdmin(req.user.id);
+    if (!superAdmin) {
+      // Non-super admins cannot see other admins
+      params.push('admin');
+      clauses.push(`u.role != $${params.length}`);
+    }
+
     const where = clauses.length ? `WHERE ${clauses.join(' AND ')}` : '';
     const r = await pool.query(`
       SELECT u.id, u.email, u.name, u.role, u.department_id, u.roll_number, u.is_active, d.name as department
@@ -140,6 +155,20 @@ export async function adminUpdateUser(req, res) {
     const id = Number(req.params.id);
     if (!id) return res.status(400).json({ error: 'Invalid id' });
     const { role, department_id, is_active, name } = req.body || {};
+
+    // Check permissions
+    const superAdmin = await isSuperAdmin(req.user.id);
+    const targetUser = await pool.query('SELECT role FROM users WHERE id = $1', [id]);
+    if (targetUser.rowCount === 0) return res.status(404).json({ error: 'User not found' });
+    const targetRole = targetUser.rows[0].role;
+
+    if (!superAdmin) {
+      // Non-super cannot modify other admins
+      if (targetRole === 'admin') return res.status(403).json({ error: 'Forbidden: cannot modify admin accounts' });
+      // Cannot set role to admin
+      if (role === 'admin') return res.status(403).json({ error: 'Forbidden: cannot promote to admin' });
+    }
+
     const fields = [];
     const params = [];
     function set(col, val) { params.push(val); fields.push(`${col} = $${params.length}`); }
@@ -164,6 +193,24 @@ export async function adminListDepartments(req, res) {
   } catch (err) {
     console.error('adminListDepartments', err);
     res.status(500).json({ error: 'Internal server error' });
+  }
+}
+
+export async function adminCreateDepartment(req, res) {
+  try {
+    const { code, name } = req.body || {};
+    if (!code || !name) {
+      return res.status(400).json({ error: 'code and name are required' });
+    }
+    const r = await pool.query('INSERT INTO departments (code, name) VALUES ($1, $2) RETURNING id, code, name', [code.toUpperCase(), name]);
+    res.status(201).json({ department: r.rows[0] });
+  } catch (err) {
+    console.error('adminCreateDepartment', err);
+    if (err.code === '23505') { // unique violation
+      res.status(400).json({ error: 'Department code already exists' });
+    } else {
+      res.status(500).json({ error: 'Internal server error' });
+    }
   }
 }
 
@@ -356,21 +403,49 @@ export async function adminGetSubmissions(req, res) {
   try {
     const assignmentId = Number(req.params.assignmentId);
     if (!assignmentId) return res.status(400).json({ error: 'Invalid assignment id' });
-    
+
     const r = await pool.query(`
       SELECT s.id, s.submitted_at, s.final_score as marks_obtained, s.comments as feedback, s.graded_at,
-             u.id as student_id, u.name as student_name, u.email as student_email, u.roll_number,
-             g.name as grader_name
+              u.id as student_id, u.name as student_name, u.email as student_email, u.roll_number,
+              g.name as grader_name
       FROM assignment_submissions s
       JOIN users u ON s.student_id = u.id
       LEFT JOIN users g ON s.grader_id = g.id
       WHERE s.assignment_id = $1
       ORDER BY s.submitted_at DESC
     `, [assignmentId]);
-    
+
     res.json({ submissions: r.rows });
   } catch (err) {
     console.error('adminGetSubmissions', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+}
+
+export async function adminDeleteUser(req, res) {
+  try {
+    const id = Number(req.params.id);
+    if (!id) return res.status(400).json({ error: 'Invalid id' });
+
+    // Check permissions
+    const superAdmin = await isSuperAdmin(req.user.id);
+    const targetUser = await pool.query('SELECT role FROM users WHERE id = $1', [id]);
+    if (targetUser.rowCount === 0) return res.status(404).json({ error: 'User not found' });
+    const targetRole = targetUser.rows[0].role;
+
+    if (!superAdmin && targetRole === 'admin') {
+      return res.status(403).json({ error: 'Forbidden: cannot delete admin accounts' });
+    }
+
+    // Prevent deleting self
+    if (id === req.user.id) {
+      return res.status(400).json({ error: 'Cannot delete your own account' });
+    }
+
+    await pool.query('DELETE FROM users WHERE id=$1', [id]);
+    res.json({ success: true });
+  } catch (err) {
+    console.error('adminDeleteUser', err);
     res.status(500).json({ error: 'Internal server error' });
   }
 }
