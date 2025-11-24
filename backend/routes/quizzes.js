@@ -1,6 +1,6 @@
 import express from 'express';
 import { requireAuth, requireRole } from '../middleware/auth.js';
-import { createQuiz, getQuiz, getQuizForGrading, submitQuizAttempt, listQuizAttempts, gradeQuizAttempt, gradeQuizAttemptOverall, deleteQuizAttempt, suspendQuizAttempt, resumeQuizAttempt, getSuspendedAttempts } from '../controllers/quizzesController.js';
+import { createQuiz, getQuiz, getQuizForGrading, submitQuizAttempt, listQuizAttempts, gradeQuizAttempt, gradeQuizAttemptOverall, deleteQuizAttempt, suspendQuizAttempt, resumeQuizAttempt, getSuspendedAttempts, getQuizResults, getStudentQuizAttempts } from '../controllers/quizzesController.js';
 
 const router = express.Router();
 
@@ -100,5 +100,11 @@ router.post('/attempts/:attemptId/resume', requireAuth, requireRole('faculty','t
 
 // Delete a quiz attempt (for resetting violated attempts)
 router.delete('/attempts/:attemptId', requireAuth, requireRole('faculty','ta','admin'), deleteQuizAttempt);
+
+// Get quiz results for a student (their attempts for a specific quiz)
+router.get('/:quizId/results', requireAuth, getQuizResults);
+
+// Get all quiz attempts for the current student
+router.get('/student/attempts', requireAuth, getStudentQuizAttempts);
 
 export default router;

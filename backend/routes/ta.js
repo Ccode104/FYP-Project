@@ -1,6 +1,7 @@
 import express from 'express';
 import { requireAuth, requireRole } from '../middleware/auth.js';
 import { assignTA, removeTA, getTADashboardData } from '../controllers/taController.js';
+import { getTAAssignments, getGradingSubmissions, submitGrading } from '../controllers/taController.js';
 import { chatWithTAAgent, getTAAgentSuggestions, generateVivaQuestions, generateDebugQuestions } from '../controllers/taAgentController.js';
 
 const router = express.Router();
@@ -219,5 +220,91 @@ router.post('/agent/viva-questions', requireAuth, requireRole('ta'), generateViv
  *         description: Forbidden - Requires TA role
  */
 router.post('/agent/debug-questions', requireAuth, requireRole('ta'), generateDebugQuestions);
+
+/**
+ * @swagger
+ * /api/ta/assignments:
+ *   get:
+ *     summary: Get assignments assigned to TA for grading
+ *     tags: [TA]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: List of assignments
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Forbidden - Requires TA role
+ */
+router.get('/assignments', requireAuth, requireRole('ta'), getTAAssignments);
+
+/**
+ * @swagger
+ * /api/ta/grading/{assignmentId}/submissions:
+ *   get:
+ *     summary: Get student submissions for grading
+ *     tags: [TA]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: assignmentId
+ *         required: true
+ *         schema:
+ *           type: integer
+ *     responses:
+ *       200:
+ *         description: List of submissions
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Forbidden - Not assigned to grade this assignment
+ */
+router.get('/grading/:assignmentId/submissions', requireAuth, requireRole('ta'), getGradingSubmissions);
+
+/**
+ * @swagger
+ * /api/ta/grading/submit:
+ *   post:
+ *     summary: Submit grading for a submission
+ *     tags: [TA]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - submissionId
+ *             properties:
+ *               submissionId:
+ *                 type: integer
+ *               rubricGrades:
+ *                 type: array
+ *                 items:
+ *                   type: object
+ *                   properties:
+ *                     criterionId:
+ *                       type: integer
+ *                     score:
+ *                       type: number
+ *                     feedback:
+ *                       type: string
+ *               overallComments:
+ *                 type: string
+ *     responses:
+ *       200:
+ *         description: Grading submitted successfully
+ *       400:
+ *         description: Bad request
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Forbidden - Not assigned to grade this submission
+ */
+router.post('/grading/submit', requireAuth, requireRole('ta'), submitGrading);
 
 export default router;

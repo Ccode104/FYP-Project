@@ -2,6 +2,26 @@ import { pool } from '../db/index.js';
 
 export async function createAssignment(req, res) {
   const { course_offering_id, title, description, assignment_type, release_at, due_at, max_score, allow_multiple_submissions, question_ids } = req.body;
+
+  // Check if user has permission to create assignments for this offering
+  if (req.user.role !== 'admin') {
+    const checkQ = `SELECT faculty_id FROM course_offerings WHERE id = $1`;
+    const checkR = await pool.query(checkQ, [course_offering_id]);
+    if (checkR.rowCount === 0) return res.status(404).json({ error: 'Course offering not found' });
+
+    const offering = checkR.rows[0];
+    if (req.user.role === 'faculty' && req.user.id !== offering.faculty_id) {
+      return res.status(403).json({ error: 'Not authorized - you can only create assignments for your own courses' });
+    }
+    // For TA, check if they are assigned to this offering
+    if (req.user.role === 'ta') {
+      const taCheck = await pool.query('SELECT 1 FROM ta_assignments WHERE ta_id = $1 AND course_offering_id = $2', [req.user.id, course_offering_id]);
+      if (taCheck.rowCount === 0) {
+        return res.status(403).json({ error: 'Not authorized - you are not assigned to this course' });
+      }
+    }
+  }
+
   const q = `INSERT INTO assignments (course_offering_id, title, description, assignment_type, release_at, due_at, max_score, allow_multiple_submissions, created_by)
              VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING *`;
   const created_by = req.user?.id || null;

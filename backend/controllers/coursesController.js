@@ -2,6 +2,12 @@ import { pool } from '../db/index.js';
 
 export async function createCourse(req, res) {
   const { code, title, description, department_id, credits } = req.body;
+
+  // Only admins can create courses (faculty can create offerings but not courses)
+  if (req.user.role !== 'admin') {
+    return res.status(403).json({ error: 'Not authorized - only admins can create courses' });
+  }
+
   const q = `INSERT INTO courses (code, title, description, department_id, credits)
              VALUES ($1,$2,$3,$4,$5) RETURNING *`;
   const r = await pool.query(q, [code, title, description, department_id || null, credits || null]);
@@ -29,6 +35,19 @@ export async function listMyCourses(req, res) {
 export async function createOffering(req, res) {
   const { course_id, term, section, faculty_id, max_capacity, start_date, end_date } = req.body;
   console.log(req.body);
+
+  // Check if user has permission to create offerings
+  if (req.user.role !== 'admin') {
+    // Faculty can only create offerings where they are the faculty
+    if (req.user.role === 'faculty' && req.user.id !== Number(faculty_id)) {
+      return res.status(403).json({ error: 'Not authorized - you can only create offerings for yourself' });
+    }
+    // TA cannot create offerings
+    if (req.user.role === 'ta') {
+      return res.status(403).json({ error: 'Not authorized - TAs cannot create course offerings' });
+    }
+  }
+
   const q = `INSERT INTO course_offerings (course_id, term, section, faculty_id, max_capacity, start_date, end_date)
              VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING *`;
   const r = await pool.query(q, [course_id, term, section, faculty_id, max_capacity || null, start_date || null, end_date || null]);
@@ -46,6 +65,25 @@ export async function enroll(req, res) {
   } else {
     studentId = Number(req.body.student_id);
     if (!studentId) return res.status(400).json({ error: 'Missing student_id' });
+
+    // Check if faculty/ta is authorized for this offering
+    if (req.user.role !== 'admin') {
+      const checkQ = `SELECT faculty_id FROM course_offerings WHERE id = $1`;
+      const checkR = await pool.query(checkQ, [offeringId]);
+      if (checkR.rowCount === 0) return res.status(404).json({ error: 'Course offering not found' });
+
+      const offering = checkR.rows[0];
+      if (req.user.role === 'faculty' && req.user.id !== offering.faculty_id) {
+        return res.status(403).json({ error: 'Not authorized - you can only enroll students in your own courses' });
+      }
+      // For TA, check if they are assigned to this offering
+      if (req.user.role === 'ta') {
+        const taCheck = await pool.query('SELECT 1 FROM ta_assignments WHERE ta_id = $1 AND course_offering_id = $2', [req.user.id, offeringId]);
+        if (taCheck.rowCount === 0) {
+          return res.status(403).json({ error: 'Not authorized - you are not assigned to this course' });
+        }
+      }
+    }
   }
 
   const q = `INSERT INTO enrollments (course_offering_id, student_id)
@@ -80,6 +118,24 @@ export async function listMyOfferings(req, res) {
              ORDER BY o.id DESC`;
   const r = await pool.query(q, [facultyId]);
   res.json(r.rows);
+}
+
+export async function deleteCourse(req, res) {
+  const courseId = Number(req.params.courseId);
+  if (!courseId) return res.status(400).json({ error: 'Missing course id' });
+
+  // Check if course has any offerings
+  const offeringCheck = await pool.query(`SELECT COUNT(*)::int as count FROM course_offerings WHERE course_id = $1`, [courseId]);
+  if (offeringCheck.rows[0].count > 0) {
+    return res.status(400).json({ error: 'Cannot delete course with existing offerings. Delete offerings first.' });
+  }
+
+  // Delete the course
+  const q = `DELETE FROM courses WHERE id = $1 RETURNING *`;
+  const r = await pool.query(q, [courseId]);
+  if (r.rowCount === 0) return res.status(404).json({ error: 'Course not found' });
+
+  res.json({ success: true, deleted: r.rows[0] });
 }
 
 export async function offeringOverview(req, res) {

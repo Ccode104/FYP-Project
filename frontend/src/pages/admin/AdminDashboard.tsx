@@ -4,8 +4,8 @@ import { useAuth } from '../../context/AuthContext'
 import { useNavigate } from 'react-router-dom'
 import CourseCard from '../../components/CourseCard'
 import './AdminDashboard.css'
-import { listUsers, getUserOverview, updateUser, deleteUser, listDepartments, createDepartment, getCoursesByDepartment, getCourseDetails, getAssignmentsByOffering, getAssignmentsByFaculty, getSubmissionsByAssignment, assignFacultyToCourse, getOverview } from '../../services/admin'
-import { createCourse, createOffering, listCourses } from '../../services/courses'
+import { listUsers, getUserOverview, updateUser, deleteUser, listDepartments, createDepartment, updateDepartment, deleteDepartment, getCoursesByDepartment, getCourseDetails, getAssignmentsByOffering, getAssignmentsByFaculty, getSubmissionsByAssignment, assignFacultyToCourse, getOverview, deleteCourse, listCourses, createCourse, updateCourse, listOfferings, createOffering, updateOffering, deleteOffering, listAssignments, createAssignment, updateAssignment, deleteAssignment, listQuizzes, createQuiz, updateQuiz, deleteQuiz, listEnrollments, createEnrollment, deleteEnrollment } from '../../services/admin'
+import { createCourse as createCourseFromCourses, createOffering as createOfferingFromCourses, listCourses as listCoursesFromCourses } from '../../services/courses'
 import { register } from '../../services/auth'
 import { useToast } from '../../components/ToastProvider'
 interface User {
@@ -24,7 +24,7 @@ export default function AdminDashboard() {
   const { push } = useToast()
 
   const isAdmin = user?.role === 'admin'
-  const [tab, setTab] = useState<'overview' | 'users' | 'courses' | 'departments' | 'materials' | 'reports'>('overview')
+  const [tab, setTab] = useState<'overview' | 'users' | 'courses' | 'departments' | 'assignments' | 'quizzes' | 'materials' | 'reports'>('overview')
 
   // Users state
   const [roleFilter, setRoleFilter] = useState<'student' | 'faculty' | 'ta' | 'admin' | ''>('')
@@ -222,6 +222,87 @@ const filteredUsers = useMemo(() =>
   const [offerEnd, setOfferEnd] = useState('')
   const [savingOffering, setSavingOffering] = useState(false)
 
+  // Offerings management state
+  const [offerings, setOfferings] = useState<any[]>([])
+  const [loadingOfferings, setLoadingOfferings] = useState(false)
+  const [offeringSearch, setOfferingSearch] = useState('')
+  const [offeringSearchType, setOfferingSearchType] = useState<'all' | 'course' | 'faculty' | 'term'>('all')
+  const [offeringCourseFilter, setOfferingCourseFilter] = useState('')
+  const [offeringFacultyFilter, setOfferingFacultyFilter] = useState('')
+  const [showCreateOffering, setShowCreateOffering] = useState(false)
+  const [newOffering, setNewOffering] = useState({
+    course_id: '',
+    term: 'W25',
+    section: 'A',
+    faculty_id: '',
+    max_capacity: '',
+    start_date: '',
+    end_date: ''
+  })
+  const [creatingOffering, setCreatingOffering] = useState(false)
+
+  // Enrollments management state
+  const [enrollments, setEnrollments] = useState<any[]>([])
+  const [loadingEnrollments, setLoadingEnrollments] = useState(false)
+  const [enrollmentSearch, setEnrollmentSearch] = useState('')
+  const [enrollmentSearchType, setEnrollmentSearchType] = useState<'all' | 'student' | 'course' | 'offering'>('all')
+  const [enrollmentOfferingFilter, setEnrollmentOfferingFilter] = useState('')
+  const [enrollmentStudentFilter, setEnrollmentStudentFilter] = useState('')
+  const [showCreateEnrollment, setShowCreateEnrollment] = useState(false)
+  const [newEnrollment, setNewEnrollment] = useState({
+    course_offering_id: '',
+    student_id: ''
+  })
+  const [creatingEnrollment, setCreatingEnrollment] = useState(false)
+
+  // Assignments management state
+  const [assignments, setAssignments] = useState<any[]>([])
+  const [loadingAssignments, setLoadingAssignments] = useState(false)
+  const [assignmentSearch, setAssignmentSearch] = useState('')
+  const [assignmentSearchType, setAssignmentSearchType] = useState<'all' | 'title' | 'course' | 'faculty'>('all')
+  const [assignmentOfferingFilter, setAssignmentOfferingFilter] = useState('')
+  const [assignmentFacultyFilter, setAssignmentFacultyFilter] = useState('')
+  const [showCreateAssignment, setShowCreateAssignment] = useState(false)
+  const [newAssignment, setNewAssignment] = useState({
+    course_offering_id: '',
+    title: '',
+    description: '',
+    assignment_type: 'homework',
+    release_at: '',
+    due_at: '',
+    max_score: '100',
+    allow_multiple_submissions: false
+  })
+  const [creatingAssignment, setCreatingAssignment] = useState(false)
+
+  // Quizzes management state
+  const [quizzes, setQuizzes] = useState<any[]>([])
+  const [loadingQuizzes, setLoadingQuizzes] = useState(false)
+  const [quizSearch, setQuizSearch] = useState('')
+  const [quizSearchType, setQuizSearchType] = useState<'all' | 'title' | 'course'>('all')
+  const [quizOfferingFilter, setQuizOfferingFilter] = useState('')
+  const [showCreateQuiz, setShowCreateQuiz] = useState(false)
+  const [newQuiz, setNewQuiz] = useState({
+    course_offering_id: '',
+    title: '',
+    start_at: '',
+    end_at: '',
+    max_score: '100',
+    is_proctored: false,
+    time_limit: '',
+    allow_suspension_resume: true,
+    proctoring_config_id: ''
+  })
+  const [creatingQuiz, setCreatingQuiz] = useState(false)
+
+  // Course management modals
+  const [showManageOfferings, setShowManageOfferings] = useState(false)
+  const [showManageEnrollments, setShowManageEnrollments] = useState(false)
+  const [courseEnrollments, setCourseEnrollments] = useState<any[]>([])
+  const [loadingCourseEnrollments, setLoadingCourseEnrollments] = useState(false)
+  const [courseEnrollmentSearch, setCourseEnrollmentSearch] = useState('')
+  const [courseEnrollmentSearchType, setCourseEnrollmentSearchType] = useState<'all' | 'student' | 'offering'>('all')
+
   // Overview state
   const [overviewStats, setOverviewStats] = useState<any>(null)
   const [loadingOverview, setLoadingOverview] = useState(false)
@@ -240,7 +321,7 @@ const filteredUsers = useMemo(() =>
     try {
       setLoadingCourses(true)
       const r = await listCourses()
-      const coursesWithDetails = await Promise.all(r.map(async (c: any) => {
+      const coursesWithDetails = await Promise.all((r.courses || []).map(async (c: any) => {
         const details = await getCourseDetails(c.id)
         return { ...c, offerings: details.offerings || [] }
       }))
@@ -249,6 +330,54 @@ const filteredUsers = useMemo(() =>
       console.error('Error loading admin courses:', err)
     } finally {
       setLoadingCourses(false)
+    }
+  }
+
+  const loadOfferings = async () => {
+    try {
+      setLoadingOfferings(true)
+      const r = await listOfferings()
+      setOfferings(r.offerings)
+    } catch (err) {
+      console.error('Error loading offerings:', err)
+    } finally {
+      setLoadingOfferings(false)
+    }
+  }
+
+  const loadEnrollments = async () => {
+    try {
+      setLoadingEnrollments(true)
+      const r = await listEnrollments()
+      setEnrollments(r.enrollments)
+    } catch (err) {
+      console.error('Error loading enrollments:', err)
+    } finally {
+      setLoadingEnrollments(false)
+    }
+  }
+
+  const loadAssignments = async () => {
+    try {
+      setLoadingAssignments(true)
+      const r = await listAssignments()
+      setAssignments(r.assignments)
+    } catch (err) {
+      console.error('Error loading assignments:', err)
+    } finally {
+      setLoadingAssignments(false)
+    }
+  }
+
+  const loadQuizzes = async () => {
+    try {
+      setLoadingQuizzes(true)
+      const r = await listQuizzes()
+      setQuizzes(r.quizzes)
+    } catch (err) {
+      console.error('Error loading quizzes:', err)
+    } finally {
+      setLoadingQuizzes(false)
     }
   }
 
@@ -261,6 +390,23 @@ const filteredUsers = useMemo(() =>
       console.error('Error loading overview:', err)
     } finally {
       setLoadingOverview(false)
+    }
+  }
+
+  const loadCourseEnrollments = async (courseId: number) => {
+    try {
+      setLoadingCourseEnrollments(true)
+      // We'll need to add a backend endpoint for this
+      const r = await listEnrollments()
+      // Filter enrollments for this course's offerings
+      const courseOfferings = adminCourses.find((c: any) => c.id === courseId)?.offerings || []
+      const offeringIds = courseOfferings.map((o: any) => o.offering_id)
+      const filteredEnrollments = r.enrollments.filter((e: any) => offeringIds.includes(e.course_offering_id))
+      setCourseEnrollments(filteredEnrollments)
+    } catch (err) {
+      console.error('Error loading course enrollments:', err)
+    } finally {
+      setLoadingCourseEnrollments(false)
     }
   }
 
@@ -339,9 +485,22 @@ const filteredUsers = useMemo(() =>
     }
   }, [isAdmin, tab])
 
+
   useEffect(() => {
     if (isAdmin && tab === 'overview') {
       void loadOverview()
+    }
+  }, [isAdmin, tab])
+
+  useEffect(() => {
+    if (isAdmin && tab === 'assignments') {
+      void loadAssignments()
+    }
+  }, [isAdmin, tab])
+
+  useEffect(() => {
+    if (isAdmin && tab === 'quizzes') {
+      void loadQuizzes()
     }
   }, [isAdmin, tab])
 
@@ -388,10 +547,12 @@ const filteredUsers = useMemo(() =>
       <div className="tabs">
         <button className={`tab ${tab === 'overview' ? 'active' : ''}`} onClick={() => setTab('overview')}>Overview</button>
         <button className={`tab ${tab === 'users' ? 'active' : ''}`} onClick={() => setTab('users')}>Users</button>
-        <button className={`tab ${tab === 'courses' ? 'active' : ''}`} onClick={() => setTab('courses')}>Courses</button>
         <button className={`tab ${tab === 'departments' ? 'active' : ''}`} onClick={() => setTab('departments')}>Departments</button>
+        <button className={`tab ${tab === 'courses' ? 'active' : ''}`} onClick={() => setTab('courses')}>Courses</button>
+        <button className={`tab ${tab === 'assignments' ? 'active' : ''}`} onClick={() => setTab('assignments')}>Assignments</button>
+        <button className={`tab ${tab === 'quizzes' ? 'active' : ''}`} onClick={() => setTab('quizzes')}>Quizzes</button>
         <button className={`tab ${tab === 'materials' ? 'active' : ''}`} onClick={() => setTab('materials')}>Materials</button>
-        <button className={`tab ${tab === 'reports' ? 'active' : ''}`} onClick={() => setTab('reports')}>Reports</button>
+        <button className={`tab ${tab === 'reports' ? 'active' : ''}`} onClick(() => setTab('reports')}>Reports</button>
       </div>
 
       {tab === 'users' && (
@@ -589,6 +750,43 @@ const filteredUsers = useMemo(() =>
                         <p>No offerings yet.</p>
                       )}
                     </div>
+                    <div style={{ marginTop: 12, display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
+                      <button
+                        className="btn btn-secondary"
+                        onClick={() => {
+                          setSelectedCourse(course)
+                          setShowManageOfferings(true)
+                        }}
+                      >
+                        Manage Offerings
+                      </button>
+                      <button
+                        className="btn btn-secondary"
+                        onClick={() => {
+                          setSelectedCourse(course)
+                          setShowManageEnrollments(true)
+                        }}
+                      >
+                        Manage Enrollments
+                      </button>
+                      <button
+                        className={`btn ${course.offerings && course.offerings.length > 0 ? 'btn-disabled' : 'btn-danger'}`}
+                        disabled={course.offerings && course.offerings.length > 0}
+                        onClick={async () => {
+                          if (confirm(`Delete course "${course.code} - ${course.title}"? This action cannot be undone.`)) {
+                            try {
+                              await deleteCourse(course.id)
+                              push({ kind: 'success', message: 'Course deleted successfully' })
+                              loadAdminCourses()
+                            } catch (e: any) {
+                              push({ kind: 'error', message: e?.message || 'Failed to delete course' })
+                            }
+                          }
+                        }}
+                      >
+                        Delete Course
+                      </button>
+                    </div>
                   </div>
                 ))
               })()}
@@ -597,6 +795,203 @@ const filteredUsers = useMemo(() =>
           )}
         </section>
       )}
+
+
+      {tab === 'assignments' && (
+        <section className="card">
+          <div className="section-header">
+            <h3>Assignments</h3>
+            <button className="btn btn-primary" onClick={() => setShowCreateAssignment(true)}>Create Assignment</button>
+          </div>
+          <div className="filters" style={{ marginBottom: '16px' }}>
+            <div style={{ display: 'flex', gap: '12px', marginBottom: '12px' }}>
+              <input
+                className="input"
+                type="text"
+                placeholder="Search assignments..."
+                value={assignmentSearch}
+                onChange={(e) => setAssignmentSearch(e.target.value)}
+                style={{ flex: 1 }}
+              />
+              <select
+                className="input"
+                value={assignmentSearchType}
+                onChange={(e) => setAssignmentSearchType(e.target.value as 'all' | 'title' | 'course' | 'faculty')}
+                style={{ width: '150px' }}
+              >
+                <option value="all">All Fields</option>
+                <option value="title">Title</option>
+                <option value="course">Course</option>
+                <option value="faculty">Faculty</option>
+              </select>
+            </div>
+            <div style={{ display: 'flex', gap: '12px' }}>
+              <select
+                className="input"
+                value={assignmentOfferingFilter}
+                onChange={(e) => setAssignmentOfferingFilter(e.target.value)}
+                style={{ flex: 1 }}
+              >
+                <option value="">All Offerings</option>
+                {offerings.map((o: any) => (
+                  <option key={o.id} value={o.id}>{o.course_code} {o.term}{o.section ? '-' + o.section : ''}</option>
+                ))}
+              </select>
+              <select
+                className="input"
+                value={assignmentFacultyFilter}
+                onChange={(e) => setAssignmentFacultyFilter(e.target.value)}
+                style={{ flex: 1 }}
+              >
+                <option value="">All Faculty</option>
+                {usersList.filter((u: any) => u.role === 'faculty').map((f: any) => (
+                  <option key={f.id} value={f.id}>{f.name || f.email}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+          {loadingAssignments ? (
+            <p>Loading assignments...</p>
+          ) : (
+            <div className="assignments-list">
+              {assignments.length > 0 ? (
+                assignments
+                  .filter((a: any) => {
+                    if (assignmentOfferingFilter && a.course_offering_id !== Number(assignmentOfferingFilter)) return false;
+                    if (assignmentFacultyFilter) {
+                      const offering = offerings.find((o: any) => o.id === a.course_offering_id);
+                      if (!offering || offering.faculty_id !== Number(assignmentFacultyFilter)) return false;
+                    }
+                    return true;
+                  })
+                  .map((assignment: any) => (
+                    <div key={assignment.id} className="card assignment-admin-card" style={{ marginBottom: 12 }}>
+                      <div className="assignment-header">
+                        <h4 className="assignment-title">{assignment.title}</h4>
+                        <p className="assignment-description">{assignment.description}</p>
+                        <p className="assignment-details">Type: {assignment.assignment_type}</p>
+                        <p className="assignment-details">Max Score: {assignment.max_score}</p>
+                        <p className="assignment-details">Due: {assignment.due_at ? new Date(assignment.due_at).toLocaleDateString() : 'No due date'}</p>
+                      </div>
+                      <div style={{ marginTop: 12, display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
+                        <button className="btn btn-secondary">Edit</button>
+                        <button className="btn btn-secondary">View Submissions</button>
+                        <button
+                          className="btn btn-danger"
+                          onClick={async () => {
+                            if (confirm(`Delete assignment "${assignment.title}"? This action cannot be undone.`)) {
+                              try {
+                                await deleteAssignment(assignment.id);
+                                push({ kind: 'success', message: 'Assignment deleted successfully' });
+                                loadAssignments();
+                              } catch (e: any) {
+                                push({ kind: 'error', message: e?.message || 'Failed to delete assignment' });
+                              }
+                            }
+                          }}
+                        >
+                          Delete
+                        </button>
+                      </div>
+                    </div>
+                  ))
+              ) : (
+                <p className="muted">No assignments found.</p>
+              )}
+            </div>
+          )}
+        </section>
+      )}
+
+      {tab === 'quizzes' && (
+        <section className="card">
+          <div className="section-header">
+            <h3>Quizzes</h3>
+            <button className="btn btn-primary" onClick={() => setShowCreateQuiz(true)}>Create Quiz</button>
+          </div>
+          <div className="filters" style={{ marginBottom: '16px' }}>
+            <div style={{ display: 'flex', gap: '12px', marginBottom: '12px' }}>
+              <input
+                className="input"
+                type="text"
+                placeholder="Search quizzes..."
+                value={quizSearch}
+                onChange={(e) => setQuizSearch(e.target.value)}
+                style={{ flex: 1 }}
+              />
+              <select
+                className="input"
+                value={quizSearchType}
+                onChange={(e) => setQuizSearchType(e.target.value as 'all' | 'title' | 'course')}
+                style={{ width: '150px' }}
+              >
+                <option value="all">All Fields</option>
+                <option value="title">Title</option>
+                <option value="course">Course</option>
+              </select>
+            </div>
+            <select
+              className="input"
+              value={quizOfferingFilter}
+              onChange={(e) => setQuizOfferingFilter(e.target.value)}
+              style={{ width: '100%' }}
+            >
+              <option value="">All Offerings</option>
+              {offerings.map((o: any) => (
+                <option key={o.id} value={o.id}>{o.course_code} {o.term}{o.section ? '-' + o.section : ''}</option>
+              ))}
+            </select>
+          </div>
+          {loadingQuizzes ? (
+            <p>Loading quizzes...</p>
+          ) : (
+            <div className="quizzes-list">
+              {quizzes.length > 0 ? (
+                quizzes
+                  .filter((q: any) => {
+                    if (quizOfferingFilter && q.course_offering_id !== Number(quizOfferingFilter)) return false;
+                    return true;
+                  })
+                  .map((quiz: any) => (
+                    <div key={quiz.id} className="card quiz-admin-card" style={{ marginBottom: 12 }}>
+                      <div className="quiz-header">
+                        <h4 className="quiz-title">{quiz.title || `Quiz ${quiz.id}`}</h4>
+                        <p className="quiz-details">Max Score: {quiz.max_score}</p>
+                        <p className="quiz-details">Proctored: {quiz.is_proctored ? 'Yes' : 'No'}</p>
+                        <p className="quiz-details">Time Limit: {quiz.time_limit ? `${quiz.time_limit} minutes` : 'No limit'}</p>
+                        <p className="quiz-details">Start: {quiz.start_at ? new Date(quiz.start_at).toLocaleString() : 'Not set'}</p>
+                        <p className="quiz-details">End: {quiz.end_at ? new Date(quiz.end_at).toLocaleString() : 'Not set'}</p>
+                      </div>
+                      <div style={{ marginTop: 12, display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
+                        <button className="btn btn-secondary">Edit</button>
+                        <button className="btn btn-secondary">View Attempts</button>
+                        <button
+                          className="btn btn-danger"
+                          onClick={async () => {
+                            if (confirm(`Delete quiz "${quiz.title || `Quiz ${quiz.id}`}"? This action cannot be undone.`)) {
+                              try {
+                                await deleteQuiz(quiz.id);
+                                push({ kind: 'success', message: 'Quiz deleted successfully' });
+                                loadQuizzes();
+                              } catch (e: any) {
+                                push({ kind: 'error', message: e?.message || 'Failed to delete quiz' });
+                              }
+                            }
+                          }}
+                        >
+                          Delete
+                        </button>
+                      </div>
+                    </div>
+                  ))
+              ) : (
+                <p className="muted">No quizzes found.</p>
+              )}
+            </div>
+          )}
+        </section>
+      )}
+
 
       {tab === 'departments' && (
         <section className="card">
@@ -933,6 +1328,279 @@ const filteredUsers = useMemo(() =>
         </div>
       )}
 
+      {showCreateOffering && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50, backdropFilter: 'blur(4px)', padding: '20px', overflowY: 'auto' }}>
+          <div className="card" style={{ width: '100%', maxWidth: 520, background: 'var(--surface)', borderRadius: 'var(--radius-lg)', padding: 24, boxShadow: '0 20px 50px rgba(0,0,0,0.3)', border: '1px solid var(--border)', margin: 'auto', maxHeight: '90vh', overflowY: 'auto' }}>
+            <h3 className="h4" style={{ marginTop: 0, marginBottom: 20, color: 'var(--text)' }}>Create New Course Offering</h3>
+            <div className="form" style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+              <select className="input" value={newOffering.course_id} onChange={(e) => setNewOffering({ ...newOffering, course_id: e.target.value })}>
+                <option value="">Select Course</option>
+                {adminCourses.map((c: any) => (
+                  <option key={c.id} value={c.id}>{c.code} - {c.title}</option>
+                ))}
+              </select>
+              <input className="input" value={newOffering.term} onChange={(e) => setNewOffering({ ...newOffering, term: e.target.value })} placeholder="Term (e.g., W25)" />
+              <input className="input" value={newOffering.section} onChange={(e) => setNewOffering({ ...newOffering, section: e.target.value })} placeholder="Section (e.g., A)" />
+              <select className="input" value={newOffering.faculty_id} onChange={(e) => setNewOffering({ ...newOffering, faculty_id: e.target.value })}>
+                <option value="">Select Faculty</option>
+                {usersList.filter((u: any) => u.role === 'faculty').map((f: any) => (
+                  <option key={f.id} value={f.id}>{f.name || f.email}</option>
+                ))}
+              </select>
+              <input className="input" type="number" value={newOffering.max_capacity} onChange={(e) => setNewOffering({ ...newOffering, max_capacity: e.target.value })} placeholder="Max Capacity (Optional)" />
+              <div className="grid" style={{ gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                <input className="input" type="date" value={newOffering.start_date} onChange={(e) => setNewOffering({ ...newOffering, start_date: e.target.value })} placeholder="Start Date" />
+                <input className="input" type="date" value={newOffering.end_date} onChange={(e) => setNewOffering({ ...newOffering, end_date: e.target.value })} placeholder="End Date" />
+              </div>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 12, marginTop: 24 }}>
+              <button className="btn btn-secondary" onClick={() => setShowCreateOffering(false)} disabled={creatingOffering}>Cancel</button>
+              <button
+                className="btn btn-primary"
+                onClick={async () => {
+                  if (!newOffering.course_id || !newOffering.term || !newOffering.faculty_id) return
+                  try {
+                    setCreatingOffering(true)
+                    await createOffering({
+                      course_id: Number(newOffering.course_id),
+                      term: newOffering.term,
+                      section: newOffering.section || undefined,
+                      faculty_id: Number(newOffering.faculty_id),
+                      max_capacity: newOffering.max_capacity ? Number(newOffering.max_capacity) : undefined,
+                      start_date: newOffering.start_date || undefined,
+                      end_date: newOffering.end_date || undefined,
+                    })
+                    setShowCreateOffering(false)
+                    setNewOffering({ course_id: '', term: 'W25', section: 'A', faculty_id: '', max_capacity: '', start_date: '', end_date: '' })
+                    push({ kind: 'success', message: 'Offering created successfully' })
+                    loadOfferings()
+                  } catch (e: any) {
+                    push({ kind: 'error', message: e?.message || 'Failed to create offering' })
+                  } finally {
+                    setCreatingOffering(false)
+                  }
+                }}
+                disabled={creatingOffering || !newOffering.course_id || !newOffering.term || !newOffering.faculty_id}
+              >
+                {creatingOffering ? 'Creating…' : 'Create Offering'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showCreateEnrollment && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50, backdropFilter: 'blur(4px)', padding: '20px', overflowY: 'auto' }}>
+          <div className="card" style={{ width: '100%', maxWidth: 520, background: 'var(--surface)', borderRadius: 'var(--radius-lg)', padding: 24, boxShadow: '0 20px 50px rgba(0,0,0,0.3)', border: '1px solid var(--border)', margin: 'auto', maxHeight: '90vh', overflowY: 'auto' }}>
+            <h3 className="h4" style={{ marginTop: 0, marginBottom: 20, color: 'var(--text)' }}>Create New Enrollment</h3>
+            <div className="form" style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+              <select className="input" value={newEnrollment.course_offering_id} onChange={(e) => setNewEnrollment({ ...newEnrollment, course_offering_id: e.target.value })}>
+                <option value="">Select Course Offering</option>
+                {offerings.map((o: any) => (
+                  <option key={o.id} value={o.id}>{o.course_code} {o.term}{o.section ? '-' + o.section : ''} - {o.faculty_name || 'N/A'}</option>
+                ))}
+              </select>
+              <select className="input" value={newEnrollment.student_id} onChange={(e) => setNewEnrollment({ ...newEnrollment, student_id: e.target.value })}>
+                <option value="">Select Student</option>
+                {usersList.filter((u: any) => u.role === 'student').map((s: any) => (
+                  <option key={s.id} value={s.id}>{s.name || s.email} ({s.roll_number || 'No Roll Number'})</option>
+                ))}
+              </select>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 12, marginTop: 24 }}>
+              <button className="btn btn-secondary" onClick={() => setShowCreateEnrollment(false)} disabled={creatingEnrollment}>Cancel</button>
+              <button
+                className="btn btn-primary"
+                onClick={async () => {
+                  if (!newEnrollment.course_offering_id || !newEnrollment.student_id) return
+                  try {
+                    setCreatingEnrollment(true)
+                    await createEnrollment({
+                      course_offering_id: Number(newEnrollment.course_offering_id),
+                      student_id: Number(newEnrollment.student_id),
+                    })
+                    setShowCreateEnrollment(false)
+                    setNewEnrollment({ course_offering_id: '', student_id: '' })
+                    push({ kind: 'success', message: 'Enrollment created successfully' })
+                    loadEnrollments()
+                  } catch (e: any) {
+                    push({ kind: 'error', message: e?.message || 'Failed to create enrollment' })
+                  } finally {
+                    setCreatingEnrollment(false)
+                  }
+                }}
+                disabled={creatingEnrollment || !newEnrollment.course_offering_id || !newEnrollment.student_id}
+              >
+                {creatingEnrollment ? 'Creating…' : 'Create Enrollment'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showCreateAssignment && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50, backdropFilter: 'blur(4px)', padding: '20px', overflowY: 'auto' }}>
+          <div className="card" style={{ width: '100%', maxWidth: 520, background: 'var(--surface)', borderRadius: 'var(--radius-lg)', padding: 24, boxShadow: '0 20px 50px rgba(0,0,0,0.3)', border: '1px solid var(--border)', margin: 'auto', maxHeight: '90vh', overflowY: 'auto' }}>
+            <h3 className="h4" style={{ marginTop: 0, marginBottom: 20, color: 'var(--text)' }}>Create New Assignment</h3>
+            <div className="form" style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+              <select className="input" value={newAssignment.course_offering_id} onChange={(e) => setNewAssignment({ ...newAssignment, course_offering_id: e.target.value })}>
+                <option value="">Select Course Offering</option>
+                {offerings.map((o: any) => (
+                  <option key={o.id} value={o.id}>{o.course_code} {o.term}{o.section ? '-' + o.section : ''} - {o.faculty_name || 'N/A'}</option>
+                ))}
+              </select>
+              <input className="input" value={newAssignment.title} onChange={(e) => setNewAssignment({ ...newAssignment, title: e.target.value })} placeholder="Assignment Title" />
+              <textarea className="input" value={newAssignment.description} onChange={(e) => setNewAssignment({ ...newAssignment, description: e.target.value })} placeholder="Assignment Description" rows={3} />
+              <select className="input" value={newAssignment.assignment_type} onChange={(e) => setNewAssignment({ ...newAssignment, assignment_type: e.target.value })}>
+                <option value="homework">Homework</option>
+                <option value="project">Project</option>
+                <option value="exam">Exam</option>
+                <option value="quiz">Quiz</option>
+                <option value="other">Other</option>
+              </select>
+              <input className="input" type="number" value={newAssignment.max_score} onChange={(e) => setNewAssignment({ ...newAssignment, max_score: e.target.value })} placeholder="Max Score" />
+              <div className="grid" style={{ gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                <input className="input" type="datetime-local" value={newAssignment.release_at} onChange={(e) => setNewAssignment({ ...newAssignment, release_at: e.target.value })} placeholder="Release Date" />
+                <input className="input" type="datetime-local" value={newAssignment.due_at} onChange={(e) => setNewAssignment({ ...newAssignment, due_at: e.target.value })} placeholder="Due Date" />
+              </div>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <input
+                  type="checkbox"
+                  checked={newAssignment.allow_multiple_submissions}
+                  onChange={(e) => setNewAssignment({ ...newAssignment, allow_multiple_submissions: e.target.checked })}
+                />
+                Allow Multiple Submissions
+              </label>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 12, marginTop: 24 }}>
+              <button className="btn btn-secondary" onClick={() => setShowCreateAssignment(false)} disabled={creatingAssignment}>Cancel</button>
+              <button
+                className="btn btn-primary"
+                onClick={async () => {
+                  if (!newAssignment.course_offering_id || !newAssignment.title || !newAssignment.max_score) return
+                  try {
+                    setCreatingAssignment(true)
+                    await createAssignment({
+                      course_offering_id: Number(newAssignment.course_offering_id),
+                      title: newAssignment.title,
+                      description: newAssignment.description || undefined,
+                      assignment_type: newAssignment.assignment_type,
+                      release_at: newAssignment.release_at || undefined,
+                      due_at: newAssignment.due_at || undefined,
+                      max_score: Number(newAssignment.max_score),
+                      allow_multiple_submissions: newAssignment.allow_multiple_submissions,
+                    })
+                    setShowCreateAssignment(false)
+                    setNewAssignment({
+                      course_offering_id: '',
+                      title: '',
+                      description: '',
+                      assignment_type: 'homework',
+                      release_at: '',
+                      due_at: '',
+                      max_score: '100',
+                      allow_multiple_submissions: false
+                    })
+                    push({ kind: 'success', message: 'Assignment created successfully' })
+                    loadAssignments()
+                  } catch (e: any) {
+                    push({ kind: 'error', message: e?.message || 'Failed to create assignment' })
+                  } finally {
+                    setCreatingAssignment(false)
+                  }
+                }}
+                disabled={creatingAssignment || !newAssignment.course_offering_id || !newAssignment.title || !newAssignment.max_score}
+              >
+                {creatingAssignment ? 'Creating…' : 'Create Assignment'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showCreateQuiz && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50, backdropFilter: 'blur(4px)', padding: '20px', overflowY: 'auto' }}>
+          <div className="card" style={{ width: '100%', maxWidth: 520, background: 'var(--surface)', borderRadius: 'var(--radius-lg)', padding: 24, boxShadow: '0 20px 50px rgba(0,0,0,0.3)', border: '1px solid var(--border)', margin: 'auto', maxHeight: '90vh', overflowY: 'auto' }}>
+            <h3 className="h4" style={{ marginTop: 0, marginBottom: 20, color: 'var(--text)' }}>Create New Quiz</h3>
+            <div className="form" style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+              <select className="input" value={newQuiz.course_offering_id} onChange={(e) => setNewQuiz({ ...newQuiz, course_offering_id: e.target.value })}>
+                <option value="">Select Course Offering</option>
+                {offerings.map((o: any) => (
+                  <option key={o.id} value={o.id}>{o.course_code} {o.term}{o.section ? '-' + o.section : ''} - {o.faculty_name || 'N/A'}</option>
+                ))}
+              </select>
+              <input className="input" value={newQuiz.title} onChange={(e) => setNewQuiz({ ...newQuiz, title: e.target.value })} placeholder="Quiz Title (Optional)" />
+              <input className="input" type="number" value={newQuiz.max_score} onChange={(e) => setNewQuiz({ ...newQuiz, max_score: e.target.value })} placeholder="Max Score" />
+              <div className="grid" style={{ gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                <input className="input" type="datetime-local" value={newQuiz.start_at} onChange={(e) => setNewQuiz({ ...newQuiz, start_at: e.target.value })} placeholder="Start Date" />
+                <input className="input" type="datetime-local" value={newQuiz.end_at} onChange={(e) => setNewQuiz({ ...newQuiz, end_at: e.target.value })} placeholder="End Date" />
+              </div>
+              <input className="input" type="number" value={newQuiz.time_limit} onChange={(e) => setNewQuiz({ ...newQuiz, time_limit: e.target.value })} placeholder="Time Limit (minutes, optional)" />
+              <label style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <input
+                  type="checkbox"
+                  checked={newQuiz.is_proctored}
+                  onChange={(e) => setNewQuiz({ ...newQuiz, is_proctored: e.target.checked })}
+                />
+                Is Proctored
+              </label>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <input
+                  type="checkbox"
+                  checked={newQuiz.allow_suspension_resume}
+                  onChange={(e) => setNewQuiz({ ...newQuiz, allow_suspension_resume: e.target.checked })}
+                />
+                Allow Suspension & Resume
+              </label>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 12, marginTop: 24 }}>
+              <button className="btn btn-secondary" onClick={() => setShowCreateQuiz(false)} disabled={creatingQuiz}>Cancel</button>
+              <button
+                className="btn btn-primary"
+                onClick={async () => {
+                  if (!newQuiz.course_offering_id || !newQuiz.max_score) return
+                  try {
+                    setCreatingQuiz(true)
+                    await createQuiz({
+                      course_offering_id: Number(newQuiz.course_offering_id),
+                      title: newQuiz.title || undefined,
+                      start_at: newQuiz.start_at || undefined,
+                      end_at: newQuiz.end_at || undefined,
+                      max_score: Number(newQuiz.max_score),
+                      is_proctored: newQuiz.is_proctored,
+                      time_limit: newQuiz.time_limit ? Number(newQuiz.time_limit) : undefined,
+                      allow_suspension_resume: newQuiz.allow_suspension_resume,
+                      proctoring_config_id: newQuiz.proctoring_config_id ? Number(newQuiz.proctoring_config_id) : undefined,
+                    })
+                    setShowCreateQuiz(false)
+                    setNewQuiz({
+                      course_offering_id: '',
+                      title: '',
+                      start_at: '',
+                      end_at: '',
+                      max_score: '100',
+                      is_proctored: false,
+                      time_limit: '',
+                      allow_suspension_resume: true,
+                      proctoring_config_id: ''
+                    })
+                    push({ kind: 'success', message: 'Quiz created successfully' })
+                    loadQuizzes()
+                  } catch (e: any) {
+                    push({ kind: 'error', message: e?.message || 'Failed to create quiz' })
+                  } finally {
+                    setCreatingQuiz(false)
+                  }
+                }}
+                disabled={creatingQuiz || !newQuiz.course_offering_id || !newQuiz.max_score}
+              >
+                {creatingQuiz ? 'Creating…' : 'Create Quiz'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {showUserDetailsModal && selectedUser && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50, backdropFilter: 'blur(4px)', padding: '20px', overflowY: 'auto' }}>
           <div className="card" style={{ width: '100%', maxWidth: 600, background: 'var(--surface)', borderRadius: 'var(--radius-lg)', padding: 24, boxShadow: '0 20px 50px rgba(0,0,0,0.3)', border: '1px solid var(--border)', margin: 'auto', maxHeight: '90vh', overflowY: 'auto' }}>
@@ -986,6 +1654,110 @@ const filteredUsers = useMemo(() =>
             )}
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 12, marginTop: 24 }}>
               <button className="btn btn-secondary" onClick={() => setShowUserDetailsModal(false)}>Close</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showManageOfferings && selectedCourse && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50, backdropFilter: 'blur(4px)', padding: '20px', overflowY: 'auto' }}>
+          <div className="card" style={{ width: '100%', maxWidth: 800, background: 'var(--surface)', borderRadius: 'var(--radius-lg)', padding: 24, boxShadow: '0 20px 50px rgba(0,0,0,0.3)', border: '1px solid var(--border)', margin: 'auto', maxHeight: '90vh', overflowY: 'auto' }}>
+            <h3 className="h4" style={{ marginTop: 0, marginBottom: 20, color: 'var(--text)' }}>Manage Offerings for {selectedCourse.code} - {selectedCourse.title}</h3>
+            <div style={{ marginBottom: 16 }}>
+              <button className="btn btn-primary" onClick={() => setShowCreateOffering(true)}>Create New Offering</button>
+            </div>
+            <div className="offerings-list">
+              {selectedCourse.offerings && selectedCourse.offerings.length > 0 ? (
+                selectedCourse.offerings.map((offering: any) => (
+                  <div key={offering.offering_id} className="card offering-admin-card" style={{ marginBottom: 12 }}>
+                    <div className="offering-header">
+                      <h4 className="offering-title">{selectedCourse.code} - {selectedCourse.title}</h4>
+                      <p className="offering-details">Term: {offering.term} {offering.section ? `Section ${offering.section}` : ''}</p>
+                      <p className="offering-details">Faculty: {offering.faculty_name || 'N/A'}</p>
+                      <p className="offering-details">Capacity: {offering.max_capacity || 'Unlimited'}</p>
+                      <p className="offering-details">Enrolled: {offering.students?.length || 0}</p>
+                    </div>
+                    <div style={{ marginTop: 12, display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
+                      <button className="btn btn-secondary">Edit</button>
+                      <button
+                        className={`btn ${offering.students && offering.students.length > 0 ? 'btn-disabled' : 'btn-danger'}`}
+                        disabled={offering.students && offering.students.length > 0}
+                        onClick={async () => {
+                          if (confirm(`Delete offering "${selectedCourse.code} ${offering.term}${offering.section ? '-' + offering.section : ''}"? This action cannot be undone.`)) {
+                            try {
+                              await deleteOffering(offering.offering_id)
+                              push({ kind: 'success', message: 'Offering deleted successfully' })
+                              loadAdminCourses()
+                              setShowManageOfferings(false)
+                            } catch (e: any) {
+                              push({ kind: 'error', message: e?.message || 'Failed to delete offering' })
+                            }
+                          }
+                        }}
+                      >
+                        Delete
+                      </button>
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <p className="muted">No offerings yet.</p>
+              )}
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 12, marginTop: 24 }}>
+              <button className="btn btn-secondary" onClick={() => setShowManageOfferings(false)}>Close</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showManageEnrollments && selectedCourse && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50, backdropFilter: 'blur(4px)', padding: '20px', overflowY: 'auto' }}>
+          <div className="card" style={{ width: '100%', maxWidth: 800, background: 'var(--surface)', borderRadius: 'var(--radius-lg)', padding: 24, boxShadow: '0 20px 50px rgba(0,0,0,0.3)', border: '1px solid var(--border)', margin: 'auto', maxHeight: '90vh', overflowY: 'auto' }}>
+            <h3 className="h4" style={{ marginTop: 0, marginBottom: 20, color: 'var(--text)' }}>Manage Enrollments for {selectedCourse.code} - {selectedCourse.title}</h3>
+            <div style={{ marginBottom: 16 }}>
+              <button className="btn btn-primary" onClick={() => setShowCreateEnrollment(true)}>Add Enrollment</button>
+            </div>
+            {loadingCourseEnrollments ? (
+              <p>Loading enrollments...</p>
+            ) : (
+              <div className="enrollments-list">
+                {courseEnrollments.length > 0 ? (
+                  courseEnrollments.map((enrollment: any) => (
+                    <div key={enrollment.id} className="card enrollment-admin-card" style={{ marginBottom: 12 }}>
+                      <div className="enrollment-header">
+                        <h4 className="enrollment-title">{enrollment.student_name || enrollment.student_email}</h4>
+                        <p className="enrollment-details">Roll Number: {enrollment.roll_number || 'N/A'}</p>
+                        <p className="enrollment-details">Term: {enrollment.term} {enrollment.section ? `Section ${enrollment.section}` : ''}</p>
+                        <p className="enrollment-details">Enrolled: {new Date(enrollment.enrolled_at).toLocaleDateString()}</p>
+                      </div>
+                      <div style={{ marginTop: 12, display: 'flex', justifyContent: 'flex-end' }}>
+                        <button
+                          className="btn btn-danger"
+                          onClick={async () => {
+                            if (confirm(`Remove enrollment for ${enrollment.student_name || enrollment.student_email} from ${selectedCourse.code}?`)) {
+                              try {
+                                await deleteEnrollment(enrollment.id)
+                                push({ kind: 'success', message: 'Enrollment removed successfully' })
+                                loadCourseEnrollments(selectedCourse.id)
+                              } catch (e: any) {
+                                push({ kind: 'error', message: e?.message || 'Failed to remove enrollment' })
+                              }
+                            }
+                          }}
+                        >
+                          Remove Enrollment
+                        </button>
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  <p className="muted">No enrollments yet.</p>
+                )}
+              </div>
+            )}
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 12, marginTop: 24 }}>
+              <button className="btn btn-secondary" onClick={() => setShowManageEnrollments(false)}>Close</button>
             </div>
           </div>
         </div>

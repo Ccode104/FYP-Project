@@ -10,7 +10,9 @@ import {
   getCourseQuizzes,
   attemptQuiz,
   enrollInCourse,
-  getStudentQuizAttempts
+  getStudentQuizAttempts,
+  getGradedAssignment,
+  submitRegradeRequest,
 } from '../controllers/studentController.js';
 
 const router = express.Router();
@@ -275,6 +277,67 @@ router.get('/:studentId/quiz-attempts', getStudentQuizAttempts);
  *       500:
  *         description: Internal server error
  */
+router.post('/enroll', enrollInCourse);
+
+/**
+ * @swagger
+ * /api/student/graded/{assignmentId}:
+ *   get:
+ *     summary: Get graded assignment details for student
+ *     tags: [Student]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: assignmentId
+ *         required: true
+ *         schema:
+ *           type: integer
+ *     responses:
+ *       200:
+ *         description: Graded assignment details
+ *       401:
+ *         description: Unauthorized
+ *       404:
+ *         description: Assignment not found
+ */
+router.get('/graded/:assignmentId', getGradedAssignment);
+
+/**
+ * @swagger
+ * /api/student/grade-query:
+ *   post:
+ *     summary: Submit a regrade request for an assignment
+ *     tags: [Student]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - submissionId
+ *               - reason
+ *             properties:
+ *               submissionId:
+ *                 type: integer
+ *               criterionId:
+ *                 type: integer
+ *               reason:
+ *                 type: string
+ *     responses:
+ *       201:
+ *         description: Regrade request submitted
+ *       400:
+ *         description: Bad request
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Forbidden
+ */
+router.post('/grade-query', submitRegradeRequest);
 router.post('/enroll', enrollInCourse);
 
 export default router;

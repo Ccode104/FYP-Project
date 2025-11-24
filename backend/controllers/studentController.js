@@ -204,3 +204,98 @@ export async function getStudentQuizAttempts(req, res) {
     res.status(500).json({ error: 'Internal server error' })
   }
 }
+
+export async function getGradedAssignment(req, res) {
+  try {
+    const studentId = req.user.id;
+    const { assignmentId } = req.params;
+
+    // Get assignment submission
+    const submissionQuery = `
+      SELECT s.*, a.title as assignment_title, a.description, u.name as grader_name
+      FROM assignment_submissions s
+      JOIN assignments a ON s.assignment_id = a.id
+      LEFT JOIN users u ON s.grader_id = u.id
+      WHERE s.assignment_id = $1 AND s.student_id = $2
+    `;
+    const submissionResult = await pool.query(submissionQuery, [assignmentId, studentId]);
+
+    if (submissionResult.rowCount === 0) {
+      return res.status(404).json({ error: 'Submission not found' });
+    }
+
+    const submission = submissionResult.rows[0];
+
+    // Get rubric grades
+    const gradesQuery = `
+      SELECT rg.*, rc.title as criterion_title, rc.description as criterion_description, rc.max_points
+      FROM rubric_grades rg
+      JOIN rubric_criteria rc ON rg.criterion_id = rc.id
+      WHERE rg.submission_id = $1
+      ORDER BY rc.position
+    `;
+    const gradesResult = await pool.query(gradesQuery, [submission.id]);
+
+    // Get regrade requests for this submission
+    const regradeQuery = `
+      SELECT rr.*, rc.title as criterion_title
+      FROM regrade_requests rr
+      LEFT JOIN rubric_criteria rc ON rr.criterion_id = rc.id
+      WHERE rr.submission_id = $1 AND rr.requested_by = $2
+      ORDER BY rr.requested_at DESC
+    `;
+    const regradeResult = await pool.query(regradeQuery, [submission.id, studentId]);
+
+    res.json({
+      submission,
+      rubricGrades: gradesResult.rows,
+      regradeRequests: regradeResult.rows
+    });
+  } catch (err) {
+    console.error('getGradedAssignment error:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+}
+
+export async function submitRegradeRequest(req, res) {
+  try {
+    const studentId = req.user.id;
+    const { submissionId, criterionId, reason } = req.body;
+
+    if (!submissionId || !reason) {
+      return res.status(400).json({ error: 'submissionId and reason are required' });
+    }
+
+    // Verify the submission belongs to the student
+    const verifyQuery = `
+      SELECT s.id FROM assignment_submissions s
+      WHERE s.id = $1 AND s.student_id = $2
+    `;
+    const verifyResult = await pool.query(verifyQuery, [submissionId, studentId]);
+
+    if (verifyResult.rowCount === 0) {
+      return res.status(403).json({ error: 'Forbidden' });
+    }
+
+    // Insert regrade request
+    const insertQuery = `
+      INSERT INTO regrade_requests (submission_id, criterion_id, reason, requested_by, requested_at)
+      VALUES ($1, $2, $3, $4, NOW())
+      RETURNING *
+    `;
+    const insertResult = await pool.query(insertQuery, [
+      submissionId,
+      criterionId || null,
+      reason,
+      studentId
+    ]);
+
+    res.status(201).json({
+      message: 'Regrade request submitted',
+      request: insertResult.rows[0]
+    });
+  } catch (err) {
+    console.error('submitRegradeRequest error:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+}

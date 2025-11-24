@@ -4,11 +4,11 @@ import fs from 'fs';
 
 async function applyComprehensiveSeed() {
   try {
-    console.log('Applying comprehensive seed data...');
+    console.log('Applying comprehensive LMS seed data...');
 
-    const seedSQL = fs.readFileSync('./comprehensive-seed-data.sql', 'utf8');
+    const seedSQL = fs.readFileSync('./simple-seed-data.sql', 'utf8');
 
-    // Execute the entire SQL as one statement
+    // Execute the entire SQL as one statement since it contains complex constructs
     console.log('Executing seed data...');
     await pool.query(seedSQL);
 

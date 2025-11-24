@@ -300,6 +300,25 @@ export async function createQuiz(req, res) {
       return res.status(400).json({ error: 'course_offering_id and title are required' });
     }
 
+    // Check if user has permission to create quizzes for this offering
+    if (req.user.role !== 'admin') {
+      const checkQ = `SELECT faculty_id FROM course_offerings WHERE id = $1`;
+      const checkR = await pool.query(checkQ, [course_offering_id]);
+      if (checkR.rowCount === 0) return res.status(404).json({ error: 'Course offering not found' });
+
+      const offering = checkR.rows[0];
+      if (req.user.role === 'faculty' && req.user.id !== offering.faculty_id) {
+        return res.status(403).json({ error: 'Not authorized - you can only create quizzes for your own courses' });
+      }
+      // For TA, check if they are assigned to this offering
+      if (req.user.role === 'ta') {
+        const taCheck = await pool.query('SELECT 1 FROM ta_assignments WHERE ta_id = $1 AND course_offering_id = $2', [req.user.id, course_offering_id]);
+        if (taCheck.rowCount === 0) {
+          return res.status(403).json({ error: 'Not authorized - you are not assigned to this course' });
+        }
+      }
+    }
+
     const client = await pool.connect();
     try {
       await client.query('BEGIN');
@@ -845,6 +864,131 @@ export async function gradeQuizAttemptOverall(req, res) {
   } catch (err) {
     console.error('Error grading quiz attempt:', err);
     res.status(500).json({ error: err.message || 'Failed to grade attempt' });
+  }
+}
+
+// Get quiz results for a student (their attempts)
+export async function getQuizResults(req, res) {
+  try {
+    const { quizId } = req.params;
+    const studentId = req.user?.id;
+
+    if (!studentId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    // Get quiz details
+    const quizQuery = `
+      SELECT q.*, c.code as course_code, c.title as course_title
+      FROM quizzes q
+      JOIN course_offerings co ON q.course_offering_id = co.id
+      JOIN courses c ON co.course_id = c.id
+      WHERE q.id = $1
+    `;
+    const quizResult = await pool.query(quizQuery, [quizId]);
+
+    if (quizResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Quiz not found' });
+    }
+
+    const quiz = quizResult.rows[0];
+
+    // Get student's attempts for this quiz
+    const attemptsQuery = `
+      SELECT
+        qa.*,
+        CASE WHEN qa.violated THEN 'Violated - Score Penalized' ELSE 'Completed' END as status_text
+      FROM quiz_attempts qa
+      WHERE qa.quiz_id = $1 AND qa.student_id = $2
+      ORDER BY qa.finished_at DESC NULLS LAST, qa.started_at DESC NULLS LAST
+    `;
+    const attemptsResult = await pool.query(attemptsQuery, [quizId, studentId]);
+
+    // Parse answers for each attempt
+    const attempts = attemptsResult.rows.map(attempt => ({
+      ...attempt,
+      answers: typeof attempt.answers === 'string' ? JSON.parse(attempt.answers) : attempt.answers
+    }));
+
+    // Get quiz questions (without correct answers for security)
+    const questionsQuery = `
+      SELECT id, question_text, question_type, metadata
+      FROM quiz_questions
+      WHERE quiz_id = $1
+      ORDER BY id
+    `;
+    const questionsResult = await pool.query(questionsQuery, [quizId]);
+
+    // Remove correct answers from questions for security
+    const questions = questionsResult.rows.map(q => {
+      const metadata = typeof q.metadata === 'string' ? JSON.parse(q.metadata) : q.metadata;
+      const studentMetadata = { ...metadata };
+      if (q.question_type === 'mcq' || q.question_type === 'true_false') {
+        delete studentMetadata.correct_answer;
+      }
+      return {
+        id: q.id,
+        question_text: q.question_text,
+        question_type: q.question_type,
+        metadata: studentMetadata
+      };
+    });
+
+    res.json({
+      quiz: {
+        id: quiz.id,
+        title: quiz.title,
+        max_score: quiz.max_score,
+        is_proctored: quiz.is_proctored,
+        course_code: quiz.course_code,
+        course_title: quiz.course_title
+      },
+      attempts,
+      questions
+    });
+  } catch (error) {
+    console.error('Error fetching quiz results:', error);
+    res.status(500).json({ error: error.message || 'Failed to fetch quiz results' });
+  }
+}
+
+// Get all quiz attempts for a student across all quizzes
+export async function getStudentQuizAttempts(req, res) {
+  try {
+    const studentId = req.user?.id;
+
+    if (!studentId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const query = `
+      SELECT
+        qa.*,
+        q.title as quiz_title,
+        q.max_score as quiz_max_score,
+        c.code as course_code,
+        c.title as course_title,
+        CASE WHEN qa.violated THEN 'Violated - Score Penalized' ELSE 'Completed' END as status_text
+      FROM quiz_attempts qa
+      JOIN quizzes q ON qa.quiz_id = q.id
+      JOIN course_offerings co ON q.course_offering_id = co.id
+      JOIN courses c ON co.course_id = c.id
+      WHERE qa.student_id = $1
+      ORDER BY qa.finished_at DESC NULLS LAST, qa.started_at DESC NULLS LAST
+    `;
+
+    const result = await pool.query(query, [studentId]);
+
+    // Parse answers for each attempt
+    const attempts = result.rows.map(attempt => ({
+      ...attempt,
+      answers: typeof attempt.answers === 'string' ? JSON.parse(attempt.answers) : attempt.answers
+    }));
+
+    res.json({ attempts });
+  } catch (error) {
+    console.error('Error fetching student quiz attempts:', error);
+    res.status(500).json({ error: error.message || 'Failed to fetch quiz attempts' });
   }
 }
 

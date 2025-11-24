@@ -16,6 +16,20 @@ export async function getEnrolledCourses(): Promise<EnrolledOffering[]> {
   return []
 }
 
+export async function getGradedAssignment(assignmentId: number): Promise<any> {
+  return apiFetch(`/api/student/graded/${assignmentId}`);
+}
+
+export async function submitRegradeRequest(data: {
+  submissionId: number;
+  criterionId?: number;
+  reason: string;
+}): Promise<any> {
+  return apiFetch('/api/student/grade-query', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+}
 export async function enrollSelf(offeringId: number) {
   return apiFetch(`/api/student/enroll`, { method: 'POST', body: { offeringId } })
 }

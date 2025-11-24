@@ -1,6 +1,6 @@
 import express from 'express';
 import { requireAuth, requireRole } from '../middleware/auth.js';
-import { createCourse, createOffering, enroll, listCourses, listMyCourses, listMyOfferings, unenroll } from '../controllers/coursesController.js';
+import { createCourse, createOffering, enroll, listCourses, listMyCourses, listMyOfferings, unenroll, deleteCourse } from '../controllers/coursesController.js';
 import {
   getCourseResources,
   getCoursePYQs,
@@ -199,7 +199,7 @@ router.get('/:offeringId/code-questions', getCodeQuestions);
  *       403:
  *         description: Forbidden - Requires faculty or admin role
  */
-router.post('/', requireAuth, requireRole('faculty','admin'), createCourse);
+router.post('/', requireAuth, requireRole('admin'), createCourse);
 
 /**
  * @swagger
@@ -238,6 +238,34 @@ router.post('/', requireAuth, requireRole('faculty','admin'), createCourse);
  *         description: Forbidden - Requires faculty or admin role
  */
 router.post('/:courseId/offerings', requireAuth, requireRole('faculty','admin'), createOffering);
+
+/**
+ * @swagger
+ * /api/courses/{courseId}:
+ *   delete:
+ *     summary: Delete a course
+ *     tags: [Courses]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: courseId
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Course deleted successfully
+ *       400:
+ *         description: Cannot delete course with existing offerings
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Forbidden - Requires admin role
+ *       404:
+ *         description: Course not found
+ */
+router.delete('/:courseId', requireAuth, requireRole('admin'), deleteCourse);
 
 /**
  * @swagger

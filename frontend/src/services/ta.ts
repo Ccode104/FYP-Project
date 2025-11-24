@@ -40,6 +40,26 @@ export interface PendingItem {
   scheduled_at?: string;
 }
 
+export async function getTAAssignments(courseId?: string): Promise<any[]> {
+  const url = courseId ? `/api/ta/assignments?courseId=${courseId}` : '/api/ta/assignments';
+  return apiFetch(url);
+}
+
+export async function getGradingSubmissions(assignmentId: number): Promise<any[]> {
+  return apiFetch(`/api/ta/grading/${assignmentId}/submissions`);
+}
+
+export async function submitGrading(data: {
+  submissionId: number;
+  rubricGrades?: Array<{ criterionId: number; score: number; feedback?: string }>;
+  overallComments?: string;
+}): Promise<any> {
+  return apiFetch('/api/ta/grading/submit', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+}
+
 export async function getTADashboardData(): Promise<TADashboardData> {
   return apiFetch('/api/ta/dashboard');
 }

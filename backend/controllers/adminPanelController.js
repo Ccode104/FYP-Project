@@ -215,6 +215,48 @@ export async function adminCreateDepartment(req, res) {
   }
 }
 
+export async function adminUpdateDepartment(req, res) {
+  try {
+    const id = Number(req.params.id);
+    if (!id) return res.status(400).json({ error: 'Invalid id' });
+    const { code, name } = req.body || {};
+    const fields = [];
+    const params = [];
+    function set(col, val) { params.push(val); fields.push(`${col} = $${params.length}`); }
+    if (code !== undefined) set('code', code.toUpperCase());
+    if (name !== undefined) set('name', name);
+    if (!fields.length) return res.status(400).json({ error: 'No updates provided' });
+    params.push(id);
+    const r = await pool.query(`UPDATE departments SET ${fields.join(', ')} WHERE id=$${params.length} RETURNING id, code, name`, params);
+    if (r.rowCount === 0) return res.status(404).json({ error: 'Department not found' });
+    res.json({ department: r.rows[0] });
+  } catch (err) {
+    console.error('adminUpdateDepartment', err);
+    if (err.code === '23505') {
+      res.status(400).json({ error: 'Department code already exists' });
+    } else {
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  }
+}
+
+export async function adminDeleteDepartment(req, res) {
+  try {
+    const id = Number(req.params.id);
+    if (!id) return res.status(400).json({ error: 'Invalid id' });
+    // Check if department has courses
+    const courses = await pool.query('SELECT COUNT(*) FROM courses WHERE department_id = $1', [id]);
+    if (parseInt(courses.rows[0].count) > 0) {
+      return res.status(400).json({ error: 'Cannot delete department with existing courses' });
+    }
+    await pool.query('DELETE FROM departments WHERE id=$1', [id]);
+    res.json({ success: true });
+  } catch (err) {
+    console.error('adminDeleteDepartment', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+}
+
 export async function adminUserOverview(req, res) {
   try {
     const id = Number(req.params.id);
@@ -450,6 +492,425 @@ export async function adminDeleteUser(req, res) {
     res.status(500).json({ error: 'Internal server error' });
   }
 }
+
+export async function adminListOfferings(req, res) {
+  try {
+    const { courseId, facultyId, term, q } = req.query;
+    const clauses = [];
+    const params = [];
+    if (courseId) { params.push(Number(courseId)); clauses.push(`co.course_id = $${params.length}`); }
+    if (facultyId) { params.push(Number(facultyId)); clauses.push(`co.faculty_id = $${params.length}`); }
+    if (term) { params.push(`%${term}%`); clauses.push(`co.term ILIKE $${params.length}`); }
+    if (q) { params.push(`%${q}%`); clauses.push(`(c.code ILIKE $${params.length} OR c.title ILIKE $${params.length} OR u.name ILIKE $${params.length})`); }
+    const where = clauses.length ? `WHERE ${clauses.join(' AND ')}` : '';
+    const r = await pool.query(`
+      SELECT co.*, c.code as course_code, c.title as course_title, u.name as faculty_name, u.email as faculty_email,
+             d.name as department_name
+      FROM course_offerings co
+      JOIN courses c ON co.course_id = c.id
+      LEFT JOIN users u ON co.faculty_id = u.id
+      LEFT JOIN departments d ON c.department_id = d.id
+      ${where}
+      ORDER BY co.term DESC, co.section ASC
+    `, params);
+    res.json({ offerings: r.rows });
+  } catch (err) {
+    console.error('adminListOfferings', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+}
+
+export async function adminCreateOffering(req, res) {
+  try {
+    const { course_id, term, section, faculty_id, max_capacity, start_date, end_date } = req.body || {};
+    if (!course_id || !term || !faculty_id) {
+      return res.status(400).json({ error: 'course_id, term, and faculty_id are required' });
+    }
+    const r = await pool.query(`
+      INSERT INTO course_offerings (course_id, term, section, faculty_id, max_capacity, start_date, end_date)
+      VALUES ($1, $2, $3, $4, $5, $6, $7)
+      RETURNING *
+    `, [Number(course_id), term, section || null, Number(faculty_id), max_capacity ? Number(max_capacity) : null, start_date || null, end_date || null]);
+    res.status(201).json({ offering: r.rows[0] });
+  } catch (err) {
+    console.error('adminCreateOffering', err);
+    if (err.code === '23505') {
+      res.status(400).json({ error: 'Offering already exists for this course, term, and section' });
+    } else {
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  }
+}
+
+export async function adminUpdateOffering(req, res) {
+  try {
+    const id = Number(req.params.id);
+    if (!id) return res.status(400).json({ error: 'Invalid id' });
+    const { term, section, faculty_id, max_capacity, start_date, end_date } = req.body || {};
+    const fields = [];
+    const params = [];
+    function set(col, val) { params.push(val); fields.push(`${col} = $${params.length}`); }
+    if (term !== undefined) set('term', term);
+    if (section !== undefined) set('section', section);
+    if (faculty_id !== undefined) set('faculty_id', Number(faculty_id));
+    if (max_capacity !== undefined) set('max_capacity', max_capacity ? Number(max_capacity) : null);
+    if (start_date !== undefined) set('start_date', start_date);
+    if (end_date !== undefined) set('end_date', end_date);
+    if (!fields.length) return res.status(400).json({ error: 'No updates provided' });
+    params.push(id);
+    const r = await pool.query(`UPDATE course_offerings SET ${fields.join(', ')} WHERE id=$${params.length} RETURNING *`, params);
+    if (r.rowCount === 0) return res.status(404).json({ error: 'Offering not found' });
+    res.json({ offering: r.rows[0] });
+  } catch (err) {
+    console.error('adminUpdateOffering', err);
+    if (err.code === '23505') {
+      res.status(400).json({ error: 'Offering already exists for this course, term, and section' });
+    } else {
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  }
+}
+
+export async function adminDeleteOffering(req, res) {
+  try {
+    const id = Number(req.params.id);
+    if (!id) return res.status(400).json({ error: 'Invalid id' });
+    // Check if offering has enrollments
+    const enrollments = await pool.query('SELECT COUNT(*) FROM enrollments WHERE course_offering_id = $1', [id]);
+    if (parseInt(enrollments.rows[0].count) > 0) {
+      return res.status(400).json({ error: 'Cannot delete offering with existing enrollments' });
+    }
+    await pool.query('DELETE FROM course_offerings WHERE id=$1', [id]);
+    res.json({ success: true });
+  } catch (err) {
+    console.error('adminDeleteOffering', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+}
+
+export async function adminListCourses(req, res) {
+  try {
+    const { departmentId, q } = req.query;
+    const clauses = [];
+    const params = [];
+    if (departmentId) { params.push(Number(departmentId)); clauses.push(`c.department_id = $${params.length}`); }
+    if (q) { params.push(`%${q}%`); clauses.push(`(c.code ILIKE $${params.length} OR c.title ILIKE $${params.length})`); }
+    const where = clauses.length ? `WHERE ${clauses.join(' AND ')}` : '';
+    const r = await pool.query(`
+      SELECT c.*, d.name as department_name
+      FROM courses c
+      LEFT JOIN departments d ON c.department_id = d.id
+      ${where}
+      ORDER BY c.code ASC
+    `, params);
+    res.json({ courses: r.rows });
+  } catch (err) {
+    console.error('adminListCourses', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+}
+
+export async function adminCreateCourse(req, res) {
+  try {
+    const { code, title, description, department_id, credits } = req.body || {};
+    if (!code || !title) {
+      return res.status(400).json({ error: 'code and title are required' });
+    }
+    const r = await pool.query(`
+      INSERT INTO courses (code, title, description, department_id, credits)
+      VALUES ($1, $2, $3, $4, $5)
+      RETURNING *
+    `, [code.toUpperCase(), title, description || null, department_id ? Number(department_id) : null, credits ? Number(credits) : null]);
+    res.status(201).json({ course: r.rows[0] });
+  } catch (err) {
+    console.error('adminCreateCourse', err);
+    if (err.code === '23505') {
+      res.status(400).json({ error: 'Course code already exists' });
+    } else {
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  }
+}
+
+export async function adminUpdateCourse(req, res) {
+  try {
+    const id = Number(req.params.id);
+    if (!id) return res.status(400).json({ error: 'Invalid id' });
+    const { code, title, description, department_id, credits } = req.body || {};
+    const fields = [];
+    const params = [];
+    function set(col, val) { params.push(val); fields.push(`${col} = $${params.length}`); }
+    if (code !== undefined) set('code', code.toUpperCase());
+    if (title !== undefined) set('title', title);
+    if (description !== undefined) set('description', description);
+    if (department_id !== undefined) set('department_id', department_id ? Number(department_id) : null);
+    if (credits !== undefined) set('credits', credits ? Number(credits) : null);
+    if (!fields.length) return res.status(400).json({ error: 'No updates provided' });
+    params.push(id);
+    const r = await pool.query(`UPDATE courses SET ${fields.join(', ')}, updated_at = now() WHERE id=$${params.length} RETURNING *`, params);
+    if (r.rowCount === 0) return res.status(404).json({ error: 'Course not found' });
+    res.json({ course: r.rows[0] });
+  } catch (err) {
+    console.error('adminUpdateCourse', err);
+    if (err.code === '23505') {
+      res.status(400).json({ error: 'Course code already exists' });
+    } else {
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  }
+}
+
+export async function adminDeleteCourse(req, res) {
+  try {
+    const id = Number(req.params.id);
+    if (!id) return res.status(400).json({ error: 'Invalid id' });
+    // Check if course has offerings
+    const offerings = await pool.query('SELECT COUNT(*) FROM course_offerings WHERE course_id = $1', [id]);
+    if (parseInt(offerings.rows[0].count) > 0) {
+      return res.status(400).json({ error: 'Cannot delete course with existing offerings' });
+    }
+    await pool.query('DELETE FROM courses WHERE id=$1', [id]);
+    res.json({ success: true });
+  } catch (err) {
+    console.error('adminDeleteCourse', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+}
+
+export async function adminListAssignments(req, res) {
+  try {
+    const { offeringId, facultyId, q } = req.query;
+    const clauses = [];
+    const params = [];
+    if (offeringId) { params.push(Number(offeringId)); clauses.push(`a.course_offering_id = $${params.length}`); }
+    if (facultyId) { params.push(Number(facultyId)); clauses.push(`co.faculty_id = $${params.length}`); }
+    if (q) { params.push(`%${q}%`); clauses.push(`(a.title ILIKE $${params.length} OR a.description ILIKE $${params.length})`); }
+    const where = clauses.length ? `WHERE ${clauses.join(' AND ')}` : '';
+    const r = await pool.query(`
+      SELECT a.*, c.code as course_code, c.title as course_title, co.term, co.section,
+             u.name as faculty_name, u.email as faculty_email
+      FROM assignments a
+      JOIN course_offerings co ON a.course_offering_id = co.id
+      JOIN courses c ON co.course_id = c.id
+      LEFT JOIN users u ON co.faculty_id = u.id
+      ${where}
+      ORDER BY a.due_at DESC, a.created_at DESC
+    `, params);
+    res.json({ assignments: r.rows });
+  } catch (err) {
+    console.error('adminListAssignments', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+}
+
+export async function adminCreateAssignment(req, res) {
+  try {
+    const { course_offering_id, title, description, assignment_type, release_at, due_at, max_score, allow_multiple_submissions } = req.body || {};
+    if (!course_offering_id || !title || !assignment_type) {
+      return res.status(400).json({ error: 'course_offering_id, title, and assignment_type are required' });
+    }
+    const r = await pool.query(`
+      INSERT INTO assignments (course_offering_id, title, description, assignment_type, release_at, due_at, max_score, allow_multiple_submissions, created_by)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+      RETURNING *
+    `, [Number(course_offering_id), title, description || null, assignment_type, release_at || null, due_at || null, max_score ? Number(max_score) : 100, allow_multiple_submissions || false, req.user.id]);
+    res.status(201).json({ assignment: r.rows[0] });
+  } catch (err) {
+    console.error('adminCreateAssignment', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+}
+
+export async function adminUpdateAssignment(req, res) {
+  try {
+    const id = Number(req.params.id);
+    if (!id) return res.status(400).json({ error: 'Invalid id' });
+    const { title, description, assignment_type, release_at, due_at, max_score, allow_multiple_submissions } = req.body || {};
+    const fields = [];
+    const params = [];
+    function set(col, val) { params.push(val); fields.push(`${col} = $${params.length}`); }
+    if (title !== undefined) set('title', title);
+    if (description !== undefined) set('description', description);
+    if (assignment_type !== undefined) set('assignment_type', assignment_type);
+    if (release_at !== undefined) set('release_at', release_at);
+    if (due_at !== undefined) set('due_at', due_at);
+    if (max_score !== undefined) set('max_score', Number(max_score));
+    if (allow_multiple_submissions !== undefined) set('allow_multiple_submissions', !!allow_multiple_submissions);
+    if (!fields.length) return res.status(400).json({ error: 'No updates provided' });
+    params.push(id);
+    const r = await pool.query(`UPDATE assignments SET ${fields.join(', ')} WHERE id=$${params.length} RETURNING *`, params);
+    if (r.rowCount === 0) return res.status(404).json({ error: 'Assignment not found' });
+    res.json({ assignment: r.rows[0] });
+  } catch (err) {
+    console.error('adminUpdateAssignment', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+}
+
+export async function adminDeleteAssignment(req, res) {
+  try {
+    const id = Number(req.params.id);
+    if (!id) return res.status(400).json({ error: 'Invalid id' });
+    // Check if assignment has submissions
+    const submissions = await pool.query('SELECT COUNT(*) FROM assignment_submissions WHERE assignment_id = $1', [id]);
+    if (parseInt(submissions.rows[0].count) > 0) {
+      return res.status(400).json({ error: 'Cannot delete assignment with existing submissions' });
+    }
+    await pool.query('DELETE FROM assignments WHERE id=$1', [id]);
+    res.json({ success: true });
+  } catch (err) {
+    console.error('adminDeleteAssignment', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+}
+
+export async function adminListQuizzes(req, res) {
+  try {
+    const { offeringId, q } = req.query;
+    const clauses = [];
+    const params = [];
+    if (offeringId) { params.push(Number(offeringId)); clauses.push(`q.course_offering_id = $${params.length}`); }
+    if (q) { params.push(`%${q}%`); clauses.push(`(q.title ILIKE $${params.length} OR q.description ILIKE $${params.length})`); }
+    const where = clauses.length ? `WHERE ${clauses.join(' AND ')}` : '';
+    const r = await pool.query(`
+      SELECT q.*, c.code as course_code, c.title as course_title, co.term, co.section,
+             u.name as faculty_name, u.email as faculty_email
+      FROM quizzes q
+      JOIN course_offerings co ON q.course_offering_id = co.id
+      JOIN courses c ON co.course_id = c.id
+      LEFT JOIN users u ON co.faculty_id = u.id
+      ${where}
+      ORDER BY q.start_at DESC, q.created_at DESC
+    `, params);
+    res.json({ quizzes: r.rows });
+  } catch (err) {
+    console.error('adminListQuizzes', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+}
+
+export async function adminCreateQuiz(req, res) {
+  try {
+    const { course_offering_id, title, start_at, end_at, max_score, is_proctored, time_limit, proctoring_config_id, allow_suspension_resume } = req.body || {};
+    if (!course_offering_id) {
+      return res.status(400).json({ error: 'course_offering_id is required' });
+    }
+    const r = await pool.query(`
+      INSERT INTO quizzes (course_offering_id, title, start_at, end_at, max_score, is_proctored, time_limit, proctoring_config_id, allow_suspension_resume)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+      RETURNING *
+    `, [Number(course_offering_id), title || null, start_at || null, end_at || null, max_score ? Number(max_score) : 100, is_proctored || false, time_limit || null, proctoring_config_id ? Number(proctoring_config_id) : null, allow_suspension_resume !== false]);
+    res.status(201).json({ quiz: r.rows[0] });
+  } catch (err) {
+    console.error('adminCreateQuiz', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+}
+
+export async function adminUpdateQuiz(req, res) {
+  try {
+    const id = Number(req.params.id);
+    if (!id) return res.status(400).json({ error: 'Invalid id' });
+    const { title, start_at, end_at, max_score, is_proctored, time_limit, proctoring_config_id, allow_suspension_resume } = req.body || {};
+    const fields = [];
+    const params = [];
+    function set(col, val) { params.push(val); fields.push(`${col} = $${params.length}`); }
+    if (title !== undefined) set('title', title);
+    if (start_at !== undefined) set('start_at', start_at);
+    if (end_at !== undefined) set('end_at', end_at);
+    if (max_score !== undefined) set('max_score', Number(max_score));
+    if (is_proctored !== undefined) set('is_proctored', !!is_proctored);
+    if (time_limit !== undefined) set('time_limit', time_limit ? Number(time_limit) : null);
+    if (proctoring_config_id !== undefined) set('proctoring_config_id', proctoring_config_id ? Number(proctoring_config_id) : null);
+    if (allow_suspension_resume !== undefined) set('allow_suspension_resume', !!allow_suspension_resume);
+    if (!fields.length) return res.status(400).json({ error: 'No updates provided' });
+    params.push(id);
+    const r = await pool.query(`UPDATE quizzes SET ${fields.join(', ')} WHERE id=$${params.length} RETURNING *`, params);
+    if (r.rowCount === 0) return res.status(404).json({ error: 'Quiz not found' });
+    res.json({ quiz: r.rows[0] });
+  } catch (err) {
+    console.error('adminUpdateQuiz', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+}
+
+export async function adminDeleteQuiz(req, res) {
+  try {
+    const id = Number(req.params.id);
+    if (!id) return res.status(400).json({ error: 'Invalid id' });
+    // Check if quiz has attempts
+    const attempts = await pool.query('SELECT COUNT(*) FROM quiz_attempts WHERE quiz_id = $1', [id]);
+    if (parseInt(attempts.rows[0].count) > 0) {
+      return res.status(400).json({ error: 'Cannot delete quiz with existing attempts' });
+    }
+    await pool.query('DELETE FROM quizzes WHERE id=$1', [id]);
+    res.json({ success: true });
+  } catch (err) {
+    console.error('adminDeleteQuiz', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+}
+
+export async function adminListEnrollments(req, res) {
+  try {
+    const { offeringId, studentId, q } = req.query;
+    const clauses = [];
+    const params = [];
+    if (offeringId) { params.push(Number(offeringId)); clauses.push(`e.course_offering_id = $${params.length}`); }
+    if (studentId) { params.push(Number(studentId)); clauses.push(`e.student_id = $${params.length}`); }
+    if (q) { params.push(`%${q}%`); clauses.push(`(u.name ILIKE $${params.length} OR u.email ILIKE $${params.length} OR c.code ILIKE $${params.length})`); }
+    const where = clauses.length ? `WHERE ${clauses.join(' AND ')}` : '';
+    const r = await pool.query(`
+      SELECT e.*, u.name as student_name, u.email as student_email, u.roll_number,
+             c.code as course_code, c.title as course_title, co.term, co.section
+      FROM enrollments e
+      JOIN users u ON e.student_id = u.id
+      JOIN course_offerings co ON e.course_offering_id = co.id
+      JOIN courses c ON co.course_id = c.id
+      ${where}
+      ORDER BY e.enrolled_at DESC
+    `, params);
+    res.json({ enrollments: r.rows });
+  } catch (err) {
+    console.error('adminListEnrollments', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+}
+
+export async function adminCreateEnrollment(req, res) {
+  try {
+    const { course_offering_id, student_id } = req.body || {};
+    if (!course_offering_id || !student_id) {
+      return res.status(400).json({ error: 'course_offering_id and student_id are required' });
+    }
+    const r = await pool.query(`
+      INSERT INTO enrollments (course_offering_id, student_id)
+      VALUES ($1, $2)
+      RETURNING *
+    `, [Number(course_offering_id), Number(student_id)]);
+    res.status(201).json({ enrollment: r.rows[0] });
+  } catch (err) {
+    console.error('adminCreateEnrollment', err);
+    if (err.code === '23505') {
+      res.status(400).json({ error: 'Student is already enrolled in this offering' });
+    } else {
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  }
+}
+
+export async function adminDeleteEnrollment(req, res) {
+  try {
+    const id = Number(req.params.id);
+    if (!id) return res.status(400).json({ error: 'Invalid id' });
+    await pool.query('DELETE FROM enrollments WHERE id=$1', [id]);
+    res.json({ success: true });
+  } catch (err) {
+    console.error('adminDeleteEnrollment', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+}
+
 
 export async function adminGetOverview(req, res) {
   try {

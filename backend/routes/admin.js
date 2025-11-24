@@ -10,9 +10,30 @@ import {
   adminDeleteUser,
   adminListDepartments,
   adminCreateDepartment,
+  adminUpdateDepartment,
+  adminDeleteDepartment,
   adminUserOverview,
   adminGetCoursesByDepartment,
   adminGetCourseDetails,
+  adminListCourses,
+  adminCreateCourse,
+  adminUpdateCourse,
+  adminDeleteCourse,
+  adminListOfferings,
+  adminCreateOffering,
+  adminUpdateOffering,
+  adminDeleteOffering,
+  adminListAssignments,
+  adminCreateAssignment,
+  adminUpdateAssignment,
+  adminDeleteAssignment,
+  adminListQuizzes,
+  adminCreateQuiz,
+  adminUpdateQuiz,
+  adminDeleteQuiz,
+  adminListEnrollments,
+  adminCreateEnrollment,
+  adminDeleteEnrollment,
   adminGetAssignmentsByFaculty,
   adminGetAssignmentsByFacultyId,
   adminGetSubmissions,
@@ -42,6 +63,37 @@ router.get('/users/:id/overview', (req, res) => adminUserOverview(req, res));
 // Departments
 router.get('/departments', adminListDepartments);
 router.post('/departments', adminCreateDepartment);
+router.patch('/departments/:id', adminUpdateDepartment);
+router.delete('/departments/:id', adminDeleteDepartment);
+
+// Courses
+router.get('/courses', adminListCourses);
+router.post('/courses', adminCreateCourse);
+router.patch('/courses/:id', adminUpdateCourse);
+router.delete('/courses/:id', adminDeleteCourse);
+
+// Course Offerings
+router.get('/offerings', adminListOfferings);
+router.post('/offerings', adminCreateOffering);
+router.patch('/offerings/:id', adminUpdateOffering);
+router.delete('/offerings/:id', adminDeleteOffering);
+
+// Assignments
+router.get('/assignments', adminListAssignments);
+router.post('/assignments', adminCreateAssignment);
+router.patch('/assignments/:id', adminUpdateAssignment);
+router.delete('/assignments/:id', adminDeleteAssignment);
+
+// Quizzes
+router.get('/quizzes', adminListQuizzes);
+router.post('/quizzes', adminCreateQuiz);
+router.patch('/quizzes/:id', adminUpdateQuiz);
+router.delete('/quizzes/:id', adminDeleteQuiz);
+
+// Enrollments
+router.get('/enrollments', adminListEnrollments);
+router.post('/enrollments', adminCreateEnrollment);
+router.delete('/enrollments/:id', adminDeleteEnrollment);
 
 // Hierarchical navigation
 router.get('/departments/:departmentId/courses', adminGetCoursesByDepartment);

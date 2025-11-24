@@ -1,4 +1,3 @@
-
 -- Comprehensive Seed Data for LMS Testing
 -- This script populates all tables with test data for comprehensive feature testing
 
@@ -467,5 +466,22 @@ INSERT INTO settings (key, value, updated_at) VALUES
 ('system.max_file_size', '{"value": 10485760}', NOW()),
 ('academic.year', '{"start": "2024-08-15", "end": "2025-05-15"}', NOW())
 ON CONFLICT (key) DO NOTHING;
+
+-- Insert TA quiz permissions (grant some initial access for testing)
+INSERT INTO ta_quiz_permissions (quiz_id, ta_id, can_view, can_edit, can_create, granted_by, granted_at) VALUES
+(1, 7, true, false, false, 3, NOW() - INTERVAL '1 day'), -- TA can view Python Basics Quiz
+(2, 7, true, true, false, 3, NOW() - INTERVAL '1 day'), -- TA can view and edit Programming Concepts Quiz
+(3, 7, true, true, false, 3, NOW() - INTERVAL '2 days'), -- TA can view and edit Algorithm Analysis Quiz
+(4, 8, true, false, false, 4, NOW() - INTERVAL '1 day') -- Another TA can view Database Design Quiz
+ON CONFLICT (quiz_id, ta_id) DO NOTHING;
+
+-- Insert quiz access requests for testing
+INSERT INTO quiz_access_requests (quiz_id, ta_id, teacher_id, request_type, status, requested_at) VALUES
+(4, 7, 4, 'view', 'pending', NOW() - INTERVAL '2 hours'), -- TA requesting view access to Database Design Quiz
+(4, 7, 4, 'edit', 'pending', NOW() - INTERVAL '1 hour'), -- TA requesting edit access to Database Design Quiz
+(1, 8, 3, 'edit', 'pending', NOW() - INTERVAL '30 minutes'), -- Another TA requesting edit access to Python Basics Quiz
+(2, 8, 3, 'view', 'approved', NOW() - INTERVAL '2 hours'), -- Approved request
+(3, 8, 3, 'edit', 'rejected', NOW() - INTERVAL '1 hour') -- Rejected request
+ON CONFLICT (quiz_id, ta_id, request_type) DO NOTHING;
 
 COMMIT;

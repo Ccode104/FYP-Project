@@ -29,6 +29,7 @@ import taRoutes from './routes/ta.js';
 import vivaRoutes from './routes/viva.js';
 import rubricsRoutes from './routes/rubrics.js';
 import supportRoutes from './routes/support.js';
+import quizPermissionsRoutes from './routes/quizPermissions.js';
 import swaggerSpec from './swagger.js';
 
 export async function startServer(port = 4000) {
@@ -84,6 +85,7 @@ export async function startServer(port = 4000) {
   app.use('/api/viva', vivaRoutes);
   app.use('/api/rubrics', rubricsRoutes);
   app.use('/api/support', supportRoutes);
+  app.use('/api/quiz-permissions', quizPermissionsRoutes);
 
   app.get('/health', (req, res) => res.json({ ok: true }));
 

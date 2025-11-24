@@ -439,6 +439,33 @@ CREATE TABLE IF NOT EXISTS settings (
     updated_at TIMESTAMPTZ DEFAULT now() NOT NULL
 );
 
+-- TA Quiz Access Permissions
+CREATE TABLE IF NOT EXISTS ta_quiz_permissions (
+    id BIGSERIAL PRIMARY KEY,
+    quiz_id BIGINT NOT NULL REFERENCES quizzes(id) ON DELETE CASCADE,
+    ta_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    can_view BOOLEAN DEFAULT true,
+    can_edit BOOLEAN DEFAULT false,
+    can_create BOOLEAN DEFAULT false,
+    granted_by BIGINT REFERENCES users(id),
+    granted_at TIMESTAMPTZ DEFAULT now(),
+    UNIQUE(quiz_id, ta_id)
+);
+
+-- Quiz Access Requests
+CREATE TABLE IF NOT EXISTS quiz_access_requests (
+    id BIGSERIAL PRIMARY KEY,
+    quiz_id BIGINT NOT NULL REFERENCES quizzes(id) ON DELETE CASCADE,
+    ta_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    teacher_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    request_type TEXT NOT NULL CHECK (request_type IN ('view', 'edit', 'create')),
+    status TEXT DEFAULT 'pending' CHECK (status IN ('pending', 'approved', 'rejected')),
+    requested_at TIMESTAMPTZ DEFAULT now(),
+    responded_at TIMESTAMPTZ,
+    response_message TEXT,
+    UNIQUE(quiz_id, ta_id, request_type)
+);
+
 -- Create indexes for performance
 CREATE INDEX IF NOT EXISTS idx_achievements_name ON achievements(name);
 CREATE INDEX IF NOT EXISTS idx_user_achievements_user_id ON user_achievements(user_id);

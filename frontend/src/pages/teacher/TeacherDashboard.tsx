@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import "./TeacherDashboard.css";
 import { useEffect, useState } from "react";
 import { listMyOfferings } from "../../services/courses";
+import { getPendingRequests, respondToRequest, type AccessRequest } from "../../services/quizPermissions";
 
 function LoadingSkeleton() {
   return (
@@ -39,13 +40,49 @@ export default function TeacherDashboard() {
   const { user } = useAuth();
   const navigate = useNavigate();
 
-  const [offerings, setOfferings] = useState<any[]>([]);
+  interface CourseOffering {
+    id: number;
+    course_code: string;
+    course_title: string;
+    term: string;
+    section?: string;
+  }
+
+  const [offerings, setOfferings] = useState<CourseOffering[]>([]);
   const [loading, setLoading] = useState(true);
+  const [quizRequests, setQuizRequests] = useState<AccessRequest[]>([]);
+  const [loadingRequests, setLoadingRequests] = useState(false);
+
+  const loadQuizRequests = async () => {
+    try {
+      setLoadingRequests(true);
+      const data = await getPendingRequests();
+      setQuizRequests(data.requests);
+    } catch (error) {
+      console.error('Failed to load quiz requests:', error);
+    } finally {
+      setLoadingRequests(false);
+    }
+  };
+
+  const handleRespondToRequest = async (requestId: number, action: 'approve' | 'reject', message?: string) => {
+    try {
+      await respondToRequest(requestId, action, message);
+      // Reload requests
+      loadQuizRequests();
+      alert(`Request ${action}d successfully!`);
+    } catch (error: unknown) {
+      console.error('Failed to respond to request:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Failed to process request';
+      alert(errorMessage);
+    }
+  };
 
   useEffect(() => {
     (async () => {
       try {
         setOfferings(await listMyOfferings());
+        loadQuizRequests();
       } catch (e) {
         console.error("Failed to load data:", e);
       } finally {
@@ -145,6 +182,76 @@ export default function TeacherDashboard() {
                 ))}
               </ul>
             )}
+        </div>
+      </div>
+
+      {/* Quiz Access Requests */}
+      <div className="section-container">
+        <div className="section-header">
+          <h3 className="section-title h3">Quiz Access Requests</h3>
+          <span className="courses-count text-sm font-medium text-secondary">
+            {quizRequests.length} pending
+          </span>
+        </div>
+
+        <div className="card list-card">
+          <div className="card-header-mini">
+            <h4 className="card-subtitle">Pending TA Requests</h4>
+            <button className="btn btn-sm btn-secondary" onClick={loadQuizRequests}>
+              🔄 Refresh
+            </button>
+          </div>
+          {loadingRequests ? (
+            <div style={{ padding: '20px', textAlign: 'center' }}>
+              <p>Loading requests...</p>
+            </div>
+          ) : quizRequests.length === 0 ? (
+            <EmptyState
+              icon={<span>📋</span>}
+              title="No pending requests"
+              description="No TA quiz access requests at this time"
+            />
+          ) : (
+            <ul className="list list-modern">
+              {quizRequests.map((request) => (
+                <li key={request.id} className="list-item">
+                  <div className="list-item-content">
+                    <span className="list-item-title">
+                      {request.ta_name} → {request.quiz_title}
+                    </span>
+                    <span className="list-item-subtitle">
+                      {request.course_code} — {request.course_title} • Request: {request.request_type} access
+                    </span>
+                  </div>
+                  <div className="list-item-meta">
+                    <div style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>
+                      Requested: {new Date(request.requested_at).toLocaleDateString()}
+                    </div>
+                    <div style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>
+                      TA: {request.ta_email}
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', gap: '8px' }}>
+                    <button
+                      className="btn btn-sm btn-success"
+                      onClick={() => handleRespondToRequest(request.id, 'approve')}
+                    >
+                      ✅ Approve
+                    </button>
+                    <button
+                      className="btn btn-sm btn-danger"
+                      onClick={() => {
+                        const message = prompt('Optional rejection message:');
+                        handleRespondToRequest(request.id, 'reject', message || undefined);
+                      }}
+                    >
+                      ❌ Reject
+                    </button>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
         </div>
       </div>
     </div>

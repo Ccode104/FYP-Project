@@ -1,8 +1,8 @@
-export const API_URL = (import.meta as any).env?.REACT_APP_API_URL || 'http://localhost:4000' || 'http://13.233.144.115:4000';
+export const API_URL = (import.meta as { env?: { REACT_APP_API_URL?: string } }).env?.REACT_APP_API_URL || 'http://localhost:4001';
 
 export type HttpMethod = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
 
-export async function apiFetch<T = any>(path: string, opts: { method?: HttpMethod; body?: any; headers?: Record<string,string> } = {}): Promise<T> {
+export async function apiFetch<T = unknown>(path: string, opts: { method?: HttpMethod; body?: unknown; headers?: Record<string, string> } = {}): Promise<T> {
   const token = localStorage.getItem('auth:token') || '';
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
@@ -30,7 +30,7 @@ export async function apiFetch<T = any>(path: string, opts: { method?: HttpMetho
     }
     
     return res.json();
-  } catch (err: any) {
+  } catch (err: unknown) {
     // Handle network errors (Failed to fetch, CORS, etc.)
     if (err instanceof TypeError && err.message.includes('fetch')) {
       throw new Error(`Failed to fetch: Cannot connect to ${API_URL}${path}. Please check if the backend server is running.`);
@@ -40,14 +40,19 @@ export async function apiFetch<T = any>(path: string, opts: { method?: HttpMetho
   }
 }
 
-export async function apiForm<T = any>(path: string, form: FormData, method: HttpMethod = 'POST'): Promise<T> {
+export async function apiForm<T = unknown>(path: string, form: FormData, method: HttpMethod = 'POST'): Promise<T> {
   const token = localStorage.getItem('auth:token') || '';
   const headers: Record<string, string> = {};
   if (token) headers['Authorization'] = `Bearer ${token}`;
   const res = await fetch(`${API_URL}${path}`, { method, headers, body: form });
   if (!res.ok) {
     let msg = `HTTP ${res.status}`;
-    try { const data = await res.json(); msg = data.error || msg; } catch {}
+    try {
+      const data = await res.json();
+      msg = data.error || msg;
+    } catch {
+      // Ignore JSON parsing errors
+    }
     throw new Error(msg);
   }
   return res.json();

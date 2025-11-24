@@ -20,7 +20,7 @@ import Modal from '../../components/Modal'
 import Chatbot from '../../components/Chatbot'
 import TeacherCodeSubmissionViewer from '../../components/course/TeacherCodeSubmissionViewer'
 import BackendSubmissions from '../../components/course/BackendSubmissions'
-import BackendGrading from '../../components/course/BackendGrading'
+import TAGrading from '../../components/course/TAGrading'
 import StudentProgressEmbed from '../../components/course/StudentProgressEmbed'
 import CourseProgressEmbed from '../../components/course/CourseProgressEmbed'
 // import MenuTiny from '../../components/course/MenuTiny'
@@ -78,6 +78,9 @@ export default function CourseDetails() {
   const [selectedLiveLecture, setSelectedLiveLecture] = useState<any | null>(null)
   const [showLiveLectureViewer, setShowLiveLectureViewer] = useState(false)
   const [showLiveLectureBroadcaster, setShowLiveLectureBroadcaster] = useState(false)
+  const [selectedQuizResult, setSelectedQuizResult] = useState<any | null>(null)
+  const [showQuizResultModal, setShowQuizResultModal] = useState(false)
+  const [quizResultDetails, setQuizResultDetails] = useState<any | null>(null)
   // const [showQuestionForm, setShowQuestionForm] = useState(false)
   const [currentVideoTime, setCurrentVideoTime] = useState<number>(0)
   const videoRefForFaculty = useRef<HTMLVideoElement>(null)
@@ -294,7 +297,7 @@ export default function CourseDetails() {
       { id: 'past', label: 'Past', icon: '🕒', tooltip: 'View past assignments' },
       { id: 'notes', label: 'Notes', icon: '📖', tooltip: 'Course notes and materials' },
       { id: 'pyq', label: 'Previous Papers', icon: '📄', tooltip: 'Previous year questions' },
-      //{ id: 'quizzes_submitted', label: 'My Results', icon: '✅', tooltip: 'View quiz results' },
+      { id: 'quizzes_submitted', label: 'My Results', icon: '✅', tooltip: 'View quiz results' },
       { id: 'progress', label: 'Progress', icon: '📊', tooltip: 'Track your progress' },
       { id: 'videos', label: 'Videos', icon: '🎥', tooltip: 'Course video lectures' },
       { id: 'live-lectures', label: 'Live Lectures', icon: '📺', tooltip: 'Live video lectures' },
@@ -1163,6 +1166,94 @@ export default function CourseDetails() {
             </section>
           )}
 
+          {tab === 'quizzes_submitted' && (
+            <section className="card">
+              <h3>My Quiz Results</h3>
+              {myQuizAttempts.length === 0 ? (
+                <p className="muted">No quiz attempts found.</p>
+              ) : (
+                <div style={{ overflowX: 'auto' }}>
+                  <table className="table">
+                    <thead>
+                      <tr>
+                        <th>Quiz Title</th>
+                        <th>Score</th>
+                        <th>Status</th>
+                        <th>Submitted At</th>
+                        <th>Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {myQuizAttempts.map((attempt: any) => (
+                        <tr key={attempt.id}>
+                          <td>
+                            <strong>{attempt.quiz_title}</strong>
+                          </td>
+                          <td>
+                            <span style={{
+                              fontWeight: 'bold',
+                              color: attempt.score >= 80 ? '#28a745' : attempt.score >= 60 ? '#ffc107' : '#dc3545'
+                            }}>
+                              {attempt.score !== null ? `${attempt.score}%` : 'N/A'}
+                            </span>
+                          </td>
+                          <td>
+                            {attempt.violated ? (
+                              <span style={{
+                                display: 'inline-block',
+                                padding: '2px 6px',
+                                borderRadius: '4px',
+                                fontSize: '11px',
+                                fontWeight: 'bold',
+                                background: '#dc3545',
+                                color: 'white'
+                              }}>
+                                🚫 VIOLATED
+                              </span>
+                            ) : (
+                              <span style={{
+                                display: 'inline-block',
+                                padding: '2px 6px',
+                                borderRadius: '4px',
+                                fontSize: '11px',
+                                background: '#28a745',
+                                color: 'white'
+                              }}>
+                                ✓ COMPLETED
+                              </span>
+                            )}
+                          </td>
+                          <td>
+                            {attempt.finished_at ? new Date(attempt.finished_at).toLocaleString() : 'N/A'}
+                          </td>
+                          <td>
+                            <button
+                              className="btn btn-primary"
+                              onClick={async () => {
+                                try {
+                                  setSelectedQuizResult(attempt);
+                                  setShowQuizResultModal(true);
+                                  // Get detailed quiz results
+                                  const result = await apiFetch(`/api/quizzes/${attempt.quiz_id}/results`);
+                                  setQuizResultDetails(result);
+                                } catch (error: any) {
+                                  console.error('Failed to load quiz results:', error);
+                                  push({ kind: 'error', message: 'Failed to load detailed quiz results' });
+                                }
+                              }}
+                            >
+                              View Details
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </section>
+          )}
+
           {tab === 'past' && (
             <section className="card">
               <h3>Past Assignments</h3>
@@ -1536,9 +1627,7 @@ export default function CourseDetails() {
             <section className="card">
               <h3>Grading</h3>
               {isBackend ? (
-                <BackendGrading assignments={backendAssignments} onSave={(sid, letter) => {
-                  push({ kind: 'success', message: `Grade ${letter} saved for submission ${sid}` })
-                }} />
+                <TAGrading courseId={courseId} />
               ) : (
                 <p className="muted">Grading view available in backend mode only.</p>
               )}
@@ -2121,6 +2210,105 @@ export default function CourseDetails() {
                 }}
                 onClose={() => setShowVideoUpload(false)}
               />
+            </Modal>
+          )}
+
+          {/* Quiz Results Modal */}
+          {showQuizResultModal && selectedQuizResult && (
+            <Modal
+              open={showQuizResultModal}
+              onClose={() => {
+                setShowQuizResultModal(false);
+                setSelectedQuizResult(null);
+                setQuizResultDetails(null);
+              }}
+              title={`Quiz Results: ${selectedQuizResult.quiz_title}`}
+            >
+              <div style={{ maxHeight: '70vh', overflowY: 'auto' }}>
+                {/* Quiz Summary */}
+                <div style={{ marginBottom: '20px', padding: '15px', background: 'var(--bg-secondary)', borderRadius: '8px' }}>
+                  <h4 style={{ margin: '0 0 10px 0' }}>Quiz Summary</h4>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                    <div><strong>Score:</strong> <span style={{
+                      color: selectedQuizResult.score >= 80 ? '#28a745' : selectedQuizResult.score >= 60 ? '#ffc107' : '#dc3545',
+                      fontWeight: 'bold'
+                    }}>{selectedQuizResult.score}%</span></div>
+                    <div><strong>Status:</strong> {selectedQuizResult.violated ? '🚫 Violated' : '✅ Completed'}</div>
+                    <div><strong>Submitted:</strong> {selectedQuizResult.finished_at ? new Date(selectedQuizResult.finished_at).toLocaleString() : 'N/A'}</div>
+                    <div><strong>Max Score:</strong> 100%</div>
+                  </div>
+                </div>
+
+                {/* Detailed Results */}
+                {quizResultDetails ? (
+                  <div>
+                    <h4>Question Details</h4>
+                    {quizResultDetails.questions && quizResultDetails.questions.length > 0 ? (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
+                        {quizResultDetails.questions.map((question: any, index: number) => {
+                          const studentAnswer = selectedQuizResult.answers?.[question.id];
+                          const isCorrect = studentAnswer === question.correct_answer;
+
+                          return (
+                            <div key={question.id} style={{
+                              padding: '15px',
+                              border: '1px solid var(--border)',
+                              borderRadius: '8px',
+                              background: isCorrect ? '#f8fff8' : '#fff8f8'
+                            }}>
+                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '10px' }}>
+                                <h5 style={{ margin: 0, flex: 1 }}>Question {index + 1}</h5>
+                                <span style={{
+                                  padding: '2px 8px',
+                                  borderRadius: '4px',
+                                  fontSize: '12px',
+                                  fontWeight: 'bold',
+                                  background: isCorrect ? '#28a745' : '#dc3545',
+                                  color: 'white'
+                                }}>
+                                  {isCorrect ? '✓ Correct' : '✗ Incorrect'}
+                                </span>
+                              </div>
+
+                              <p style={{ margin: '10px 0', fontWeight: '500' }}>{question.question_text}</p>
+
+                              {question.metadata?.choices && (
+                                <div style={{ marginTop: '10px' }}>
+                                  <div style={{ fontSize: '14px', fontWeight: '500', marginBottom: '5px' }}>Options:</div>
+                                  <ul style={{ margin: 0, paddingLeft: '20px' }}>
+                                    {question.metadata.choices.map((choice: string, choiceIndex: number) => (
+                                      <li key={choiceIndex} style={{
+                                        color: choice === question.correct_answer ? '#28a745' : choice === studentAnswer ? '#dc3545' : 'inherit',
+                                        fontWeight: choice === studentAnswer ? 'bold' : 'normal'
+                                      }}>
+                                        {choice}
+                                        {choice === question.correct_answer && ' ✓ (Correct Answer)'}
+                                        {choice === studentAnswer && choice !== question.correct_answer && ' ✗ (Your Answer)'}
+                                      </li>
+                                    ))}
+                                  </ul>
+                                </div>
+                              )}
+
+                              {question.explanation && (
+                                <div style={{ marginTop: '10px', padding: '10px', background: '#f0f8ff', borderRadius: '4px' }}>
+                                  <strong>Explanation:</strong> {question.explanation}
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    ) : (
+                      <p className="muted">Detailed question results not available.</p>
+                    )}
+                  </div>
+                ) : (
+                  <div style={{ textAlign: 'center', padding: '20px' }}>
+                    <p>Loading detailed results...</p>
+                  </div>
+                )}
+              </div>
             </Modal>
           )}
         </div>
