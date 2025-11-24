@@ -5,6 +5,8 @@ import type { UserProfile } from '../../services/users';
 import { useToast } from '../../components/ToastProvider';
 import UserStats from '../../components/UserStats';
 import Modal from '../../components/Modal';
+import SupportTicketList from '../../components/SupportTicketList';
+import SupportTicketForm from '../../components/SupportTicketForm';
 import './StudentProfile.css';
 
 export default function StudentProfile() {
@@ -15,6 +17,7 @@ export default function StudentProfile() {
   const [editModal, setEditModal] = useState(false);
   const [editForm, setEditForm] = useState({ name: '', email: '', roll_number: '' });
   const [saving, setSaving] = useState(false);
+  const [showTicketForm, setShowTicketForm] = useState(false);
 
   useEffect(() => {
     loadProfile();
@@ -186,7 +189,33 @@ export default function StudentProfile() {
             </div>
           </section>
         )}
+
+        {/* Support Tickets */}
+        <section className="profile-section">
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+            <h2>Support Tickets</h2>
+            <button className="btn btn-primary" onClick={() => setShowTicketForm(true)}>
+              Create Ticket
+            </button>
+          </div>
+          <SupportTicketList showAllTickets={false} />
+        </section>
       </div>
+
+      {/* Support Ticket Form Modal */}
+      <Modal
+        open={showTicketForm}
+        onClose={() => setShowTicketForm(false)}
+        title="Create Support Ticket"
+      >
+        <SupportTicketForm
+          onTicketCreated={() => {
+            setShowTicketForm(false);
+            push({ kind: 'success', message: 'Support ticket created successfully' });
+          }}
+          onClose={() => setShowTicketForm(false)}
+        />
+      </Modal>
 
       {/* Edit Modal */}
       <Modal

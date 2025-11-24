@@ -1,4 +1,4 @@
-export const API_URL = (import.meta as { env?: { REACT_APP_API_URL?: string } }).env?.REACT_APP_API_URL || 'http://localhost:4001';
+export const API_URL = (import.meta as { env?: { REACT_APP_API_URL?: string } }).env?.REACT_APP_API_URL || 'http://localhost:4000';
 
 export type HttpMethod = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
 

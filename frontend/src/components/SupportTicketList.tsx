@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
-import { getUserTickets, getAllTickets, updateTicketStatus } from '../services/support'
+import { getUserTickets, getAllTickets, updateTicketStatus, getTicketDetails, addTicketComment, updateTicketStatus as updateTicket } from '../services/support'
 import { useAuth } from '../context/AuthContext'
-import type { SupportTicket } from '../services/support'
+import type { SupportTicket, TicketDetails, TicketComment } from '../services/support'
 
 interface SupportTicketListProps {
   showAllTickets?: boolean // For admin view
@@ -16,6 +16,10 @@ function SupportTicketList({ showAllTickets = false, courseOfferingId }: Support
     status: '' as SupportTicket['status'] | '',
     category: '' as SupportTicket['category'] | ''
   })
+  const [selectedTicket, setSelectedTicket] = useState<TicketDetails | null>(null)
+  const [showTicketDetail, setShowTicketDetail] = useState(false)
+  const [newComment, setNewComment] = useState('')
+  const [submittingComment, setSubmittingComment] = useState(false)
 
   useEffect(() => {
     loadTickets()
@@ -48,9 +52,46 @@ function SupportTicketList({ showAllTickets = false, courseOfferingId }: Support
       setTickets(prev => prev.map(ticket =>
         ticket.id === ticketId ? { ...ticket, status: newStatus } : ticket
       ))
+      // Also update selected ticket if it's open
+      if (selectedTicket && selectedTicket.id === ticketId) {
+        setSelectedTicket(prev => prev ? { ...prev, status: newStatus } : null)
+      }
     } catch (error) {
       console.error('Failed to update ticket status:', error)
       alert('Failed to update ticket status')
+    }
+  }
+
+  const handleViewTicket = async (ticket: SupportTicket) => {
+    try {
+      const details = await getTicketDetails(ticket.id)
+      setSelectedTicket(details)
+      setShowTicketDetail(true)
+    } catch (error) {
+      console.error('Failed to load ticket details:', error)
+      alert('Failed to load ticket details')
+    }
+  }
+
+  const handleAddComment = async () => {
+    if (!selectedTicket || !newComment.trim()) return
+
+    try {
+      setSubmittingComment(true)
+      await addTicketComment(selectedTicket.id, {
+        comment: newComment.trim(),
+        is_internal: false
+      })
+
+      // Refresh ticket details
+      const updatedDetails = await getTicketDetails(selectedTicket.id)
+      setSelectedTicket(updatedDetails)
+      setNewComment('')
+    } catch (error) {
+      console.error('Failed to add comment:', error)
+      alert('Failed to add comment')
+    } finally {
+      setSubmittingComment(false)
     }
   }
 
@@ -168,22 +209,159 @@ function SupportTicketList({ showAllTickets = false, courseOfferingId }: Support
                   {ticket.assigned_to_name && <span> • Assigned to: {ticket.assigned_to_name}</span>}
                 </div>
 
-                {showAllTickets && user?.role === 'admin' && (
-                  <select
-                    className="form-select"
+                <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                  {showAllTickets && user?.role === 'admin' && (
+                    <select
+                      className="form-select"
+                      style={{ fontSize: '14px', padding: '4px 8px' }}
+                      value={ticket.status}
+                      onChange={(e) => handleStatusChange(ticket.id, e.target.value as SupportTicket['status'])}
+                    >
+                      <option value="open">Open</option>
+                      <option value="in_progress">In Progress</option>
+                      <option value="resolved">Resolved</option>
+                      <option value="closed">Closed</option>
+                    </select>
+                  )}
+                  <button
+                    className="btn btn-secondary"
                     style={{ fontSize: '14px', padding: '4px 8px' }}
-                    value={ticket.status}
-                    onChange={(e) => handleStatusChange(ticket.id, e.target.value as SupportTicket['status'])}
+                    onClick={() => handleViewTicket(ticket)}
                   >
-                    <option value="open">Open</option>
-                    <option value="in_progress">In Progress</option>
-                    <option value="resolved">Resolved</option>
-                    <option value="closed">Closed</option>
-                  </select>
-                )}
+                    View Details
+                  </button>
+                </div>
               </div>
             </div>
           ))}
+        </div>
+      )}
+
+      {/* Ticket Detail Modal */}
+      {showTicketDetail && selectedTicket && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          background: 'rgba(0,0,0,0.5)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 1000,
+          padding: '20px'
+        }}>
+          <div style={{
+            background: 'var(--bg-primary)',
+            borderRadius: '8px',
+            padding: '24px',
+            maxWidth: '800px',
+            width: '100%',
+            maxHeight: '90vh',
+            overflowY: 'auto'
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '20px' }}>
+              <div>
+                <h3 style={{ margin: 0, marginBottom: '8px' }}>{selectedTicket.title}</h3>
+                <div style={{ fontSize: '14px', color: 'var(--muted)' }}>
+                  By: {selectedTicket.user_name} ({selectedTicket.user_email}) •
+                  Created: {new Date(selectedTicket.created_at).toLocaleString()}
+                  {selectedTicket.course_title && <span> • Course: {selectedTicket.course_code}</span>}
+                </div>
+              </div>
+              <button
+                className="btn"
+                onClick={() => setShowTicketDetail(false)}
+                style={{ padding: '8px' }}
+              >
+                ✕
+              </button>
+            </div>
+
+            <div style={{ display: 'flex', gap: '12px', marginBottom: '20px' }}>
+              <span style={{
+                padding: '4px 12px',
+                borderRadius: '20px',
+                fontSize: '14px',
+                backgroundColor: getStatusColor(selectedTicket.status),
+                color: 'white'
+              }}>
+                {selectedTicket.status.replace('_', ' ')}
+              </span>
+              <span style={{
+                padding: '4px 12px',
+                borderRadius: '20px',
+                fontSize: '14px',
+                backgroundColor: getPriorityColor(selectedTicket.priority),
+                color: 'white'
+              }}>
+                {selectedTicket.priority}
+              </span>
+              <span style={{
+                padding: '4px 12px',
+                borderRadius: '20px',
+                fontSize: '14px',
+                backgroundColor: 'var(--muted)',
+                color: 'white'
+              }}>
+                {selectedTicket.category.replace('_', ' ')}
+              </span>
+            </div>
+
+            <div style={{ marginBottom: '24px' }}>
+              <h4>Description</h4>
+              <p style={{ whiteSpace: 'pre-wrap', lineHeight: '1.5' }}>{selectedTicket.description}</p>
+            </div>
+
+            {selectedTicket.comments.length > 0 && (
+              <div style={{ marginBottom: '24px' }}>
+                <h4>Comments</h4>
+                <div style={{ maxHeight: '300px', overflowY: 'auto' }}>
+                  {selectedTicket.comments.map((comment: TicketComment) => (
+                    <div key={comment.id} style={{
+                      padding: '12px',
+                      marginBottom: '8px',
+                      backgroundColor: 'var(--bg-secondary)',
+                      borderRadius: '6px',
+                      border: '1px solid var(--border)'
+                    }}>
+                      <div style={{ fontSize: '14px', color: 'var(--muted)', marginBottom: '4px' }}>
+                        {comment.commenter_name} • {new Date(comment.created_at).toLocaleString()}
+                        {comment.is_internal && <span style={{ color: '#f97316' }}> (Internal)</span>}
+                      </div>
+                      <p style={{ margin: 0, whiteSpace: 'pre-wrap' }}>{comment.comment}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {showAllTickets && user?.role === 'admin' && (
+              <div style={{ marginTop: '24px', paddingTop: '20px', borderTop: '1px solid var(--border)' }}>
+                <h4>Add Comment</h4>
+                <div style={{ display: 'flex', gap: '12px', alignItems: 'flex-end' }}>
+                  <div style={{ flex: 1 }}>
+                    <textarea
+                      className="form-textarea"
+                      value={newComment}
+                      onChange={(e) => setNewComment(e.target.value)}
+                      placeholder="Add a comment..."
+                      rows={3}
+                      style={{ width: '100%' }}
+                    />
+                  </div>
+                  <button
+                    className="btn btn-primary"
+                    onClick={handleAddComment}
+                    disabled={submittingComment || !newComment.trim()}
+                  >
+                    {submittingComment ? 'Adding...' : 'Add Comment'}
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
         </div>
       )}
     </div>

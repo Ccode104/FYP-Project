@@ -575,13 +575,56 @@ export async function adminDeleteOffering(req, res) {
   try {
     const id = Number(req.params.id);
     if (!id) return res.status(400).json({ error: 'Invalid id' });
-    // Check if offering has enrollments
-    const enrollments = await pool.query('SELECT COUNT(*) FROM enrollments WHERE course_offering_id = $1', [id]);
-    if (parseInt(enrollments.rows[0].count) > 0) {
-      return res.status(400).json({ error: 'Cannot delete offering with existing enrollments' });
+
+    // Start transaction for cascading deletes
+    await pool.query('BEGIN');
+
+    try {
+      // 1. Delete quiz attempts for quizzes in this offering
+      await pool.query(`
+        DELETE FROM quiz_attempts
+        WHERE quiz_id IN (
+          SELECT id FROM quizzes WHERE course_offering_id = $1
+        )
+      `, [id]);
+
+      // 2. Delete quizzes for this offering
+      await pool.query('DELETE FROM quizzes WHERE course_offering_id = $1', [id]);
+
+      // 3. Delete assignment submissions for assignments in this offering
+      await pool.query(`
+        DELETE FROM assignment_submissions
+        WHERE assignment_id IN (
+          SELECT id FROM assignments WHERE course_offering_id = $1
+        )
+      `, [id]);
+
+      // 4. Delete assignments for this offering
+      await pool.query('DELETE FROM assignments WHERE course_offering_id = $1', [id]);
+
+      // 5. Delete enrollments for this offering
+      await pool.query('DELETE FROM enrollments WHERE course_offering_id = $1', [id]);
+
+      // 6. Delete TA assignments for this offering
+      await pool.query('DELETE FROM ta_assignments WHERE course_offering_id = $1', [id]);
+
+      // 7. Handle support tickets - set course_offering_id to NULL (since no CASCADE)
+      await pool.query('UPDATE support_tickets SET course_offering_id = NULL WHERE course_offering_id = $1', [id]);
+
+      // 8. Finally, delete the offering itself
+      const result = await pool.query('DELETE FROM course_offerings WHERE id=$1', [id]);
+
+      if (result.rowCount === 0) {
+        await pool.query('ROLLBACK');
+        return res.status(404).json({ error: 'Offering not found' });
+      }
+
+      await pool.query('COMMIT');
+      res.json({ success: true });
+    } catch (innerErr) {
+      await pool.query('ROLLBACK');
+      throw innerErr;
     }
-    await pool.query('DELETE FROM course_offerings WHERE id=$1', [id]);
-    res.json({ success: true });
   } catch (err) {
     console.error('adminDeleteOffering', err);
     res.status(500).json({ error: 'Internal server error' });

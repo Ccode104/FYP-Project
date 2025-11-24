@@ -4,10 +4,22 @@ import { useAuth } from '../../context/AuthContext'
 import { useNavigate } from 'react-router-dom'
 import CourseCard from '../../components/CourseCard'
 import './AdminDashboard.css'
-import { listUsers, getUserOverview, updateUser, deleteUser, listDepartments, createDepartment, updateDepartment, deleteDepartment, getCoursesByDepartment, getCourseDetails, getAssignmentsByOffering, getAssignmentsByFaculty, getSubmissionsByAssignment, assignFacultyToCourse, getOverview, deleteCourse, listCourses, createCourse, updateCourse, listOfferings, createOffering, updateOffering, deleteOffering, listAssignments, createAssignment, updateAssignment, deleteAssignment, listQuizzes, createQuiz, updateQuiz, deleteQuiz, listEnrollments, createEnrollment, deleteEnrollment } from '../../services/admin'
+import {
+  listUsers, getUserOverview, updateUser, deleteUser,
+  listDepartments, createDepartment, updateDepartment, deleteDepartment,
+  getCoursesByDepartment, getCourseDetails,
+  getAssignmentsByOffering, getAssignmentsByFaculty, getSubmissionsByAssignment,
+  assignFacultyToCourse, getOverview, deleteCourse,
+  listCourses, createCourse, updateCourse,
+  listOfferings, createOffering, updateOffering, deleteOffering,
+  listAssignments, createAssignment, updateAssignment, deleteAssignment,
+  listQuizzes, createQuiz, updateQuiz, deleteQuiz,
+  listEnrollments, createEnrollment, deleteEnrollment
+} from '../../services/admin'
 import { createCourse as createCourseFromCourses, createOffering as createOfferingFromCourses, listCourses as listCoursesFromCourses } from '../../services/courses'
 import { register } from '../../services/auth'
 import { useToast } from '../../components/ToastProvider'
+import SupportTicketList from '../../components/SupportTicketList'
 interface User {
   id: number;
   name?: string;
@@ -24,7 +36,17 @@ export default function AdminDashboard() {
   const { push } = useToast()
 
   const isAdmin = user?.role === 'admin'
-  const [tab, setTab] = useState<'overview' | 'users' | 'courses' | 'departments' | 'assignments' | 'quizzes' | 'materials' | 'reports'>('overview')
+  const [tab, setTab] = useState<'overview' | 'users' | 'courses' | 'departments' | 'reports' | 'support'>('overview')
+
+  // Tab configuration for better maintainability
+  const tabConfigs = [
+    { key: 'overview', label: 'Overview' },
+    { key: 'users', label: 'Users' },
+    { key: 'departments', label: 'Departments' },
+    { key: 'courses', label: 'Courses' },
+    { key: 'support', label: 'Support' },
+    { key: 'reports', label: 'Reports' },
+  ] as const
 
   // Users state
   const [roleFilter, setRoleFilter] = useState<'student' | 'faculty' | 'ta' | 'admin' | ''>('')
@@ -249,6 +271,7 @@ const filteredUsers = useMemo(() =>
   const [enrollmentOfferingFilter, setEnrollmentOfferingFilter] = useState('')
   const [enrollmentStudentFilter, setEnrollmentStudentFilter] = useState('')
   const [showCreateEnrollment, setShowCreateEnrollment] = useState(false)
+  const [enrollmentFromManage, setEnrollmentFromManage] = useState(false)
   const [newEnrollment, setNewEnrollment] = useState({
     course_offering_id: '',
     student_id: ''
@@ -302,6 +325,10 @@ const filteredUsers = useMemo(() =>
   const [loadingCourseEnrollments, setLoadingCourseEnrollments] = useState(false)
   const [courseEnrollmentSearch, setCourseEnrollmentSearch] = useState('')
   const [courseEnrollmentSearchType, setCourseEnrollmentSearchType] = useState<'all' | 'student' | 'offering'>('all')
+
+  // Edit offering state
+  const [editingOffering, setEditingOffering] = useState<any>(null)
+  const [showEditOffering, setShowEditOffering] = useState(false)
 
   // Overview state
   const [overviewStats, setOverviewStats] = useState<any>(null)
@@ -398,10 +425,14 @@ const filteredUsers = useMemo(() =>
       setLoadingCourseEnrollments(true)
       // We'll need to add a backend endpoint for this
       const r = await listEnrollments()
+      console.log('All enrollments:', r.enrollments)
       // Filter enrollments for this course's offerings
       const courseOfferings = adminCourses.find((c: any) => c.id === courseId)?.offerings || []
+      console.log('Course offerings:', courseOfferings)
       const offeringIds = courseOfferings.map((o: any) => o.offering_id)
+      console.log('Offering IDs:', offeringIds)
       const filteredEnrollments = r.enrollments.filter((e: any) => offeringIds.includes(e.course_offering_id))
+      console.log('Filtered enrollments:', filteredEnrollments)
       setCourseEnrollments(filteredEnrollments)
     } catch (err) {
       console.error('Error loading course enrollments:', err)
@@ -504,6 +535,13 @@ const filteredUsers = useMemo(() =>
     }
   }, [isAdmin, tab])
 
+  // Load course enrollments when manage enrollments modal opens
+  useEffect(() => {
+    if (showManageEnrollments && selectedCourse) {
+      void loadCourseEnrollments(selectedCourse.id)
+    }
+  }, [showManageEnrollments, selectedCourse])
+
   if (!isAdmin) {
     // TA view as before
     return (
@@ -545,14 +583,15 @@ const filteredUsers = useMemo(() =>
 
       {/* Tab Navigation */}
       <div className="tabs">
-        <button className={`tab ${tab === 'overview' ? 'active' : ''}`} onClick={() => setTab('overview')}>Overview</button>
-        <button className={`tab ${tab === 'users' ? 'active' : ''}`} onClick={() => setTab('users')}>Users</button>
-        <button className={`tab ${tab === 'departments' ? 'active' : ''}`} onClick={() => setTab('departments')}>Departments</button>
-        <button className={`tab ${tab === 'courses' ? 'active' : ''}`} onClick={() => setTab('courses')}>Courses</button>
-        <button className={`tab ${tab === 'assignments' ? 'active' : ''}`} onClick={() => setTab('assignments')}>Assignments</button>
-        <button className={`tab ${tab === 'quizzes' ? 'active' : ''}`} onClick={() => setTab('quizzes')}>Quizzes</button>
-        <button className={`tab ${tab === 'materials' ? 'active' : ''}`} onClick={() => setTab('materials')}>Materials</button>
-        <button className={`tab ${tab === 'reports' ? 'active' : ''}`} onClick(() => setTab('reports')}>Reports</button>
+        {tabConfigs.map(({ key, label }) => (
+          <button
+            key={key}
+            className={`tab ${tab === key ? 'active' : ''}`}
+            onClick={() => setTab(key)}
+          >
+            {label}
+          </button>
+        ))}
       </div>
 
       {tab === 'users' && (
@@ -797,202 +836,6 @@ const filteredUsers = useMemo(() =>
       )}
 
 
-      {tab === 'assignments' && (
-        <section className="card">
-          <div className="section-header">
-            <h3>Assignments</h3>
-            <button className="btn btn-primary" onClick={() => setShowCreateAssignment(true)}>Create Assignment</button>
-          </div>
-          <div className="filters" style={{ marginBottom: '16px' }}>
-            <div style={{ display: 'flex', gap: '12px', marginBottom: '12px' }}>
-              <input
-                className="input"
-                type="text"
-                placeholder="Search assignments..."
-                value={assignmentSearch}
-                onChange={(e) => setAssignmentSearch(e.target.value)}
-                style={{ flex: 1 }}
-              />
-              <select
-                className="input"
-                value={assignmentSearchType}
-                onChange={(e) => setAssignmentSearchType(e.target.value as 'all' | 'title' | 'course' | 'faculty')}
-                style={{ width: '150px' }}
-              >
-                <option value="all">All Fields</option>
-                <option value="title">Title</option>
-                <option value="course">Course</option>
-                <option value="faculty">Faculty</option>
-              </select>
-            </div>
-            <div style={{ display: 'flex', gap: '12px' }}>
-              <select
-                className="input"
-                value={assignmentOfferingFilter}
-                onChange={(e) => setAssignmentOfferingFilter(e.target.value)}
-                style={{ flex: 1 }}
-              >
-                <option value="">All Offerings</option>
-                {offerings.map((o: any) => (
-                  <option key={o.id} value={o.id}>{o.course_code} {o.term}{o.section ? '-' + o.section : ''}</option>
-                ))}
-              </select>
-              <select
-                className="input"
-                value={assignmentFacultyFilter}
-                onChange={(e) => setAssignmentFacultyFilter(e.target.value)}
-                style={{ flex: 1 }}
-              >
-                <option value="">All Faculty</option>
-                {usersList.filter((u: any) => u.role === 'faculty').map((f: any) => (
-                  <option key={f.id} value={f.id}>{f.name || f.email}</option>
-                ))}
-              </select>
-            </div>
-          </div>
-          {loadingAssignments ? (
-            <p>Loading assignments...</p>
-          ) : (
-            <div className="assignments-list">
-              {assignments.length > 0 ? (
-                assignments
-                  .filter((a: any) => {
-                    if (assignmentOfferingFilter && a.course_offering_id !== Number(assignmentOfferingFilter)) return false;
-                    if (assignmentFacultyFilter) {
-                      const offering = offerings.find((o: any) => o.id === a.course_offering_id);
-                      if (!offering || offering.faculty_id !== Number(assignmentFacultyFilter)) return false;
-                    }
-                    return true;
-                  })
-                  .map((assignment: any) => (
-                    <div key={assignment.id} className="card assignment-admin-card" style={{ marginBottom: 12 }}>
-                      <div className="assignment-header">
-                        <h4 className="assignment-title">{assignment.title}</h4>
-                        <p className="assignment-description">{assignment.description}</p>
-                        <p className="assignment-details">Type: {assignment.assignment_type}</p>
-                        <p className="assignment-details">Max Score: {assignment.max_score}</p>
-                        <p className="assignment-details">Due: {assignment.due_at ? new Date(assignment.due_at).toLocaleDateString() : 'No due date'}</p>
-                      </div>
-                      <div style={{ marginTop: 12, display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
-                        <button className="btn btn-secondary">Edit</button>
-                        <button className="btn btn-secondary">View Submissions</button>
-                        <button
-                          className="btn btn-danger"
-                          onClick={async () => {
-                            if (confirm(`Delete assignment "${assignment.title}"? This action cannot be undone.`)) {
-                              try {
-                                await deleteAssignment(assignment.id);
-                                push({ kind: 'success', message: 'Assignment deleted successfully' });
-                                loadAssignments();
-                              } catch (e: any) {
-                                push({ kind: 'error', message: e?.message || 'Failed to delete assignment' });
-                              }
-                            }
-                          }}
-                        >
-                          Delete
-                        </button>
-                      </div>
-                    </div>
-                  ))
-              ) : (
-                <p className="muted">No assignments found.</p>
-              )}
-            </div>
-          )}
-        </section>
-      )}
-
-      {tab === 'quizzes' && (
-        <section className="card">
-          <div className="section-header">
-            <h3>Quizzes</h3>
-            <button className="btn btn-primary" onClick={() => setShowCreateQuiz(true)}>Create Quiz</button>
-          </div>
-          <div className="filters" style={{ marginBottom: '16px' }}>
-            <div style={{ display: 'flex', gap: '12px', marginBottom: '12px' }}>
-              <input
-                className="input"
-                type="text"
-                placeholder="Search quizzes..."
-                value={quizSearch}
-                onChange={(e) => setQuizSearch(e.target.value)}
-                style={{ flex: 1 }}
-              />
-              <select
-                className="input"
-                value={quizSearchType}
-                onChange={(e) => setQuizSearchType(e.target.value as 'all' | 'title' | 'course')}
-                style={{ width: '150px' }}
-              >
-                <option value="all">All Fields</option>
-                <option value="title">Title</option>
-                <option value="course">Course</option>
-              </select>
-            </div>
-            <select
-              className="input"
-              value={quizOfferingFilter}
-              onChange={(e) => setQuizOfferingFilter(e.target.value)}
-              style={{ width: '100%' }}
-            >
-              <option value="">All Offerings</option>
-              {offerings.map((o: any) => (
-                <option key={o.id} value={o.id}>{o.course_code} {o.term}{o.section ? '-' + o.section : ''}</option>
-              ))}
-            </select>
-          </div>
-          {loadingQuizzes ? (
-            <p>Loading quizzes...</p>
-          ) : (
-            <div className="quizzes-list">
-              {quizzes.length > 0 ? (
-                quizzes
-                  .filter((q: any) => {
-                    if (quizOfferingFilter && q.course_offering_id !== Number(quizOfferingFilter)) return false;
-                    return true;
-                  })
-                  .map((quiz: any) => (
-                    <div key={quiz.id} className="card quiz-admin-card" style={{ marginBottom: 12 }}>
-                      <div className="quiz-header">
-                        <h4 className="quiz-title">{quiz.title || `Quiz ${quiz.id}`}</h4>
-                        <p className="quiz-details">Max Score: {quiz.max_score}</p>
-                        <p className="quiz-details">Proctored: {quiz.is_proctored ? 'Yes' : 'No'}</p>
-                        <p className="quiz-details">Time Limit: {quiz.time_limit ? `${quiz.time_limit} minutes` : 'No limit'}</p>
-                        <p className="quiz-details">Start: {quiz.start_at ? new Date(quiz.start_at).toLocaleString() : 'Not set'}</p>
-                        <p className="quiz-details">End: {quiz.end_at ? new Date(quiz.end_at).toLocaleString() : 'Not set'}</p>
-                      </div>
-                      <div style={{ marginTop: 12, display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
-                        <button className="btn btn-secondary">Edit</button>
-                        <button className="btn btn-secondary">View Attempts</button>
-                        <button
-                          className="btn btn-danger"
-                          onClick={async () => {
-                            if (confirm(`Delete quiz "${quiz.title || `Quiz ${quiz.id}`}"? This action cannot be undone.`)) {
-                              try {
-                                await deleteQuiz(quiz.id);
-                                push({ kind: 'success', message: 'Quiz deleted successfully' });
-                                loadQuizzes();
-                              } catch (e: any) {
-                                push({ kind: 'error', message: e?.message || 'Failed to delete quiz' });
-                              }
-                            }
-                          }}
-                        >
-                          Delete
-                        </button>
-                      </div>
-                    </div>
-                  ))
-              ) : (
-                <p className="muted">No quizzes found.</p>
-              )}
-            </div>
-          )}
-        </section>
-      )}
-
-
       {tab === 'departments' && (
         <section className="card">
           <div className="section-header">
@@ -1041,13 +884,22 @@ const filteredUsers = useMemo(() =>
         </section>
       )}
 
-      {tab === 'materials' && (
+      {tab === 'support' && (
         <section className="card">
           <div className="section-header">
-            <h3>Study Materials</h3>
-            <button className="btn btn-primary" onClick={() => alert('Upload functionality coming soon!')}>Upload Material</button>
+            <h3>Support Tickets</h3>
           </div>
-          <p className="muted">Materials management coming soon...</p>
+          <SupportTicketList showAllTickets={true} />
+        </section>
+      )}
+
+      {tab === 'reports' && (
+        <section className="card">
+          <div className="section-header">
+            <h3>Reports</h3>
+            <button className="btn btn-primary" onClick={() => alert('Report generation coming soon!')}>Generate Report</button>
+          </div>
+          <p className="muted">Reports and analytics coming soon...</p>
         </section>
       )}
 
@@ -1085,42 +937,15 @@ const filteredUsers = useMemo(() =>
               <button className="btn btn-primary" onClick={() => setTab('users')}>Manage Users</button>
               <button className="btn btn-primary" onClick={() => setTab('courses')}>Create Course</button>
               <button className="btn btn-primary" onClick={() => setTab('departments')}>Add Department</button>
-              <button className="btn btn-primary" onClick={() => setTab('materials')}>Upload Material</button>
+              <button className="btn btn-primary" onClick={() => setTab('reports')}>View Reports</button>
             </div>
           </div>
         </section>
       )}
 
-      {tab === 'reports' && (
-        <section className="card">
-          <h3>Reports & Analytics</h3>
-          <div className="reports-grid">
-            <div className="report-card">
-              <h4>User Activity</h4>
-              <p>View user login patterns and activity metrics</p>
-              <button className="btn btn-secondary">Generate Report</button>
-            </div>
-            <div className="report-card">
-              <h4>Course Performance</h4>
-              <p>Analyze course enrollment and completion rates</p>
-              <button className="btn btn-secondary">Generate Report</button>
-            </div>
-            <div className="report-card">
-              <h4>Assignment Statistics</h4>
-              <p>Review submission rates and grading analytics</p>
-              <button className="btn btn-secondary">Generate Report</button>
-            </div>
-            <div className="report-card">
-              <h4>System Usage</h4>
-              <p>Monitor overall platform usage and performance</p>
-              <button className="btn btn-secondary">Generate Report</button>
-            </div>
-          </div>
-        </section>
-      )}
 
       {showCreateCourse && selectedDept && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50, backdropFilter: 'blur(4px)', padding: '20px', overflowY: 'auto' }}>
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, backdropFilter: 'blur(4px)', padding: '20px', overflowY: 'auto' }}>
           <div className="card" style={{ width: '100%', maxWidth: 520, background: 'var(--surface)', borderRadius: 'var(--radius-lg)', padding: 24, boxShadow: '0 20px 50px rgba(0,0,0,0.3)', border: '1px solid var(--border)', margin: 'auto', maxHeight: '90vh', overflowY: 'auto' }}>
             <h3 className="h4" style={{ marginTop: 0, marginBottom: 20, color: 'var(--text)' }}>Create New Course in {selectedDept.name}</h3>
             <div className="form" style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
@@ -1187,7 +1012,7 @@ const filteredUsers = useMemo(() =>
         </div>
       )}
       {showOfferCourse && offerForCourse && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50, backdropFilter: 'blur(4px)', padding: '20px', overflowY: 'auto' }}>
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, backdropFilter: 'blur(4px)', padding: '20px', overflowY: 'auto' }}>
           <div className="card" style={{ width: '100%', maxWidth: 520, background: 'var(--surface)', borderRadius: 'var(--radius-lg)', padding: 24, boxShadow: '0 20px 50px rgba(0,0,0,0.3)', border: '1px solid var(--border)', margin: 'auto', maxHeight: '90vh', overflowY: 'auto' }}>
             <h3 className="h4" style={{ marginTop: 0, marginBottom: 20, color: 'var(--text)' }}>Create Offering — {offerForCourse.code}</h3>
             <div className="form" style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
@@ -1243,7 +1068,7 @@ const filteredUsers = useMemo(() =>
       )}
 
       {showCreateUser && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50, backdropFilter: 'blur(4px)', padding: '20px', overflowY: 'auto' }}>
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, backdropFilter: 'blur(4px)', padding: '20px', overflowY: 'auto' }}>
           <div className="card" style={{ width: '100%', maxWidth: 520, background: 'var(--surface)', borderRadius: 'var(--radius-lg)', padding: 24, boxShadow: '0 20px 50px rgba(0,0,0,0.3)', border: '1px solid var(--border)', margin: 'auto', maxHeight: '90vh', overflowY: 'auto' }}>
             <h3 className="h4" style={{ marginTop: 0, marginBottom: 20, color: 'var(--text)' }}>Create New User</h3>
             <div className="form" style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
@@ -1293,7 +1118,7 @@ const filteredUsers = useMemo(() =>
       )}
 
       {showCreateDept && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50, backdropFilter: 'blur(4px)', padding: '20px', overflowY: 'auto' }}>
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, backdropFilter: 'blur(4px)', padding: '20px', overflowY: 'auto' }}>
           <div className="card" style={{ width: '100%', maxWidth: 520, background: 'var(--surface)', borderRadius: 'var(--radius-lg)', padding: 24, boxShadow: '0 20px 50px rgba(0,0,0,0.3)', border: '1px solid var(--border)', margin: 'auto', maxHeight: '90vh', overflowY: 'auto' }}>
             <h3 className="h4" style={{ marginTop: 0, marginBottom: 20, color: 'var(--text)' }}>Create New Department</h3>
             <div className="form" style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
@@ -1329,7 +1154,7 @@ const filteredUsers = useMemo(() =>
       )}
 
       {showCreateOffering && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50, backdropFilter: 'blur(4px)', padding: '20px', overflowY: 'auto' }}>
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1100, backdropFilter: 'blur(4px)', padding: '20px', overflowY: 'auto' }}>
           <div className="card" style={{ width: '100%', maxWidth: 520, background: 'var(--surface)', borderRadius: 'var(--radius-lg)', padding: 24, boxShadow: '0 20px 50px rgba(0,0,0,0.3)', border: '1px solid var(--border)', margin: 'auto', maxHeight: '90vh', overflowY: 'auto' }}>
             <h3 className="h4" style={{ marginTop: 0, marginBottom: 20, color: 'var(--text)' }}>Create New Course Offering</h3>
             <div className="form" style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
@@ -1374,6 +1199,9 @@ const filteredUsers = useMemo(() =>
                     setNewOffering({ course_id: '', term: 'W25', section: 'A', faculty_id: '', max_capacity: '', start_date: '', end_date: '' })
                     push({ kind: 'success', message: 'Offering created successfully' })
                     loadOfferings()
+                    if (showManageOfferings && selectedCourse) {
+                      loadAdminCourses() // Refresh the course offerings
+                    }
                   } catch (e: any) {
                     push({ kind: 'error', message: e?.message || 'Failed to create offering' })
                   } finally {
@@ -1390,14 +1218,16 @@ const filteredUsers = useMemo(() =>
       )}
 
       {showCreateEnrollment && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50, backdropFilter: 'blur(4px)', padding: '20px', overflowY: 'auto' }}>
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, backdropFilter: 'blur(4px)', padding: '20px', overflowY: 'auto' }}>
           <div className="card" style={{ width: '100%', maxWidth: 520, background: 'var(--surface)', borderRadius: 'var(--radius-lg)', padding: 24, boxShadow: '0 20px 50px rgba(0,0,0,0.3)', border: '1px solid var(--border)', margin: 'auto', maxHeight: '90vh', overflowY: 'auto' }}>
             <h3 className="h4" style={{ marginTop: 0, marginBottom: 20, color: 'var(--text)' }}>Create New Enrollment</h3>
             <div className="form" style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
               <select className="input" value={newEnrollment.course_offering_id} onChange={(e) => setNewEnrollment({ ...newEnrollment, course_offering_id: e.target.value })}>
                 <option value="">Select Course Offering</option>
-                {offerings.map((o: any) => (
-                  <option key={o.id} value={o.id}>{o.course_code} {o.term}{o.section ? '-' + o.section : ''} - {o.faculty_name || 'N/A'}</option>
+                {(enrollmentFromManage && selectedCourse ? selectedCourse.offerings : offerings).map((o: any) => (
+                  <option key={o.offering_id || o.id} value={o.offering_id || o.id}>
+                    {o.course_code || selectedCourse?.code} {o.term}{o.section ? '-' + o.section : ''} - {o.faculty_name || 'N/A'}
+                  </option>
                 ))}
               </select>
               <select className="input" value={newEnrollment.student_id} onChange={(e) => setNewEnrollment({ ...newEnrollment, student_id: e.target.value })}>
@@ -1408,7 +1238,11 @@ const filteredUsers = useMemo(() =>
               </select>
             </div>
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 12, marginTop: 24 }}>
-              <button className="btn btn-secondary" onClick={() => setShowCreateEnrollment(false)} disabled={creatingEnrollment}>Cancel</button>
+              <button className="btn btn-secondary" onClick={() => {
+                setShowCreateEnrollment(false)
+                setEnrollmentFromManage(false)
+                setNewEnrollment({ course_offering_id: '', student_id: '' })
+              }} disabled={creatingEnrollment}>Cancel</button>
               <button
                 className="btn btn-primary"
                 onClick={async () => {
@@ -1420,9 +1254,13 @@ const filteredUsers = useMemo(() =>
                       student_id: Number(newEnrollment.student_id),
                     })
                     setShowCreateEnrollment(false)
+                    setEnrollmentFromManage(false)
                     setNewEnrollment({ course_offering_id: '', student_id: '' })
                     push({ kind: 'success', message: 'Enrollment created successfully' })
                     loadEnrollments()
+                    if (enrollmentFromManage && selectedCourse) {
+                      loadCourseEnrollments(selectedCourse.id)
+                    }
                   } catch (e: any) {
                     push({ kind: 'error', message: e?.message || 'Failed to create enrollment' })
                   } finally {
@@ -1439,7 +1277,7 @@ const filteredUsers = useMemo(() =>
       )}
 
       {showCreateAssignment && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50, backdropFilter: 'blur(4px)', padding: '20px', overflowY: 'auto' }}>
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, backdropFilter: 'blur(4px)', padding: '20px', overflowY: 'auto' }}>
           <div className="card" style={{ width: '100%', maxWidth: 520, background: 'var(--surface)', borderRadius: 'var(--radius-lg)', padding: 24, boxShadow: '0 20px 50px rgba(0,0,0,0.3)', border: '1px solid var(--border)', margin: 'auto', maxHeight: '90vh', overflowY: 'auto' }}>
             <h3 className="h4" style={{ marginTop: 0, marginBottom: 20, color: 'var(--text)' }}>Create New Assignment</h3>
             <div className="form" style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
@@ -1519,7 +1357,7 @@ const filteredUsers = useMemo(() =>
       )}
 
       {showCreateQuiz && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50, backdropFilter: 'blur(4px)', padding: '20px', overflowY: 'auto' }}>
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, backdropFilter: 'blur(4px)', padding: '20px', overflowY: 'auto' }}>
           <div className="card" style={{ width: '100%', maxWidth: 520, background: 'var(--surface)', borderRadius: 'var(--radius-lg)', padding: 24, boxShadow: '0 20px 50px rgba(0,0,0,0.3)', border: '1px solid var(--border)', margin: 'auto', maxHeight: '90vh', overflowY: 'auto' }}>
             <h3 className="h4" style={{ marginTop: 0, marginBottom: 20, color: 'var(--text)' }}>Create New Quiz</h3>
             <div className="form" style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
@@ -1602,7 +1440,7 @@ const filteredUsers = useMemo(() =>
       )}
 
       {showUserDetailsModal && selectedUser && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50, backdropFilter: 'blur(4px)', padding: '20px', overflowY: 'auto' }}>
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, backdropFilter: 'blur(4px)', padding: '20px', overflowY: 'auto' }}>
           <div className="card" style={{ width: '100%', maxWidth: 600, background: 'var(--surface)', borderRadius: 'var(--radius-lg)', padding: 24, boxShadow: '0 20px 50px rgba(0,0,0,0.3)', border: '1px solid var(--border)', margin: 'auto', maxHeight: '90vh', overflowY: 'auto' }}>
             <h3 className="h4" style={{ marginTop: 0, marginBottom: 20, color: 'var(--text)' }}>User Details</h3>
             {!selectedOverview ? (
@@ -1660,11 +1498,14 @@ const filteredUsers = useMemo(() =>
       )}
 
       {showManageOfferings && selectedCourse && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50, backdropFilter: 'blur(4px)', padding: '20px', overflowY: 'auto' }}>
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, backdropFilter: 'blur(4px)', padding: '20px', overflowY: 'auto' }}>
           <div className="card" style={{ width: '100%', maxWidth: 800, background: 'var(--surface)', borderRadius: 'var(--radius-lg)', padding: 24, boxShadow: '0 20px 50px rgba(0,0,0,0.3)', border: '1px solid var(--border)', margin: 'auto', maxHeight: '90vh', overflowY: 'auto' }}>
             <h3 className="h4" style={{ marginTop: 0, marginBottom: 20, color: 'var(--text)' }}>Manage Offerings for {selectedCourse.code} - {selectedCourse.title}</h3>
             <div style={{ marginBottom: 16 }}>
-              <button className="btn btn-primary" onClick={() => setShowCreateOffering(true)}>Create New Offering</button>
+              <button className="btn btn-primary" onClick={() => {
+                setNewOffering(prev => ({ ...prev, course_id: selectedCourse.id.toString() }))
+                setShowCreateOffering(true)
+              }}>Create New Offering</button>
             </div>
             <div className="offerings-list">
               {selectedCourse.offerings && selectedCourse.offerings.length > 0 ? (
@@ -1678,20 +1519,54 @@ const filteredUsers = useMemo(() =>
                       <p className="offering-details">Enrolled: {offering.students?.length || 0}</p>
                     </div>
                     <div style={{ marginTop: 12, display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
-                      <button className="btn btn-secondary">Edit</button>
                       <button
-                        className={`btn ${offering.students && offering.students.length > 0 ? 'btn-disabled' : 'btn-danger'}`}
-                        disabled={offering.students && offering.students.length > 0}
+                        className="btn btn-secondary"
                         onClick={async () => {
-                          if (confirm(`Delete offering "${selectedCourse.code} ${offering.term}${offering.section ? '-' + offering.section : ''}"? This action cannot be undone.`)) {
+                          const newTerm = prompt('Enter new term:', offering.term)
+                          const newSection = prompt('Enter new section:', offering.section || '')
+                          const newFacultyId = prompt('Enter new faculty ID:', offering.faculty_id?.toString() || '')
+                          const newCapacity = prompt('Enter new max capacity:', offering.max_capacity?.toString() || '')
+                          if (newTerm !== null || newSection !== null || newFacultyId !== null || newCapacity !== null) {
                             try {
-                              await deleteOffering(offering.offering_id)
+                              await updateOffering(offering.offering_id, {
+                                term: newTerm || undefined,
+                                section: newSection || undefined,
+                                faculty_id: newFacultyId ? Number(newFacultyId) : undefined,
+                                max_capacity: newCapacity ? Number(newCapacity) : undefined,
+                              })
+                              push({ kind: 'success', message: 'Offering updated successfully' })
+                              loadAdminCourses()
+                            } catch (e: any) {
+                              push({ kind: 'error', message: e?.message || 'Failed to update offering' })
+                            }
+                          }
+                        }}
+                      >
+                        Edit
+                      </button>
+                      <button
+                        className="btn btn-danger"
+                        onClick={async () => {
+                          console.log('Delete button clicked for offering:', offering)
+                          console.log('Students:', offering.students)
+                          const hasEnrollments = offering.students && offering.students.length > 0
+                          const confirmMessage = hasEnrollments
+                            ? `Delete offering "${selectedCourse.code} ${offering.term}${offering.section ? '-' + offering.section : ''}"? This will permanently delete all enrollments, assignments, quizzes, and related data. This action cannot be undone.`
+                            : `Delete offering "${selectedCourse.code} ${offering.term}${offering.section ? '-' + offering.section : ''}"? This action cannot be undone.`
+                          if (confirm(confirmMessage)) {
+                            console.log('Confirmed delete, calling deleteOffering')
+                            try {
+                              const result = await deleteOffering(offering.offering_id)
+                              console.log('deleteOffering result:', result)
                               push({ kind: 'success', message: 'Offering deleted successfully' })
                               loadAdminCourses()
                               setShowManageOfferings(false)
                             } catch (e: any) {
+                              console.error('Error deleting offering:', e)
                               push({ kind: 'error', message: e?.message || 'Failed to delete offering' })
                             }
+                          } else {
+                            console.log('Delete cancelled')
                           }
                         }}
                       >
@@ -1712,11 +1587,19 @@ const filteredUsers = useMemo(() =>
       )}
 
       {showManageEnrollments && selectedCourse && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50, backdropFilter: 'blur(4px)', padding: '20px', overflowY: 'auto' }}>
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, backdropFilter: 'blur(4px)', padding: '20px', overflowY: 'auto' }}>
           <div className="card" style={{ width: '100%', maxWidth: 800, background: 'var(--surface)', borderRadius: 'var(--radius-lg)', padding: 24, boxShadow: '0 20px 50px rgba(0,0,0,0.3)', border: '1px solid var(--border)', margin: 'auto', maxHeight: '90vh', overflowY: 'auto' }}>
             <h3 className="h4" style={{ marginTop: 0, marginBottom: 20, color: 'var(--text)' }}>Manage Enrollments for {selectedCourse.code} - {selectedCourse.title}</h3>
             <div style={{ marginBottom: 16 }}>
-              <button className="btn btn-primary" onClick={() => setShowCreateEnrollment(true)}>Add Enrollment</button>
+              <button className="btn btn-primary" onClick={() => {
+                setEnrollmentFromManage(true)
+                // Pre-fill with first offering for this course
+                const courseOfferings = selectedCourse.offerings || []
+                if (courseOfferings.length > 0) {
+                  setNewEnrollment(prev => ({ ...prev, course_offering_id: courseOfferings[0].offering_id.toString() }))
+                }
+                setShowCreateEnrollment(true)
+              }}>Add Enrollment</button>
             </div>
             {loadingCourseEnrollments ? (
               <p>Loading enrollments...</p>
@@ -1761,6 +1644,16 @@ const filteredUsers = useMemo(() =>
             </div>
           </div>
         </div>
+      )}
+
+      {/* Error handling for invalid tab states */}
+      {!tabConfigs.some(config => config.key === tab) && (
+        <section className="card">
+          <div className="section-header">
+            <h3>Error</h3>
+          </div>
+          <p className="muted">Invalid tab selected. Please refresh the page.</p>
+        </section>
       )}
     </div>
   )
