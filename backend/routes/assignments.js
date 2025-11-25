@@ -1,7 +1,17 @@
 import express from 'express';
 import { requireAuth, requireRole } from '../middleware/auth.js';
-import { createAssignment, getAssignment } from '../controllers/assignmentsController.js';
-import { publishAssignment, listAssignmentSubmissions, deleteAssignment, getAssignmentQuestions, gradeSubmission } from '../controllers/assignmentsController.js';
+import {
+  createAssignment,
+  getAssignment,
+  publishAssignment,
+  listAssignmentSubmissions,
+  deleteAssignment,
+  getAssignmentQuestions,
+  gradeSubmission,
+  submitComponentAssignment,
+  gradeComponentSubmission,
+  getComponentSubmissions
+} from '../controllers/assignmentsController.js';
 import { runPlagiarismCheck, getPlagiarismChecks, getPlagiarismMatches } from '../utils/plagiarism.js';
 
 const router = express.Router();
@@ -305,6 +315,11 @@ router.get('/:id/plagiarism-matches/:checkId', requireAuth, requireRole('faculty
 });
 
 router.get('/:id/questions', requireAuth, getAssignmentQuestions);
+
+// Component-based assignment routes
+router.post('/:id/submit-components', requireAuth, submitComponentAssignment);
+router.post('/submissions/:id/grade-components', requireAuth, requireRole('faculty','ta','admin'), gradeComponentSubmission);
+router.get('/submissions/:id/components', requireAuth, getComponentSubmissions);
 
 router.delete('/:id', requireAuth, requireRole('faculty','admin'), deleteAssignment);
 export default router;

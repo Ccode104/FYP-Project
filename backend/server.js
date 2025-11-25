@@ -36,6 +36,9 @@ export async function startServer(port = 4000) {
   const app = express();
   const server = createServer(app);
 
+  // In-memory store for whiteboard state (per lecture)
+  const whiteboardState = {};
+
   // Initialize Socket.IO with CORS
   const io = new Server(server, {
     cors: {
@@ -289,6 +292,71 @@ export async function startServer(port = 4000) {
         participantId,
         unmutedBy,
         timestamp: new Date().toISOString()
+      });
+    });
+
+    // Whiteboard events
+    socket.on('whiteboard-draw', (data) => {
+      const { lectureId, drawingData } = data;
+      
+      // Initialize state for this lecture if not exists
+      if (!whiteboardState[lectureId]) {
+        whiteboardState[lectureId] = [];
+      }
+      
+      // Add to history
+      whiteboardState[lectureId].push(drawingData);
+      
+      // Broadcast to others
+      socket.to(`lecture-${lectureId}`).emit('whiteboard-draw', drawingData);
+    });
+
+    socket.on('whiteboard-clear', (data) => {
+      const { lectureId } = data;
+      
+      // Clear history
+      whiteboardState[lectureId] = [];
+      
+      // Broadcast clear event
+      socket.to(`lecture-${lectureId}`).emit('whiteboard-clear');
+    });
+
+    socket.on('request-whiteboard-state', (data) => {
+      const { lectureId } = data;
+      if (whiteboardState[lectureId] && whiteboardState[lectureId].length > 0) {
+        socket.emit('whiteboard-state', {
+          lectureId,
+          history: whiteboardState[lectureId]
+        });
+      }
+    });
+
+    // Hand raising and reactions
+    socket.on('raise-hand', (data) => {
+      const { lectureId, userId, userName, isRaised } = data;
+      socket.to(`lecture-${lectureId}`).emit('hand-raised-update', {
+        userId,
+        userName,
+        isRaised,
+        timestamp: new Date().toISOString()
+      });
+    });
+
+    socket.on('send-reaction', (data) => {
+      const { lectureId, userId, reaction } = data;
+      socket.to(`lecture-${lectureId}`).emit('reaction-received', {
+        userId,
+        reaction,
+        timestamp: new Date().toISOString()
+      });
+    });
+
+    // Screen share status
+    socket.on('screen-share-status', (data) => {
+      const { lectureId, userId, isSharing } = data;
+      socket.to(`lecture-${lectureId}`).emit('screen-share-update', {
+        userId,
+        isSharing
       });
     });
 

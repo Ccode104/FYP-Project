@@ -84,7 +84,7 @@ export async function getAllTickets(params?: {
   if (params?.priority) queryParams.append('priority', params.priority)
 
   const query = queryParams.toString()
-  return apiFetch(`/api/support/tickets/all${query ? `?${query}` : ''}`)
+  return apiFetch(`/api/support/admin/tickets${query ? `?${query}` : ''}`)
 }
 
 export async function getTicketDetails(id: number): Promise<TicketDetails> {

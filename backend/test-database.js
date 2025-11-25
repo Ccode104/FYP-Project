@@ -45,7 +45,9 @@ async function testDatabase() {
       'study_materials',
       'videos',
       'video_quiz_questions',
-      'video_quiz_attempts'
+      'video_quiz_attempts',
+      'live_lectures',
+      'live_lecture_participants'
     ];
 
     for (const table of tables) {

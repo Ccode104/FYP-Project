@@ -197,7 +197,7 @@ router.post('/:id/leave', leaveLiveLecture);
  * @swagger
  * /api/live-lectures/{id}/participants:
  *   get:
- *     summary: Get participants for a live lecture (Faculty/Admin only)
+ *     summary: Get participants for a live lecture
  *     tags: [Live Lectures]
  *     security:
  *       - bearerAuth: []
@@ -211,8 +211,8 @@ router.post('/:id/leave', leaveLiveLecture);
  *       200:
  *         description: List of participants
  *       403:
- *         description: Forbidden - Not authorized to view participants
+ *         description: Forbidden - Not enrolled in the course
  */
-router.get('/:id/participants', requireRole('faculty', 'admin', 'ta'), getLiveLectureParticipants);
+router.get('/:id/participants', getLiveLectureParticipants);
 
 export default router;

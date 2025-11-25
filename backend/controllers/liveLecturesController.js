@@ -319,7 +319,8 @@ export async function joinLiveLecture(req, res) {
     let role = 'student';
     if (userRole === 'faculty' || userRole === 'admin' || userRole === 'ta') {
       hasAccess = true;
-      role = userRole;
+      // Normalize role for database constraint
+      role = userRole === 'faculty' ? 'teacher' : userRole;
     } else {
       const enrollmentCheck = await pool.query(
         'SELECT id FROM enrollments WHERE course_offering_id = $1 AND student_id = $2',
@@ -432,12 +433,20 @@ export async function getLiveLectureParticipants(req, res) {
     }
 
     // Check if user has access to view participants
-    const accessCheck = await pool.query(
-      'SELECT ll.id FROM live_lectures ll WHERE ll.id = $1 AND (ll.created_by = $2 OR $3 IN (\'faculty\', \'admin\', \'ta\'))',
-      [lectureId, userId, userRole]
-    );
+    let hasAccess = false;
+    if (userRole === 'faculty' || userRole === 'admin' || userRole === 'ta') {
+      hasAccess = true;
+    } else {
+      // For students, check if they are enrolled in the course offering
+      const enrollmentCheck = await pool.query(`
+        SELECT e.id FROM enrollments e
+        JOIN live_lectures ll ON ll.course_offering_id = e.course_offering_id
+        WHERE ll.id = $1 AND e.student_id = $2
+      `, [lectureId, userId]);
+      hasAccess = enrollmentCheck.rows.length > 0;
+    }
 
-    if (accessCheck.rows.length === 0) {
+    if (!hasAccess) {
       return res.status(403).json({ error: 'You do not have permission to view participants' });
     }
 

@@ -823,7 +823,7 @@ export async function adminListQuizzes(req, res) {
       JOIN courses c ON co.course_id = c.id
       LEFT JOIN users u ON co.faculty_id = u.id
       ${where}
-      ORDER BY q.start_at DESC, q.created_at DESC
+      ORDER BY q.start_at DESC, q.id DESC
     `, params);
     res.json({ quizzes: r.rows });
   } catch (err) {

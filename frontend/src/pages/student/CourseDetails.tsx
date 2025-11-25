@@ -75,8 +75,6 @@ export default function CourseDetails() {
   const [selectedVideo, setSelectedVideo] = useState<any | null>(null)
   const [videoQuestions, setVideoQuestions] = useState<any[]>([])
   const [liveLectures, setLiveLectures] = useState<any[]>([])
-  const [selectedLiveLecture, setSelectedLiveLecture] = useState<any | null>(null)
-  const [showLiveLectureViewer, setShowLiveLectureViewer] = useState(false)
   const [showLiveLectureBroadcaster, setShowLiveLectureBroadcaster] = useState(false)
   const [selectedQuizResult, setSelectedQuizResult] = useState<any | null>(null)
   const [showQuizResultModal, setShowQuizResultModal] = useState(false)
@@ -2095,8 +2093,8 @@ export default function CourseDetails() {
                               <button
                                 className="btn btn-primary"
                                 onClick={() => {
-                                  setSelectedLiveLecture(lecture);
-                                  setShowLiveLectureViewer(true);
+                                  // Navigate to dedicated live lecture page
+                                  navigate(`/courses/${courseId}/live-lectures/${lecture.id}`);
                                 }}
                               >
                                 Join
@@ -2150,19 +2148,6 @@ export default function CourseDetails() {
             </section>
           )}
 
-          {/* Live Lecture Viewer Modal */}
-          {showLiveLectureViewer && selectedLiveLecture && (
-            <LiveLectureViewer
-              lectureId={selectedLiveLecture.id}
-              userId={user?.id || 0}
-              userName={user?.name || 'Student'}
-              userRole={user?.role || 'student'}
-              onClose={() => {
-                setShowLiveLectureViewer(false);
-                setSelectedLiveLecture(null);
-              }}
-            />
-          )}
 
           {/* Live Lecture Broadcaster Modal */}
           {showLiveLectureBroadcaster && (

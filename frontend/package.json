@@ -13,12 +13,17 @@
   "dependencies": {
     "@monaco-editor/react": "^4.7.0",
     "axios": "^1.13.2",
+    "buffer": "^6.0.3",
+    "events": "^3.3.0",
     "face-api.js": "^0.22.2",
+    "framer-motion": "^12.23.24",
     "react": "^19.1.1",
     "react-dom": "^19.1.1",
     "react-router-dom": "^7.9.4",
     "simple-peer": "^9.11.1",
-    "socket.io-client": "^4.8.1"
+    "socket.io-client": "^4.8.1",
+    "stream-browserify": "^3.0.0",
+    "util": "^0.12.5"
   },
   "devDependencies": {
     "@eslint/js": "^9.36.0",

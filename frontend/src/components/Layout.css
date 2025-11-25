@@ -1,4 +1,4 @@
-/* ===== Base Layout ===== */
+ a/* ===== Base Layout ===== */
 .site-layout {
   min-height: 100vh;
   display: flex;
@@ -351,16 +351,31 @@
   margin: 0 auto;
 }
 
+/* ===== Fullscreen Layout ===== */
+.fullscreen-layout {
+  min-height: 100vh;
+  background: #000;
+}
+
+.fullscreen-main {
+  flex: 1;
+  padding: 0;
+  margin: 0;
+  width: 100%;
+  height: 100vh;
+  overflow: hidden;
+}
+
 /* ===== Responsive ===== */
 @media (max-width: 900px) {
-  .site-header__inner { 
-    padding: 14px 20px; 
+  .site-header__inner {
+    padding: 14px 20px;
   }
-  
+
   .site-title {
     font-size: 18px;
   }
-  
+
   .site-footer {
     padding: 16px 20px;
     font-size: 12px;

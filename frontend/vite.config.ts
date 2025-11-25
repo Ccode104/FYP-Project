@@ -7,6 +7,17 @@ export default defineConfig({
   define: {
     global: 'globalThis',
   },
+  optimizeDeps: {
+    include: ['simple-peer', 'buffer', 'events', 'util', 'stream-browserify'],
+  },
+  resolve: {
+    alias: {
+      buffer: 'buffer',
+      events: 'events',
+      stream: 'stream-browserify',
+      util: 'util',
+    },
+  },
   server: {
     proxy: {
       '/api': {

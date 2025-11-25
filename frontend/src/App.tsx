@@ -13,6 +13,7 @@ import TADashboard from './pages/teacher/TADashboard'
 import AdminDashboard from './pages/admin/AdminDashboard'
 import CourseDetails from './pages/student/CourseDetails'
 import CodeEditorPage from './pages/student/CodeEditorPage'
+import LiveLecturePage from './pages/student/LiveLecturePage'
 
 // Import the protected route wrapper for role-based access
 import ProtectedRoute from './routes/ProtectedRoute'
@@ -110,6 +111,16 @@ function App() {
             element={
               <ProtectedRoute roles={["student", "teacher", "ta"]}>
                 <CodeEditorPage />
+              </ProtectedRoute>
+            }
+          />
+
+          {/* Live lecture page (accessible by student, teacher, TA) */}
+          <Route
+            path="/courses/:courseId/live-lectures/:lectureId"
+            element={
+              <ProtectedRoute roles={["student", "teacher", "ta"]}>
+                <LiveLecturePage />
               </ProtectedRoute>
             }
           />

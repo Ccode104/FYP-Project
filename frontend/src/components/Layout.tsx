@@ -16,7 +16,9 @@ export default function Layout({ children }: { children: ReactNode }) {
   const { courseTitle } = useCourse()
   const isAuth = pathname === '/login' || pathname === '/signup' || pathname.startsWith('/forgot')
   const isLanding = pathname === '/'
+  const isLiveLecture = pathname.includes('/live-lectures/')
   const isPublicPage = isLanding || isAuth
+  const isFullscreenPage = isLiveLecture
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -107,13 +109,24 @@ export default function Layout({ children }: { children: ReactNode }) {
     )
   }
 
+  // For fullscreen pages (like live lectures), hide header and footer
+  if (isFullscreenPage) {
+    return (
+      <div className="site-layout fullscreen-layout">
+        <main className="site-main fullscreen-main">
+          {children}
+        </main>
+      </div>
+    )
+  }
+
   // For authenticated users on dashboard pages
   return (
     <div className="site-layout">
       <header className="site-header">
         <div className="site-header__inner">
           <div className="site-header__left">
-            <button 
+            <button
               className="site-title-link"
               onClick={() => navigate('/')}
               aria-label="Go to home"
@@ -122,8 +135,8 @@ export default function Layout({ children }: { children: ReactNode }) {
             </button>
             {user && (
               <nav className="breadcrumb-nav">
-                <button 
-                  className="breadcrumb-link" 
+                <button
+                  className="breadcrumb-link"
                   onClick={() => navigate(getDashboardPathForRole(user.role))}
                   aria-label="Dashboard"
                 >
@@ -142,7 +155,7 @@ export default function Layout({ children }: { children: ReactNode }) {
             <ThemeToggle />
             {user && (
               <div className="user-dropdown-container" ref={dropdownRef}>
-                <button 
+                <button
                   className="user-dropdown-trigger"
                   onClick={() => setShowUserDropdown(!showUserDropdown)}
                   aria-label="User menu"
@@ -167,7 +180,7 @@ export default function Layout({ children }: { children: ReactNode }) {
                       </svg>
                       Profile
                     </button>
-                    <button 
+                    <button
                       className="dropdown-item"
                       onClick={() => {
                         setShowUserDropdown(false)

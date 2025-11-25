@@ -20,6 +20,7 @@ import { createCourse as createCourseFromCourses, createOffering as createOfferi
 import { register } from '../../services/auth'
 import { useToast } from '../../components/ToastProvider'
 import SupportTicketList from '../../components/SupportTicketList'
+import Reports from '../../components/Reports'
 interface User {
   id: number;
   name?: string;
@@ -893,15 +894,7 @@ const filteredUsers = useMemo(() =>
         </section>
       )}
 
-      {tab === 'reports' && (
-        <section className="card">
-          <div className="section-header">
-            <h3>Reports</h3>
-            <button className="btn btn-primary" onClick={() => alert('Report generation coming soon!')}>Generate Report</button>
-          </div>
-          <p className="muted">Reports and analytics coming soon...</p>
-        </section>
-      )}
+      {tab === 'reports' && <Reports />}
 
       {tab === 'overview' && (
         <section className="overview-section">

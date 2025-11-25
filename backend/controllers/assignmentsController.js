@@ -1,7 +1,22 @@
 import { pool } from '../db/index.js';
 
 export async function createAssignment(req, res) {
-  const { course_offering_id, title, description, assignment_type, release_at, due_at, max_score, allow_multiple_submissions, question_ids } = req.body;
+  const {
+    course_offering_id,
+    title,
+    description,
+    assignment_type, // Legacy field for backward compatibility
+    assignment_config, // New flexible configuration
+    submission_requirements, // New submission requirements
+    grading_config, // New grading configuration
+    release_at,
+    due_at,
+    max_score,
+    total_points, // New field for component-based assignments
+    allow_multiple_submissions,
+    is_graded,
+    question_ids // Legacy field for backward compatibility
+  } = req.body;
 
   // Check if user has permission to create assignments for this offering
   if (req.user.role !== 'admin') {
@@ -22,30 +37,114 @@ export async function createAssignment(req, res) {
     }
   }
 
-  const q = `INSERT INTO assignments (course_offering_id, title, description, assignment_type, release_at, due_at, max_score, allow_multiple_submissions, created_by)
-             VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING *`;
-  const created_by = req.user?.id || null;
-  const r = await pool.query(q, [course_offering_id, title, description, assignment_type, release_at, due_at, max_score || 100, allow_multiple_submissions || false, created_by]);
-  const assignment = r.rows[0];
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
 
-  // If this is a code assignment and question_ids are provided, create assignment_questions mappings
-  if (assignment_type === 'code' && question_ids && Array.isArray(question_ids) && question_ids.length > 0) {
-    for (let i = 0; i < question_ids.length; i++) {
-      const question_id = Number(question_ids[i]);
-      if (question_id) {
-        // Calculate points per question (distribute max_score evenly)
-        const pointsPerQuestion = (max_score || 100) / question_ids.length;
-        await pool.query(
-          `INSERT INTO assignment_questions (assignment_id, question_id, points, position)
-           VALUES ($1, $2, $3, $4)
-           ON CONFLICT (assignment_id, question_id) DO NOTHING`,
-          [assignment.id, question_id, pointsPerQuestion, i + 1]
-        );
+    // Prepare data for insertion
+    const created_by = req.user?.id || null;
+    const final_total_points = total_points || max_score || 100;
+    const final_allow_multiple = allow_multiple_submissions || false;
+    const final_is_graded = is_graded !== undefined ? is_graded : true;
+
+    // Handle both legacy and new assignment formats
+    let final_assignment_config = assignment_config;
+    let final_submission_requirements = submission_requirements;
+    let final_grading_config = grading_config;
+
+    // If using legacy format, convert to new format
+    if (!assignment_config && assignment_type) {
+      final_assignment_config = {
+        assignment_type: 'simple',
+        components: [{
+          id: 'main_component',
+          type: assignment_type === 'homework' ? 'document' :
+                assignment_type === 'project' ? 'code' :
+                assignment_type === 'exam' ? 'assessment' : 'other',
+          subtype: assignment_type,
+          title: title,
+          description: description,
+          points: final_total_points
+        }],
+        settings: {
+          allow_group_work: false,
+          peer_review_required: false,
+          auto_grading_enabled: assignment_type === 'code',
+          plagiarism_check: true
+        }
+      };
+
+      final_submission_requirements = [{
+        component_id: 'main_component',
+        submission_type: assignment_type === 'code' ? 'file_upload' : 'text',
+        accepted_formats: assignment_type === 'code' ? ['.py', '.java', '.cpp'] :
+                         assignment_type === 'homework' ? ['.pdf', '.docx'] : ['*'],
+        max_file_size_mb: 10,
+        required: true
+      }];
+
+      final_grading_config = {
+        grading_type: 'simple',
+        use_rubric: false,
+        allow_partial_credit: true,
+        grade_visibility: 'after_due_date'
+      };
+    }
+
+    // Insert the assignment
+    const insertQ = `
+      INSERT INTO assignments (
+        course_offering_id, title, description, assignment_config,
+        submission_requirements, grading_config, total_points,
+        allow_multiple_submissions, is_graded, release_at, due_at, created_by
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+      RETURNING *
+    `;
+
+    const insertValues = [
+      course_offering_id,
+      title,
+      description,
+      JSON.stringify(final_assignment_config),
+      JSON.stringify(final_submission_requirements),
+      JSON.stringify(final_grading_config),
+      final_total_points,
+      final_allow_multiple,
+      final_is_graded,
+      release_at,
+      due_at,
+      created_by
+    ];
+
+    const r = await client.query(insertQ, insertValues);
+    const assignment = r.rows[0];
+
+    // Handle legacy question_ids for backward compatibility
+    if (assignment_type === 'code' && question_ids && Array.isArray(question_ids) && question_ids.length > 0) {
+      for (let i = 0; i < question_ids.length; i++) {
+        const question_id = Number(question_ids[i]);
+        if (question_id) {
+          const pointsPerQuestion = final_total_points / question_ids.length;
+          await client.query(
+            `INSERT INTO assignment_questions (assignment_id, question_id, points, position)
+             VALUES ($1, $2, $3, $4)
+             ON CONFLICT (assignment_id, question_id) DO NOTHING`,
+            [assignment.id, question_id, pointsPerQuestion, i + 1]
+          );
+        }
       }
     }
-  }
 
-  res.json(assignment);
+    await client.query('COMMIT');
+    res.json(assignment);
+
+  } catch (error) {
+    await client.query('ROLLBACK');
+    console.error('Error creating assignment:', error);
+    res.status(500).json({ error: 'Failed to create assignment' });
+  } finally {
+    client.release();
+  }
 }
 
 export async function publishAssignment(req, res) {
@@ -130,6 +229,17 @@ export async function getAssignment(req, res) {
   if (r.rowCount === 0) return res.status(404).json({ error: 'Assignment not found' });
 
   const assignment = r.rows[0];
+
+  // Parse JSONB fields for flexible assignments (pg library returns them as objects)
+  if (assignment.assignment_config && typeof assignment.assignment_config === 'string') {
+    assignment.assignment_config = JSON.parse(assignment.assignment_config);
+  }
+  if (assignment.submission_requirements && typeof assignment.submission_requirements === 'string') {
+    assignment.submission_requirements = JSON.parse(assignment.submission_requirements);
+  }
+  if (assignment.grading_config && typeof assignment.grading_config === 'string') {
+    assignment.grading_config = JSON.parse(assignment.grading_config);
+  }
 
   // Check if user has access to this assignment (enrolled in the course or faculty/admin)
   if (req.user.role === 'student') {
@@ -216,7 +326,216 @@ export async function getAssignmentQuestions(req, res) {
   }
 }
 
-// Grade a submission
+// Submit component-based assignment
+export async function submitComponentAssignment(req, res) {
+  try {
+    const assignmentId = Number(req.params.id);
+    const { components } = req.body; // Array of { component_id, submission_type, content, file_path, metadata }
+
+    if (!assignmentId || !components || !Array.isArray(components)) {
+      return res.status(400).json({ error: 'Missing required fields' });
+    }
+
+    // Verify assignment exists and user is enrolled
+    const assignmentCheck = await pool.query(`
+      SELECT a.id, a.course_offering_id, a.assignment_config, a.submission_requirements
+      FROM assignments a
+      JOIN course_offerings o ON a.course_offering_id = o.id
+      WHERE a.id = $1
+    `, [assignmentId]);
+
+    if (assignmentCheck.rowCount === 0) {
+      return res.status(404).json({ error: 'Assignment not found' });
+    }
+
+    const assignment = assignmentCheck.rows[0];
+
+    // Check enrollment for students
+    if (req.user.role === 'student') {
+      const enrollCheck = await pool.query(
+        'SELECT 1 FROM enrollments WHERE course_offering_id = $1 AND student_id = $2',
+        [assignment.course_offering_id, req.user.id]
+      );
+      if (enrollCheck.rowCount === 0) {
+        return res.status(403).json({ error: 'Not enrolled in this course' });
+      }
+    }
+
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+
+      // Create or update main assignment submission
+      let submissionResult = await client.query(`
+        SELECT id FROM assignment_submissions
+        WHERE assignment_id = $1 AND student_id = $2
+      `, [assignmentId, req.user.id]);
+
+      let submissionId;
+      if (submissionResult.rowCount === 0) {
+        // Create new submission
+        const newSubmission = await client.query(`
+          INSERT INTO assignment_submissions (assignment_id, student_id, submitted_at, status)
+          VALUES ($1, $2, NOW(), 'submitted')
+          RETURNING id
+        `, [assignmentId, req.user.id]);
+        submissionId = newSubmission.rows[0].id;
+      } else {
+        submissionId = submissionResult.rows[0].id;
+        // Update submission timestamp
+        await client.query(`
+          UPDATE assignment_submissions SET submitted_at = NOW() WHERE id = $1
+        `, [submissionId]);
+      }
+
+      // Insert component submissions
+      for (const component of components) {
+        await client.query(`
+          INSERT INTO assignment_component_submissions
+          (assignment_submission_id, component_id, submission_type, content, file_path, metadata, submitted_at)
+          VALUES ($1, $2, $3, $4, $5, $6, NOW())
+          ON CONFLICT (assignment_submission_id, component_id) DO UPDATE SET
+            submission_type = EXCLUDED.submission_type,
+            content = EXCLUDED.content,
+            file_path = EXCLUDED.file_path,
+            metadata = EXCLUDED.metadata,
+            submitted_at = NOW()
+        `, [
+          submissionId,
+          component.component_id,
+          component.submission_type,
+          component.content || null,
+          component.file_path || null,
+          JSON.stringify(component.metadata || {})
+        ]);
+      }
+
+      await client.query('COMMIT');
+      res.json({ success: true, submissionId });
+
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
+
+  } catch (err) {
+    console.error('Error submitting component assignment:', err);
+    res.status(500).json({ error: 'Failed to submit assignment' });
+  }
+}
+
+// Grade component-based submission
+export async function gradeComponentSubmission(req, res) {
+  try {
+    const submissionId = Number(req.params.id);
+    const { componentGrades, overallFeedback } = req.body;
+
+    if (!submissionId) return res.status(400).json({ error: 'Missing submission id' });
+
+    // Verify the user has permission to grade this submission
+    const checkQ = `
+      SELECT s.id, s.assignment_id, a.course_offering_id, o.faculty_id, a.grading_config
+      FROM assignment_submissions s
+      JOIN assignments a ON s.assignment_id = a.id
+      JOIN course_offerings o ON a.course_offering_id = o.id
+      WHERE s.id = $1
+    `;
+    const checkR = await pool.query(checkQ, [submissionId]);
+    if (checkR.rowCount === 0) return res.status(404).json({ error: 'Submission not found' });
+
+    const submission = checkR.rows[0];
+
+    // Check if current user is faculty for this offering or admin
+    if (req.user.role !== 'admin' && req.user.id !== submission.faculty_id) {
+      return res.status(403).json({ error: 'Not authorized to grade this submission' });
+    }
+
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+
+      let totalScore = 0;
+      let totalPossible = 0;
+
+      // Insert component grades
+      if (componentGrades && Array.isArray(componentGrades)) {
+        for (const cg of componentGrades) {
+          await client.query(`
+            INSERT INTO component_grades
+            (assignment_submission_id, component_id, score, feedback, graded_by, graded_at)
+            VALUES ($1, $2, $3, $4, $5, NOW())
+            ON CONFLICT (assignment_submission_id, component_id) DO UPDATE SET
+              score = EXCLUDED.score,
+              feedback = EXCLUDED.feedback,
+              graded_by = EXCLUDED.graded_by,
+              graded_at = NOW()
+          `, [submissionId, cg.component_id, cg.score, cg.feedback || '', req.user.id]);
+
+          totalScore += cg.score;
+          // You might want to get the max points for each component from assignment_config
+        }
+      }
+
+      // Calculate final grade (simplified - you might want more complex logic)
+      const finalGrade = totalScore; // Or calculate based on assignment config
+
+      // Update the main submission
+      const updateQ = `
+        UPDATE assignment_submissions
+        SET final_score = $1, comments = $2, graded_at = NOW(), grader_id = $3
+        WHERE id = $4
+        RETURNING *
+      `;
+      const updateR = await client.query(updateQ, [finalGrade, overallFeedback || '', req.user.id, submissionId]);
+
+      await client.query('COMMIT');
+      res.json(updateR.rows[0]);
+
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
+
+  } catch (err) {
+    console.error('Error grading component submission:', err);
+    res.status(500).json({ error: 'Failed to grade submission' });
+  }
+}
+
+// Get component submissions for a submission
+export async function getComponentSubmissions(req, res) {
+  try {
+    const submissionId = Number(req.params.id);
+    if (!submissionId) return res.status(400).json({ error: 'Missing submission id' });
+
+    const components = await pool.query(`
+      SELECT acs.*, acs.metadata as submission_metadata
+      FROM assignment_component_submissions acs
+      WHERE acs.assignment_submission_id = $1
+      ORDER BY acs.submitted_at DESC
+    `, [submissionId]);
+
+    // Parse metadata JSON (pg library returns jsonb as objects)
+    const parsedComponents = components.rows.map(comp => ({
+      ...comp,
+      submission_metadata: (comp.submission_metadata && typeof comp.submission_metadata === 'string')
+        ? JSON.parse(comp.submission_metadata)
+        : (comp.submission_metadata || {})
+    }));
+
+    res.json({ components: parsedComponents });
+
+  } catch (err) {
+    console.error('Error getting component submissions:', err);
+    res.status(500).json({ error: 'Failed to get component submissions' });
+  }
+}
+
+// Legacy gradeSubmission function (for backward compatibility)
 export async function gradeSubmission(req, res) {
   try {
     const submissionId = Number(req.params.id);
@@ -281,7 +600,7 @@ export async function gradeSubmission(req, res) {
       // Update the submission with grade
       const updateQ = `
         UPDATE assignment_submissions
-        SET grade = $1, feedback = $2, graded_at = NOW(), graded_by = $3
+        SET final_score = $1, comments = $2, graded_at = NOW(), grader_id = $3
         WHERE id = $4
         RETURNING *
       `;

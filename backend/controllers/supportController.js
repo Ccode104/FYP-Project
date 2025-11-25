@@ -16,10 +16,11 @@ export async function createTicket(req, res) {
     // Get the created ticket with user info
     const ticketQuery = `
       SELECT st.*, u.name as user_name, u.email as user_email,
-             co.course_code, co.course_title
+             c.code as course_code, c.title as course_title
       FROM support_tickets st
       JOIN users u ON st.user_id = u.id
       LEFT JOIN course_offerings co ON st.course_offering_id = co.id
+      LEFT JOIN courses c ON co.course_id = c.id
       WHERE st.id = $1
     `;
     const ticketResult = await pool.query(ticketQuery, [result.rows[0].id]);
@@ -39,11 +40,12 @@ export async function getUserTickets(req, res) {
   try {
     let query = `
       SELECT st.*, u.name as user_name, u.email as user_email,
-             co.course_code, co.course_title,
+             c.code as course_code, c.title as course_title,
              au.name as assigned_to_name
       FROM support_tickets st
       JOIN users u ON st.user_id = u.id
       LEFT JOIN course_offerings co ON st.course_offering_id = co.id
+      LEFT JOIN courses c ON co.course_id = c.id
       LEFT JOIN users au ON st.assigned_to = au.id
       WHERE st.user_id = $1
     `;
@@ -79,11 +81,12 @@ export async function getAllTickets(req, res) {
   try {
     let query = `
       SELECT st.*, u.name as user_name, u.email as user_email,
-             co.course_code, co.course_title,
+             c.code as course_code, c.title as course_title,
              au.name as assigned_to_name
       FROM support_tickets st
       JOIN users u ON st.user_id = u.id
       LEFT JOIN course_offerings co ON st.course_offering_id = co.id
+      LEFT JOIN courses c ON co.course_id = c.id
       LEFT JOIN users au ON st.assigned_to = au.id
       WHERE 1=1
     `;
@@ -132,11 +135,12 @@ export async function getTicket(req, res) {
     // Get ticket
     const ticketQuery = `
       SELECT st.*, u.name as user_name, u.email as user_email,
-             co.course_code, co.course_title,
+             c.code as course_code, c.title as course_title,
              au.name as assigned_to_name
       FROM support_tickets st
       JOIN users u ON st.user_id = u.id
       LEFT JOIN course_offerings co ON st.course_offering_id = co.id
+      LEFT JOIN courses c ON co.course_id = c.id
       LEFT JOIN users au ON st.assigned_to = au.id
       WHERE st.id = $1
     `;
