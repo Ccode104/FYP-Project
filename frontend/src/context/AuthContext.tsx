@@ -105,6 +105,11 @@ export function useAuth() {
 }
 
 export function getDashboardPathForRole(role: Role) {
+  // Admins should always go to admin dashboard regardless of role switching
+  if (role === 'admin') {
+    return '/dashboard/admin'
+  }
+
   switch (role) {
     case 'student':
       return '/dashboard/student'
@@ -112,8 +117,6 @@ export function getDashboardPathForRole(role: Role) {
       return '/dashboard/teacher'
     case 'ta':
       return '/dashboard/ta'
-    case 'admin':
-      return '/dashboard/admin'
     default:
       return '/login'
   }

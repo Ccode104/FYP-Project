@@ -111,6 +111,10 @@ const LiveLectureRoom: React.FC<LiveLectureRoomProps> = ({
   const [screenSharingUserId, setScreenSharingUserId] = useState<number | null>(null);
   const [isRecording, setIsRecording] = useState(false);
 
+  // Permission state
+  const [cameraPermission, setCameraPermission] = useState<'granted' | 'denied' | 'prompt'>('prompt');
+  const [microphonePermission, setMicrophonePermission] = useState<'granted' | 'denied' | 'prompt'>('prompt');
+
   // Refs
   const socketRef = useRef<Socket | null>(null);
   const peersRef = useRef<{ [key: string]: Peer.Instance }>({});
@@ -119,11 +123,22 @@ const LiveLectureRoom: React.FC<LiveLectureRoomProps> = ({
   const durationIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const startTimeRef = useRef<Date>(new Date());
 
+  // Debug connection status
+  useEffect(() => {
+    const status = getConnectionStatus();
+    console.log('Connection status changed:', {
+      isConnected,
+      connectionQuality: connectionStats.quality,
+      status,
+      timestamp: new Date().toISOString()
+    });
+  }, [isConnected, connectionStats.quality]);
+
   // Initialize socket connection and media
   useEffect(() => {
     initializeConnection();
     startDurationTimer();
-    
+
     return () => {
       cleanup();
       if (durationIntervalRef.current) {
@@ -184,16 +199,57 @@ const LiveLectureRoom: React.FC<LiveLectureRoomProps> = ({
 
   const initializeConnection = async () => {
     try {
-      const socketConnection = io(import.meta.env.VITE_BACKEND_URL || 'http://localhost:4000', {
-        auth: { token: localStorage.getItem('auth:token') },
+      console.log('Attempting to connect to backend...');
+      const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:4000';
+      console.log('Backend URL:', backendUrl);
+
+      const authToken = localStorage.getItem('auth:token');
+      console.log('Auth token present:', !!authToken);
+
+      if (!authToken) {
+        console.error('No auth token found - user may not be logged in');
+        setConnectionStats({ quality: 'disconnected' });
+        return;
+      }
+
+      const socketConnection = io(backendUrl, {
+        auth: { token: authToken },
         transports: ['websocket', 'polling'],
         timeout: 10000,
       });
 
+      // Set up connection timeout
+      const connectionTimeout = setTimeout(() => {
+        if (!socketConnection.connected) {
+          console.error('Socket connection timeout - backend server may not be running');
+          setConnectionStats({ quality: 'disconnected' });
+        }
+      }, 5000);
+
+      socketConnection.on('connect', () => {
+        clearTimeout(connectionTimeout);
+        console.log('Socket connected successfully');
+      });
+
+      socketConnection.on('connect_error', (error) => {
+        clearTimeout(connectionTimeout);
+        console.error('Socket connection error:', error);
+        setConnectionStats({ quality: 'disconnected' });
+      });
+
       socketConnection.emit('join-live-lecture', { lectureId, userId, userType: userRole });
+
+      console.log('Calling joinLiveLecture API...');
       await joinLiveLecture(lectureId);
+      console.log('joinLiveLecture API call successful');
+
+      console.log('Calling fetchCurrentParticipants API...');
       await fetchCurrentParticipants();
+      console.log('fetchCurrentParticipants API call successful');
+
+      console.log('Initializing media...');
       await initializeMedia();
+      console.log('Media initialization successful');
       setupSocketListeners(socketConnection);
 
       setSocket(socketConnection);
@@ -216,10 +272,45 @@ const LiveLectureRoom: React.FC<LiveLectureRoomProps> = ({
       stream.getVideoTracks().forEach(track => { track.enabled = false; });
 
       streamRef.current = stream;
+      setCameraPermission('granted');
+      setMicrophonePermission('granted');
       setConnectionStats({ quality: 'excellent' });
 
-    } catch (error) {
-      console.error('Media initialization failed:', error);
+      // Add stream to existing peer connections so remote participants can see our video
+      Object.values(peersRef.current).forEach(peer => {
+        if (!peer.destroyed && peer.connected) {
+          try {
+            peer.addStream(stream);
+          } catch (error) {
+            // Stream might already be added, or peer not ready - ignore
+            console.log('Stream already added to peer or peer not ready');
+          }
+        }
+      });
+
+    } catch (error: any) {
+      // Handle permission denied errors gracefully
+      if (error.name === 'NotAllowedError') {
+        // Check which permissions were denied
+        try {
+          await navigator.permissions.query({ name: 'camera' as PermissionName });
+          setCameraPermission('denied');
+        } catch {
+          setCameraPermission('denied');
+        }
+
+        try {
+          await navigator.permissions.query({ name: 'microphone' as PermissionName });
+          setMicrophonePermission('denied');
+        } catch {
+          setMicrophonePermission('denied');
+        }
+
+        setConnectionStats({ quality: 'poor' });
+        return; // Don't try fallback for permission denied
+      }
+
+      // Try fallback for other errors
       try {
         const fallbackStream = await navigator.mediaDevices.getUserMedia({
           video: true,
@@ -228,9 +319,25 @@ const LiveLectureRoom: React.FC<LiveLectureRoomProps> = ({
         fallbackStream.getAudioTracks().forEach(track => { track.enabled = false; });
         fallbackStream.getVideoTracks().forEach(track => { track.enabled = false; });
         streamRef.current = fallbackStream;
+        setCameraPermission('granted');
+        setMicrophonePermission('granted');
         setConnectionStats({ quality: 'good' });
-      } catch (fallbackError) {
-        console.error('Fallback media initialization also failed:', fallbackError);
+
+        // Add stream to existing peer connections
+        Object.values(peersRef.current).forEach(peer => {
+          if (!peer.destroyed && peer.connected) {
+            try {
+              peer.addStream(fallbackStream);
+            } catch (error) {
+              console.log('Stream already added to peer or peer not ready');
+            }
+          }
+        });
+      } catch (fallbackError: any) {
+        if (fallbackError.name === 'NotAllowedError') {
+          setCameraPermission('denied');
+          setMicrophonePermission('denied');
+        }
         setConnectionStats({ quality: 'poor' });
       }
     }
@@ -238,11 +345,13 @@ const LiveLectureRoom: React.FC<LiveLectureRoomProps> = ({
 
   const setupSocketListeners = (socketConnection: Socket) => {
     socketConnection.on('connect', () => {
+      console.log('Socket connected event fired');
       setIsConnected(true);
       setConnectionStats({ quality: 'excellent' });
     });
 
     socketConnection.on('disconnect', () => {
+      console.log('Socket disconnected event fired');
       setIsConnected(false);
       setConnectionStats({ quality: 'disconnected' });
     });
@@ -330,6 +439,7 @@ const LiveLectureRoom: React.FC<LiveLectureRoomProps> = ({
       }
     }
   }, [userId]);
+
 
   const handleReactionReceived = useCallback((data: any) => {
     // TODO: Implement reaction animations
@@ -432,6 +542,11 @@ const LiveLectureRoom: React.FC<LiveLectureRoomProps> = ({
       videoTracks.forEach(track => { track.enabled = !newVideoOffState; });
       setIsVideoOff(newVideoOffState);
 
+      // Update local participant state immediately for better UX
+      setParticipants(prev => prev.map(p =>
+        p.userId === userId ? { ...p, isVideoOff: newVideoOffState } : p
+      ));
+
       socket?.emit('toggle-video', { lectureId, userId, isVideoOff: newVideoOffState });
     }
   }, [isVideoOff, socket, lectureId, userId]);
@@ -497,8 +612,19 @@ const LiveLectureRoom: React.FC<LiveLectureRoomProps> = ({
   }, [socket]);
 
   const getConnectionStatus = (): 'connecting' | 'connected' | 'disconnected' => {
-    if (!isConnected && connectionStats.quality === 'connecting') return 'connecting';
-    if (isConnected && connectionStats.quality !== 'disconnected') return 'connected';
+    // If socket is connected and we have good connection quality, show connected
+    if (isConnected && (connectionStats.quality === 'excellent' || connectionStats.quality === 'good')) {
+      return 'connected';
+    }
+    // If socket is connected but connection quality is poor, still show connected but with quality indicator
+    if (isConnected) {
+      return 'connected';
+    }
+    // If we're still trying to connect (socket not connected but quality is connecting), show connecting
+    if (!isConnected && connectionStats.quality === 'connecting') {
+      return 'connecting';
+    }
+    // Otherwise, show disconnected
     return 'disconnected';
   };
 
@@ -607,6 +733,8 @@ const LiveLectureRoom: React.FC<LiveLectureRoomProps> = ({
           isScreenSharing={isScreenSharing}
           isRecording={isRecording}
           connectionQuality={connectionStats.quality}
+          cameraPermission={cameraPermission}
+          microphonePermission={microphonePermission}
           onToggleMute={handleToggleMute}
           onToggleVideo={handleToggleVideo}
           onToggleScreenShare={handleToggleScreenShare}

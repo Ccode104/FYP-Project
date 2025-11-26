@@ -397,6 +397,20 @@ CREATE TABLE IF NOT EXISTS video_quiz_attempts (
     UNIQUE(video_id, student_id)
 );
 
+-- Activity logging table
+CREATE TABLE IF NOT EXISTS admin_activities (
+    id BIGSERIAL PRIMARY KEY,
+    admin_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    action TEXT NOT NULL,
+    entity_type TEXT NOT NULL CHECK (entity_type IN ('user', 'course', 'department', 'offering', 'assignment', 'quiz', 'enrollment', 'support')),
+    entity_id BIGINT,
+    entity_name TEXT,
+    details JSONB DEFAULT '{}',
+    undo_data JSONB,
+    undoable BOOLEAN DEFAULT false,
+    created_at TIMESTAMPTZ DEFAULT now()
+);
+
 -- Additional tables
 CREATE TABLE IF NOT EXISTS messages (
     id BIGSERIAL PRIMARY KEY,
@@ -517,6 +531,9 @@ CREATE INDEX IF NOT EXISTS idx_video_quiz_attempts_video_id ON video_quiz_attemp
 CREATE INDEX IF NOT EXISTS idx_video_quiz_questions_timestamp ON video_quiz_questions(video_id, timestamp);
 CREATE INDEX IF NOT EXISTS idx_video_quiz_questions_video_id ON video_quiz_questions(video_id);
 CREATE INDEX IF NOT EXISTS idx_settings_updated_at ON settings(updated_at);
+CREATE INDEX IF NOT EXISTS idx_admin_activities_admin_id ON admin_activities(admin_id);
+CREATE INDEX IF NOT EXISTS idx_admin_activities_created_at ON admin_activities(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_admin_activities_entity ON admin_activities(entity_type, entity_id);
 
 -- Create neon_auth schema table
 CREATE TABLE IF NOT EXISTS neon_auth.users_sync (

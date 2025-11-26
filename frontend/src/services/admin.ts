@@ -183,7 +183,7 @@ export async function assignFacultyToCourse(courseId: number, facultyIds: number
 }
 
 export async function getOverview() {
-  return apiFetch<{ totalUsers: number; activeCourses: number; totalAssignments: number; totalSubmissions: number }>('/api/admin/overview')
+  return apiFetch<{ totalUsers: number; inactiveUsers: number; activeCourses: number; totalAssignments: number; totalSubmissions: number }>('/api/admin/overview')
 }
 
 // Department CRUD
@@ -293,4 +293,13 @@ export async function createEnrollment(payload: { course_offering_id: number; st
 
 export async function deleteEnrollment(id: number) {
   return apiFetch(`/api/admin/enrollments/${id}`, { method: 'DELETE' })
+}
+
+// Activities
+export async function getRecentActivities(limit = 5) {
+  return apiFetch<{ activities: any[] }>(`/api/admin/activities?limit=${limit}`)
+}
+
+export async function undoActivity(activityId: string) {
+  return apiFetch(`/api/admin/activities/${activityId}/undo`, { method: 'POST' })
 }

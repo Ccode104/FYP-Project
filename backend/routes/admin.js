@@ -39,6 +39,8 @@ import {
   adminGetSubmissions,
   adminAssignFacultyToCourse,
   adminGetOverview,
+  adminGetRecentActivities,
+  adminUndoActivity,
 } from '../controllers/adminPanelController.js';
 
 const router = express.Router();
@@ -47,6 +49,10 @@ router.use(requireAuth, requireRole('admin'));
 
 // Overview
 router.get('/overview', adminGetOverview);
+
+// Activities
+router.get('/activities', adminGetRecentActivities);
+router.post('/activities/:id/undo', adminUndoActivity);
 
 // Study materials
 router.get('/materials', adminListMaterials);

@@ -44,13 +44,6 @@ export const VideoGrid: React.FC<VideoGridProps> = ({
   const localVideoRef = useRef<HTMLVideoElement>(null);
   const pinnedVideoRef = useRef<HTMLVideoElement>(null);
 
-  // Set up local video stream
-  const hasStream = !!streamRef.current;
-  useEffect(() => {
-    if (localVideoRef.current && streamRef.current) {
-      localVideoRef.current.srcObject = streamRef.current;
-    }
-  }, [hasStream]); // Stable boolean dependency
 
   // Update pinned video when participant changes
   useEffect(() => {
@@ -72,6 +65,27 @@ export const VideoGrid: React.FC<VideoGridProps> = ({
       }
     }
   }, [pinnedParticipantId, currentUserId]);
+
+  // Assign stream to local video elements when stream becomes available
+  useEffect(() => {
+    const assignStreamToLocalVideos = () => {
+      if (streamRef.current) {
+        // Assign to local video element if it exists
+        if (localVideoRef.current && localVideoRef.current.srcObject !== streamRef.current) {
+          localVideoRef.current.srcObject = streamRef.current;
+        }
+        // Assign to pinned video if showing local video
+        if (pinnedVideoRef.current &&
+            (pinnedParticipantId === null || pinnedParticipantId === currentUserId) &&
+            pinnedVideoRef.current.srcObject !== streamRef.current) {
+          pinnedVideoRef.current.srcObject = streamRef.current;
+        }
+      }
+    };
+
+    // Assign immediately if stream exists
+    assignStreamToLocalVideos();
+  }, [pinnedParticipantId, currentUserId]); // Stable dependencies
 
   // Deduplicate participants and ensure proper naming
   const uniqueParticipants = useMemo(() => {
@@ -144,11 +158,15 @@ export const VideoGrid: React.FC<VideoGridProps> = ({
   };
 
   const hasVideo = (participant: Participant, isLocal: boolean) => {
-    if (participant.isVideoOff) return false;
-    if (isLocal) return !!streamRef.current?.getVideoTracks().some(track => track.enabled);
-    // For remote participants, check if stream has arrived OR if we have a video element (expecting stream)
-    return !!videoElementsRef.current[participant.userId.toString()]?.srcObject ||
-           !!videoElementsRef.current[participant.userId.toString()];
+    if (isLocal) {
+      // For local participant, check actual video track enabled state
+      return !!streamRef.current?.getVideoTracks().some(track => track.enabled);
+    } else {
+      // For remote participants, check if participant has video enabled AND stream has arrived
+      if (participant.isVideoOff) return false;
+      return !!videoElementsRef.current[participant.userId.toString()]?.srcObject ||
+              !!videoElementsRef.current[participant.userId.toString()];
+    }
   };
 
   const handleParticipantClick = (participant: Participant) => {
@@ -180,16 +198,15 @@ export const VideoGrid: React.FC<VideoGridProps> = ({
             <video
               ref={(el) => {
                 if (isLocal) {
+                  // Store the element ref
                   if (isLarge) {
-                    // For local pinned video - assign stream if not already assigned
-                    if (el && streamRef.current && el.srcObject !== streamRef.current) {
-                      el.srcObject = streamRef.current;
-                    }
+                    // pinnedVideoRef.current = el;
                   } else {
-                    // For local regular video - assign stream if not already assigned
-                    if (el && streamRef.current && el.srcObject !== streamRef.current) {
-                      el.srcObject = streamRef.current;
-                    }
+                    // localVideoRef.current = el;
+                  }
+                  // Assign stream if available and not already assigned
+                  if (el && streamRef.current && el.srcObject !== streamRef.current) {
+                    el.srcObject = streamRef.current;
                   }
                 } else {
                   // For remote participants, store ref for WebRTC stream assignment

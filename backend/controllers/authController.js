@@ -17,6 +17,17 @@ export async function registerUser(req, res) {
       return res.status(400).json({ error: 'Name, email, and password are required' });
     }
 
+    // Prevent admin signup - admins can only be created by existing admins
+    if (role === 'admin') {
+      return res.status(403).json({ error: 'Admin accounts cannot be created through signup. Please contact an existing administrator.' });
+    }
+
+    // Validate role
+    const validRoles = ['student', 'faculty', 'ta'];
+    if (!validRoles.includes(role)) {
+      return res.status(400).json({ error: 'Invalid role specified' });
+    }
+
     // check if user exists
     const exists = await pool.query('SELECT id FROM users WHERE email=$1', [email]);
     if (exists.rowCount > 0) return res.status(400).json({ error: 'Email already registered' });
@@ -24,15 +35,21 @@ export async function registerUser(req, res) {
     // hash password
     const hashedPassword = await bcrypt.hash(password, SALT_ROUNDS);
 
-    // Insert user with password_hash
-    const query = `
-      INSERT INTO users (name, email, role, department_id, roll_number, password_hash)
-      VALUES ($1, $2, $3, $4, $5, $6)
-      RETURNING id, name, email, role, department_id, roll_number
-    `;
-    const result = await pool.query(query, [name, email, role, department_id, roll_number, hashedPassword]);
+    // Set is_active: admins are active by default, others need approval
+    const isActive = role === 'admin' ? true : false;
 
-    res.status(201).json({ message: 'User registered successfully', user: result.rows[0] });
+    // Insert user with password_hash and is_active
+    const query = `
+      INSERT INTO users (name, email, role, department_id, roll_number, password_hash, is_active)
+      VALUES ($1, $2, $3, $4, $5, $6, $7)
+      RETURNING id, name, email, role, department_id, roll_number, is_active
+    `;
+    const result = await pool.query(query, [name, email, role, department_id, roll_number, hashedPassword, isActive]);
+
+    res.status(201).json({
+      message: isActive ? 'User registered successfully' : 'User registered successfully. Your account is pending admin approval.',
+      user: result.rows[0]
+    });
   } catch (err) {
     console.error('registerUser error:', err);
     res.status(500).json({ error: 'Internal server error' });
@@ -75,18 +92,25 @@ export async function loginUser(req, res) {
       return res.status(401).json({ error: 'Invalid email or password' });
     }
 
+    // Check if user is active (admins are always active)
+    if (!user.is_active && user.role !== 'admin') {
+      return res.status(403).json({
+        error: 'Your account is pending admin approval. Please contact an administrator.'
+      });
+    }
+
     // Verify the user's role matches the requested role
     // Admins can access any role, but regular users must match their registered role
     let loginRole = user.role;
-    
+
     if (user.role !== requestedRole) {
       if (user.role === 'admin') {
         // Admins can switch to any role for testing/management purposes
         loginRole = requestedRole;
       } else {
         // Regular users must use their registered role
-        return res.status(403).json({ 
-          error: `This account is registered as ${user.role === 'faculty' ? 'teacher' : user.role}. Please select the correct role.` 
+        return res.status(403).json({
+          error: `This account is registered as ${user.role === 'faculty' ? 'teacher' : user.role}. Please select the correct role.`
         });
       }
     }
@@ -192,18 +216,24 @@ export async function loginWithGoogle(req, res) {
 
     if (userQuery.rowCount === 0) {
       // User doesn't exist, create a new user with the selected role
+      // Prevent admin creation via Google signup
+      if (userRole === 'admin') {
+        return res.status(403).json({ error: 'Admin accounts cannot be created through Google signup. Please contact an existing administrator.' });
+      }
+
+      const isActive = userRole === 'admin' ? true : false;
       try {
         const insertQuery = `
-          INSERT INTO users (name, email, role, password_hash)
-          VALUES ($1, $2, $3, NULL)
-          RETURNING id, name, email, role, department_id, roll_number
+          INSERT INTO users (name, email, role, password_hash, is_active)
+          VALUES ($1, $2, $3, NULL, $4)
+          RETURNING id, name, email, role, department_id, roll_number, is_active
         `;
-        const insertResult = await pool.query(insertQuery, [name, email, userRole]);
+        const insertResult = await pool.query(insertQuery, [name, email, userRole, isActive]);
         user = insertResult.rows[0];
         // New user created successfully
       } catch (insertError) {
         console.error('Database error when creating user:', insertError);
-        return res.status(500).json({ 
+        return res.status(500).json({
           error: 'Failed to create user',
           details: process.env.NODE_ENV === 'development' ? insertError.message : undefined
         });
@@ -211,9 +241,16 @@ export async function loginWithGoogle(req, res) {
     } else {
       // User already exists - use their existing role (for security, don't allow role changes via Google sign-in)
       user = userQuery.rows[0];
-      
+
+      // Check if user is active (admins are always active)
+      if (!user.is_active && user.role !== 'admin') {
+        return res.status(403).json({
+          error: 'Your account is pending admin approval. Please contact an administrator.'
+        });
+      }
+
       // User's existing role is preserved (security measure)
-      
+
       // Update user name if it's different (in case user changed name in Google)
       if (user.name !== name) {
         try {
@@ -224,7 +261,7 @@ export async function loginWithGoogle(req, res) {
           // Don't fail the login if name update fails, just log it
         }
       }
-      
+
       // Existing user signed in successfully
     }
 

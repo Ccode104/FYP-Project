@@ -180,6 +180,10 @@ export async function adminUpdateUser(req, res) {
     if (!fields.length) return res.status(400).json({ error: 'No updates provided' });
     params.push(id);
     const r = await pool.query(`UPDATE users SET ${fields.join(', ')}, updated_at = now() WHERE id=$${params.length} RETURNING id, email, name, role, department_id, is_active`, params);
+
+    // Log activity
+    await logActivity(req.user.id, 'update_user', 'user', id, r.rows[0].name || r.rows[0].email, { changes: Object.fromEntries(fields.map((f, i) => [f.split(' = ')[0], params[i]])) }, { user_id: id, previous_data: targetUser.rows[0] }, true);
+
     res.json({ user: r.rows[0] });
   } catch (err) {
     console.error('adminUpdateUser', err);
@@ -485,7 +489,14 @@ export async function adminDeleteUser(req, res) {
       return res.status(400).json({ error: 'Cannot delete your own account' });
     }
 
+    // Get user data before deletion for undo purposes
+    const userData = await pool.query('SELECT * FROM users WHERE id = $1', [id]);
+
     await pool.query('DELETE FROM users WHERE id=$1', [id]);
+
+    // Log activity
+    await logActivity(req.user.id, 'delete_user', 'user', id, userData.rows[0].name || userData.rows[0].email, {}, { user_data: userData.rows[0] }, true);
+
     res.json({ success: true });
   } catch (err) {
     console.error('adminDeleteUser', err);
@@ -955,11 +966,28 @@ export async function adminDeleteEnrollment(req, res) {
 }
 
 
+// Helper function to log admin activity
+async function logActivity(adminId, action, entityType, entityId, entityName, details = {}, undoData = null, undoable = false) {
+  try {
+    await pool.query(`
+      INSERT INTO admin_activities (admin_id, action, entity_type, entity_id, entity_name, details, undo_data, undoable)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+    `, [adminId, action, entityType, entityId, entityName, JSON.stringify(details), undoData ? JSON.stringify(undoData) : null, undoable]);
+  } catch (err) {
+    console.error('Error logging activity:', err);
+    // Don't fail the main operation if logging fails
+  }
+}
+
 export async function adminGetOverview(req, res) {
   try {
     // Get total users count
     const usersResult = await pool.query('SELECT COUNT(*) as count FROM users');
     const totalUsers = parseInt(usersResult.rows[0].count);
+
+    // Get inactive users count
+    const inactiveUsersResult = await pool.query('SELECT COUNT(*) as count FROM users WHERE is_active = false');
+    const inactiveUsers = parseInt(inactiveUsersResult.rows[0].count);
 
     // Get active courses (courses with current/future offerings)
     const coursesResult = await pool.query(`
@@ -980,6 +1008,7 @@ export async function adminGetOverview(req, res) {
 
     res.json({
       totalUsers,
+      inactiveUsers,
       activeCourses,
       totalAssignments,
       totalSubmissions
@@ -987,5 +1016,131 @@ export async function adminGetOverview(req, res) {
   } catch (err) {
     console.error('Error fetching overview:', err);
     res.status(500).json({ error: err?.message || 'Failed to fetch overview' });
+  }
+}
+
+export async function adminGetRecentActivities(req, res) {
+  try {
+    const limit = parseInt(req.query.limit) || 5;
+    const r = await pool.query(`
+      SELECT
+        aa.id,
+        aa.action,
+        aa.entity_type,
+        aa.entity_id,
+        aa.entity_name,
+        aa.details,
+        aa.undoable,
+        aa.created_at,
+        u.name as admin_name,
+        u.email as admin_email
+      FROM admin_activities aa
+      JOIN users u ON aa.admin_id = u.id
+      ORDER BY aa.created_at DESC
+      LIMIT $1
+    `, [limit]);
+
+    res.json({ activities: r.rows });
+  } catch (err) {
+    console.error('Error fetching recent activities:', err);
+    res.status(500).json({ error: err?.message || 'Failed to fetch activities' });
+  }
+}
+
+export async function adminUndoActivity(req, res) {
+  try {
+    const activityId = Number(req.params.id);
+    if (!activityId) return res.status(400).json({ error: 'Invalid activity id' });
+
+    // Get the activity
+    const activityResult = await pool.query(`
+      SELECT aa.*, u.name as admin_name
+      FROM admin_activities aa
+      JOIN users u ON aa.admin_id = u.id
+      WHERE aa.id = $1 AND aa.undoable = true
+    `, [activityId]);
+
+    if (activityResult.rowCount === 0) {
+      return res.status(404).json({ error: 'Activity not found or not undoable' });
+    }
+
+    const activity = activityResult.rows[0];
+
+    // Check permissions - only the admin who performed the action or a super admin can undo
+    const superAdmin = await isSuperAdmin(req.user.id);
+    if (!superAdmin && req.user.id !== activity.admin_id) {
+      return res.status(403).json({ error: 'Forbidden: cannot undo other admin actions' });
+    }
+
+    // Perform undo based on action type
+    const undoData = activity.undo_data;
+    if (!undoData) {
+      return res.status(400).json({ error: 'No undo data available' });
+    }
+
+    let undoResult = null;
+
+    switch (activity.action) {
+      case 'create_user':
+        if (undoData.user_id) {
+          await pool.query('DELETE FROM users WHERE id = $1', [undoData.user_id]);
+          undoResult = { deleted: true };
+        }
+        break;
+      case 'update_user':
+        if (undoData.user_id && undoData.previous_data) {
+          const fields = [];
+          const params = [];
+          function set(col, val) { params.push(val); fields.push(`${col} = $${params.length}`); }
+          Object.entries(undoData.previous_data).forEach(([key, value]) => {
+            set(key, value);
+          });
+          params.push(undoData.user_id);
+          await pool.query(`UPDATE users SET ${fields.join(', ')} WHERE id = $${params.length}`, params);
+          undoResult = { updated: true };
+        }
+        break;
+      case 'delete_user':
+        if (undoData.user_data) {
+          const userData = undoData.user_data;
+          const r = await pool.query(`
+            INSERT INTO users (name, email, role, department_id, roll_number, is_active, password_hash)
+            VALUES ($1, $2, $3, $4, $5, $6, $7)
+            RETURNING id
+          `, [userData.name, userData.email, userData.role, userData.department_id, userData.roll_number, userData.is_active, userData.password_hash]);
+          undoResult = { restored_id: r.rows[0].id };
+        }
+        break;
+      case 'create_course':
+        if (undoData.course_id) {
+          await pool.query('DELETE FROM courses WHERE id = $1', [undoData.course_id]);
+          undoResult = { deleted: true };
+        }
+        break;
+      case 'delete_course':
+        if (undoData.course_data) {
+          const courseData = undoData.course_data;
+          const r = await pool.query(`
+            INSERT INTO courses (code, title, description, department_id, credits)
+            VALUES ($1, $2, $3, $4, $5)
+            RETURNING id
+          `, [courseData.code, courseData.title, courseData.description, courseData.department_id, courseData.credits]);
+          undoResult = { restored_id: r.rows[0].id };
+        }
+        break;
+      default:
+        return res.status(400).json({ error: 'Undo not supported for this action type' });
+    }
+
+    // Mark activity as undone (you might want to add an 'undone' column to the table)
+    await pool.query('UPDATE admin_activities SET details = details || \'{"undone": true}\' WHERE id = $1', [activityId]);
+
+    // Log the undo action
+    await logActivity(req.user.id, `undo_${activity.action}`, activity.entity_type, activity.entity_id, activity.entity_name, { original_activity_id: activityId }, null, false);
+
+    res.json({ success: true, result: undoResult });
+  } catch (err) {
+    console.error('Error undoing activity:', err);
+    res.status(500).json({ error: err?.message || 'Failed to undo activity' });
   }
 }

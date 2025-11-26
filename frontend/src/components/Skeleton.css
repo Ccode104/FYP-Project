@@ -1,0 +1,36 @@
+.skeleton {
+  background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+  background-size: 200% 100%;
+  animation: skeleton-loading 1.5s infinite;
+  border-radius: var(--radius-sm, 4px);
+}
+
+@keyframes skeleton-loading {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
+
+.skeleton-card {
+  padding: 16px;
+  border: 1px solid var(--border, #e5e7eb);
+  border-radius: var(--radius-lg, 8px);
+  background: var(--surface, #ffffff);
+  margin-bottom: 12px;
+}
+
+.skeleton-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.skeleton-list-item {
+  padding: 12px;
+  border: 1px solid var(--border, #e5e7eb);
+  border-radius: var(--radius-md, 6px);
+  background: var(--surface, #ffffff);
+}

@@ -1,0 +1,72 @@
+.activities-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.activity-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface);
+}
+
+.activity-icon {
+  font-size: 1.2em;
+  flex-shrink: 0;
+}
+
+.activity-content {
+  flex: 1;
+  min-width: 0;
+}
+
+.activity-description {
+  font-weight: 500;
+  color: var(--text);
+  margin-bottom: 4px;
+}
+
+.activity-meta {
+  display: flex;
+  gap: 12px;
+  font-size: 0.85em;
+  color: var(--text-secondary);
+}
+
+.activity-admin {
+  font-weight: 500;
+}
+
+.activity-time {
+  opacity: 0.8;
+}
+
+.activity-actions {
+  display: flex;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.btn-sm {
+  padding: 4px 8px;
+  font-size: 0.8em;
+}
+
+.btn-link {
+  color: var(--primary);
+  text-decoration: none;
+}
+
+.btn-link:hover {
+  text-decoration: underline;
+}
+
+.loading-placeholder {
+  text-align: center;
+  padding: 20px;
+  color: var(--text-secondary);
+}

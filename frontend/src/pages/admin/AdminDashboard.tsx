@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo } from 'react'
+import { useEffect, useState, useMemo, useCallback } from 'react'
 import { courses } from '../../data/mock'
 import { useAuth } from '../../context/AuthContext'
 import { useNavigate } from 'react-router-dom'
@@ -21,6 +21,9 @@ import { register } from '../../services/auth'
 import { useToast } from '../../components/ToastProvider'
 import SupportTicketList from '../../components/SupportTicketList'
 import Reports from '../../components/Reports'
+import RecentActivities from '../../components/RecentActivities'
+import Skeleton, { SkeletonCard } from '../../components/Skeleton'
+import ConfirmationModal from '../../components/ConfirmationModal'
 interface User {
   id: number;
   name?: string;
@@ -37,6 +40,7 @@ export default function AdminDashboard() {
   const { push } = useToast()
 
   const isAdmin = user?.role === 'admin'
+  const [isSuperAdmin, setIsSuperAdmin] = useState(false)
   const [tab, setTab] = useState<'overview' | 'users' | 'courses' | 'departments' | 'reports' | 'support'>('overview')
 
   // Tab configuration for better maintainability
@@ -59,8 +63,25 @@ export default function AdminDashboard() {
   const [userSearch, setUserSearch] = useState('')
   const [userSearchType, setUserSearchType] = useState<'all' | 'name' | 'email' | 'roll_number'>('all')
   const [userDeptFilter, setUserDeptFilter] = useState('')
+  const [userRoleFilter, setUserRoleFilter] = useState<string[]>([])
+  const [userDeptMultiFilter, setUserDeptMultiFilter] = useState<string[]>([])
   const [showUserDetailsModal, setShowUserDetailsModal] = useState(false)
   const [hasSearched, setHasSearched] = useState(false)
+  const [liveSearchEnabled, setLiveSearchEnabled] = useState(true)
+  const [searchParameterHistory, setSearchParameterHistory] = useState<Array<{
+    keyword: string
+    searchType: 'all' | 'name' | 'email' | 'roll_number'
+    deptFilter: string
+    roleFilter: string[]
+    deptMultiFilter: string[]
+    timestamp: number
+  }>>([])
+  const [showSearchSuggestions, setShowSearchSuggestions] = useState(false)
+  const [recentlyViewedUsers, setRecentlyViewedUsers] = useState<User[]>([])
+  const [currentPage, setCurrentPage] = useState(1)
+  const [itemsPerPage] = useState(10)
+  const [showMultiSelect, setShowMultiSelect] = useState(false)
+  const [viewMode, setViewMode] = useState<'cards' | 'table'>('cards')
 
   const loadUsers = async () => {
     try {
@@ -77,11 +98,120 @@ export default function AdminDashboard() {
     }
   }
 
+  // Check if current user is super admin
+  const checkSuperAdminStatus = async () => {
+    if (!user?.id) return
+    try {
+      // We'll need to add a backend endpoint to check super admin status
+      // For now, we'll check if the user email is admin@gmail.com (the known super admin)
+      setIsSuperAdmin(user.email === 'admin@gmail.com')
+    } catch (error) {
+      console.error('Error checking super admin status:', error)
+      setIsSuperAdmin(false)
+    }
+  }
+
+  // Load search parameter history and recently viewed users from localStorage
+  useEffect(() => {
+    const savedParameterHistory = localStorage.getItem('adminSearchParameterHistory')
+    const savedRecentUsers = localStorage.getItem('adminRecentUsers')
+    const savedDeptParameterHistory = localStorage.getItem('adminDeptSearchParameterHistory')
+    const savedCourseParameterHistory = localStorage.getItem('adminCourseSearchParameterHistory')
+    if (savedParameterHistory) {
+      setSearchParameterHistory(JSON.parse(savedParameterHistory))
+    }
+    if (savedRecentUsers) {
+      setRecentlyViewedUsers(JSON.parse(savedRecentUsers))
+    }
+    if (savedDeptParameterHistory) {
+      setDeptSearchParameterHistory(JSON.parse(savedDeptParameterHistory))
+    }
+    if (savedCourseParameterHistory) {
+      setCourseSearchParameterHistory(JSON.parse(savedCourseParameterHistory))
+    }
+  }, [])
+
   useEffect(() => {
     if (isAdmin) {
       void loadUsers()
+      void checkSuperAdminStatus()
     }
-  }, [isAdmin])
+  }, [isAdmin, user])
+
+  // Department search state (moved before useEffect)
+  const [deptSearch, setDeptSearch] = useState('')
+  const [deptSearchType, setDeptSearchType] = useState<'all' | 'code' | 'name'>('all')
+  const [deptViewMode, setDeptViewMode] = useState<'cards' | 'table'>('cards')
+  const [deptLiveSearchEnabled, setDeptLiveSearchEnabled] = useState(true)
+  const [deptSearchParameterHistory, setDeptSearchParameterHistory] = useState<Array<{
+    keyword: string
+    searchType: 'all' | 'code' | 'name'
+    timestamp: number
+  }>>([])
+  const [showDeptSearchSuggestions, setShowDeptSearchSuggestions] = useState(false)
+  const [deptCurrentPage, setDeptCurrentPage] = useState(1)
+  const [deptItemsPerPage] = useState(10)
+  const [showDeptDetailsModal, setShowDeptDetailsModal] = useState(false)
+  const [selectedDeptDetails, setSelectedDeptDetails] = useState<any>(null)
+  const [deptDetailsCourses, setDeptDetailsCourses] = useState<any[]>([])
+
+  // Load users on initial mount for default view
+  useEffect(() => {
+    if (isAdmin && tab === 'users' && usersList.length === 0) {
+      void loadUsers()
+    }
+  }, [isAdmin, tab, usersList.length])
+
+  // Debounced search effect
+  useEffect(() => {
+    if (!liveSearchEnabled || !userSearch.trim()) return
+
+    const timeoutId = setTimeout(() => {
+      performSearch()
+    }, 500) // 500ms debounce
+
+    return () => clearTimeout(timeoutId)
+  }, [userSearch, userSearchType, userDeptFilter, roleFilter, liveSearchEnabled])
+
+  // Debounced department search effect
+  useEffect(() => {
+    if (!deptLiveSearchEnabled || !deptSearch.trim()) return
+
+    const timeoutId = setTimeout(() => {
+      // For departments, we just filter the existing data
+      setDeptCurrentPage(1)
+    }, 300) // 300ms debounce for departments
+
+    return () => clearTimeout(timeoutId)
+  }, [deptSearch, deptSearchType, deptLiveSearchEnabled])
+
+  // Course search state (moved before useEffect)
+  const [courseSearch, setCourseSearch] = useState('')
+  const [courseSearchType, setCourseSearchType] = useState<'all' | 'code' | 'title'>('all')
+  const [courseDeptFilter, setCourseDeptFilter] = useState('')
+  const [courseViewMode, setCourseViewMode] = useState<'cards' | 'table'>('cards')
+  const [courseLiveSearchEnabled, setCourseLiveSearchEnabled] = useState(true)
+  const [courseSearchParameterHistory, setCourseSearchParameterHistory] = useState<Array<{
+    keyword: string
+    searchType: 'all' | 'code' | 'title'
+    deptFilter: string
+    timestamp: number
+  }>>([])
+  const [showCourseSearchSuggestions, setShowCourseSearchSuggestions] = useState(false)
+  const [courseCurrentPage, setCourseCurrentPage] = useState(1)
+  const [courseItemsPerPage] = useState(10)
+
+  // Debounced course search effect
+  useEffect(() => {
+    if (!courseLiveSearchEnabled || !courseSearch.trim()) return
+
+    const timeoutId = setTimeout(() => {
+      // For courses, we just filter the existing data
+      setCourseCurrentPage(1)
+    }, 300) // 300ms debounce for courses
+
+    return () => clearTimeout(timeoutId)
+  }, [courseSearch, courseSearchType, courseDeptFilter, courseLiveSearchEnabled])
 // Advanced search scoring function
 const calculateSearchScore = (text: string, searchTerm: string): number => {
   if (!text || !searchTerm) return 0
@@ -143,15 +273,16 @@ const advancedSearchAndSort = <T,>(
     .map(item => item.item)
 }
 
-// Advanced user search with scoring and sorting
-const filterUsers = (users: User[], search: string, searchType: 'all' | 'name' | 'email' | 'roll_number', role: string, dept: string): User[] => {
+// Advanced user search with scoring and sorting (supports multi-select)
+const filterUsers = (users: User[], search: string, searchType: 'all' | 'name' | 'email' | 'roll_number', roleFilter: string[], deptFilter: string[]): User[] => {
   const searchTerm = search.trim()
 
-  // First filter by role and department
-  let filtered = users.filter(u =>
-    (role === '' || u.role === role) &&
-    (dept === '' || u.department_id?.toString() === dept)
-  )
+  // First filter by roles and departments (multi-select support)
+  let filtered = users.filter(u => {
+    const roleMatch = roleFilter.length === 0 || roleFilter.includes(u.role)
+    const deptMatch = deptFilter.length === 0 || deptFilter.includes(u.department_id?.toString() || '')
+    return roleMatch && deptMatch
+  })
 
   // If no search term, return filtered results sorted by name
   if (!searchTerm) {
@@ -190,15 +321,17 @@ const filterUsers = (users: User[], search: string, searchType: 'all' | 'name' |
     .map(item => item.user)
 }
 const filteredUsers = useMemo(() =>
-  usersList ? filterUsers(usersList, userSearch, userSearchType, roleFilter, userDeptFilter) : [],
-  [usersList, userSearch, userSearchType, roleFilter, userDeptFilter]
+  usersList ? filterUsers(usersList, userSearch, userSearchType, userRoleFilter, userDeptMultiFilter) : [],
+  [usersList, userSearch, userSearchType, userRoleFilter, userDeptMultiFilter]
 )
+
+// Pagination logic
+const totalPages = Math.ceil(filteredUsers.length / itemsPerPage)
+const paginatedUsers = filteredUsers.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage)
 
   // Data Explorer state
   const [departments, setDepartments] = useState<any[]>([])
   const [selectedDept, setSelectedDept] = useState<any>(null)
-  const [deptSearch, setDeptSearch] = useState('')
-  const [deptSearchType, setDeptSearchType] = useState<'all' | 'code' | 'name'>('all')
   const [deptCourses, setDeptCourses] = useState<any[]>([])
   const [selectedCourse, setSelectedCourse] = useState<any>(null)
   const [courseDetails, setCourseDetails] = useState<any>(null)
@@ -212,9 +345,44 @@ const filteredUsers = useMemo(() =>
   // Admin Courses state
   const [adminCourses, setAdminCourses] = useState<any[]>([])
   const [loadingCourses, setLoadingCourses] = useState(false)
-  const [courseSearch, setCourseSearch] = useState('')
-  const [courseSearchType, setCourseSearchType] = useState<'all' | 'code' | 'title'>('all')
-  const [courseDeptFilter, setCourseDeptFilter] = useState('')
+
+// Department filtering and pagination
+const filteredDepartments = useMemo(() =>
+  departments ? advancedSearchAndSort(
+    departments,
+    deptSearch,
+    (dept) => {
+      if (deptSearchType === 'all') return [dept.code || '', dept.name || '']
+      if (deptSearchType === 'code') return [dept.code || '']
+      if (deptSearchType === 'name') return [dept.name || '']
+      return [dept.code || '', dept.name || '']
+    },
+    (dept) => dept.code || dept.name || ''
+  ) : [],
+  [departments, deptSearch, deptSearchType]
+)
+
+const deptTotalPages = Math.ceil(filteredDepartments.length / deptItemsPerPage)
+const paginatedDepartments = filteredDepartments.slice((deptCurrentPage - 1) * deptItemsPerPage, deptCurrentPage * deptItemsPerPage)
+
+// Course filtering and pagination
+const filteredCourses = useMemo(() =>
+  adminCourses ? advancedSearchAndSort(
+    adminCourses.filter(course => courseDeptFilter === '' || course.department_id == courseDeptFilter),
+    courseSearch,
+    (course) => {
+      if (courseSearchType === 'all') return [course.code || '', course.title || '']
+      if (courseSearchType === 'code') return [course.code || '']
+      if (courseSearchType === 'title') return [course.title || '']
+      return [course.code || '', course.title || '']
+    },
+    (course) => course.code || course.title || ''
+  ) : [],
+  [adminCourses, courseSearch, courseSearchType, courseDeptFilter]
+)
+
+const courseTotalPages = Math.ceil(filteredCourses.length / courseItemsPerPage)
+const paginatedCourses = filteredCourses.slice((courseCurrentPage - 1) * courseItemsPerPage, courseCurrentPage * courseItemsPerPage)
 
   const [showCreateCourse, setShowCreateCourse] = useState(false)
   const [newCode, setNewCode] = useState('')
@@ -232,6 +400,17 @@ const filteredUsers = useMemo(() =>
   const [showCreateUser, setShowCreateUser] = useState(false)
   const [newUser, setNewUser] = useState({ name: '', email: '', password: '', role: 'student', department_id: '', roll_number: '' })
   const [creatingUser, setCreatingUser] = useState(false)
+
+  // Edit user modal
+  const [showEditUser, setShowEditUser] = useState(false)
+  const [editingUser, setEditingUser] = useState<User | null>(null)
+  const [editUserData, setEditUserData] = useState({ name: '', role: 'student', department_id: '', roll_number: '', is_active: false })
+  const [updatingUser, setUpdatingUser] = useState(false)
+
+  // Delete confirmation modal
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
+  const [userToDelete, setUserToDelete] = useState<User | null>(null)
+  const [deletingUser, setDeletingUser] = useState(false)
 
   // Create department modal
   const [showCreateDept, setShowCreateDept] = useState(false)
@@ -505,6 +684,131 @@ const filteredUsers = useMemo(() =>
     }
   }
 
+  // Debounced search function
+  const performSearch = useCallback(async () => {
+    if (!userSearch.trim()) {
+      setHasSearched(false)
+      return
+    }
+
+    try {
+      setIsLoading(true)
+      // Save search parameters to history
+      const searchParams = {
+        keyword: userSearch.trim(),
+        searchType: userSearchType,
+        deptFilter: userDeptFilter,
+        roleFilter: userRoleFilter,
+        deptMultiFilter: userDeptMultiFilter,
+        timestamp: Date.now()
+      }
+
+      const newHistory = [searchParams, ...searchParameterHistory.filter(h =>
+        !(h.keyword === searchParams.keyword &&
+          h.searchType === searchParams.searchType &&
+          h.deptFilter === searchParams.deptFilter &&
+          JSON.stringify(h.roleFilter) === JSON.stringify(searchParams.roleFilter) &&
+          JSON.stringify(h.deptMultiFilter) === JSON.stringify(searchParams.deptMultiFilter))
+      )].slice(0, 10)
+
+      setSearchParameterHistory(newHistory)
+      localStorage.setItem('adminSearchParameterHistory', JSON.stringify(newHistory))
+
+      // For now, just filter existing users (in a real app, this would call the backend)
+      setHasSearched(true)
+    } catch (err: any) {
+      console.error('Search error:', err)
+    } finally {
+      setIsLoading(false)
+    }
+  }, [userSearch, userSearchType, userDeptFilter, userRoleFilter, userDeptMultiFilter, searchParameterHistory])
+
+  // Export users to CSV
+  const exportToCSV = () => {
+    const headers = ['ID', 'Name', 'Email', 'Role', 'Department', 'Roll Number', 'Status', 'Created At']
+    const csvData = [
+      headers.join(','),
+      ...filteredUsers.map(user => [
+        user.id,
+        `"${user.name || ''}"`,
+        `"${user.email}"`,
+        user.role,
+        `"${departments.find(d => d.id.toString() === user.department_id?.toString())?.name || ''}"`,
+        `"${user.roll_number || ''}"`,
+        user.is_active ? 'Active' : 'Inactive',
+        new Date().toISOString().split('T')[0] // Placeholder for created_at
+      ].join(','))
+    ].join('\n')
+  
+    const blob = new Blob([csvData], { type: 'text/csv;charset=utf-8;' })
+    const link = document.createElement('a')
+    const url = URL.createObjectURL(blob)
+    link.setAttribute('href', url)
+    link.setAttribute('download', `users_export_${new Date().toISOString().split('T')[0]}.csv`)
+    link.style.visibility = 'hidden'
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+  }
+  
+  // Export departments to CSV
+  const exportDepartmentsToCSV = () => {
+    const headers = ['ID', 'Code', 'Name', 'Created At']
+    const csvData = [
+      headers.join(','),
+      ...filteredDepartments.map(dept => [
+        dept.id,
+        `"${dept.code || ''}"`,
+        `"${dept.name || ''}"`,
+        new Date().toISOString().split('T')[0] // Placeholder for created_at
+      ].join(','))
+    ].join('\n')
+  
+    const blob = new Blob([csvData], { type: 'text/csv;charset=utf-8;' })
+    const link = document.createElement('a')
+    const url = URL.createObjectURL(blob)
+    link.setAttribute('href', url)
+    link.setAttribute('download', `departments_export_${new Date().toISOString().split('T')[0]}.csv`)
+    link.style.visibility = 'hidden'
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+  }
+  
+  // Export courses to CSV
+  const exportCoursesToCSV = () => {
+    const headers = ['ID', 'Code', 'Title', 'Description', 'Credits', 'Department', 'Created At']
+    const csvData = [
+      headers.join(','),
+      ...filteredCourses.map(course => [
+        course.id,
+        `"${course.code || ''}"`,
+        `"${course.title || ''}"`,
+        `"${course.description || ''}"`,
+        course.credits || '',
+        `"${departments.find(d => d.id.toString() === course.department_id?.toString())?.name || ''}"`,
+        new Date().toISOString().split('T')[0] // Placeholder for created_at
+      ].join(','))
+    ].join('\n')
+  
+    const blob = new Blob([csvData], { type: 'text/csv;charset=utf-8;' })
+    const link = document.createElement('a')
+    const url = URL.createObjectURL(blob)
+    link.setAttribute('href', url)
+    link.setAttribute('download', `courses_export_${new Date().toISOString().split('T')[0]}.csv`)
+    link.style.visibility = 'hidden'
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+  }
+
+  // Add user to recently viewed
+  const addToRecentlyViewed = (user: User) => {
+    const newRecent = [user, ...recentlyViewedUsers.filter(u => u.id !== user.id)].slice(0, 5)
+    setRecentlyViewedUsers(newRecent)
+    localStorage.setItem('adminRecentUsers', JSON.stringify(newRecent))
+  }
+
   useEffect(() => {
     if (isAdmin && (tab === 'courses' || tab === 'departments')) {
       void loadDepartments()
@@ -597,25 +901,151 @@ const filteredUsers = useMemo(() =>
 
       {tab === 'users' && (
         <section className="card">
-          <div className="section-header">
+          <div className="section-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <h3>Users</h3>
-            <button className="btn btn-primary" onClick={() => setShowCreateUser(true)}>Create User</button>
+            <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+              <div style={{ display: 'flex', border: '1px solid var(--border)', borderRadius: '6px' }}>
+                <button
+                  className={`btn ${viewMode === 'cards' ? 'btn-primary' : 'btn-secondary'}`}
+                  onClick={() => setViewMode('cards')}
+                  style={{ borderRadius: '6px 0 0 6px', borderRight: 'none' }}
+                >
+                  📱 Cards
+                </button>
+                <button
+                  className={`btn ${viewMode === 'table' ? 'btn-primary' : 'btn-secondary'}`}
+                  onClick={() => setViewMode('table')}
+                  style={{ borderRadius: '0 6px 6px 0' }}
+                >
+                  📊 Table
+                </button>
+              </div>
+              {isSuperAdmin && (
+                <button className="btn btn-primary" onClick={() => setShowCreateUser(true)}>Create User</button>
+              )}
+            </div>
           </div>
           <div className="filters" style={{ marginBottom: '16px' }}>
-            <div style={{ display: 'flex', gap: '12px', marginBottom: '12px' }}>
-              <input
-                className="input"
-                type="text"
-                placeholder="Search users..."
-                value={userSearch}
-                onChange={(e) => setUserSearch(e.target.value)}
-                style={{ flex: 1 }}
-              />
+            {/* Prominent Search Bar */}
+            <div style={{ marginBottom: '16px', position: 'relative' }}>
+              <div style={{ position: 'relative' }}>
+                <input
+                  className="input"
+                  type="text"
+                  placeholder="🔍 Search users..."
+                  value={userSearch}
+                  onChange={(e) => {
+                    setUserSearch(e.target.value)
+                    setShowSearchSuggestions(e.target.value.length > 0)
+                  }}
+                  onFocus={() => setShowSearchSuggestions(userSearch.length > 0)}
+                  onBlur={() => setTimeout(() => setShowSearchSuggestions(false), 300)}
+                  style={{
+                    width: '100%',
+                    padding: '12px 16px',
+                    fontSize: '16px',
+                    border: '2px solid var(--border)',
+                    borderRadius: '8px',
+                    backgroundColor: 'var(--surface)',
+                    color: 'var(--text)'
+                  }}
+                  aria-label="Search users by name, email, or roll number"
+                />
+                {userSearch && (
+                  <button
+                    onClick={() => setUserSearch('')}
+                    style={{
+                      position: 'absolute',
+                      right: '12px',
+                      top: '50%',
+                      transform: 'translateY(-50%)',
+                      background: 'none',
+                      border: 'none',
+                      color: 'var(--text-secondary)',
+                      cursor: 'pointer',
+                      fontSize: '18px',
+                      padding: '4px'
+                    }}
+                    aria-label="Clear search"
+                  >
+                    ×
+                  </button>
+                )}
+
+                {/* Search Suggestions Dropdown */}
+                {showSearchSuggestions && searchParameterHistory.length > 0 && (
+                  <div style={{
+                    position: 'absolute',
+                    top: '100%',
+                    left: 0,
+                    right: 0,
+                    backgroundColor: 'var(--surface)',
+                    border: '1px solid var(--border)',
+                    borderRadius: '8px',
+                    boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+                    zIndex: 1000,
+                    maxHeight: '200px',
+                    overflowY: 'auto'
+                  }}>
+                    {searchParameterHistory
+                      .filter(item => item.keyword.toLowerCase().includes(userSearch.toLowerCase()))
+                      .slice(0, 5)
+                      .map((item, index) => (
+                        <button
+                          key={index}
+                          onMouseDown={(e) => {
+                            e.preventDefault()
+                            setUserSearch(item.keyword)
+                            setUserSearchType(item.searchType)
+                            setUserDeptFilter(item.deptFilter)
+                            setUserRoleFilter(item.roleFilter)
+                            setUserDeptMultiFilter(item.deptMultiFilter)
+                            setShowSearchSuggestions(false)
+                          }}
+                          style={{
+                            width: '100%',
+                            padding: '8px 12px',
+                            border: 'none',
+                            background: 'none',
+                            textAlign: 'left',
+                            cursor: 'pointer',
+                            borderBottom: index < 4 ? '1px solid var(--border)' : 'none',
+                            color: 'var(--text)'
+                          }}
+                          onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'var(--surface-secondary)'}
+                          onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                        >
+                          <div style={{ fontWeight: '500', marginBottom: '2px' }}>
+                            "{item.keyword}"
+                          </div>
+                          <div style={{
+                            fontSize: '0.8em',
+                            color: 'var(--text-secondary)',
+                            display: 'flex',
+                            gap: '4px',
+                            flexWrap: 'wrap'
+                          }}>
+                            {item.searchType !== 'all' && <span>In: {item.searchType}</span>}
+                            {item.deptFilter && <span>Dept: {departments.find(d => d.id.toString() === item.deptFilter)?.name || item.deptFilter}</span>}
+                            {item.roleFilter.length > 0 && <span>Roles: {item.roleFilter.length}</span>}
+                            {item.deptMultiFilter.length > 0 && <span>Depts: {item.deptMultiFilter.length}</span>}
+                          </div>
+                        </button>
+                      ))}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Search Scope */}
+            <div style={{ marginBottom: '12px' }}>
+              <label style={{ fontSize: '0.9em', color: 'var(--text-secondary)', fontWeight: '500', marginBottom: '4px', display: 'block' }}>Search in:</label>
               <select
                 className="input"
                 value={userSearchType}
                 onChange={(e) => setUserSearchType(e.target.value as 'all' | 'name' | 'email' | 'roll_number')}
-                style={{ width: '150px' }}
+                style={{ width: '100%' }}
+                aria-label="Select which fields to search in"
               >
                 <option value="all">All Fields</option>
                 <option value="name">Name</option>
@@ -623,88 +1053,510 @@ const filteredUsers = useMemo(() =>
                 <option value="roll_number">Roll Number</option>
               </select>
             </div>
-            <select
-              className="input"
-              value={userDeptFilter}
-              onChange={(e) => setUserDeptFilter(e.target.value)}
-              style={{ width: '100%', marginBottom: '12px' }}
-            >
-              <option value="">All Departments</option>
-              {departments.map((d: any) => (
-                <option key={d.id} value={d.id}>{d.name}</option>
-              ))}
-            </select>
-            <button className="btn btn-primary" onClick={() => setHasSearched(true)} style={{ width: '100%' }}>Search</button>
-          </div>
-          <div className="form" style={{ marginBottom: 12 }}>
-            <div className="grid" style={{ gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>
-              <button className={`btn ${roleFilter === 'student' ? 'btn-primary' : ''}`} onClick={() => setRoleFilter('student')}>Students</button>
-              <button className={`btn ${roleFilter === 'faculty' ? 'btn-primary' : ''}`} onClick={() => setRoleFilter('faculty')}>Teachers</button>
-              <button className={`btn ${roleFilter === 'ta' ? 'btn-primary' : ''}`} onClick={() => setRoleFilter('ta')}>TAs</button>
-            </div>
-          </div>
-          {isLoading && (
-            <div style={{ marginBottom: 8, fontSize: '0.9em', color: '#666' }}>Loading...</div>
-          )}
-          {loadError && (
-            <div style={{ marginBottom: 8, padding: 8, backgroundColor: '#fee', color: '#c00', borderRadius: 4 }}>
-              Error: {loadError}
-            </div>
-          )}
-          {roleFilter !== '' && hasSearched ? (
-            <div className="grid" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(450px, 1fr))', gap: 16 }}>
-              {filteredUsers.map((u) => (
-                <div key={u.id} className="card user-card">
-                  <div style={{ marginBottom: 12 }}>
-                    <strong>{u.name || u.email}</strong>
-                    <div className="muted">{u.email} ({u.role})</div>
+
+            {/* Filters */}
+            <div style={{ marginBottom: '12px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+                <label style={{ fontSize: '0.9em', color: 'var(--text-secondary)', fontWeight: '500' }}>Filter:</label>
+                <button
+                  onClick={() => setShowMultiSelect(!showMultiSelect)}
+                  style={{
+                    fontSize: '0.8em',
+                    color: 'var(--primary)',
+                    background: 'none',
+                    border: 'none',
+                    cursor: 'pointer',
+                    textDecoration: 'underline'
+                  }}
+                >
+                  {showMultiSelect ? 'Simple Mode' : 'Advanced Mode'}
+                </button>
+              </div>
+
+              {showMultiSelect ? (
+                // Multi-select mode
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                  {/* Department Multi-Select */}
+                  <div>
+                    <label style={{ fontSize: '0.8em', color: 'var(--text-secondary)', display: 'block', marginBottom: '4px' }}>
+                      Departments ({userDeptMultiFilter.length} selected)
+                    </label>
+                    <div style={{
+                      border: '1px solid var(--border)',
+                      borderRadius: '6px',
+                      padding: '8px',
+                      maxHeight: '120px',
+                      overflowY: 'auto',
+                      backgroundColor: 'var(--surface)'
+                    }}>
+                      {departments.map((dept: any) => (
+                        <label key={dept.id} style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '4px', fontSize: '0.85em' }}>
+                          <input
+                            type="checkbox"
+                            checked={userDeptMultiFilter.includes(dept.id.toString())}
+                            onChange={(e) => {
+                              if (e.target.checked) {
+                                setUserDeptMultiFilter([...userDeptMultiFilter, dept.id.toString()])
+                              } else {
+                                setUserDeptMultiFilter(userDeptMultiFilter.filter(id => id !== dept.id.toString()))
+                              }
+                            }}
+                          />
+                          {dept.name}
+                        </label>
+                      ))}
+                    </div>
                   </div>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                    <button className="btn btn-secondary" onClick={async () => {
-                      setSelectedUser(u)
-                      setSelectedOverview(null)
-                      setShowUserDetailsModal(true)
-                      const ov = await getUserOverview(u.id)
-                      setSelectedOverview(ov)
-                    }}>View Details</button>
-                    <button className="btn btn-secondary" onClick={async () => {
-                      // Edit logic
-                      const newName = prompt('Enter new name:', u.name || '')
-                      const newRole = prompt('Enter new role (student/faculty/ta/admin):', u.role)
-                      const newDept = prompt('Enter department ID (or leave empty):', u.department_id?.toString() || '')
-                      const newActive = confirm(`Is active? Currently: ${u.is_active}`)
-                      if (newName !== null || newRole !== null || newDept !== null) {
-                        try {
-                          await updateUser(u.id, {
-                            name: newName || undefined,
-                            role: newRole as 'student'|'faculty'|'ta'|'admin' || undefined,
-                            department_id: newDept ? Number(newDept) : null,
-                            is_active: newActive
-                          })
-                          push({ kind: 'success', message: 'User updated' })
-                          loadUsers()
-                        } catch (e: any) {
-                          push({ kind: 'error', message: e?.message || 'Failed to update' })
-                        }
-                      }
-                    }}>Edit</button>
-                    <button className="btn btn-danger" onClick={async () => {
-                      if (confirm(`Delete user ${u.name || u.email}?`)) {
-                        try {
-                          await deleteUser(u.id)
-                          push({ kind: 'success', message: 'User deleted' })
-                          loadUsers()
-                        } catch (e: any) {
-                          push({ kind: 'error', message: e?.message || 'Failed to delete' })
-                        }
-                      }
-                    }}>Delete</button>
+
+                  {/* Role Multi-Select */}
+                  <div>
+                    <label style={{ fontSize: '0.8em', color: 'var(--text-secondary)', display: 'block', marginBottom: '4px' }}>
+                      Roles ({userRoleFilter.length} selected)
+                    </label>
+                    <div style={{
+                      border: '1px solid var(--border)',
+                      borderRadius: '6px',
+                      padding: '8px',
+                      backgroundColor: 'var(--surface)'
+                    }}>
+                      {[
+                        { value: 'student', label: 'Students' },
+                        { value: 'faculty', label: 'Teachers' },
+                        { value: 'ta', label: 'TAs' },
+                        ...(isSuperAdmin ? [{ value: 'admin', label: 'Admins' }] : [])
+                      ].map((role) => (
+                        <label key={role.value} style={{ display: 'flex', alignItems: 'center', gap: '6px', marginRight: '12px', fontSize: '0.85em' }}>
+                          <input
+                            type="checkbox"
+                            checked={userRoleFilter.includes(role.value)}
+                            onChange={(e) => {
+                              if (e.target.checked) {
+                                setUserRoleFilter([...userRoleFilter, role.value])
+                              } else {
+                                setUserRoleFilter(userRoleFilter.filter(r => r !== role.value))
+                              }
+                            }}
+                          />
+                          {role.label}
+                        </label>
+                      ))}
+                    </div>
                   </div>
                 </div>
+              ) : (
+                // Simple mode (backward compatible)
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  <select
+                    className="input"
+                    value={userDeptFilter}
+                    onChange={(e) => setUserDeptFilter(e.target.value)}
+                    style={{ flex: 1 }}
+                    aria-label="Filter by department"
+                  >
+                    <option value="">All Departments</option>
+                    {departments.map((d: any) => (
+                      <option key={d.id} value={d.id}>{d.name}</option>
+                    ))}
+                  </select>
+                  <select
+                    className="input"
+                    value={roleFilter}
+                    onChange={(e) => setRoleFilter(e.target.value)}
+                    style={{ flex: 1 }}
+                    aria-label="Filter by user role"
+                  >
+                    <option value="">All Roles</option>
+                    <option value="student">Students</option>
+                    <option value="faculty">Teachers</option>
+                    <option value="ta">TAs</option>
+                    {isSuperAdmin && <option value="admin">Admins</option>}
+                  </select>
+                </div>
+              )}
+            </div>
+
+            {/* Action Buttons */}
+            <div style={{ display: 'flex', gap: '8px', marginBottom: '16px' }}>
+              <button
+                className="btn btn-primary"
+                onClick={() => performSearch()}
+                style={{ flex: 1 }}
+                disabled={isLoading}
+              >
+                {isLoading ? '🔄 Searching...' : '🔍 Search'}
+              </button>
+              <button
+                className="btn btn-secondary"
+                onClick={() => {
+                  setUserSearch('');
+                  setUserSearchType('all');
+                  setUserDeptFilter('');
+                  setRoleFilter('');
+                  setHasSearched(false);
+                }}
+                style={{ flex: 1 }}
+                disabled={isLoading}
+              >
+                🗑️ Clear All
+              </button>
+              <button
+                className="btn btn-success"
+                onClick={exportToCSV}
+                style={{ flex: 1 }}
+                disabled={filteredUsers.length === 0}
+              >
+                📊 Export CSV
+              </button>
+            </div>
+
+            {/* Live Search Toggle */}
+            <div style={{ marginBottom: '12px' }}>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.9em' }}>
+                <input
+                  type="checkbox"
+                  checked={liveSearchEnabled}
+                  onChange={(e) => setLiveSearchEnabled(e.target.checked)}
+                />
+                🔄 Enable live search (searches as you type)
+              </label>
+            </div>
+
+            {/* Applied Filters Display */}
+            {(userSearch || userSearchType !== 'all' || userDeptFilter || roleFilter || userDeptMultiFilter.length > 0 || userRoleFilter.length > 0) && (
+              <div style={{
+                backgroundColor: 'var(--surface-secondary)',
+                padding: '8px 12px',
+                borderRadius: '6px',
+                marginBottom: '12px',
+                border: '1px solid var(--border)'
+              }}>
+                <div style={{ fontSize: '0.85em', color: 'var(--text-secondary)', marginBottom: '4px', fontWeight: '500' }}>
+                  Applied Filters:
+                </div>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                  {userSearch && (
+                    <span style={{
+                      backgroundColor: 'var(--primary)',
+                      color: 'white',
+                      padding: '2px 8px',
+                      borderRadius: '12px',
+                      fontSize: '0.8em'
+                    }}>
+                      Search: "{userSearch}"
+                    </span>
+                  )}
+                  {userSearchType !== 'all' && (
+                    <span style={{
+                      backgroundColor: 'var(--secondary)',
+                      color: 'var(--text)',
+                      padding: '2px 8px',
+                      borderRadius: '12px',
+                      fontSize: '0.8em'
+                    }}>
+                      In: {userSearchType}
+                    </span>
+                  )}
+                  {userDeptFilter && (
+                    <span style={{
+                      backgroundColor: 'var(--accent)',
+                      color: 'white',
+                      padding: '2px 8px',
+                      borderRadius: '12px',
+                      fontSize: '0.8em'
+                    }}>
+                      Dept: {departments.find((d: any) => d.id.toString() === userDeptFilter)?.name || userDeptFilter}
+                    </span>
+                  )}
+                  {roleFilter && (
+                    <span style={{
+                      backgroundColor: 'var(--success)',
+                      color: 'white',
+                      padding: '2px 8px',
+                      borderRadius: '12px',
+                      fontSize: '0.8em'
+                    }}>
+                      Role: {roleFilter === 'faculty' ? 'Teacher' : roleFilter.charAt(0).toUpperCase() + roleFilter.slice(1)}
+                    </span>
+                  )}
+                  {userDeptMultiFilter.length > 0 && (
+                    <span style={{
+                      backgroundColor: 'var(--warning)',
+                      color: 'white',
+                      padding: '2px 8px',
+                      borderRadius: '12px',
+                      fontSize: '0.8em'
+                    }}>
+                      Depts: {userDeptMultiFilter.length}
+                    </span>
+                  )}
+                  {userRoleFilter.length > 0 && (
+                    <span style={{
+                      backgroundColor: 'var(--info)',
+                      color: 'white',
+                      padding: '2px 8px',
+                      borderRadius: '12px',
+                      fontSize: '0.8em'
+                    }}>
+                      Roles: {userRoleFilter.length}
+                    </span>
+                  )}
+                </div>
+              </div>
+            )}
+
+          </div>
+          {isLoading && (
+            <div className="grid" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(450px, 1fr))', gap: 16 }}>
+              {Array.from({ length: 6 }).map((_, i) => (
+                <SkeletonCard key={i} />
               ))}
             </div>
-          ) : (
-            <p>Please select user type and click search to view users.</p>
+          )}
+          {loadError && (
+            <div style={{ marginBottom: 8, padding: 12, backgroundColor: '#fee', color: '#c00', borderRadius: 6, border: '1px solid #fcc' }}>
+              ⚠️ Error: {loadError}
+            </div>
+          )}
+          {!isLoading && usersList.length > 0 && (
+            <>
+              {/* Results Summary */}
+              <div style={{
+                marginBottom: '12px',
+                padding: '8px 12px',
+                backgroundColor: 'var(--surface-secondary)',
+                borderRadius: '6px',
+                fontSize: '0.9em',
+                color: 'var(--text-secondary)'
+              }}>
+                📊 Showing {paginatedUsers.length} of {filteredUsers.length} users
+                {totalPages > 1 && ` (Page ${currentPage} of ${totalPages})`}
+              </div>
+
+              {/* No Results State */}
+              {filteredUsers.length === 0 ? (
+                <div style={{
+                  textAlign: 'center',
+                  padding: '40px 20px',
+                  color: 'var(--text-secondary)',
+                  backgroundColor: 'var(--surface-secondary)',
+                  borderRadius: '8px',
+                  border: '2px dashed var(--border)'
+                }}>
+                  <div style={{ fontSize: '3em', marginBottom: '16px' }}>🔍</div>
+                  <h3 style={{ margin: '0 0 8px 0', color: 'var(--text)' }}>No users found</h3>
+                  <p style={{ margin: '0 0 16px 0' }}>Try adjusting your search terms or filters</p>
+                  <button
+                    className="btn btn-secondary"
+                    onClick={() => {
+                      setUserSearch('');
+                      setUserSearchType('all');
+                      setUserDeptFilter('');
+                      setRoleFilter('');
+                      setUserDeptMultiFilter([]);
+                      setUserRoleFilter([]);
+                      setHasSearched(false);
+                      setCurrentPage(1);
+                    }}
+                  >
+                    🗑️ Clear all filters
+                  </button>
+                </div>
+              ) : (
+                <>
+                  {viewMode === 'cards' ? (
+                    /* Results Grid */
+                    <div className="grid" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(450px, 1fr))', gap: 16 }}>
+                      {paginatedUsers.map((u) => (
+                        <div key={u.id} className="card user-card">
+                          <div style={{ marginBottom: 12 }}>
+                            <strong>{u.name || u.email}</strong>
+                            <div className="muted">{u.email} ({u.role})</div>
+                          </div>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                            <button className="btn btn-secondary" onClick={async () => {
+                              setSelectedUser(u)
+                              setSelectedOverview(null)
+                              setShowUserDetailsModal(true)
+                              addToRecentlyViewed(u)
+                              const ov = await getUserOverview(u.id)
+                              setSelectedOverview(ov)
+                            }}>View Details</button>
+                            <button className="btn btn-secondary" onClick={() => {
+                              setEditingUser(u)
+                              setEditUserData({
+                                name: u.name || '',
+                                role: u.role,
+                                department_id: u.department_id?.toString() || '',
+                                roll_number: u.roll_number || '',
+                                is_active: u.is_active || false
+                              })
+                              setShowEditUser(true)
+                            }}>Edit</button>
+                            <button className="btn btn-danger" onClick={() => {
+                              setUserToDelete(u)
+                              setShowDeleteConfirm(true)
+                            }}>Delete</button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    /* Table View */
+                    <div style={{ overflowX: 'auto' }}>
+                      <table style={{
+                        width: '100%',
+                        borderCollapse: 'collapse',
+                        backgroundColor: 'var(--surface)',
+                        borderRadius: '8px',
+                        overflow: 'hidden',
+                        boxShadow: '0 2px 8px rgba(0,0,0,0.1)'
+                      }}>
+                        <thead>
+                          <tr style={{ backgroundColor: 'var(--surface-secondary)' }}>
+                            <th style={{ padding: '12px', textAlign: 'left', borderBottom: '1px solid var(--border)', fontWeight: '600' }}>Name</th>
+                            <th style={{ padding: '12px', textAlign: 'left', borderBottom: '1px solid var(--border)', fontWeight: '600' }}>Email</th>
+                            <th style={{ padding: '12px', textAlign: 'left', borderBottom: '1px solid var(--border)', fontWeight: '600' }}>Role</th>
+                            <th style={{ padding: '12px', textAlign: 'left', borderBottom: '1px solid var(--border)', fontWeight: '600' }}>Department</th>
+                            <th style={{ padding: '12px', textAlign: 'left', borderBottom: '1px solid var(--border)', fontWeight: '600' }}>Status</th>
+                            <th style={{ padding: '12px', textAlign: 'center', borderBottom: '1px solid var(--border)', fontWeight: '600' }}>Actions</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {paginatedUsers.map((u) => (
+                            <tr key={u.id} style={{ borderBottom: '1px solid var(--border)' }}>
+                              <td style={{ padding: '12px' }}>
+                                <strong>{u.name || u.email}</strong>
+                              </td>
+                              <td style={{ padding: '12px' }}>{u.email}</td>
+                              <td style={{ padding: '12px' }}>
+                                <span style={{
+                                  padding: '4px 8px',
+                                  borderRadius: '12px',
+                                  fontSize: '0.8em',
+                                  backgroundColor: u.role === 'admin' ? '#e3f2fd' : u.role === 'faculty' ? '#f3e5f5' : u.role === 'ta' ? '#fff3e0' : '#e8f5e8',
+                                  color: u.role === 'admin' ? '#1565c0' : u.role === 'faculty' ? '#7b1fa2' : u.role === 'ta' ? '#f57c00' : '#2e7d32'
+                                }}>
+                                  {u.role === 'faculty' ? 'Teacher' : u.role.charAt(0).toUpperCase() + u.role.slice(1)}
+                                </span>
+                              </td>
+                              <td style={{ padding: '12px' }}>
+                                {departments.find(d => d.id.toString() === u.department_id?.toString())?.name || 'N/A'}
+                              </td>
+                              <td style={{ padding: '12px' }}>
+                                <span style={{
+                                  padding: '4px 8px',
+                                  borderRadius: '12px',
+                                  fontSize: '0.8em',
+                                  backgroundColor: u.is_active ? '#e8f5e8' : '#ffebee',
+                                  color: u.is_active ? '#2e7d32' : '#c62828'
+                                }}>
+                                  {u.is_active ? 'Active' : 'Inactive'}
+                                </span>
+                              </td>
+                              <td style={{ padding: '12px', textAlign: 'center' }}>
+                                <div style={{ display: 'flex', gap: '4px', justifyContent: 'center' }}>
+                                  <button
+                                    className="btn btn-secondary"
+                                    style={{ fontSize: '0.8em', padding: '4px 8px' }}
+                                    onClick={async () => {
+                                      setSelectedUser(u)
+                                      setSelectedOverview(null)
+                                      setShowUserDetailsModal(true)
+                                      addToRecentlyViewed(u)
+                                      const ov = await getUserOverview(u.id)
+                                      setSelectedOverview(ov)
+                                    }}
+                                  >
+                                    View
+                                  </button>
+                                  <button
+                                    className="btn btn-secondary"
+                                    style={{ fontSize: '0.8em', padding: '4px 8px' }}
+                                    onClick={() => {
+                                      setEditingUser(u)
+                                      setEditUserData({
+                                        name: u.name || '',
+                                        role: u.role,
+                                        department_id: u.department_id?.toString() || '',
+                                        roll_number: u.roll_number || '',
+                                        is_active: u.is_active || false
+                                      })
+                                      setShowEditUser(true)
+                                    }}
+                                  >
+                                    Edit
+                                  </button>
+                                  <button
+                                    className="btn btn-danger"
+                                    style={{ fontSize: '0.8em', padding: '4px 8px' }}
+                                    onClick={() => {
+                                      setUserToDelete(u)
+                                      setShowDeleteConfirm(true)
+                                    }}
+                                  >
+                                    Delete
+                                  </button>
+                                </div>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+
+                  {/* Pagination Controls */}
+                  {totalPages > 1 && (
+                    <div style={{
+                      display: 'flex',
+                      justifyContent: 'center',
+                      alignItems: 'center',
+                      gap: '8px',
+                      marginTop: '20px',
+                      padding: '12px',
+                      backgroundColor: 'var(--surface-secondary)',
+                      borderRadius: '8px'
+                    }}>
+                      <button
+                        className="btn btn-secondary"
+                        onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
+                        disabled={currentPage === 1}
+                        style={{ padding: '6px 12px' }}
+                      >
+                        ‹ Previous
+                      </button>
+
+                      <span style={{ fontSize: '0.9em', color: 'var(--text-secondary)' }}>
+                        Page {currentPage} of {totalPages}
+                      </span>
+
+                      <button
+                        className="btn btn-secondary"
+                        onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
+                        disabled={currentPage === totalPages}
+                        style={{ padding: '6px 12px' }}
+                      >
+                        Next ›
+                      </button>
+                    </div>
+                  )}
+                </>
+              )}
+            </>
+          )}
+          {!isLoading && usersList.length === 0 && !loadError && (
+            <div style={{
+              textAlign: 'center',
+              padding: '40px 20px',
+              color: 'var(--text-secondary)',
+              backgroundColor: 'var(--surface-secondary)',
+              borderRadius: '8px',
+              border: '2px dashed var(--border)'
+            }}>
+              <div style={{ fontSize: '3em', marginBottom: '16px' }}>👥</div>
+              <h3 style={{ margin: '0 0 8px 0', color: 'var(--text)' }}>No users yet</h3>
+              <p style={{ margin: '0 0 16px 0' }}>Users will appear here once they register</p>
+            </div>
           )}
           
         </section>
@@ -839,49 +1691,486 @@ const filteredUsers = useMemo(() =>
 
       {tab === 'departments' && (
         <section className="card">
-          <div className="section-header">
+          <div className="section-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <h3>Departments</h3>
-            <button className="btn btn-primary" onClick={() => setShowCreateDept(true)}>Create Department</button>
+            <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+              <div style={{ display: 'flex', border: '1px solid var(--border)', borderRadius: '6px' }}>
+                <button
+                  className={`btn ${deptViewMode === 'cards' ? 'btn-primary' : 'btn-secondary'}`}
+                  onClick={() => setDeptViewMode('cards')}
+                  style={{ borderRadius: '6px 0 0 6px', borderRight: 'none' }}
+                >
+                  📱 Cards
+                </button>
+                <button
+                  className={`btn ${deptViewMode === 'table' ? 'btn-primary' : 'btn-secondary'}`}
+                  onClick={() => setDeptViewMode('table')}
+                  style={{ borderRadius: '0 6px 6px 0' }}
+                >
+                  📊 Table
+                </button>
+              </div>
+              <button className="btn btn-primary" onClick={() => setShowCreateDept(true)}>Create Department</button>
+            </div>
           </div>
           <div className="filters" style={{ marginBottom: '16px' }}>
-            <div style={{ display: 'flex', gap: '12px', marginBottom: '12px' }}>
-              <input
-                className="input"
-                type="text"
-                placeholder="Search departments..."
-                value={deptSearch}
-                onChange={(e) => setDeptSearch(e.target.value)}
-                style={{ flex: 1 }}
-              />
+            {/* Prominent Search Bar */}
+            <div style={{ marginBottom: '16px', position: 'relative' }}>
+              <div style={{ position: 'relative' }}>
+                <input
+                  className="input"
+                  type="text"
+                  placeholder="🔍 Search departments..."
+                  value={deptSearch}
+                  onChange={(e) => {
+                    setDeptSearch(e.target.value)
+                    setShowDeptSearchSuggestions(e.target.value.length > 0)
+                  }}
+                  onFocus={() => setShowDeptSearchSuggestions(deptSearch.length > 0)}
+                  onBlur={() => setTimeout(() => setShowDeptSearchSuggestions(false), 300)}
+                  style={{
+                    width: '100%',
+                    padding: '12px 16px',
+                    fontSize: '16px',
+                    border: '2px solid var(--border)',
+                    borderRadius: '8px',
+                    backgroundColor: 'var(--surface)',
+                    color: 'var(--text)'
+                  }}
+                  aria-label="Search departments by code or name"
+                />
+                {deptSearch && (
+                  <button
+                    onClick={() => setDeptSearch('')}
+                    style={{
+                      position: 'absolute',
+                      right: '12px',
+                      top: '50%',
+                      transform: 'translateY(-50%)',
+                      background: 'none',
+                      border: 'none',
+                      color: 'var(--text-secondary)',
+                      cursor: 'pointer',
+                      fontSize: '18px',
+                      padding: '4px'
+                    }}
+                    aria-label="Clear search"
+                  >
+                    ×
+                  </button>
+                )}
+
+                {/* Search Suggestions Dropdown */}
+                {showDeptSearchSuggestions && deptSearchParameterHistory.length > 0 && (
+                  <div style={{
+                    position: 'absolute',
+                    top: '100%',
+                    left: 0,
+                    right: 0,
+                    backgroundColor: 'var(--surface)',
+                    border: '1px solid var(--border)',
+                    borderRadius: '8px',
+                    boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+                    zIndex: 1000,
+                    maxHeight: '200px',
+                    overflowY: 'auto'
+                  }}>
+                    {deptSearchParameterHistory
+                      .filter(item => item.keyword.toLowerCase().includes(deptSearch.toLowerCase()))
+                      .slice(0, 5)
+                      .map((item, index) => (
+                        <button
+                          key={index}
+                          onMouseDown={(e) => {
+                            e.preventDefault()
+                            setDeptSearch(item.keyword)
+                            setDeptSearchType(item.searchType)
+                            setShowDeptSearchSuggestions(false)
+                          }}
+                          style={{
+                            width: '100%',
+                            padding: '8px 12px',
+                            border: 'none',
+                            background: 'none',
+                            textAlign: 'left',
+                            cursor: 'pointer',
+                            borderBottom: index < 4 ? '1px solid var(--border)' : 'none',
+                            color: 'var(--text)'
+                          }}
+                          onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'var(--surface-secondary)'}
+                          onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                        >
+                          <div style={{ fontWeight: '500', marginBottom: '2px' }}>
+                            "{item.keyword}"
+                          </div>
+                          <div style={{
+                            fontSize: '0.8em',
+                            color: 'var(--text-secondary)',
+                            display: 'flex',
+                            gap: '4px',
+                            flexWrap: 'wrap'
+                          }}>
+                            {item.searchType !== 'all' && <span>In: {item.searchType}</span>}
+                          </div>
+                        </button>
+                      ))}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Search Scope */}
+            <div style={{ marginBottom: '12px' }}>
+              <label style={{ fontSize: '0.9em', color: 'var(--text-secondary)', fontWeight: '500', marginBottom: '4px', display: 'block' }}>Search in:</label>
               <select
                 className="input"
                 value={deptSearchType}
                 onChange={(e) => setDeptSearchType(e.target.value as 'all' | 'code' | 'name')}
-                style={{ width: '150px' }}
+                style={{ width: '100%' }}
+                aria-label="Select which fields to search in"
               >
                 <option value="all">All Fields</option>
                 <option value="code">Code</option>
                 <option value="name">Name</option>
               </select>
             </div>
-          </div>
-          <div className="departments-list">
-            {advancedSearchAndSort(
-              departments,
-              deptSearch,
-              (dept) => {
-                if (deptSearchType === 'all') return [dept.code || '', dept.name || '']
-                if (deptSearchType === 'code') return [dept.code || '']
-                if (deptSearchType === 'name') return [dept.name || '']
-                return [dept.code || '', dept.name || '']
-              },
-              (dept) => dept.code || dept.name || ''
-            ).map((d: any) => (
-              <div key={d.id} className="department-item">
-                <strong>{d.code}</strong> — {d.name}
+
+            {/* Action Buttons */}
+            <div style={{ display: 'flex', gap: '8px', marginBottom: '16px' }}>
+              <button
+                className="btn btn-primary"
+                onClick={() => {
+                  if (!deptSearch.trim()) return
+                  const searchParams = {
+                    keyword: deptSearch.trim(),
+                    searchType: deptSearchType,
+                    timestamp: Date.now()
+                  }
+                  const newHistory = [searchParams, ...deptSearchParameterHistory.filter(h =>
+                    !(h.keyword === searchParams.keyword && h.searchType === searchParams.searchType)
+                  )].slice(0, 10)
+                  setDeptSearchParameterHistory(newHistory)
+                  localStorage.setItem('adminDeptSearchParameterHistory', JSON.stringify(newHistory))
+                }}
+                style={{ flex: 1 }}
+              >
+                🔍 Search
+              </button>
+              <button
+                className="btn btn-secondary"
+                onClick={() => {
+                  setDeptSearch('');
+                  setDeptSearchType('all');
+                  setDeptCurrentPage(1);
+                }}
+                style={{ flex: 1 }}
+              >
+                🗑️ Clear All
+              </button>
+              <button
+                className="btn btn-success"
+                onClick={exportDepartmentsToCSV}
+                style={{ flex: 1 }}
+                disabled={filteredDepartments.length === 0}
+              >
+                📊 Export CSV
+              </button>
+            </div>
+
+            {/* Live Search Toggle */}
+            <div style={{ marginBottom: '12px' }}>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.9em' }}>
+                <input
+                  type="checkbox"
+                  checked={deptLiveSearchEnabled}
+                  onChange={(e) => setDeptLiveSearchEnabled(e.target.checked)}
+                />
+                🔄 Enable live search (searches as you type)
+              </label>
+            </div>
+
+            {/* Applied Filters Display */}
+            {(deptSearch || deptSearchType !== 'all') && (
+              <div style={{
+                backgroundColor: 'var(--surface-secondary)',
+                padding: '8px 12px',
+                borderRadius: '6px',
+                marginBottom: '12px',
+                border: '1px solid var(--border)'
+              }}>
+                <div style={{ fontSize: '0.85em', color: 'var(--text-secondary)', marginBottom: '4px', fontWeight: '500' }}>
+                  Applied Filters:
+                </div>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                  {deptSearch && (
+                    <span style={{
+                      backgroundColor: 'var(--primary)',
+                      color: 'white',
+                      padding: '2px 8px',
+                      borderRadius: '12px',
+                      fontSize: '0.8em'
+                    }}>
+                      Search: "{deptSearch}"
+                    </span>
+                  )}
+                  {deptSearchType !== 'all' && (
+                    <span style={{
+                      backgroundColor: 'var(--secondary)',
+                      color: 'var(--text)',
+                      padding: '2px 8px',
+                      borderRadius: '12px',
+                      fontSize: '0.8em'
+                    }}>
+                      In: {deptSearchType}
+                    </span>
+                  )}
+                </div>
               </div>
-            ))}
+            )}
+
           </div>
+          {isLoading && (
+            <div className="grid" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 16 }}>
+              {Array.from({ length: 6 }).map((_, i) => (
+                <SkeletonCard key={i} />
+              ))}
+            </div>
+          )}
+          {loadError && (
+            <div style={{ marginBottom: 8, padding: 12, backgroundColor: '#fee', color: '#c00', borderRadius: 6, border: '1px solid #fcc' }}>
+              ⚠️ Error: {loadError}
+            </div>
+          )}
+          {!isLoading && departments.length > 0 && (
+            <>
+              {/* Results Summary */}
+              <div style={{
+                marginBottom: '12px',
+                padding: '8px 12px',
+                backgroundColor: 'var(--surface-secondary)',
+                borderRadius: '6px',
+                fontSize: '0.9em',
+                color: 'var(--text-secondary)'
+              }}>
+                📊 Showing {paginatedDepartments.length} of {filteredDepartments.length} departments
+                {deptTotalPages > 1 && ` (Page ${deptCurrentPage} of ${deptTotalPages})`}
+              </div>
+
+              {/* No Results State */}
+              {filteredDepartments.length === 0 ? (
+                <div style={{
+                  textAlign: 'center',
+                  padding: '40px 20px',
+                  color: 'var(--text-secondary)',
+                  backgroundColor: 'var(--surface-secondary)',
+                  borderRadius: '8px',
+                  border: '2px dashed var(--border)'
+                }}>
+                  <div style={{ fontSize: '3em', marginBottom: '16px' }}>🔍</div>
+                  <h3 style={{ margin: '0 0 8px 0', color: 'var(--text)' }}>No departments found</h3>
+                  <p style={{ margin: '0 0 16px 0' }}>Try adjusting your search terms</p>
+                  <button
+                    className="btn btn-secondary"
+                    onClick={() => {
+                      setDeptSearch('');
+                      setDeptSearchType('all');
+                      setDeptCurrentPage(1);
+                    }}
+                  >
+                    🗑️ Clear all filters
+                  </button>
+                </div>
+              ) : (
+                <>
+                  {deptViewMode === 'cards' ? (
+                    /* Cards View */
+                    <div className="grid" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 16 }}>
+                      {paginatedDepartments.map((dept: any) => (
+                        <div key={dept.id} className="card" style={{ padding: '16px' }}>
+                          <div style={{ marginBottom: 12 }}>
+                            <strong style={{ fontSize: '1.1em' }}>{dept.code}</strong>
+                            <div className="muted" style={{ marginTop: '4px' }}>{dept.name}</div>
+                          </div>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                            <button
+                              className="btn btn-secondary"
+                              onClick={async () => {
+                                setSelectedDeptDetails(dept)
+                                setShowDeptDetailsModal(true)
+                                try {
+                                  const r = await getCoursesByDepartment(dept.id)
+                                  setDeptDetailsCourses(r.courses)
+                                } catch (err) {
+                                  console.error('Error loading courses:', err)
+                                }
+                              }}
+                            >
+                              View Details
+                            </button>
+                            <button
+                              className="btn btn-secondary"
+                              onClick={async () => {
+                                const newCode = prompt('Enter new code:', dept.code)
+                                const newName = prompt('Enter new name:', dept.name)
+                                if (newCode !== null && newName !== null && (newCode !== dept.code || newName !== dept.name)) {
+                                  try {
+                                    await updateDepartment(dept.id, { code: newCode, name: newName })
+                                    push({ kind: 'success', message: 'Department updated successfully' })
+                                    loadDepartments()
+                                  } catch (e: any) {
+                                    push({ kind: 'error', message: e?.message || 'Failed to update department' })
+                                  }
+                                }
+                              }}
+                            >
+                              Edit
+                            </button>
+                            <button
+                              className="btn btn-danger"
+                              onClick={() => {
+                                if (confirm(`Delete department "${dept.code} - ${dept.name}"?`)) {
+                                  // Delete department logic would go here
+                                  console.log('Delete department:', dept.id)
+                                }
+                              }}
+                            >
+                              Delete
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    /* Table View */
+                    <div style={{ overflowX: 'auto' }}>
+                      <table style={{
+                        width: '100%',
+                        borderCollapse: 'collapse',
+                        backgroundColor: 'var(--surface)',
+                        borderRadius: '8px',
+                        overflow: 'hidden',
+                        boxShadow: '0 2px 8px rgba(0,0,0,0.1)'
+                      }}>
+                        <thead>
+                          <tr style={{ backgroundColor: 'var(--surface-secondary)' }}>
+                            <th style={{ padding: '12px', textAlign: 'left', borderBottom: '1px solid var(--border)', fontWeight: '600' }}>Code</th>
+                            <th style={{ padding: '12px', textAlign: 'left', borderBottom: '1px solid var(--border)', fontWeight: '600' }}>Name</th>
+                            <th style={{ padding: '12px', textAlign: 'center', borderBottom: '1px solid var(--border)', fontWeight: '600' }}>Actions</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {paginatedDepartments.map((dept: any) => (
+                            <tr key={dept.id} style={{ borderBottom: '1px solid var(--border)' }}>
+                              <td style={{ padding: '12px' }}>
+                                <strong>{dept.code}</strong>
+                              </td>
+                              <td style={{ padding: '12px' }}>{dept.name}</td>
+                              <td style={{ padding: '12px', textAlign: 'center' }}>
+                                <div style={{ display: 'flex', gap: '4px', justifyContent: 'center' }}>
+                                  <button
+                                    className="btn btn-secondary"
+                                    style={{ fontSize: '0.8em', padding: '4px 8px' }}
+                                    onClick={async () => {
+                                      setSelectedDeptDetails(dept)
+                                      setShowDeptDetailsModal(true)
+                                      try {
+                                        const r = await getCoursesByDepartment(dept.id)
+                                        setDeptDetailsCourses(r.courses)
+                                      } catch (err) {
+                                        console.error('Error loading courses:', err)
+                                      }
+                                    }}
+                                  >
+                                    View
+                                  </button>
+                                  <button
+                                    className="btn btn-secondary"
+                                    style={{ fontSize: '0.8em', padding: '4px 8px' }}
+                                    onClick={() => {
+                                      const newCode = prompt('Enter new code:', dept.code)
+                                      const newName = prompt('Enter new name:', dept.name)
+                                      if (newCode !== null || newName !== null) {
+                                        // Update department logic would go here
+                                        console.log('Update department:', dept.id, newCode, newName)
+                                      }
+                                    }}
+                                  >
+                                    Edit
+                                  </button>
+                                  <button
+                                    className="btn btn-danger"
+                                    style={{ fontSize: '0.8em', padding: '4px 8px' }}
+                                    onClick={() => {
+                                      if (confirm(`Delete department "${dept.code} - ${dept.name}"?`)) {
+                                        // Delete department logic would go here
+                                        console.log('Delete department:', dept.id)
+                                      }
+                                    }}
+                                  >
+                                    Delete
+                                  </button>
+                                </div>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+
+                  {/* Pagination Controls */}
+                  {deptTotalPages > 1 && (
+                    <div style={{
+                      display: 'flex',
+                      justifyContent: 'center',
+                      alignItems: 'center',
+                      gap: '8px',
+                      marginTop: '20px',
+                      padding: '12px',
+                      backgroundColor: 'var(--surface-secondary)',
+                      borderRadius: '8px'
+                    }}>
+                      <button
+                        className="btn btn-secondary"
+                        onClick={() => setDeptCurrentPage(Math.max(1, deptCurrentPage - 1))}
+                        disabled={deptCurrentPage === 1}
+                        style={{ padding: '6px 12px' }}
+                      >
+                        ‹ Previous
+                      </button>
+
+                      <span style={{ fontSize: '0.9em', color: 'var(--text-secondary)' }}>
+                        Page {deptCurrentPage} of {deptTotalPages}
+                      </span>
+
+                      <button
+                        className="btn btn-secondary"
+                        onClick={() => setDeptCurrentPage(Math.min(deptTotalPages, deptCurrentPage + 1))}
+                        disabled={deptCurrentPage === deptTotalPages}
+                        style={{ padding: '6px 12px' }}
+                      >
+                        Next ›
+                      </button>
+                    </div>
+                  )}
+                </>
+              )}
+            </>
+          )}
+          {!isLoading && departments.length === 0 && !loadError && (
+            <div style={{
+              textAlign: 'center',
+              padding: '40px 20px',
+              color: 'var(--text-secondary)',
+              backgroundColor: 'var(--surface-secondary)',
+              borderRadius: '8px',
+              border: '2px dashed var(--border)'
+            }}>
+              <div style={{ fontSize: '3em', marginBottom: '16px' }}>🏢</div>
+              <h3 style={{ margin: '0 0 8px 0', color: 'var(--text)' }}>No departments yet</h3>
+              <p style={{ margin: '0 0 16px 0' }}>Departments will appear here once they are created</p>
+            </div>
+          )}
         </section>
       )}
 
@@ -906,6 +2195,12 @@ const filteredUsers = useMemo(() =>
               </p>
             </div>
             <div className="stat-card">
+              <h3>Inactive Users</h3>
+              <p className="stat-number">
+                {loadingOverview ? 'Loading...' : (overviewStats?.inactiveUsers || 0)}
+              </p>
+            </div>
+            <div className="stat-card">
               <h3>Active Courses</h3>
               <p className="stat-number">
                 {loadingOverview ? 'Loading...' : (overviewStats?.activeCourses || 0)}
@@ -924,14 +2219,17 @@ const filteredUsers = useMemo(() =>
               </p>
             </div>
           </div>
-          <div className="quick-actions">
-            <h3>Quick Actions</h3>
-            <div className="actions-grid">
-              <button className="btn btn-primary" onClick={() => setTab('users')}>Manage Users</button>
-              <button className="btn btn-primary" onClick={() => setTab('courses')}>Create Course</button>
-              <button className="btn btn-primary" onClick={() => setTab('departments')}>Add Department</button>
-              <button className="btn btn-primary" onClick={() => setTab('reports')}>View Reports</button>
+          <div className="overview-content">
+            <div className="quick-actions">
+              <h3>Quick Actions</h3>
+              <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+                <button className="btn btn-primary" onClick={() => setTab('users')}>Manage Users</button>
+                <button className="btn btn-primary" onClick={() => setTab('courses')}>Create Course</button>
+                <button className="btn btn-primary" onClick={() => setTab('departments')}>Add Department</button>
+                <button className="btn btn-primary" onClick={() => setTab('reports')}>View Reports</button>
+              </div>
             </div>
+            <RecentActivities refreshTrigger={Date.now()} />
           </div>
         </section>
       )}
@@ -1639,6 +2937,97 @@ const filteredUsers = useMemo(() =>
         </div>
       )}
 
+      {showEditUser && editingUser && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, backdropFilter: 'blur(4px)', padding: '20px', overflowY: 'auto' }}>
+          <div className="card" style={{ width: '100%', maxWidth: 520, background: 'var(--surface)', borderRadius: 'var(--radius-lg)', padding: 24, boxShadow: '0 20px 50px rgba(0,0,0,0.3)', border: '1px solid var(--border)', margin: 'auto', maxHeight: '90vh', overflowY: 'auto' }}>
+            <h3 className="h4" style={{ marginTop: 0, marginBottom: 20, color: 'var(--text)' }}>Edit User — {editingUser.name || editingUser.email}</h3>
+            <div className="form" style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+              <input className="input" value={editUserData.name} onChange={(e) => setEditUserData({ ...editUserData, name: e.target.value })} placeholder="Full Name" />
+              <select className="input" value={editUserData.role} onChange={(e) => setEditUserData({ ...editUserData, role: e.target.value as 'student'|'faculty'|'ta'|'admin' })}>
+                <option value="student">Student</option>
+                <option value="faculty">Faculty</option>
+                <option value="ta">Teaching Assistant</option>
+                <option value="admin">Admin</option>
+              </select>
+              <select className="input" value={editUserData.department_id} onChange={(e) => setEditUserData({ ...editUserData, department_id: e.target.value })}>
+                <option value="">Select Department (Optional)</option>
+                {departments.map((d: any) => (
+                  <option key={d.id} value={d.id}>{d.name}</option>
+                ))}
+              </select>
+              <input className="input" value={editUserData.roll_number} onChange={(e) => setEditUserData({ ...editUserData, roll_number: e.target.value })} placeholder="Roll Number (Optional)" />
+              <label style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <input
+                  type="checkbox"
+                  checked={editUserData.is_active}
+                  onChange={(e) => setEditUserData({ ...editUserData, is_active: e.target.checked })}
+                />
+                Is Active (Approve/Reject Account)
+              </label>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 12, marginTop: 24 }}>
+              <button className="btn btn-secondary" onClick={() => setShowEditUser(false)} disabled={updatingUser}>Cancel</button>
+              <button
+                className="btn btn-primary"
+                onClick={async () => {
+                  try {
+                    setUpdatingUser(true)
+                    await updateUser(editingUser.id, {
+                      name: editUserData.name || undefined,
+                      role: editUserData.role,
+                      department_id: editUserData.department_id ? Number(editUserData.department_id) : null,
+                      roll_number: editUserData.roll_number || undefined,
+                      is_active: editUserData.is_active
+                    })
+                    setShowEditUser(false)
+                    push({ kind: 'success', message: 'User updated successfully' })
+                    loadUsers()
+                  } catch (e: any) {
+                    push({ kind: 'error', message: e?.message || 'Failed to update user' })
+                  } finally {
+                    setUpdatingUser(false)
+                  }
+                }}
+                disabled={updatingUser}
+              >
+                {updatingUser ? 'Updating…' : 'Update User'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <ConfirmationModal
+        isOpen={showDeleteConfirm}
+        onClose={() => {
+          setShowDeleteConfirm(false)
+          setUserToDelete(null)
+        }}
+        onConfirm={async () => {
+          if (!userToDelete) return
+
+          try {
+            setDeletingUser(true)
+            await deleteUser(userToDelete.id)
+            push({ kind: 'success', message: 'User deleted successfully' })
+            loadUsers()
+            setShowDeleteConfirm(false)
+            setUserToDelete(null)
+          } catch (e: any) {
+            push({ kind: 'error', message: e?.message || 'Failed to delete user' })
+          } finally {
+            setDeletingUser(false)
+          }
+        }}
+        title="Delete User"
+        message={`Are you sure you want to delete "${userToDelete?.name || userToDelete?.email}"? This action cannot be undone and will permanently remove the user and all associated data.`}
+        confirmText="Delete User"
+        confirmVariant="danger"
+        requireTyping={true}
+        typeText={userToDelete?.name || userToDelete?.email || ''}
+        loading={deletingUser}
+      />
+
       {/* Error handling for invalid tab states */}
       {!tabConfigs.some(config => config.key === tab) && (
         <section className="card">
@@ -1647,6 +3036,29 @@ const filteredUsers = useMemo(() =>
           </div>
           <p className="muted">Invalid tab selected. Please refresh the page.</p>
         </section>
+      )}
+
+      {showDeptDetailsModal && selectedDeptDetails && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, backdropFilter: 'blur(4px)', padding: '20px', overflowY: 'auto' }}>
+          <div className="card" style={{ width: '100%', maxWidth: 600, background: 'var(--surface)', borderRadius: 'var(--radius-lg)', padding: 24, boxShadow: '0 20px 50px rgba(0,0,0,0.3)', border: '1px solid var(--border)', margin: 'auto', maxHeight: '90vh', overflowY: 'auto' }}>
+            <h3 className="h4" style={{ marginTop: 0, marginBottom: 20, color: 'var(--text)' }}>Department Details: {selectedDeptDetails.code} - {selectedDeptDetails.name}</h3>
+            <div>
+              <h4>Courses in this Department</h4>
+              {deptDetailsCourses.length > 0 ? (
+                <ul className="list">
+                  {deptDetailsCourses.map((course: any) => (
+                    <li key={course.id}>{course.code} - {course.title}</li>
+                  ))}
+                </ul>
+              ) : (
+                <p>No courses yet.</p>
+              )}
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 12, marginTop: 24 }}>
+              <button className="btn btn-secondary" onClick={() => setShowDeptDetailsModal(false)}>Close</button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   )

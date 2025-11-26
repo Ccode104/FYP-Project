@@ -14,7 +14,7 @@ export default function Signup() {
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
-  const [role, setRole] = useState<'student'|'teacher'|'ta'|'admin'>('student')
+  const [role, setRole] = useState<'student'|'teacher'|'ta'>('student')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const { push } = useToast()
@@ -90,11 +90,10 @@ export default function Signup() {
 
           <label className="field select-field">
             <span className="label select-label">Role</span>
-            <select className="select" value={role} onChange={(e) => setRole(e.target.value as any)} required aria-label="Role">
+            <select className="select" value={role} onChange={(e) => setRole(e.target.value as 'student'|'teacher'|'ta')} required aria-label="Role">
               <option value="student">Student</option>
               <option value="teacher">Teacher</option>
               <option value="ta">TA</option>
-              <option value="admin">Admin</option>
             </select>
           </label>
 
