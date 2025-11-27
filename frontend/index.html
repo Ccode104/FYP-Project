@@ -57,11 +57,21 @@
 
   <body> <!-- Contains visible content and the React root mount point -->
 
+    <!-- Global polyfill for Node.js compatibility -->
+    <script>
+      if (typeof global === 'undefined') {
+        window.global = globalThis;
+      }
+      if (typeof process === 'undefined') {
+        window.process = { env: {} };
+      }
+    </script>
+
     <div id="root">Loading...</div> <!-- Temporary text shown before React renders the app -->
 
     <noscript>You need to enable JavaScript to run this app.</noscript> <!-- Warning if JS is disabled -->
 
-    <script type="module" src="/src/main.tsx"></script> 
+    <script type="module" src="/src/main.tsx"></script>
     <!-- 
       Loads the React entry point.
       Vite turns this TypeScript module into optimized JavaScript.

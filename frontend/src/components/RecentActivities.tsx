@@ -130,20 +130,6 @@ export default function RecentActivities({ limit = 5, refreshTrigger }: RecentAc
     return detailText
   }
 
-  const getEntityLink = (activity: ActivityItem) => {
-    if (!activity.entity_id) return null
-
-    switch (activity.entity_type) {
-      case 'user':
-        return `/admin/users?search=${encodeURIComponent(activity.admin_email)}`
-      case 'course':
-        return `/admin/courses?search=${encodeURIComponent(activity.entity_name || '')}`
-      case 'department':
-        return `/admin/departments?search=${encodeURIComponent(activity.entity_name || '')}`
-      default:
-        return null
-    }
-  }
 
   if (loading) {
     return (
@@ -185,15 +171,6 @@ export default function RecentActivities({ limit = 5, refreshTrigger }: RecentAc
                 >
                   👁 View Details
                 </button>
-                {getEntityLink(activity) && (
-                  <a
-                    href={getEntityLink(activity)!}
-                    className="btn btn-sm btn-link"
-                    title="View related item"
-                  >
-                    🔗 View Item
-                  </a>
-                )}
               </div>
             </div>
           ))}
