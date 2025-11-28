@@ -54,13 +54,46 @@ export async function createAssignment(req, res) {
 
     // If using legacy format, convert to new format
     if (!assignment_config && assignment_type) {
+      let component_type = 'other';
+      let submission_type = 'text';
+      let accepted_formats = ['*'];
+
+      // Handle new assignment types
+      if (assignment_type === 'pdf') {
+        component_type = 'document';
+        submission_type = 'url';
+        accepted_formats = ['url'];
+      } else if (assignment_type === 'ppt') {
+        component_type = 'presentation';
+        submission_type = 'url';
+        accepted_formats = ['url'];
+      } else if (assignment_type === 'mixed') {
+        component_type = 'repository';
+        submission_type = 'url';
+        accepted_formats = ['url'];
+      } else if (assignment_type === 'code') {
+        component_type = 'code';
+        submission_type = 'file_upload';
+        accepted_formats = ['.py', '.java', '.cpp', '.js', '.ts'];
+      } else if (assignment_type === 'homework') {
+        component_type = 'document';
+        submission_type = 'file_upload';
+        accepted_formats = ['.pdf', '.docx', '.txt'];
+      } else if (assignment_type === 'project') {
+        component_type = 'code';
+        submission_type = 'file_upload';
+        accepted_formats = ['.zip', '.tar.gz', '.rar'];
+      } else if (assignment_type === 'exam') {
+        component_type = 'assessment';
+        submission_type = 'text';
+        accepted_formats = ['*'];
+      }
+
       final_assignment_config = {
         assignment_type: 'simple',
         components: [{
           id: 'main_component',
-          type: assignment_type === 'homework' ? 'document' :
-                assignment_type === 'project' ? 'code' :
-                assignment_type === 'exam' ? 'assessment' : 'other',
+          type: component_type,
           subtype: assignment_type,
           title: title,
           description: description,
@@ -76,11 +109,14 @@ export async function createAssignment(req, res) {
 
       final_submission_requirements = [{
         component_id: 'main_component',
-        submission_type: assignment_type === 'code' ? 'file_upload' : 'text',
-        accepted_formats: assignment_type === 'code' ? ['.py', '.java', '.cpp'] :
-                         assignment_type === 'homework' ? ['.pdf', '.docx'] : ['*'],
-        max_file_size_mb: 10,
-        required: true
+        submission_type: submission_type,
+        accepted_formats: accepted_formats,
+        max_file_size_mb: assignment_type === 'pdf' || assignment_type === 'ppt' || assignment_type === 'mixed' ? null : 10,
+        required: true,
+        instructions: assignment_type === 'pdf' ? 'Upload your PDF file to Google Drive and submit the shareable link' :
+                     assignment_type === 'ppt' ? 'Upload your PPT file to Google Drive and submit the shareable link' :
+                     assignment_type === 'mixed' ? 'Create a GitHub repository with your project files and submit the repository URL' :
+                     null
       }];
 
       final_grading_config = {
@@ -239,6 +275,13 @@ export async function getAssignment(req, res) {
   }
   if (assignment.grading_config && typeof assignment.grading_config === 'string') {
     assignment.grading_config = JSON.parse(assignment.grading_config);
+  }
+
+  // Extract assignment_type from assignment_config for backward compatibility
+  if (assignment.assignment_config && assignment.assignment_config.components && assignment.assignment_config.components.length > 0) {
+    assignment.assignment_type = assignment.assignment_config.components[0].subtype || 'file';
+  } else {
+    assignment.assignment_type = 'file'; // Default fallback
   }
 
   // Check if user has access to this assignment (enrolled in the course or faculty/admin)

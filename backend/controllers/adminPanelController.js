@@ -181,8 +181,21 @@ export async function adminUpdateUser(req, res) {
     params.push(id);
     const r = await pool.query(`UPDATE users SET ${fields.join(', ')}, updated_at = now() WHERE id=$${params.length} RETURNING id, email, name, role, department_id, is_active`, params);
 
-    // Log activity
-    await logActivity(req.user.id, 'update_user', 'user', id, r.rows[0].name || r.rows[0].email, { changes: Object.fromEntries(fields.map((f, i) => [f.split(' = ')[0], params[i]])) }, { user_id: id, previous_data: targetUser.rows[0] }, true);
+    // Log activity with only changed fields
+    const changes = {};
+    console.log('Processing fields for activity logging:', fields);
+    fields.forEach((field, index) => {
+      const fieldName = field.split(' = ')[0];
+      const newValue = params[index];
+      const oldValue = targetUser.rows[0][fieldName];
+      console.log(`Field ${fieldName}: old=${JSON.stringify(oldValue)}, new=${JSON.stringify(newValue)}, changed=${JSON.stringify(oldValue) !== JSON.stringify(newValue)}`);
+      // Only log fields that actually changed
+      if (JSON.stringify(oldValue) !== JSON.stringify(newValue)) {
+        changes[fieldName] = { old: oldValue, new: newValue };
+      }
+    });
+    console.log('Final changes object:', changes);
+    await logActivity(req.user.id, 'update_user', 'user', id, r.rows[0].name || r.rows[0].email, { changes }, { user_id: id, previous_data: targetUser.rows[0] }, true);
 
     res.json({ user: r.rows[0] });
   } catch (err) {
@@ -476,7 +489,7 @@ export async function adminDeleteUser(req, res) {
 
     // Check permissions
     const superAdmin = await isSuperAdmin(req.user.id);
-    const targetUser = await pool.query('SELECT role FROM users WHERE id = $1', [id]);
+    const targetUser = await pool.query('SELECT id, name, email, role, department_id, roll_number, is_active FROM users WHERE id = $1', [id]);
     if (targetUser.rowCount === 0) return res.status(404).json({ error: 'User not found' });
     const targetRole = targetUser.rows[0].role;
 

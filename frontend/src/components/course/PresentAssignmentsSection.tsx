@@ -1,4 +1,5 @@
 import MenuTiny from "./MenuTiny";
+import { useNavigate } from "react-router-dom";
 
 export default function PresentAssignmentsSection({
   userRole,
@@ -8,14 +9,6 @@ export default function PresentAssignmentsSection({
   onStudentClickSubmitPDF,
   onAttemptQuiz,
   onStartCodeAttempt,
-  selectedAssignmentId,
-  onChangeSelectedAssignmentId,
-  linkUrl,
-  onChangeLinkUrl,
-  onSubmitLink,
-  codeAssignmentId,
-  onChangeCodeAssignmentId,
-  onOpenCodeEditor,
 }: {
   userRole?: string;
   presentAssignments: any[];
@@ -24,15 +17,8 @@ export default function PresentAssignmentsSection({
   onStudentClickSubmitPDF: (assignmentId: string) => void;
   onAttemptQuiz: (quizId: any) => void;
   onStartCodeAttempt: (assignment: any) => void;
-  selectedAssignmentId: string;
-  onChangeSelectedAssignmentId: (v: string) => void;
-  linkUrl: string;
-  onChangeLinkUrl: (v: string) => void;
-  onSubmitLink: (e: React.FormEvent) => void;
-  codeAssignmentId: string;
-  onChangeCodeAssignmentId: (v: string) => void;
-  onOpenCodeEditor: () => void;
 }) {
+  const navigate = useNavigate();
   return (
     <section className="assignments-section">
       <div className="section-header">
@@ -58,14 +44,14 @@ export default function PresentAssignmentsSection({
             key={a.id}
             className={`assignment-card ${
               userRole === "student" &&
-              (a.assignment_type === "file" || a.assignment_type === "pdf")
+              (a.assignment_type === "file" || a.assignment_type === "pdf" || a.assignment_type === "ppt" || a.assignment_type === "mixed")
                 ? "clickable"
                 : ""
             }`}
             onClick={() => {
               if (
                 userRole === "student" &&
-                (a.assignment_type === "file" || a.assignment_type === "pdf")
+                (a.assignment_type === "file" || a.assignment_type === "pdf" || a.assignment_type === "ppt" || a.assignment_type === "mixed")
               ) {
                 onStudentClickSubmitPDF(String(a.id));
                 setTimeout(() => {
@@ -87,6 +73,8 @@ export default function PresentAssignmentsSection({
                 {a.assignment_type === "quiz" && "📝"}
                 {a.assignment_type === "file" && "📄"}
                 {a.assignment_type === "pdf" && "📄"}
+                {a.assignment_type === "ppt" && "📊"}
+                {a.assignment_type === "mixed" && "🔗"}
                 {!a.assignment_type && a.is_quiz && "📝"}
                 <span>
                   {a.assignment_type === "code"
@@ -97,6 +85,10 @@ export default function PresentAssignmentsSection({
                     ? "PDF"
                     : a.assignment_type === "pdf"
                     ? "PDF"
+                    : a.assignment_type === "ppt"
+                    ? "PPT"
+                    : a.assignment_type === "mixed"
+                    ? "Mixed"
                     : a.is_quiz
                     ? "Quiz"
                     : "Assignment"}
@@ -212,132 +204,70 @@ export default function PresentAssignmentsSection({
                       <line x1="12" y1="15" x2="12" y2="3" />
                     </svg>
                   </button>
+                ) : a.assignment_type === "ppt" ? (
+                  <button
+                    className="btn-assignment submit-ppt"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onStudentClickSubmitPDF(String(a.id));
+                      setTimeout(() => {
+                        const form = document.querySelector(
+                          "form[data-assignment-submit]"
+                        ) as HTMLElement | null;
+                        if (form)
+                          form.scrollIntoView({
+                            behavior: "smooth",
+                            block: "nearest",
+                          });
+                      }, 80);
+                    }}
+                  >
+                    <span>Submit PPT</span>
+                    <svg
+                      width="16"
+                      height="16"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                    >
+                      <path d="M21,15v4a2,2 0 0 1-2,2H5a2,2 0 0 1-2-2v-4" />
+                      <polyline points="7,10 12,15 17,10" />
+                      <line x1="12" y1="15" x2="12" y2="3" />
+                    </svg>
+                  </button>
                 ) : null}
+
+                {/* View Details Button */}
+                <button
+                  className="btn-assignment view-details"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    navigate(`/courses/${window.location.pathname.split('/')[2]}/assignments/${a.id}`);
+                  }}
+                  style={{ marginTop: '8px', background: 'var(--secondary)', color: 'var(--text-primary)' }}
+                >
+                  <span>View Details</span>
+                  <svg
+                    width="16"
+                    height="16"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                  >
+                    <circle cx="12" cy="12" r="10" />
+                    <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3" />
+                    <line x1="12" y1="17" x2="12.01" y2="17" />
+                  </svg>
+                </button>
               </div>
             )}
           </div>
         ))}
       </div>
 
-      {userRole === "student" && isBackend && (
-        <div className="submission-section">
-          <div className="submission-header">
-            <h4>Submit PDF Assignment</h4>
-            <p className="submission-description">
-              Upload your PDF assignment via Google Drive or similar service
-            </p>
-          </div>
-          <form
-            data-assignment-submit
-            onSubmit={onSubmitLink}
-            className="submission-form"
-          >
-            <div className="form-group">
-              <label htmlFor="assignment-select">Select Assignment</label>
-              <select
-                id="assignment-select"
-                className="form-select"
-                value={selectedAssignmentId}
-                onChange={(e) => onChangeSelectedAssignmentId(e.target.value)}
-              >
-                <option value="">Choose a PDF assignment...</option>
-                {presentAssignments
-                  .filter(
-                    (a: any) =>
-                      a.assignment_type === "file" ||
-                      a.assignment_type === "pdf"
-                  )
-                  .map((a: any) => (
-                    <option key={a.id} value={String(a.id)}>
-                      {a.title}
-                    </option>
-                  ))}
-              </select>
-            </div>
-            <div className="form-group">
-              <label htmlFor="submission-url">Submission Link</label>
-              <input
-                id="submission-url"
-                className="form-input"
-                placeholder="Paste your Google Drive or cloud storage link"
-                value={linkUrl}
-                onChange={(e) => onChangeLinkUrl(e.target.value)}
-                required
-              />
-            </div>
-            <button
-              className="btn-submit"
-              type="submit"
-              disabled={!selectedAssignmentId || !linkUrl.trim()}
-            >
-              <span>Submit Assignment</span>
-              <svg
-                width="16"
-                height="16"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-              >
-                <path d="M21,15v4a2,2 0 0 1-2,2H5a2,2 0 0 1-2-2v-4" />
-                <polyline points="7,10 12,15 17,10" />
-                <line x1="12" y1="15" x2="12" y2="3" />
-              </svg>
-            </button>
-          </form>
-        </div>
-      )}
 
-      {userRole === "student" && isBackend && (
-        <div className="submission-section">
-          <div className="submission-header">
-            <h4>Code Assignment</h4>
-            <p className="submission-description">
-              Work on your coding assignments in our built-in editor
-            </p>
-          </div>
-          <div className="code-submission-form">
-            <div className="form-group">
-              <label htmlFor="code-assignment-select">
-                Select Code Assignment
-              </label>
-              <select
-                id="code-assignment-select"
-                className="form-select"
-                value={codeAssignmentId}
-                onChange={(e) => onChangeCodeAssignmentId(e.target.value)}
-              >
-                <option value="">Choose a code assignment...</option>
-                {presentAssignments
-                  .filter((a: any) => a.assignment_type === "code")
-                  .map((a: any) => (
-                    <option key={a.id} value={a.id}>
-                      {a.title}{a.isSubmitted ? " (Submitted)" : ""}
-                    </option>
-                  ))}
-              </select>
-            </div>
-            <button
-              className="btn-code-editor"
-              onClick={onOpenCodeEditor}
-              disabled={!codeAssignmentId}
-            >
-              <span>Open Code Editor</span>
-              <svg
-                width="16"
-                height="16"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-              >
-                <polyline points="16,18 22,12 16,6" />
-                <polyline points="8,6 2,12 8,18" />
-              </svg>
-            </button>
-          </div>
-        </div>
-      )}
     </section>
   );
 }

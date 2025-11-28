@@ -18,11 +18,14 @@ interface ActivityItem {
 interface RecentActivitiesProps {
   limit?: number;
   refreshTrigger?: number;
+  onNavigate?: (tab: string, filter?: string) => void;
 }
 
-export default function RecentActivities({ limit = 5, refreshTrigger }: RecentActivitiesProps) {
+export default function RecentActivities({ limit = 5, refreshTrigger, onNavigate }: RecentActivitiesProps) {
   const [activities, setActivities] = useState<ActivityItem[]>([])
   const [loading, setLoading] = useState(true)
+  const [showActivityDetailsModal, setShowActivityDetailsModal] = useState(false)
+  const [selectedActivity, setSelectedActivity] = useState<ActivityItem | null>(null)
   const { push } = useToast()
 
   const loadActivities = async () => {
@@ -46,15 +49,15 @@ export default function RecentActivities({ limit = 5, refreshTrigger }: RecentAc
 
   const getActivityIcon = (type: ActivityItem['entity_type']) => {
     switch (type) {
-      case 'user': return '👤'
-      case 'course': return '📚'
-      case 'department': return '🏢'
-      case 'offering': return '📋'
-      case 'assignment': return '📝'
-      case 'quiz': return '❓'
-      case 'enrollment': return '📝'
-      case 'support': return '🆘'
-      default: return '📋'
+      case 'user': return 'U'
+      case 'course': return 'C'
+      case 'department': return 'D'
+      case 'offering': return 'O'
+      case 'assignment': return 'A'
+      case 'quiz': return 'Q'
+      case 'enrollment': return 'E'
+      case 'support': return 'S'
+      default: return '•'
     }
   }
 
@@ -103,9 +106,8 @@ export default function RecentActivities({ limit = 5, refreshTrigger }: RecentAc
   }
 
   const handleViewDetails = (activity: ActivityItem) => {
-    // Show details in a modal or alert
-    const details = getActivityDetails(activity)
-    alert(details)
+    setSelectedActivity(activity)
+    setShowActivityDetailsModal(true)
   }
 
   const getActivityDetails = (activity: ActivityItem) => {
@@ -151,7 +153,19 @@ export default function RecentActivities({ limit = 5, refreshTrigger }: RecentAc
         <div className="activities-list">
           {activities.map((activity) => (
             <div key={activity.id} className="activity-item">
-              <div className="activity-icon">
+              <div className="activity-icon" style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                width: '24px',
+                height: '24px',
+                borderRadius: '50%',
+                backgroundColor: 'var(--primary)',
+                color: 'white',
+                fontSize: '0.8em',
+                fontWeight: '600',
+                marginRight: '8px'
+              }}>
                 {getActivityIcon(activity.entity_type)}
               </div>
               <div className="activity-content">
@@ -168,14 +182,308 @@ export default function RecentActivities({ limit = 5, refreshTrigger }: RecentAc
                   className="btn btn-sm btn-secondary"
                   onClick={() => handleViewDetails(activity)}
                   title="View activity details"
+                  style={{
+                    fontWeight: '500',
+                    padding: '4px 8px',
+                    borderRadius: '4px',
+                    border: '1px solid var(--border)',
+                    backgroundColor: 'var(--surface)',
+                    color: 'var(--text)',
+                    cursor: 'pointer',
+                    fontSize: '0.8em',
+                    transition: 'all 0.2s ease'
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.backgroundColor = 'var(--surface-secondary)';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.backgroundColor = 'var(--surface)';
+                  }}
                 >
-                  👁 View Details
+                  View Details
                 </button>
               </div>
             </div>
           ))}
         </div>
       )}
+
+      {showActivityDetailsModal && selectedActivity && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          background: 'rgba(0,0,0,0.5)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 1000,
+          backdropFilter: 'blur(4px)',
+          padding: '20px',
+          overflowY: 'auto'
+        }}>
+          <div className="card" style={{
+            width: '100%',
+            maxWidth: 600,
+            background: 'var(--surface)',
+            borderRadius: 'var(--radius-lg)',
+            padding: 24,
+            boxShadow: '0 20px 50px rgba(0,0,0,0.3)',
+            border: '1px solid var(--border)',
+            margin: 'auto',
+            maxHeight: '90vh',
+            overflowY: 'auto'
+          }}>
+            <h3 className="h4" style={{ marginTop: 0, marginBottom: 20, color: 'var(--text)' }}>
+              Activity Details
+            </h3>
+            <div style={{ marginBottom: 20 }}>
+              <div style={{ fontWeight: 'bold', marginBottom: 8 }}>
+                {getActionDescription(selectedActivity)}
+              </div>
+              {selectedActivity.details && Object.keys(selectedActivity.details).length > 0 && (
+                <div style={{ marginTop: 16 }}>
+                  <h4 style={{ marginBottom: 8 }}>Changes Made:</h4>
+                  <div style={{
+                    background: 'var(--surface-secondary)',
+                    padding: 12,
+                    borderRadius: 6,
+                    border: '1px solid var(--border)'
+                  }}>
+                    {selectedActivity.action.startsWith('update_') && selectedActivity.details.changes ? (
+                      <div style={{
+                        padding: '12px',
+                        borderRadius: '6px',
+                        background: 'var(--surface-secondary)',
+                        border: '1px solid var(--border)'
+                      }}>
+                        <div style={{ fontSize: '0.9em', lineHeight: '1.6' }}>
+                          {Object.entries(selectedActivity.details.changes as Record<string, any>).map(([field, changeData]) => {
+                            // Handle new format: { old: value, new: value }
+                            if (typeof changeData === 'object' && changeData !== null && changeData.old !== undefined && changeData.new !== undefined) {
+                              const oldVal = changeData.old === null ? 'null' : String(changeData.old)
+                              const newVal = changeData.new === null ? 'null' : String(changeData.new)
+
+                              return (
+                                <div key={field}>
+                                  <span style={{ fontWeight: '500', textTransform: 'capitalize' }}>
+                                    {field.replace(/_/g, ' ')}:
+                                  </span>
+                                  <span style={{ color: '#dc3545', marginLeft: '8px', textDecoration: 'line-through' }}>
+                                    {oldVal}
+                                  </span>
+                                  <span style={{ color: '#28a745', marginLeft: '8px' }}>
+                                    → {newVal}
+                                  </span>
+                                </div>
+                              )
+                            } else if (typeof changeData === 'object' && changeData !== null && changeData.new !== undefined) {
+                              // Handle old format: { new: value }
+                              const newVal = changeData.new === null ? 'null' : String(changeData.new)
+                              return (
+                                <div key={field}>
+                                  <span style={{ fontWeight: '500', textTransform: 'capitalize' }}>
+                                    {field.replace(/_/g, ' ')}:
+                                  </span>
+                                  <span style={{ color: '#28a745', marginLeft: '8px' }}>
+                                    {newVal}
+                                  </span>
+                                </div>
+                              )
+                            } else {
+                              // Fallback
+                              const val = typeof changeData === 'object' ? JSON.stringify(changeData) : String(changeData)
+                              return (
+                                <div key={field}>
+                                  <span style={{ fontWeight: '500', textTransform: 'capitalize' }}>
+                                    {field.replace(/_/g, ' ')}:
+                                  </span>
+                                  <span style={{ color: '#721c24', marginLeft: '8px' }}>
+                                    {val}
+                                  </span>
+                                </div>
+                              )
+                            }
+                          })}
+                        </div>
+                      </div>
+                    ) : selectedActivity.action === 'create_user' || selectedActivity.action === 'create_course' || selectedActivity.action === 'create_department' ? (
+                      <div style={{
+                        padding: '12px',
+                        borderRadius: '6px',
+                        background: 'var(--success, #d4edda)',
+                        border: '1px solid var(--success-border, #c3e6cb)',
+                        color: '#155724'
+                      }}>
+                        <div style={{ fontWeight: 'bold', marginBottom: '8px' }}>New {selectedActivity.entity_type.charAt(0).toUpperCase() + selectedActivity.entity_type.slice(1)} Created</div>
+                        {selectedActivity.details && (
+                          <div style={{ fontSize: '0.9em', lineHeight: '1.4' }}>
+                            {Object.entries(selectedActivity.details as Record<string, any>)
+                              .filter(([key]) => !['changes', 'old_values', 'new_values'].includes(key))
+                              .map(([key, value]) => (
+                                <div key={key}>
+                                  <span style={{ fontWeight: '500' }}>{key.replace(/_/g, ' ')}:</span> {String(value)}
+                                </div>
+                              ))}
+                          </div>
+                        )}
+                      </div>
+                    ) : selectedActivity.action.includes('delete') ? (
+                      <div style={{
+                        padding: '12px',
+                        borderRadius: '6px',
+                        background: 'var(--danger, #f8d7da)',
+                        border: '1px solid var(--danger-border, #f5c6cb)',
+                        color: '#721c24'
+                      }}>
+                        <div style={{ fontWeight: 'bold', marginBottom: '8px' }}>{selectedActivity.entity_type.charAt(0).toUpperCase() + selectedActivity.entity_type.slice(1)} Deleted</div>
+                        {selectedActivity.details && (
+                          <div style={{ fontSize: '0.9em', lineHeight: '1.4' }}>
+                            {Object.entries(selectedActivity.details as Record<string, any>)
+                              .filter(([key]) => !['changes', 'old_values', 'new_values'].includes(key))
+                              .map(([key, value]) => (
+                                <div key={key}>
+                                  <span style={{ fontWeight: '500' }}>{key.replace(/_/g, ' ')}:</span> {String(value)}
+                                </div>
+                              ))}
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      <div style={{
+                        fontFamily: 'monospace',
+                        fontSize: '0.9em',
+                        whiteSpace: 'pre-wrap',
+                        background: 'var(--surface)',
+                        padding: '8px',
+                        borderRadius: '4px',
+                        border: '1px solid var(--border)'
+                      }}>
+                        {JSON.stringify(selectedActivity.details, null, 2)}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+              <div style={{ marginTop: 16, fontSize: '0.9em', color: 'var(--text-secondary)' }}>
+                <div>Performed by: {selectedActivity.admin_name} ({selectedActivity.admin_email})</div>
+                <div>Time: {new Date(selectedActivity.created_at).toLocaleString()}</div>
+              </div>
+            </div>
+            <div style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              marginTop: 24
+            }}>
+              <div>
+                {getNavigationButton(selectedActivity)}
+              </div>
+              <button
+                className="btn btn-secondary"
+                onClick={() => setShowActivityDetailsModal(false)}
+                style={{
+                  fontWeight: '500',
+                  padding: '10px 20px',
+                  borderRadius: '8px',
+                  border: '1px solid var(--border)',
+                  backgroundColor: 'var(--surface)',
+                  color: 'var(--text)',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s ease',
+                  fontSize: '14px'
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.backgroundColor = 'var(--surface-secondary)';
+                  e.currentTarget.style.borderColor = 'var(--border-hover, #999)';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.backgroundColor = 'var(--surface)';
+                  e.currentTarget.style.borderColor = 'var(--border)';
+                }}
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
+
+  function getNavigationButton(activity: ActivityItem) {
+    if (!onNavigate) return null
+
+    const { entity_type } = activity
+
+    const getButtonText = () => {
+      switch (entity_type) {
+        case 'user': return 'Go to Users'
+        case 'department': return 'Go to Departments'
+        case 'course':
+        case 'offering':
+        case 'assignment':
+        case 'quiz':
+        case 'enrollment': return 'Go to Courses'
+        case 'support': return 'Go to Support'
+        default: return null
+      }
+    }
+
+    const getTab = () => {
+      switch (entity_type) {
+        case 'user': return 'users'
+        case 'department': return 'departments'
+        case 'course':
+        case 'offering':
+        case 'assignment':
+        case 'quiz':
+        case 'enrollment': return 'courses'
+        case 'support': return 'support'
+        default: return null
+      }
+    }
+
+    const tab = getTab()
+    const buttonText = getButtonText()
+
+    if (!tab || !buttonText) return null
+
+    return (
+      <button
+        className="btn btn-primary"
+        onClick={() => {
+          onNavigate(tab)
+          setShowActivityDetailsModal(false)
+        }}
+        style={{
+          fontWeight: '600',
+          padding: '10px 20px',
+          borderRadius: '8px',
+          border: 'none',
+          backgroundColor: 'var(--primary)',
+          color: 'white',
+          cursor: 'pointer',
+          transition: 'all 0.2s ease',
+          boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+          fontSize: '14px',
+          letterSpacing: '0.5px'
+        }}
+        onMouseEnter={(e) => {
+          e.currentTarget.style.backgroundColor = 'var(--primary-hover, #0056b3)';
+          e.currentTarget.style.boxShadow = '0 4px 8px rgba(0,0,0,0.15)';
+          e.currentTarget.style.transform = 'translateY(-1px)';
+        }}
+        onMouseLeave={(e) => {
+          e.currentTarget.style.backgroundColor = 'var(--primary)';
+          e.currentTarget.style.boxShadow = '0 2px 4px rgba(0,0,0,0.1)';
+          e.currentTarget.style.transform = 'translateY(0)';
+        }}
+      >
+        {buttonText}
+      </button>
+    )
+  }
 }

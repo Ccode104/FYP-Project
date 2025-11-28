@@ -72,7 +72,7 @@ export async function loginUser(req, res) {
 
     // Find user in database
     const userQuery = await pool.query(
-      'SELECT id, name, email, role, password_hash, department_id, roll_number FROM users WHERE email = $1',
+      'SELECT id, name, email, role, password_hash, department_id, roll_number, is_active FROM users WHERE email = $1',
       [email]
     );
 
@@ -201,7 +201,7 @@ export async function loginWithGoogle(req, res) {
     let userQuery;
     try {
       userQuery = await pool.query(
-        'SELECT id, name, email, role, department_id, roll_number FROM users WHERE email = $1',
+        'SELECT id, name, email, role, department_id, roll_number, is_active FROM users WHERE email = $1',
         [email]
       );
     } catch (dbError) {

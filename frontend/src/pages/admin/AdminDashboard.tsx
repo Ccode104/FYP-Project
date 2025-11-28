@@ -412,6 +412,27 @@ const paginatedCourses = filteredCourses.slice((courseCurrentPage - 1) * courseI
   const [userToDelete, setUserToDelete] = useState<User | null>(null)
   const [deletingUser, setDeletingUser] = useState(false)
 
+  // Delete course confirmation modal
+  const [showDeleteCourseConfirm, setShowDeleteCourseConfirm] = useState(false)
+  const [courseToDelete, setCourseToDelete] = useState<any>(null)
+  const [deletingCourse, setDeletingCourse] = useState(false)
+
+  // Delete department confirmation modal
+  const [showDeleteDeptConfirm, setShowDeleteDeptConfirm] = useState(false)
+  const [deptToDelete, setDeptToDelete] = useState<any>(null)
+  const [deletingDept, setDeletingDept] = useState(false)
+
+  // Delete offering confirmation modal
+  const [showDeleteOfferingConfirm, setShowDeleteOfferingConfirm] = useState(false)
+  const [offeringToDelete, setOfferingToDelete] = useState<any>(null)
+  const [offeringToDeleteMessage, setOfferingToDeleteMessage] = useState('')
+  const [deletingOffering, setDeletingOffering] = useState(false)
+
+  // Delete enrollment confirmation modal
+  const [showDeleteEnrollmentConfirm, setShowDeleteEnrollmentConfirm] = useState(false)
+  const [enrollmentToDelete, setEnrollmentToDelete] = useState<any>(null)
+  const [deletingEnrollment, setDeletingEnrollment] = useState(false)
+
   // Create department modal
   const [showCreateDept, setShowCreateDept] = useState(false)
   const [newDept, setNewDept] = useState({ code: '', name: '' })
@@ -880,8 +901,8 @@ const paginatedCourses = filteredCourses.slice((courseCurrentPage - 1) * courseI
           <p className="dashboard-subtitle text-lg text-secondary leading-relaxed">Manage users, courses, and explore system data</p>
         </div>
         <div className="dashboard-actions">
-          <button className="btn btn-secondary" onClick={() => navigate('/profile')}>
-            👤 Profile
+          <button className="btn btn-secondary" onClick={() => navigate('/profile')} style={{ fontWeight: '500', padding: '8px 16px', borderRadius: '6px', border: '1px solid var(--border)', backgroundColor: 'var(--surface)', color: 'var(--text)', transition: 'all 0.2s ease' }}>
+            <span style={{ fontSize: '1.1em', marginRight: '6px' }}>👤</span> Profile
           </button>
         </div>
       </div>
@@ -910,14 +931,14 @@ const paginatedCourses = filteredCourses.slice((courseCurrentPage - 1) * courseI
                   onClick={() => setViewMode('cards')}
                   style={{ borderRadius: '6px 0 0 6px', borderRight: 'none' }}
                 >
-                  📱 Cards
+                  <span style={{ fontSize: '1.1em' }}>☰</span> Cards
                 </button>
                 <button
                   className={`btn ${viewMode === 'table' ? 'btn-primary' : 'btn-secondary'}`}
                   onClick={() => setViewMode('table')}
                   style={{ borderRadius: '0 6px 6px 0' }}
                 >
-                  📊 Table
+                  <span style={{ fontSize: '1.1em' }}>⊞</span> Table
                 </button>
               </div>
               {isSuperAdmin && (
@@ -1183,7 +1204,7 @@ const paginatedCourses = filteredCourses.slice((courseCurrentPage - 1) * courseI
                 style={{ flex: 1 }}
                 disabled={isLoading}
               >
-                {isLoading ? '🔄 Searching...' : '🔍 Search'}
+                {isLoading ? '⟳ Searching...' : '🔍 Search'}
               </button>
               <button
                 className="btn btn-secondary"
@@ -1194,10 +1215,10 @@ const paginatedCourses = filteredCourses.slice((courseCurrentPage - 1) * courseI
                   setRoleFilter('');
                   setHasSearched(false);
                 }}
-                style={{ flex: 1 }}
+                style={{ flex: 1, fontWeight: '500', padding: '8px 16px', borderRadius: '6px', border: '1px solid var(--border)', backgroundColor: 'var(--surface)', color: 'var(--text)', transition: 'all 0.2s ease' }}
                 disabled={isLoading}
               >
-                🗑️ Clear All
+                <span style={{ fontSize: '1.1em', marginRight: '6px' }}>🗑️</span> Clear All
               </button>
               <button
                 className="btn btn-success"
@@ -1205,7 +1226,7 @@ const paginatedCourses = filteredCourses.slice((courseCurrentPage - 1) * courseI
                 style={{ flex: 1 }}
                 disabled={filteredUsers.length === 0}
               >
-                📊 Export CSV
+                <span style={{ fontSize: '1.1em' }}>⤓</span> Export CSV
               </button>
             </div>
 
@@ -1217,7 +1238,7 @@ const paginatedCourses = filteredCourses.slice((courseCurrentPage - 1) * courseI
                   checked={liveSearchEnabled}
                   onChange={(e) => setLiveSearchEnabled(e.target.checked)}
                 />
-                🔄 Enable live search (searches as you type)
+                ⟳ Enable live search (searches as you type)
               </label>
             </div>
 
@@ -1314,7 +1335,7 @@ const paginatedCourses = filteredCourses.slice((courseCurrentPage - 1) * courseI
           )}
           {loadError && (
             <div style={{ marginBottom: 8, padding: 12, backgroundColor: '#fee', color: '#c00', borderRadius: 6, border: '1px solid #fcc' }}>
-              ⚠️ Error: {loadError}
+              <span style={{ fontSize: '1.1em', marginRight: '6px' }}>⚠️</span> Error: {loadError}
             </div>
           )}
           {!isLoading && usersList.length > 0 && (
@@ -1328,7 +1349,7 @@ const paginatedCourses = filteredCourses.slice((courseCurrentPage - 1) * courseI
                 fontSize: '0.9em',
                 color: 'var(--text-secondary)'
               }}>
-                📊 Showing {paginatedUsers.length} of {filteredUsers.length} users
+                <span style={{ fontSize: '1.1em' }}>📈</span> Showing {paginatedUsers.length} of {filteredUsers.length} users
                 {totalPages > 1 && ` (Page ${currentPage} of ${totalPages})`}
               </div>
 
@@ -1342,7 +1363,7 @@ const paginatedCourses = filteredCourses.slice((courseCurrentPage - 1) * courseI
                   borderRadius: '8px',
                   border: '2px dashed var(--border)'
                 }}>
-                  <div style={{ fontSize: '3em', marginBottom: '16px' }}>🔍</div>
+                  <div style={{ fontSize: '3em', marginBottom: '16px' }}>🔎</div>
                   <h3 style={{ margin: '0 0 8px 0', color: 'var(--text)' }}>No users found</h3>
                   <p style={{ margin: '0 0 16px 0' }}>Try adjusting your search terms or filters</p>
                   <button
@@ -1357,8 +1378,9 @@ const paginatedCourses = filteredCourses.slice((courseCurrentPage - 1) * courseI
                       setHasSearched(false);
                       setCurrentPage(1);
                     }}
+                    style={{ fontWeight: '500', padding: '8px 16px', borderRadius: '6px', border: '1px solid var(--border)', backgroundColor: 'var(--surface)', color: 'var(--text)', transition: 'all 0.2s ease' }}
                   >
-                    🗑️ Clear all filters
+                    <span style={{ fontSize: '1.1em', marginRight: '6px' }}>🗑️</span> Clear all filters
                   </button>
                 </div>
               ) : (
@@ -1664,16 +1686,9 @@ const paginatedCourses = filteredCourses.slice((courseCurrentPage - 1) * courseI
                       <button
                         className={`btn ${course.offerings && course.offerings.length > 0 ? 'btn-disabled' : 'btn-danger'}`}
                         disabled={course.offerings && course.offerings.length > 0}
-                        onClick={async () => {
-                          if (confirm(`Delete course "${course.code} - ${course.title}"? This action cannot be undone.`)) {
-                            try {
-                              await deleteCourse(course.id)
-                              push({ kind: 'success', message: 'Course deleted successfully' })
-                              loadAdminCourses()
-                            } catch (e: any) {
-                              push({ kind: 'error', message: e?.message || 'Failed to delete course' })
-                            }
-                          }
+                        onClick={() => {
+                          setCourseToDelete(course)
+                          setShowDeleteCourseConfirm(true)
                         }}
                       >
                         Delete Course
@@ -1700,14 +1715,14 @@ const paginatedCourses = filteredCourses.slice((courseCurrentPage - 1) * courseI
                   onClick={() => setDeptViewMode('cards')}
                   style={{ borderRadius: '6px 0 0 6px', borderRight: 'none' }}
                 >
-                  📱 Cards
+                  <span style={{ fontSize: '1.1em' }}>☰</span> Cards
                 </button>
                 <button
                   className={`btn ${deptViewMode === 'table' ? 'btn-primary' : 'btn-secondary'}`}
                   onClick={() => setDeptViewMode('table')}
                   style={{ borderRadius: '0 6px 6px 0' }}
                 >
-                  📊 Table
+                  <span style={{ fontSize: '1.1em' }}>⊞</span> Table
                 </button>
               </div>
               <button className="btn btn-primary" onClick={() => setShowCreateDept(true)}>Create Department</button>
@@ -1863,9 +1878,9 @@ const paginatedCourses = filteredCourses.slice((courseCurrentPage - 1) * courseI
                   setDeptSearchType('all');
                   setDeptCurrentPage(1);
                 }}
-                style={{ flex: 1 }}
+                style={{ flex: 1, fontWeight: '500', padding: '8px 16px', borderRadius: '6px', border: '1px solid var(--border)', backgroundColor: 'var(--surface)', color: 'var(--text)', transition: 'all 0.2s ease' }}
               >
-                🗑️ Clear All
+                <span style={{ fontSize: '1.1em', marginRight: '6px' }}>🗑️</span> Clear All
               </button>
               <button
                 className="btn btn-success"
@@ -1873,7 +1888,7 @@ const paginatedCourses = filteredCourses.slice((courseCurrentPage - 1) * courseI
                 style={{ flex: 1 }}
                 disabled={filteredDepartments.length === 0}
               >
-                📊 Export CSV
+                <span style={{ fontSize: '1.1em' }}>⤓</span> Export CSV
               </button>
             </div>
 
@@ -1885,7 +1900,7 @@ const paginatedCourses = filteredCourses.slice((courseCurrentPage - 1) * courseI
                   checked={deptLiveSearchEnabled}
                   onChange={(e) => setDeptLiveSearchEnabled(e.target.checked)}
                 />
-                🔄 Enable live search (searches as you type)
+                ⟳ Enable live search (searches as you type)
               </label>
             </div>
 
@@ -1952,7 +1967,7 @@ const paginatedCourses = filteredCourses.slice((courseCurrentPage - 1) * courseI
                 fontSize: '0.9em',
                 color: 'var(--text-secondary)'
               }}>
-                📊 Showing {paginatedDepartments.length} of {filteredDepartments.length} departments
+                <span style={{ fontSize: '1.1em' }}>📈</span> Showing {paginatedDepartments.length} of {filteredDepartments.length} departments
                 {deptTotalPages > 1 && ` (Page ${deptCurrentPage} of ${deptTotalPages})`}
               </div>
 
@@ -1966,7 +1981,7 @@ const paginatedCourses = filteredCourses.slice((courseCurrentPage - 1) * courseI
                   borderRadius: '8px',
                   border: '2px dashed var(--border)'
                 }}>
-                  <div style={{ fontSize: '3em', marginBottom: '16px' }}>🔍</div>
+                  <div style={{ fontSize: '3em', marginBottom: '16px' }}>🔎</div>
                   <h3 style={{ margin: '0 0 8px 0', color: 'var(--text)' }}>No departments found</h3>
                   <p style={{ margin: '0 0 16px 0' }}>Try adjusting your search terms</p>
                   <button
@@ -2028,10 +2043,8 @@ const paginatedCourses = filteredCourses.slice((courseCurrentPage - 1) * courseI
                             <button
                               className="btn btn-danger"
                               onClick={() => {
-                                if (confirm(`Delete department "${dept.code} - ${dept.name}"?`)) {
-                                  // Delete department logic would go here
-                                  console.log('Delete department:', dept.id)
-                                }
+                                setDeptToDelete(dept)
+                                setShowDeleteDeptConfirm(true)
                               }}
                             >
                               Delete
@@ -2101,10 +2114,8 @@ const paginatedCourses = filteredCourses.slice((courseCurrentPage - 1) * courseI
                                     className="btn btn-danger"
                                     style={{ fontSize: '0.8em', padding: '4px 8px' }}
                                     onClick={() => {
-                                      if (confirm(`Delete department "${dept.code} - ${dept.name}"?`)) {
-                                        // Delete department logic would go here
-                                        console.log('Delete department:', dept.id)
-                                      }
+                                      setDeptToDelete(dept)
+                                      setShowDeleteDeptConfirm(true)
                                     }}
                                   >
                                     Delete
@@ -2229,7 +2240,15 @@ const paginatedCourses = filteredCourses.slice((courseCurrentPage - 1) * courseI
                 <button className="btn btn-primary" onClick={() => setTab('reports')}>View Reports</button>
               </div>
             </div>
-            <RecentActivities refreshTrigger={Date.now()} />
+            <RecentActivities
+              refreshTrigger={Date.now()}
+              onNavigate={(tab: string, filter?: string) => {
+                setTab(tab as any)
+                if (filter && tab === 'users') {
+                  setUserDeptFilter(filter)
+                }
+              }}
+            />
           </div>
         </section>
       )}
@@ -2781,8 +2800,69 @@ const paginatedCourses = filteredCourses.slice((courseCurrentPage - 1) * courseI
                 )}
               </div>
             )}
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 12, marginTop: 24 }}>
-              <button className="btn btn-secondary" onClick={() => setShowUserDetailsModal(false)}>Close</button>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 24 }}>
+              <div>
+                {selectedUser.department_id && (
+                  <button
+                    className="btn btn-primary"
+                    onClick={() => {
+                      setTab('departments')
+                      setShowUserDetailsModal(false)
+                    }}
+                    style={{
+                      fontWeight: '600',
+                      padding: '10px 20px',
+                      borderRadius: '8px',
+                      border: 'none',
+                      backgroundColor: 'var(--primary)',
+                      color: 'white',
+                      cursor: 'pointer',
+                      transition: 'all 0.2s ease',
+                      boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+                      fontSize: '14px',
+                      letterSpacing: '0.5px'
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.backgroundColor = 'var(--primary-hover, #0056b3)';
+                      e.currentTarget.style.boxShadow = '0 4px 8px rgba(0,0,0,0.15)';
+                      e.currentTarget.style.transform = 'translateY(-1px)';
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.backgroundColor = 'var(--primary)';
+                      e.currentTarget.style.boxShadow = '0 2px 4px rgba(0,0,0,0.1)';
+                      e.currentTarget.style.transform = 'translateY(0)';
+                    }}
+                  >
+                    <span style={{ fontSize: '1.1em', marginRight: '8px' }}>🏢</span>
+                    Go to Department
+                  </button>
+                )}
+              </div>
+              <button
+                className="btn btn-secondary"
+                onClick={() => setShowUserDetailsModal(false)}
+                style={{
+                  fontWeight: '500',
+                  padding: '10px 20px',
+                  borderRadius: '8px',
+                  border: '1px solid var(--border)',
+                  backgroundColor: 'var(--surface)',
+                  color: 'var(--text)',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s ease',
+                  fontSize: '14px'
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.backgroundColor = 'var(--surface-secondary)';
+                  e.currentTarget.style.borderColor = 'var(--border-hover, #999)';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.backgroundColor = 'var(--surface)';
+                  e.currentTarget.style.borderColor = 'var(--border)';
+                }}
+              >
+                Close
+              </button>
             </div>
           </div>
         </div>
@@ -2841,24 +2921,11 @@ const paginatedCourses = filteredCourses.slice((courseCurrentPage - 1) * courseI
                           console.log('Delete button clicked for offering:', offering)
                           console.log('Students:', offering.students)
                           const hasEnrollments = offering.students && offering.students.length > 0
-                          const confirmMessage = hasEnrollments
+                          setOfferingToDelete(offering)
+                          setOfferingToDeleteMessage(hasEnrollments
                             ? `Delete offering "${selectedCourse.code} ${offering.term}${offering.section ? '-' + offering.section : ''}"? This will permanently delete all enrollments, assignments, quizzes, and related data. This action cannot be undone.`
-                            : `Delete offering "${selectedCourse.code} ${offering.term}${offering.section ? '-' + offering.section : ''}"? This action cannot be undone.`
-                          if (confirm(confirmMessage)) {
-                            console.log('Confirmed delete, calling deleteOffering')
-                            try {
-                              const result = await deleteOffering(offering.offering_id)
-                              console.log('deleteOffering result:', result)
-                              push({ kind: 'success', message: 'Offering deleted successfully' })
-                              loadAdminCourses()
-                              setShowManageOfferings(false)
-                            } catch (e: any) {
-                              console.error('Error deleting offering:', e)
-                              push({ kind: 'error', message: e?.message || 'Failed to delete offering' })
-                            }
-                          } else {
-                            console.log('Delete cancelled')
-                          }
+                            : `Delete offering "${selectedCourse.code} ${offering.term}${offering.section ? '-' + offering.section : ''}"? This action cannot be undone.`)
+                          setShowDeleteOfferingConfirm(true)
                         }}
                       >
                         Delete
@@ -2908,16 +2975,9 @@ const paginatedCourses = filteredCourses.slice((courseCurrentPage - 1) * courseI
                       <div style={{ marginTop: 12, display: 'flex', justifyContent: 'flex-end' }}>
                         <button
                           className="btn btn-danger"
-                          onClick={async () => {
-                            if (confirm(`Remove enrollment for ${enrollment.student_name || enrollment.student_email} from ${selectedCourse.code}?`)) {
-                              try {
-                                await deleteEnrollment(enrollment.id)
-                                push({ kind: 'success', message: 'Enrollment removed successfully' })
-                                loadCourseEnrollments(selectedCourse.id)
-                              } catch (e: any) {
-                                push({ kind: 'error', message: e?.message || 'Failed to remove enrollment' })
-                              }
-                            }
+                          onClick={() => {
+                            setEnrollmentToDelete(enrollment)
+                            setShowDeleteEnrollmentConfirm(true)
                           }}
                         >
                           Remove Enrollment
@@ -3028,6 +3088,133 @@ const paginatedCourses = filteredCourses.slice((courseCurrentPage - 1) * courseI
         loading={deletingUser}
       />
 
+      <ConfirmationModal
+        isOpen={showDeleteCourseConfirm}
+        onClose={() => {
+          setShowDeleteCourseConfirm(false)
+          setCourseToDelete(null)
+        }}
+        onConfirm={async () => {
+          if (!courseToDelete) return
+
+          try {
+            setDeletingCourse(true)
+            await deleteCourse(courseToDelete.id)
+            push({ kind: 'success', message: 'Course deleted successfully' })
+            loadAdminCourses()
+            setShowDeleteCourseConfirm(false)
+            setCourseToDelete(null)
+          } catch (e: any) {
+            push({ kind: 'error', message: e?.message || 'Failed to delete course' })
+          } finally {
+            setDeletingCourse(false)
+          }
+        }}
+        title="Delete Course"
+        message={`Are you sure you want to delete "${courseToDelete?.code} - ${courseToDelete?.title}"? This action cannot be undone.`}
+        confirmText="Delete Course"
+        confirmVariant="danger"
+        requireTyping={true}
+        typeText={courseToDelete?.code || courseToDelete?.title || ''}
+        loading={deletingCourse}
+      />
+
+      <ConfirmationModal
+        isOpen={showDeleteDeptConfirm}
+        onClose={() => {
+          setShowDeleteDeptConfirm(false)
+          setDeptToDelete(null)
+        }}
+        onConfirm={async () => {
+          if (!deptToDelete) return
+
+          try {
+            setDeletingDept(true)
+            await deleteDepartment(deptToDelete.id)
+            push({ kind: 'success', message: 'Department deleted successfully' })
+            loadDepartments()
+            setShowDeleteDeptConfirm(false)
+            setDeptToDelete(null)
+          } catch (e: any) {
+            push({ kind: 'error', message: e?.message || 'Failed to delete department' })
+          } finally {
+            setDeletingDept(false)
+          }
+        }}
+        title="Delete Department"
+        message={`Are you sure you want to delete "${deptToDelete?.code} - ${deptToDelete?.name}"? This action cannot be undone.`}
+        confirmText="Delete Department"
+        confirmVariant="danger"
+        requireTyping={true}
+        typeText={deptToDelete?.code || deptToDelete?.name || ''}
+        loading={deletingDept}
+      />
+
+      <ConfirmationModal
+        isOpen={showDeleteOfferingConfirm}
+        onClose={() => {
+          setShowDeleteOfferingConfirm(false)
+          setOfferingToDelete(null)
+          setOfferingToDeleteMessage('')
+        }}
+        onConfirm={async () => {
+          if (!offeringToDelete) return
+
+          try {
+            setDeletingOffering(true)
+            await deleteOffering(offeringToDelete.offering_id)
+            push({ kind: 'success', message: 'Offering deleted successfully' })
+            loadAdminCourses()
+            setShowManageOfferings(false)
+            setShowDeleteOfferingConfirm(false)
+            setOfferingToDelete(null)
+            setOfferingToDeleteMessage('')
+          } catch (e: any) {
+            push({ kind: 'error', message: e?.message || 'Failed to delete offering' })
+          } finally {
+            setDeletingOffering(false)
+          }
+        }}
+        title="Delete Offering"
+        message={offeringToDeleteMessage}
+        confirmText="Delete Offering"
+        confirmVariant="danger"
+        requireTyping={true}
+        typeText={offeringToDelete?.course_code || offeringToDelete?.term || ''}
+        loading={deletingOffering}
+      />
+
+      <ConfirmationModal
+        isOpen={showDeleteEnrollmentConfirm}
+        onClose={() => {
+          setShowDeleteEnrollmentConfirm(false)
+          setEnrollmentToDelete(null)
+        }}
+        onConfirm={async () => {
+          if (!enrollmentToDelete) return
+
+          try {
+            setDeletingEnrollment(true)
+            await deleteEnrollment(enrollmentToDelete.id)
+            push({ kind: 'success', message: 'Enrollment removed successfully' })
+            loadCourseEnrollments(selectedCourse.id)
+            setShowDeleteEnrollmentConfirm(false)
+            setEnrollmentToDelete(null)
+          } catch (e: any) {
+            push({ kind: 'error', message: e?.message || 'Failed to remove enrollment' })
+          } finally {
+            setDeletingEnrollment(false)
+          }
+        }}
+        title="Remove Enrollment"
+        message={`Are you sure you want to remove enrollment for ${enrollmentToDelete?.student_name || enrollmentToDelete?.student_email} from ${selectedCourse?.code}?`}
+        confirmText="Remove Enrollment"
+        confirmVariant="danger"
+        requireTyping={true}
+        typeText={enrollmentToDelete?.student_name || enrollmentToDelete?.student_email || ''}
+        loading={deletingEnrollment}
+      />
+
       {/* Error handling for invalid tab states */}
       {!tabConfigs.some(config => config.key === tab) && (
         <section className="card">
@@ -3054,8 +3241,68 @@ const paginatedCourses = filteredCourses.slice((courseCurrentPage - 1) * courseI
                 <p>No courses yet.</p>
               )}
             </div>
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 12, marginTop: 24 }}>
-              <button className="btn btn-secondary" onClick={() => setShowDeptDetailsModal(false)}>Close</button>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 24 }}>
+              <div>
+                <button
+                  className="btn btn-primary"
+                  onClick={() => {
+                    setTab('users')
+                    setUserDeptFilter(selectedDeptDetails.id.toString())
+                    setShowDeptDetailsModal(false)
+                  }}
+                  style={{
+                    fontWeight: '600',
+                    padding: '10px 20px',
+                    borderRadius: '8px',
+                    border: 'none',
+                    backgroundColor: 'var(--primary)',
+                    color: 'white',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s ease',
+                    boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+                    fontSize: '14px',
+                    letterSpacing: '0.5px'
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.backgroundColor = 'var(--primary-hover, #0056b3)';
+                    e.currentTarget.style.boxShadow = '0 4px 8px rgba(0,0,0,0.15)';
+                    e.currentTarget.style.transform = 'translateY(-1px)';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.backgroundColor = 'var(--primary)';
+                    e.currentTarget.style.boxShadow = '0 2px 4px rgba(0,0,0,0.1)';
+                    e.currentTarget.style.transform = 'translateY(0)';
+                  }}
+                >
+                  <span style={{ fontSize: '1.1em', marginRight: '8px' }}>👥</span>
+                  View Users in Department
+                </button>
+              </div>
+              <button
+                className="btn btn-secondary"
+                onClick={() => setShowDeptDetailsModal(false)}
+                style={{
+                  fontWeight: '500',
+                  padding: '10px 20px',
+                  borderRadius: '8px',
+                  border: '1px solid var(--border)',
+                  backgroundColor: 'var(--surface)',
+                  color: 'var(--text)',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s ease',
+                  fontSize: '14px'
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.backgroundColor = 'var(--surface-secondary)';
+                  e.currentTarget.style.borderColor = 'var(--border-hover, #999)';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.backgroundColor = 'var(--surface)';
+                  e.currentTarget.style.borderColor = 'var(--border)';
+                }}
+              >
+                Close
+              </button>
             </div>
           </div>
         </div>

@@ -161,6 +161,6 @@ router.get('/:submissionId', requireAuth, requireRole('ta','faculty','admin'), g
 //  *       404:
 //  *         description: Assignment not found
 //  */
-// router.post('/submit/link', requireAuth, requireRole('student'), submitLinkAssignment);
+router.post('/submit/link', requireAuth, requireRole('student'), submitLinkAssignment);
 
 export default router;

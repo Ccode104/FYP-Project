@@ -12,7 +12,7 @@ import {
   updateResource
 } from '../controllers/resourcesController.js';
 import { getCodeQuestions } from '../controllers/codeQuestionsController.js';
-import { offeringOverview } from '../controllers/coursesController.js';
+import { offeringOverview, getCourseCardData } from '../controllers/coursesController.js';
 
 const router = express.Router();
 
@@ -51,6 +51,22 @@ router.use(requireAuth);
  *       401:
  *         description: Unauthorized
  */
+/**
+ * @swagger
+ * /api/courses/card-data:
+ *   get:
+ *     summary: Get combined course card data for dashboard
+ *     tags: [Courses]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Combined course card data
+ *       401:
+ *         description: Unauthorized
+ */
+router.get('/card-data', requireAuth, getCourseCardData);
+
 router.get('/', requireAuth, listCourses);
 
 // Get all resources (PYQs, notes, assignments) for a course offering

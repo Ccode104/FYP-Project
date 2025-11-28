@@ -5,7 +5,6 @@ import { useAuth } from '../../context/AuthContext'
 import { useCourse } from '../../context/CourseContext'
 import { getUserCourses } from '../../data/userCourses'
 import { addCustomAssignment } from '../../data/courseOverlays'
-import { addSubmission } from '../../data/submissions'
 import './CourseDetails.css'
 import './CourseDetails.overrides.css'
 import './CodeSubmissionView.css'
@@ -101,7 +100,6 @@ export default function CourseDetails() {
   const [backendQuizzes, setBackendQuizzes] = useState<any[]>([])
   const [myQuizAttempts, setMyQuizAttempts] = useState<any[]>([])
   const [mySubmissions, setMySubmissions] = useState<any[] | null>(null) // Track student's submissions - null means not loaded yet
-  const [selectedAssignmentId, setSelectedAssignmentId] = useState<string>('')
   const [discussionMessages, setDiscussionMessages] = useState<DiscussionMessage[]>([])
   const [discussionLoading, setDiscussionLoading] = useState(false)
   const [newPostContent, setNewPostContent] = useState('')
@@ -290,12 +288,10 @@ export default function CourseDetails() {
     const discussionCount = unreadCount > 0 ? unreadCount : undefined
 
     const studentTabs: TabItem[] = [
-      { id: 'present', label: 'Assignments', icon: '📋', tooltip: 'View current assignments', badge: assignmentCount },
-      { id: 'quizzes', label: 'Quizzes', icon: '📝', tooltip: 'Available quizzes', badge: quizCount },
-      { id: 'past', label: 'Past', icon: '🕒', tooltip: 'View past assignments' },
+      { id: 'present', label: 'Assignments', icon: '📋', tooltip: 'View assignments and results', badge: assignmentCount },
+      { id: 'quizzes', label: 'Quizzes', icon: '📝', tooltip: 'Available quizzes and results', badge: quizCount },
       { id: 'notes', label: 'Notes', icon: '📖', tooltip: 'Course notes and materials' },
       { id: 'pyq', label: 'Previous Papers', icon: '📄', tooltip: 'Previous year questions' },
-      { id: 'quizzes_submitted', label: 'My Results', icon: '✅', tooltip: 'View quiz results' },
       { id: 'progress', label: 'Progress', icon: '📊', tooltip: 'Track your progress' },
       { id: 'videos', label: 'Videos', icon: '🎥', tooltip: 'Course video lectures' },
       { id: 'live-lectures', label: 'Live Lectures', icon: '📺', tooltip: 'Live video lectures' },
@@ -330,21 +326,8 @@ export default function CourseDetails() {
   }, [user?.role, assignmentsOnly, quizzesOnly, discussionMessages, readMessageIds, viewedAssignments, viewedQuizzes])
 
   const [file, setFile] = useState<File | null>(null)
-  const [linkUrl, setLinkUrl] = useState('')
-  const submitAssignment = (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!file || !courseId) return alert('Please choose a file to upload!')
-    // Record submission for teacher/TA views
-    addSubmission(courseId, user?.name ?? 'Student', file.name)
-    setTimeout(() => {
-      alert(`Submitted ${file.name} for ${course?.title}`)
-      setFile(null)
-    }, 200)
-  }
-
   // Code submission states
   const [showCodeEditor, setShowCodeEditor] = useState(false)
-  const [codeAssignmentId, setCodeAssignmentId] = useState<string>('')
   const [viewingCodeSubmission, setViewingCodeSubmission] = useState<any>(null)
 
   // --- Added states for code-question management & editors ---
@@ -852,6 +835,7 @@ export default function CourseDetails() {
     }
   }
 
+
   // Organize messages into threads (top-level messages with their replies)
   const discussionThreads = useMemo(() => {
     const threads: DiscussionMessage[] = []
@@ -1010,205 +994,105 @@ export default function CourseDetails() {
           )}
 
           {tab === 'present' && (
-            <PresentAssignmentsSection
-              userRole={user?.role}
-              presentAssignments={assignmentsOnly as any[]}
-              isBackend={isBackend}
-              onTeacherDelete={async (id: number) => {
-                try {
-                  const mod = await import('../../services/assignments')
-                  await mod.deleteAssignmentApi(Number(id))
-                  push({ kind: 'success', message: 'Assignment deleted' })
-                  const data = await apiFetch<any[]>(`/api/courses/${courseId}/assignments`)
-                  setBackendAssignments(data)
-                } catch (e: any) {
-                  push({ kind: 'error', message: e?.message || 'Failed' })
-                }
-              }}
-              onStudentClickSubmitPDF={(id: string) => setSelectedAssignmentId(id)}
-              onAttemptQuiz={(quizId: any) => { location.assign(`/quizzes/${quizId}`) }}
-              onStartCodeAttempt={(assignment: any) => { void startCodeAttempt(assignment) }}
-              selectedAssignmentId={selectedAssignmentId}
-              onChangeSelectedAssignmentId={(v: string) => setSelectedAssignmentId(v)}
-              linkUrl={linkUrl}
-              onChangeLinkUrl={(v: string) => setLinkUrl(v)}
-              onSubmitLink={async (e: React.FormEvent) => {
-                e.preventDefault()
-                if (!selectedAssignmentId || !linkUrl.trim()) {
-                  return push({ kind: 'error', message: 'Please select an assignment and provide a URL' })
-                }
-                try {
-                  await apiFetch('/api/submissions/submit/link', {
-                    method: 'POST',
-                    body: { assignment_id: Number(selectedAssignmentId), url: linkUrl.trim() }
-                  })
-                  push({ kind: 'success', message: 'Assignment submitted successfully' })
-                  setLinkUrl('')
-                  setSelectedAssignmentId('')
-                  if (user?.id) {
-                    try {
-                      const submissions = await apiFetch<any[]>(`/api/student/courses/${courseId}/submissions`)
-                      setMySubmissions(submissions || [])
-                    } catch { }
+            <div>
+              {/* Current Assignments */}
+              <PresentAssignmentsSection
+                userRole={user?.role}
+                presentAssignments={assignmentsOnly as any[]}
+                isBackend={isBackend}
+                onTeacherDelete={async (id: number) => {
+                  try {
+                    const mod = await import('../../services/assignments')
+                    await mod.deleteAssignmentApi(Number(id))
+                    push({ kind: 'success', message: 'Assignment deleted' })
+                    const data = await apiFetch<any[]>(`/api/courses/${courseId}/assignments`)
+                    setBackendAssignments(data)
+                  } catch (e: any) {
+                    push({ kind: 'error', message: e?.message || 'Failed' })
                   }
-                } catch (err: any) {
-                  push({ kind: 'error', message: err?.message || 'Submission failed' })
-                }
-              }}
-              codeAssignmentId={codeAssignmentId}
-              onChangeCodeAssignmentId={(v: string) => setCodeAssignmentId(v)}
-              onOpenCodeEditor={async () => {
-                if (!codeAssignmentId) {
-                  push({ kind: 'error', message: 'Please select a code assignment' })
-                  return
-                }
+                }}
+                onStudentClickSubmitPDF={(id: string) => setSelectedAssignmentId(id)}
+                onAttemptQuiz={(quizId: any) => { location.assign(`/quizzes/${quizId}`) }}
+                onStartCodeAttempt={(assignment: any) => { void startCodeAttempt(assignment) }}
+              />
 
-                // Find the selected assignment
-                const assignment = presentAssignments.find((a: any) => String(a.id) === codeAssignmentId)
-                if (!assignment) {
-                  push({ kind: 'error', message: 'Assignment not found' })
-                  return
-                }
-
-                // Navigate to the dedicated code editor page
-                navigate(`/courses/${courseId}/assignments/${codeAssignmentId}/editor`)
-              }}
-            />
-          )}
-
-          {tab === 'quizzes' && (
-            <section className="card">
-              <h3>Available Quizzes</h3>
-              {quizzesOnly.length === 0 ? (
-                <p className="muted">No quizzes available at the moment.</p>
-              ) : (
-                <ul className="list">
-                  {quizzesOnly.map((quiz: any) => (
-                    <li key={quiz.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px', borderRadius: '6px', background: 'var(--bg-secondary)', marginBottom: '8px' }}>
-                      <div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
-                          <strong>{quiz.title}</strong>
-                          {quiz.is_proctored && (
-                            <span style={{
-                              display: 'inline-block',
-                              padding: '2px 6px',
-                              borderRadius: '4px',
-                              fontSize: '11px',
-                              fontWeight: 'bold',
-                              background: '#dc2626',
-                              color: 'white'
-                            }}>
-                              🔒 PROCTORED
-                            </span>
-                          )}
-                        </div>
-                        {quiz.due_at && (
+              {/* Past Assignments */}
+              {isBackend && (
+                <section className="assignments-section" style={{ marginTop: '40px' }}>
+                  <div className="section-header">
+                    <h2 className="section-title">Past Assignments</h2>
+                    <span className="assignment-count">
+                      {backendAssignments.filter((a: any) => {
+                        if (!a.due_at) return false
+                        return new Date(a.due_at) < new Date()
+                      }).length} completed
+                    </span>
+                  </div>
+                  <ul className="list">
+                    {backendAssignments.filter((a: any) => {
+                      if (!a.due_at) return false
+                      return new Date(a.due_at) < new Date()
+                    }).map((a: any) => (
+                      <li key={a.id} style={{
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                        padding: '12px',
+                        borderRadius: '6px',
+                        background: 'var(--bg-secondary)',
+                        marginBottom: '8px'
+                      }}>
+                        <div>
+                          <strong>{a.title}</strong>
                           <div className="muted" style={{ fontSize: '13px', marginTop: '4px' }}>
-                            Due: {new Date(quiz.due_at).toLocaleString()}
+                            Due: {new Date(a.due_at).toLocaleString()}
                           </div>
-                        )}
-                        {quiz.is_proctored && quiz.time_limit && (
-                          <div className="muted" style={{ fontSize: '12px', marginTop: '2px' }}>
-                            Time limit: {quiz.time_limit} minutes
-                          </div>
-                        )}
-                        {quiz.isSubmitted && (
-                          <span style={{
-                            display: 'inline-block',
-                            marginTop: '4px',
-                            padding: '2px 8px',
-                            borderRadius: '4px',
-                            fontSize: '12px',
-                            background: 'var(--secondary)',
-                            color: 'white'
-                          }}>
-                            ✓ Submitted
-                          </span>
-                        )}
-                      </div>
-                      <div style={{ display: 'flex', gap: '8px' }}>
-                        {quiz.isViolated && (
-                          <span style={{
-                            display: 'inline-block',
-                            padding: '4px 8px',
-                            borderRadius: '4px',
-                            fontSize: '12px',
-                            fontWeight: 'bold',
-                            background: '#ef4444',
-                            color: 'white'
-                          }}>
-                            🚫 SUSPENDED
-                          </span>
-                        )}
-                        {!quiz.isSubmitted && !quiz.isViolated && (
-                          <button
-                            className="btn btn-primary"
-                            onClick={() => location.assign(`/quizzes/${quiz.quiz_id}`)}
-                          >
-                            Start Quiz
-                          </button>
-                        )}
-                        {quiz.isSubmitted && (
-                          <button
-                            className="btn"
-                            onClick={() => setTab('quizzes_submitted')}
-                          >
-                            View Results
-                          </button>
-                        )}
-                      </div>
-                    </li>
-                  ))}
-                </ul>
+                        </div>
+                        <button
+                          className="btn"
+                          onClick={() => navigate(`/courses/${courseId}/assignments/${a.id}`)}
+                        >
+                          View Details
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                </section>
               )}
-            </section>
-          )}
 
-          {tab === 'quizzes_submitted' && (
-            <section className="card">
-              <h3>My Quiz Results</h3>
-              {myQuizAttempts.length === 0 ? (
-                <p className="muted">No quiz attempts found.</p>
-              ) : (
-                <div style={{ overflowX: 'auto' }}>
-                  <table className="table">
-                    <thead>
-                      <tr>
-                        <th>Quiz Title</th>
-                        <th>Score</th>
-                        <th>Status</th>
-                        <th>Submitted At</th>
-                        <th>Actions</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {myQuizAttempts.map((attempt: any) => (
-                        <tr key={attempt.id}>
-                          <td>
-                            <strong>{attempt.quiz_title}</strong>
-                          </td>
-                          <td>
-                            <span style={{
-                              fontWeight: 'bold',
-                              color: attempt.score >= 80 ? '#28a745' : attempt.score >= 60 ? '#ffc107' : '#dc3545'
-                            }}>
-                              {attempt.score !== null ? `${attempt.score}%` : 'N/A'}
-                            </span>
-                          </td>
-                          <td>
-                            {attempt.violated ? (
+              {/* Assignment Results */}
+              {isBackend && mySubmissions && mySubmissions.length > 0 && (
+                <section className="assignments-section" style={{ marginTop: '40px' }}>
+                  <div className="section-header">
+                    <h2 className="section-title">Assignment Results</h2>
+                    <span className="assignment-count">{mySubmissions.length} submissions</span>
+                  </div>
+                  <div style={{ overflowX: 'auto' }}>
+                    <table className="table">
+                      <thead>
+                        <tr>
+                          <th>Assignment</th>
+                          <th>Score</th>
+                          <th>Status</th>
+                          <th>Submitted At</th>
+                          <th>Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {mySubmissions.map((submission: any) => (
+                          <tr key={submission.id}>
+                            <td>
+                              <strong>{submission.assignment_title || 'Unknown Assignment'}</strong>
+                            </td>
+                            <td>
                               <span style={{
-                                display: 'inline-block',
-                                padding: '2px 6px',
-                                borderRadius: '4px',
-                                fontSize: '11px',
                                 fontWeight: 'bold',
-                                background: '#dc3545',
-                                color: 'white'
+                                color: submission.final_score >= 80 ? '#28a745' : submission.final_score >= 60 ? '#ffc107' : '#dc3545'
                               }}>
-                                🚫 VIOLATED
+                                {submission.final_score !== null ? `${submission.final_score}%` : 'N/A'}
                               </span>
-                            ) : (
+                            </td>
+                            <td>
                               <span style={{
                                 display: 'inline-block',
                                 padding: '2px 6px',
@@ -1217,64 +1101,219 @@ export default function CourseDetails() {
                                 background: '#28a745',
                                 color: 'white'
                               }}>
-                                ✓ COMPLETED
+                                ✓ GRADED
+                              </span>
+                            </td>
+                            <td>
+                              {submission.submitted_at ? new Date(submission.submitted_at).toLocaleString() : 'N/A'}
+                            </td>
+                            <td>
+                              <button
+                                className="btn btn-primary"
+                                onClick={() => navigate(`/courses/${courseId}/assignments/${submission.assignment_id}`)}
+                              >
+                                View Details
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </section>
+              )}
+            </div>
+          )}
+
+          {tab === 'quizzes' && (
+            <div>
+              {/* Available Quizzes */}
+              <section className="assignments-section">
+                <div className="section-header">
+                  <h2 className="section-title">Available Quizzes</h2>
+                  <span className="assignment-count">{quizzesOnly.length} quizzes</span>
+                </div>
+                {quizzesOnly.length === 0 ? (
+                  <p className="muted">No quizzes available at the moment.</p>
+                ) : (
+                  <ul className="list">
+                    {quizzesOnly.map((quiz: any) => (
+                      <li key={quiz.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px', borderRadius: '6px', background: 'var(--bg-secondary)', marginBottom: '8px' }}>
+                        <div>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
+                            <strong>{quiz.title}</strong>
+                            {quiz.is_proctored && (
+                              <span style={{
+                                display: 'inline-block',
+                                padding: '2px 6px',
+                                borderRadius: '4px',
+                                fontSize: '11px',
+                                fontWeight: 'bold',
+                                background: '#dc2626',
+                                color: 'white'
+                              }}>
+                                🔒 PROCTORED
                               </span>
                             )}
-                          </td>
-                          <td>
-                            {attempt.finished_at ? new Date(attempt.finished_at).toLocaleString() : 'N/A'}
-                          </td>
-                          <td>
+                          </div>
+                          {quiz.due_at && (
+                            <div className="muted" style={{ fontSize: '13px', marginTop: '4px' }}>
+                              Due: {new Date(quiz.due_at).toLocaleString()}
+                            </div>
+                          )}
+                          {quiz.is_proctored && quiz.time_limit && (
+                            <div className="muted" style={{ fontSize: '12px', marginTop: '2px' }}>
+                              Time limit: {quiz.time_limit} minutes
+                            </div>
+                          )}
+                          {quiz.isSubmitted && (
+                            <span style={{
+                              display: 'inline-block',
+                              marginTop: '4px',
+                              padding: '2px 8px',
+                              borderRadius: '4px',
+                              fontSize: '12px',
+                              background: 'var(--secondary)',
+                              color: 'white'
+                            }}>
+                              ✓ Submitted
+                            </span>
+                          )}
+                        </div>
+                        <div style={{ display: 'flex', gap: '8px' }}>
+                          {quiz.isViolated && (
+                            <span style={{
+                              display: 'inline-block',
+                              padding: '4px 8px',
+                              borderRadius: '4px',
+                              fontSize: '12px',
+                              fontWeight: 'bold',
+                              background: '#ef4444',
+                              color: 'white'
+                            }}>
+                              🚫 SUSPENDED
+                            </span>
+                          )}
+                          {!quiz.isSubmitted && !quiz.isViolated && (
                             <button
                               className="btn btn-primary"
-                              onClick={async () => {
-                                try {
+                              onClick={() => location.assign(`/quizzes/${quiz.quiz_id}`)}
+                            >
+                              Start Quiz
+                            </button>
+                          )}
+                          {quiz.isSubmitted && (
+                            <button
+                              className="btn"
+                              onClick={() => {
+                                // Find the attempt and show results
+                                const attempt = myQuizAttempts.find((a: any) => a.quiz_id === quiz.quiz_id);
+                                if (attempt) {
                                   setSelectedQuizResult(attempt);
                                   setShowQuizResultModal(true);
-                                  // Get detailed quiz results
-                                  const result = await apiFetch(`/api/quizzes/${attempt.quiz_id}/results`);
-                                  setQuizResultDetails(result);
-                                } catch (error: any) {
-                                  console.error('Failed to load quiz results:', error);
-                                  push({ kind: 'error', message: 'Failed to load detailed quiz results' });
                                 }
                               }}
                             >
-                              View Details
+                              View Results
                             </button>
-                          </td>
+                          )}
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </section>
+
+              {/* Quiz Results */}
+              {isBackend && myQuizAttempts.length > 0 && (
+                <section className="assignments-section" style={{ marginTop: '40px' }}>
+                  <div className="section-header">
+                    <h2 className="section-title">Quiz Results</h2>
+                    <span className="assignment-count">{myQuizAttempts.length} attempts</span>
+                  </div>
+                  <div style={{ overflowX: 'auto' }}>
+                    <table className="table">
+                      <thead>
+                        <tr>
+                          <th>Quiz Title</th>
+                          <th>Score</th>
+                          <th>Status</th>
+                          <th>Submitted At</th>
+                          <th>Actions</th>
                         </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
+                      </thead>
+                      <tbody>
+                        {myQuizAttempts.map((attempt: any) => (
+                          <tr key={attempt.id}>
+                            <td>
+                              <strong>{attempt.quiz_title}</strong>
+                            </td>
+                            <td>
+                              <span style={{
+                                fontWeight: 'bold',
+                                color: attempt.score >= 80 ? '#28a745' : attempt.score >= 60 ? '#ffc107' : '#dc3545'
+                              }}>
+                                {attempt.score !== null ? `${attempt.score}%` : 'N/A'}
+                              </span>
+                            </td>
+                            <td>
+                              {attempt.violated ? (
+                                <span style={{
+                                  display: 'inline-block',
+                                  padding: '2px 6px',
+                                  borderRadius: '4px',
+                                  fontSize: '11px',
+                                  fontWeight: 'bold',
+                                  background: '#dc3545',
+                                  color: 'white'
+                                }}>
+                                  🚫 VIOLATED
+                                </span>
+                              ) : (
+                                <span style={{
+                                  display: 'inline-block',
+                                  padding: '2px 6px',
+                                  borderRadius: '4px',
+                                  fontSize: '11px',
+                                  background: '#28a745',
+                                  color: 'white'
+                                }}>
+                                  ✓ COMPLETED
+                                </span>
+                              )}
+                            </td>
+                            <td>
+                              {attempt.finished_at ? new Date(attempt.finished_at).toLocaleString() : 'N/A'}
+                            </td>
+                            <td>
+                              <button
+                                className="btn btn-primary"
+                                onClick={async () => {
+                                  try {
+                                    setSelectedQuizResult(attempt);
+                                    setShowQuizResultModal(true);
+                                    // Get detailed quiz results
+                                    const result = await apiFetch(`/api/quizzes/${attempt.quiz_id}/results`);
+                                    setQuizResultDetails(result);
+                                  } catch (error: any) {
+                                    console.error('Failed to load quiz results:', error);
+                                    push({ kind: 'error', message: 'Failed to load detailed quiz results' });
+                                  }
+                                }}
+                              >
+                                View Details
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </section>
               )}
-            </section>
+            </div>
           )}
 
-          {tab === 'past' && (
-            <section className="card">
-              <h3>Past Assignments</h3>
-              <ul className="list">
-                {isBackend ? (
-                  backendAssignments.filter((a: any) => {
-                    if (!a.due_at) return false
-                    return new Date(a.due_at) < new Date()
-                  }).map((a: any) => (
-                    <li key={a.id}>
-                      {a.title} {a.due_at ? `(Due: ${new Date(a.due_at).toLocaleString()})` : ''}
-                    </li>
-                  ))
-                ) : (
-                  course?.assignmentsPast.map((a) => (
-                    <li key={a.id}>
-                      {a.title} {a.submitted ? '✓ Submitted' : ''}
-                    </li>
-                  )) || []
-                )}
-              </ul>
-            </section>
-          )}
 
 
           {user?.role === 'teacher' && tab === 'manage' && (
@@ -1307,6 +1346,22 @@ export default function CourseDetails() {
                     >
                       <span style={{ fontSize: 32 }}>📄</span>
                       <span>PDF Submission</span>
+                    </button>
+                    <button
+                      className="btn btn-primary"
+                      style={{ padding: 24, fontSize: 16, height: 120, display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', gap: 8 }}
+                      onClick={() => setAssignmentCreationType('ppt')}
+                    >
+                      <span style={{ fontSize: 32 }}>📊</span>
+                      <span>PPT Submission</span>
+                    </button>
+                    <button
+                      className="btn btn-primary"
+                      style={{ padding: 24, fontSize: 16, height: 120, display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', gap: 8 }}
+                      onClick={() => setAssignmentCreationType('mixed')}
+                    >
+                      <span style={{ fontSize: 32 }}>🔗</span>
+                      <span>Mixed Submission</span>
                     </button>
                     <button
                       className="btn btn-primary"
@@ -1394,8 +1449,181 @@ export default function CourseDetails() {
                           </label>
                         </div>
                       </div>
-                      <button className="btn btn-primary" onClick={() => { setNewAssnType('file'); addAssn(); }}>
+                      <div style={{ marginBottom: 16, padding: '12px', background: '#f0f8ff', borderRadius: '4px' }}>
+                        <strong>Submission Instructions:</strong> Students will upload their PDF files to Google Drive and submit the shareable link.
+                      </div>
+                      <button className="btn btn-primary" onClick={() => { setNewAssnType('pdf'); addAssn(); }}>
                         Create PDF Assignment
+                      </button>
+                    </div>
+                  </div>
+                </>
+              )}
+
+              {assignmentCreationType === 'ppt' && (
+                <>
+                  <div style={{ display: 'flex', alignItems: 'center', marginBottom: 16 }}>
+                    <button className="btn" onClick={() => setAssignmentCreationType('selection')} style={{ marginRight: 8 }}>← Back</button>
+                    <h3 style={{ margin: 0 }}>Create PPT Submission Assignment</h3>
+                  </div>
+                  <div className="form" style={{ maxWidth: 800 }}>
+                    <div className="card" style={{ marginBottom: 16, padding: 16 }}>
+                      <h4 style={{ marginTop: 0 }}>Assignment Details</h4>
+                      <div style={{ marginBottom: 16 }}>
+                        <div style={{ display: 'block', marginBottom: 6, fontWeight: 500 }}>Title *</div>
+                        <input
+                          className="input"
+                          style={{ display: 'block', width: '100%', boxSizing: 'border-box' }}
+                          value={newAssnTitle}
+                          onChange={(e) => setNewAssnTitle(e.target.value)}
+                          placeholder="e.g., Presentation - Project Overview"
+                        />
+                      </div>
+                      <div style={{ marginBottom: 16 }}>
+                        <div style={{ display: 'block', marginBottom: 6, fontWeight: 500 }}>Description</div>
+                        <textarea
+                          className="input"
+                          style={{ display: 'block', width: '100%', boxSizing: 'border-box', minHeight: 72 }}
+                          value={newAssnDesc}
+                          onChange={(e) => setNewAssnDesc(e.target.value)}
+                          placeholder="Optional assignment instructions..."
+                          rows={3}
+                        />
+                      </div>
+                      <div className="grid" style={{ gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                        <div style={{ marginBottom: 16 }}>
+                          <div style={{ display: 'block', marginBottom: 6, fontWeight: 500 }}>Release Time</div>
+                          <input
+                            className="input"
+                            style={{ display: 'block', width: '100%', boxSizing: 'border-box' }}
+                            value={newAssnRelease}
+                            onChange={(e) => setNewAssnRelease(e.target.value)}
+                          />
+                        </div>
+                        <div style={{ marginBottom: 16 }}>
+                          <div style={{ display: 'block', marginBottom: 6, fontWeight: 500 }}>Due Time</div>
+                          <input
+                            className="input"
+                            style={{ display: 'block', width: '100%', boxSizing: 'border-box' }}
+                            value={newAssnDue}
+                            onChange={(e) => setNewAssnDue(e.target.value)}
+                          />
+                        </div>
+                      </div>
+                      <div className="grid" style={{ gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                        <div style={{ marginBottom: 16 }}>
+                          <div style={{ display: 'block', marginBottom: 6, fontWeight: 500 }}>Max Score</div>
+                          <input
+                            className="input"
+                            style={{ display: 'block', width: '100%', boxSizing: 'border-box' }}
+                            type="number"
+                            value={newAssnMax}
+                            onChange={(e) => setNewAssnMax(e.target.value)}
+                            placeholder="100"
+                          />
+                        </div>
+                        <div style={{ marginBottom: 16 }}>
+                          <div style={{ display: 'block', marginBottom: 6, fontWeight: 500 }}>Allow Multiple Submissions</div>
+                          <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
+                            <input
+                              type="checkbox"
+                              checked={newAssnMulti}
+                              onChange={(e) => setNewAssnMulti(e.target.checked)}
+                            />
+                            <span>{newAssnMulti ? 'Yes' : 'No'}</span>
+                          </label>
+                        </div>
+                      </div>
+                      <div style={{ marginBottom: 16, padding: '12px', background: '#f0f8ff', borderRadius: '4px' }}>
+                        <strong>Submission Instructions:</strong> Students will upload their PPT files to Google Drive and submit the shareable link.
+                      </div>
+                      <button className="btn btn-primary" onClick={() => { setNewAssnType('ppt'); addAssn(); }}>
+                        Create PPT Assignment
+                      </button>
+                    </div>
+                  </div>
+                </>
+              )}
+
+              {assignmentCreationType === 'mixed' && (
+                <>
+                  <div style={{ display: 'flex', alignItems: 'center', marginBottom: 16 }}>
+                    <button className="btn" onClick={() => setAssignmentCreationType('selection')} style={{ marginRight: 8 }}>← Back</button>
+                    <h3 style={{ margin: 0 }}>Create Mixed Submission Assignment</h3>
+                  </div>
+                  <div className="form" style={{ maxWidth: 800 }}>
+                    <div className="card" style={{ marginBottom: 16, padding: 16 }}>
+                      <h4 style={{ marginTop: 0 }}>Assignment Details</h4>
+                      <div style={{ marginBottom: 16 }}>
+                        <div style={{ display: 'block', marginBottom: 6, fontWeight: 500 }}>Title *</div>
+                        <input
+                          className="input"
+                          style={{ display: 'block', width: '100%', boxSizing: 'border-box' }}
+                          value={newAssnTitle}
+                          onChange={(e) => setNewAssnTitle(e.target.value)}
+                          placeholder="e.g., Full Stack Project - E-commerce Website"
+                        />
+                      </div>
+                      <div style={{ marginBottom: 16 }}>
+                        <div style={{ display: 'block', marginBottom: 6, fontWeight: 500 }}>Description</div>
+                        <textarea
+                          className="input"
+                          style={{ display: 'block', width: '100%', boxSizing: 'border-box', minHeight: 72 }}
+                          value={newAssnDesc}
+                          onChange={(e) => setNewAssnDesc(e.target.value)}
+                          placeholder="Optional assignment instructions..."
+                          rows={3}
+                        />
+                      </div>
+                      <div className="grid" style={{ gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                        <div style={{ marginBottom: 16 }}>
+                          <div style={{ display: 'block', marginBottom: 6, fontWeight: 500 }}>Release Time</div>
+                          <input
+                            className="input"
+                            style={{ display: 'block', width: '100%', boxSizing: 'border-box' }}
+                            value={newAssnRelease}
+                            onChange={(e) => setNewAssnRelease(e.target.value)}
+                          />
+                        </div>
+                        <div style={{ marginBottom: 16 }}>
+                          <div style={{ display: 'block', marginBottom: 6, fontWeight: 500 }}>Due Time</div>
+                          <input
+                            className="input"
+                            style={{ display: 'block', width: '100%', boxSizing: 'border-box' }}
+                            value={newAssnDue}
+                            onChange={(e) => setNewAssnDue(e.target.value)}
+                          />
+                        </div>
+                      </div>
+                      <div className="grid" style={{ gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                        <div style={{ marginBottom: 16 }}>
+                          <div style={{ display: 'block', marginBottom: 6, fontWeight: 500 }}>Max Score</div>
+                          <input
+                            className="input"
+                            style={{ display: 'block', width: '100%', boxSizing: 'border-box' }}
+                            type="number"
+                            value={newAssnMax}
+                            onChange={(e) => setNewAssnMax(e.target.value)}
+                            placeholder="100"
+                          />
+                        </div>
+                        <div style={{ marginBottom: 16 }}>
+                          <div style={{ display: 'block', marginBottom: 6, fontWeight: 500 }}>Allow Multiple Submissions</div>
+                          <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
+                            <input
+                              type="checkbox"
+                              checked={newAssnMulti}
+                              onChange={(e) => setNewAssnMulti(e.target.checked)}
+                            />
+                            <span>{newAssnMulti ? 'Yes' : 'No'}</span>
+                          </label>
+                        </div>
+                      </div>
+                      <div style={{ marginBottom: 16, padding: '12px', background: '#f0f8ff', borderRadius: '4px' }}>
+                        <strong>Submission Instructions:</strong> Students will create a GitHub repository with their project files and submit the repository URL.
+                      </div>
+                      <button className="btn btn-primary" onClick={() => { setNewAssnType('mixed'); addAssn(); }}>
+                        Create Mixed Assignment
                       </button>
                     </div>
                   </div>
@@ -2296,6 +2524,7 @@ export default function CourseDetails() {
               </div>
             </Modal>
           )}
+
         </div>
       </div>
     </>

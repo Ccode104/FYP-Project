@@ -4,7 +4,7 @@ import { useAuth } from '../../context/AuthContext'
 import { useEffect, useState } from 'react'
 import './StudentDashboard.css'
 import Modal from '../../components/Modal'
-import { getEnrolledCourses, enrollSelf } from '../../services/student'
+import { enrollSelf } from '../../services/student'
 import { enrollStudent, unenrollStudent } from '../../services/courses'
 import { useToast } from '../../components/ToastProvider'
 
@@ -68,143 +68,73 @@ export default function StudentDashboard() {
   const [err, setErr] = useState<string | null>(null)
   const [courseCounts, setCourseCounts] = useState<Record<number, { pendingAssignments: number; pendingQuizzes: number; unreadNotifications: number }>>({})
 
-  // Function to refresh counts
-  const refreshCourseCounts = async (list?: any[]) => {
-    const courseList = list || offerings
-    if (user?.role === 'student' && courseList.length > 0) {
-      const counts: Record<number, any> = {}
-      await Promise.all(
-        courseList.map(async (offering: any) => {
-          try {
-            const { apiFetch } = await import('../../services/api')
-            const { listDiscussionMessages } = await import('../../services/discussion')
-            const quizzesMod = await import('../../services/quizzes')
+  // Cache for course data to prevent unnecessary API calls
+  const [lastFetchTime, setLastFetchTime] = useState<number>(0)
+  const CACHE_DURATION = 30000 // 30 seconds cache
 
-            // Fetch assignments and submissions
-            const [assignments, quizzes, submissions, discussions] = await Promise.all([
-              apiFetch<any[]>(`/api/courses/${offering.id}/assignments`).catch(() => []),
-              quizzesMod.listCourseQuizzes(Number(offering.id)).catch((e) => { console.error(`Failed to fetch quizzes for ${offering.id}:`, e); return [] }),
-              apiFetch<any[]>(`/api/student/courses/${offering.id}/submissions`).catch(() => []),
-              listDiscussionMessages(String(offering.id)).catch(() => [])
-            ])
+  // Function to refresh counts using optimized API with caching
+  const refreshCourseCounts = async (forceRefresh = false) => {
+    if (user?.role === 'student') {
+      const now = Date.now()
 
-            // Get submitted assignment IDs
-            const submittedIds = new Set(submissions.map((s: any) => String(s.assignment_id)))
+      // Check cache unless force refresh is requested
+      if (!forceRefresh && (now - lastFetchTime) < CACHE_DURATION && Object.keys(courseCounts).length > 0) {
+        console.log('Using cached course data')
+        return
+      }
 
-            // Store current assignment IDs for tracking
-            const currentAssignmentIds = assignments.map((a: any) => String(a.id))
-            try {
-              localStorage.setItem(`knownAssignmentIds:${offering.id}`, JSON.stringify(currentAssignmentIds))
-            } catch (e) {
-              console.error('Failed to save known assignment IDs:', e)
-            }
+      try {
+        const { apiFetch } = await import('../../services/api')
+        const response = await apiFetch<{ courses: any[] }>('/api/courses/card-data')
 
-            // Count ALL unsubmitted assignments (not just new ones)
-            const pendingAssignments = assignments.filter((a: any) => {
-              const assignmentId = String(a.id)
-              // Count if: not submitted AND is a valid assignment type
-              const notSubmitted = !submittedIds.has(assignmentId)
-              const isAssignmentType = ['code', 'file', 'pdf'].includes(a.assignment_type)
-              
-              return notSubmitted && isAssignmentType
-            }).length
+        // Transform the data to match the expected format
+        const counts: Record<number, any> = {}
+        const transformedOfferings = response.courses.map(course => ({
+          id: course.id,
+          term: course.term,
+          section: course.section,
+          course_code: course.course_code,
+          course_title: course.course_title,
+          course_description: course.course_description,
+          faculty_name: course.faculty_name,
+          faculty_email: course.faculty_email
+        }))
 
-            console.log(`Course ${offering.id} assignments:`, {
-              total: assignments.length,
-              submitted: submittedIds.size,
-              pendingCount: pendingAssignments,
-              assignmentDetails: assignments.map(a => ({ 
-                id: a.id, 
-                type: a.assignment_type, 
-                title: a.title,
-                isSubmitted: submittedIds.has(String(a.id))
-              }))
-            })
+        // Update offerings if we got new data
+        if (transformedOfferings.length > 0) {
+          setOfferings(transformedOfferings)
+        }
 
-            // Count ALL unattempted quizzes (not just new ones)
-            let pendingQuizzes = 0
-            // Store current quiz IDs for tracking
-            const currentQuizIds = quizzes.map((q: any) => String(q.id))
-            try {
-              localStorage.setItem(`knownQuizIds:${offering.id}`, JSON.stringify(currentQuizIds))
-            } catch (e) {
-              console.error('Failed to save known quiz IDs:', e)
-            }
-
-            if (user?.id) {
-              try {
-                const quizzesMod = await import('../../services/quizzes')
-                const allAttempts = await quizzesMod.getQuizAttempts(Number(user.id))
-                const attemptedQuizIds = new Set(allAttempts.map((a: any) => String(a.quiz_id)))
-
-                // Count ALL unattempted quizzes, not just new ones
-                pendingQuizzes = quizzes.filter((q: any) => {
-                  const quizId = String(q.id)
-                  // Count if: not attempted
-                  const notAttempted = !attemptedQuizIds.has(quizId)
-                  return notAttempted
-                }).length
-                
-                console.log(`Course ${offering.id} quizzes:`, {
-                  total: quizzes.length,
-                  attempted: attemptedQuizIds.size,
-                  pendingCount: pendingQuizzes
-                })
-              } catch (e) {
-                console.error(`Failed to get quiz attempts for offering ${offering.id}:`, e)
-                // If we can't get attempts, count all quizzes as pending
-                pendingQuizzes = quizzes.length
-              }
-            } else {
-              // If no user ID, count all quizzes as pending
-              pendingQuizzes = quizzes.length
-            }
-
-            // Count ALL unread discussions (not just new ones)
-            // Store current discussion IDs for tracking
-            const currentDiscussionIds = discussions.map((d: any) => String(d.id))
-            try {
-              localStorage.setItem(`knownDiscussionIds:${offering.id}`, JSON.stringify(currentDiscussionIds))
-            } catch (e) {
-              console.error('Failed to save known discussion IDs:', e)
-            }
-
-            const readMessages = new Set(JSON.parse(localStorage.getItem(`readMessages:${offering.id}`) || '[]'))
-            // Count ALL unread discussions, not just new ones
-            const unreadDiscussions = discussions.filter((d: any) => {
-              const discussionId = String(d.id)
-              // Count if: not read
-              const notRead = !readMessages.has(discussionId)
-              return notRead
-            }).length
-
-            console.log(`Course ${offering.id} discussions:`, {
-              total: discussions.length,
-              read: readMessages.size,
-              unreadCount: unreadDiscussions
-            })
-
-            counts[offering.id] = {
-              pendingAssignments,
-              pendingQuizzes,
-              unreadNotifications: unreadDiscussions
-            }
-          } catch (e) {
-            console.error(`Failed to fetch counts for offering ${offering.id}:`, e)
-            counts[offering.id] = { pendingAssignments: 0, pendingQuizzes: 0, unreadNotifications: 0 }
+        // Set counts from the optimized API response
+        response.courses.forEach(course => {
+          counts[course.id] = {
+            pendingAssignments: course.pending_assignments,
+            pendingQuizzes: course.pending_quizzes,
+            unreadNotifications: course.unread_notifications
           }
         })
-      )
-      setCourseCounts(counts)
+
+        setCourseCounts(counts)
+        setLastFetchTime(now)
+
+        console.log('Course card data loaded:', {
+          totalCourses: response.courses.length,
+          counts,
+          cached: false
+        })
+
+      } catch (e) {
+        console.error('Failed to fetch course card data:', e)
+        // Fallback to empty counts
+        setCourseCounts({})
+      }
     }
   }
 
   useEffect(() => {
     (async () => {
       try {
-        const list = await getEnrolledCourses()
-        setOfferings(list)
-        await refreshCourseCounts(list)
+        await refreshCourseCounts()
       } catch (e: any) {
         setErr(e?.message || 'Failed to load courses')
       } finally {
@@ -226,7 +156,7 @@ export default function StudentDashboard() {
     return () => {
       document.removeEventListener('visibilitychange', handleVisibilityChange)
     }
-  }, [offerings, user])
+  }, [user])
 
   const goToOffering = (id: number | string) => navigate(`/courses/${id}`)
 
@@ -241,8 +171,8 @@ export default function StudentDashboard() {
       } else {
         await enrollStudent(Number(offId), Number(stuId || user?.id))
       }
-      const list = await getEnrolledCourses()
-      setOfferings(list)
+      // Refresh course data after enrollment (force refresh to bypass cache)
+      await refreshCourseCounts(true)
       push({ kind: 'success', message: 'Enrolled' })
       setEnrOpen(false); setOffId(''); setStuId('')
     } catch (e: any) {
@@ -317,7 +247,8 @@ export default function StudentDashboard() {
                     onDelete={async () => {
                       try {
                         await unenrollStudent(Number(o.id));
-                        setOfferings((prev) => prev.filter((x) => x.id !== o.id));
+                        // Refresh course data after unenrollment (force refresh to bypass cache)
+                        await refreshCourseCounts(true);
                         push({ kind: 'success', message: 'Unenrolled' })
                       } catch (e: any) {
                         push({ kind: 'error', message: e?.message || 'Failed' })

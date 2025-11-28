@@ -12,6 +12,7 @@ import TeacherDashboard from './pages/teacher/TeacherDashboard'
 import TADashboard from './pages/teacher/TADashboard'
 import AdminDashboard from './pages/admin/AdminDashboard'
 import CourseDetails from './pages/student/CourseDetails'
+import AssignmentDetails from './pages/student/AssignmentDetails'
 import CodeEditorPage from './pages/student/CodeEditorPage'
 import LiveLecturePage from './pages/student/LiveLecturePage'
 
@@ -101,6 +102,16 @@ function App() {
             element={
               <ProtectedRoute roles={["student", "teacher", "ta"]}>
                 <CourseDetails />
+              </ProtectedRoute>
+            }
+          />
+
+          {/* Assignment details page (accessible by student, teacher, TA) */}
+          <Route
+            path="/courses/:courseId/assignments/:assignmentId"
+            element={
+              <ProtectedRoute roles={["student", "teacher", "ta"]}>
+                <AssignmentDetails />
               </ProtectedRoute>
             }
           />
