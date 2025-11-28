@@ -1,40 +1,41 @@
 // Import routing components from react-router-dom
 import { Navigate, Route, Routes } from 'react-router-dom'
+import { lazy, Suspense } from 'react'
 
-// Import all individual page components
-import Landing from './pages/Landing'
-import Login from './pages/Login'
-import Signup from './pages/Signup'
-import Forgot from './pages/Forgot'
-import Reset from './pages/Reset'
-import StudentDashboard from './pages/student/StudentDashboard'
-import TeacherDashboard from './pages/teacher/TeacherDashboard'
-import TADashboard from './pages/teacher/TADashboard'
-import AdminDashboard from './pages/admin/AdminDashboard'
-import CourseDetails from './pages/student/CourseDetails'
-import AssignmentDetails from './pages/student/AssignmentDetails'
-import CodeEditorPage from './pages/student/CodeEditorPage'
-import LiveLecturePage from './pages/student/LiveLecturePage'
+// Lazy load all individual page components for code splitting
+const Landing = lazy(() => import('./pages/Landing'))
+const Login = lazy(() => import('./pages/Login'))
+const Signup = lazy(() => import('./pages/Signup'))
+const Forgot = lazy(() => import('./pages/Forgot'))
+const Reset = lazy(() => import('./pages/Reset'))
+const StudentDashboard = lazy(() => import('./pages/student/StudentDashboard'))
+const TeacherDashboard = lazy(() => import('./pages/teacher/TeacherDashboard'))
+const TADashboard = lazy(() => import('./pages/teacher/TADashboard'))
+const AdminDashboard = lazy(() => import('./pages/admin/AdminDashboard'))
+const CourseDetails = lazy(() => import('./pages/student/CourseDetails'))
+const AssignmentDetails = lazy(() => import('./pages/student/AssignmentDetails'))
+const CodeEditorPage = lazy(() => import('./pages/student/CodeEditorPage'))
+const LiveLecturePage = lazy(() => import('./pages/student/LiveLecturePage'))
 
 // Import the protected route wrapper for role-based access
-import ProtectedRoute from './routes/ProtectedRoute'
+const ProtectedRoute = lazy(() => import('./routes/ProtectedRoute'))
 
 // Layout wrapper for consistent UI across pages
-import Layout from './components/Layout'
+const Layout = lazy(() => import('./components/Layout'))
 
 // Quiz-related pages
-import QuizTake from './pages/student/QuizTake'
-import QuizGrader from './pages/teacher/QuizGrader'
-import SuspendedQuizzes from './pages/teacher/SuspendedQuizzes'
-import ProctoringDashboard from './pages/teacher/ProctoringDashboard'
+const QuizTake = lazy(() => import('./pages/student/QuizTake'))
+const QuizGrader = lazy(() => import('./pages/teacher/QuizGrader'))
+const SuspendedQuizzes = lazy(() => import('./pages/teacher/SuspendedQuizzes'))
+const ProctoringDashboard = lazy(() => import('./pages/teacher/ProctoringDashboard'))
 
 // Progress / analytics pages
-import StudentProgress from './pages/progress/StudentProgress'
-import CourseProgress from './pages/progress/CourseProgress'
-import Profile from './pages/Profile'
+const StudentProgress = lazy(() => import('./pages/progress/StudentProgress'))
+const CourseProgress = lazy(() => import('./pages/progress/CourseProgress'))
+const Profile = lazy(() => import('./pages/Profile'))
 
 // Global course context provider
-import { CourseProvider } from './context/CourseContext'
+const CourseProvider = lazy(() => import('./context/CourseContext').then(module => ({ default: module.CourseProvider })))
 
 function App() {
   return (
@@ -45,7 +46,8 @@ function App() {
       <Layout>
 
         {/* React Router route definitions */}
-        <Routes>
+        <Suspense fallback={<div className="loading-spinner">Loading...</div>}>
+          <Routes>
 
           {/* Landing page (public) */}
           <Route path="/" element={<Landing />} />
@@ -210,6 +212,7 @@ function App() {
           <Route path="*" element={<Navigate to="/" replace />} />
 
         </Routes>
+        </Suspense>
       </Layout>
     </CourseProvider>
   )

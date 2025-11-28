@@ -537,7 +537,6 @@ const paginatedCourses = filteredCourses.slice((courseCurrentPage - 1) * courseI
 
   const loadDepartments = async () => {
     try {
-      const { listDepartments } = await import('../../services/admin')
       const r = await listDepartments()
       setDepartments(r.departments)
     } catch (err) {

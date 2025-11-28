@@ -7,6 +7,7 @@ import Modal from '../../components/Modal'
 import { enrollSelf } from '../../services/student'
 import { enrollStudent, unenrollStudent } from '../../services/courses'
 import { useToast } from '../../components/ToastProvider'
+import { apiFetch } from '../../services/api'
 
 // Loading skeleton component
 function CourseCardSkeleton({ style }: { style?: React.CSSProperties }) {
@@ -84,7 +85,6 @@ export default function StudentDashboard() {
       }
 
       try {
-        const { apiFetch } = await import('../../services/api')
         const response = await apiFetch<{ courses: any[] }>('/api/courses/card-data')
 
         // Transform the data to match the expected format
