@@ -1,9 +1,12 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
+import { useCourse } from '../../context/CourseContext';
 import { apiFetch } from '../../services/api';
 import { useToast } from '../../components/ToastProvider';
+import AssignmentComments from '../../components/AssignmentComments';
 import './AssignmentDetails.css';
+import '../../components/AssignmentComments.css';
 
 interface Assignment {
   id: number;
@@ -25,13 +28,12 @@ interface Assignment {
 export default function AssignmentDetails() {
   const { courseId, assignmentId } = useParams();
   const { user } = useAuth();
+  const { setAssignmentTitle, setCourseTitle } = useCourse();
   const navigate = useNavigate();
   const toast = useToast();
   const [assignment, setAssignment] = useState<Assignment | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [linkUrl, setLinkUrl] = useState('');
-  const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
     if (!courseId || !assignmentId) {
@@ -44,6 +46,11 @@ export default function AssignmentDetails() {
       try {
         const data = await apiFetch<Assignment>(`/api/assignments/${assignmentId}`);
         setAssignment(data);
+        setAssignmentTitle(data.title);
+        // Also set course title for breadcrumb
+        if (data.course_name) {
+          setCourseTitle(`${data.course_code} - ${data.course_name}`);
+        }
       } catch (err: any) {
         console.error('Failed to fetch assignment:', err);
         setError(err.message || 'Failed to load assignment details');
@@ -54,6 +61,14 @@ export default function AssignmentDetails() {
 
     fetchAssignment();
   }, [courseId, assignmentId]);
+
+  // Clear assignment title when component unmounts
+  useEffect(() => {
+    return () => {
+      setAssignmentTitle(null);
+      setCourseTitle(null);
+    };
+  }, [setAssignmentTitle, setCourseTitle]);
 
   const getAssignmentTypeDisplay = (type: string) => {
     switch (type) {
@@ -89,28 +104,7 @@ export default function AssignmentDetails() {
     }
   };
 
-  const handleSubmitLink = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!linkUrl.trim()) {
-      toast?.push({ kind: 'error', message: 'Please provide a valid link' });
-      return;
-    }
 
-    setSubmitting(true);
-    try {
-      await apiFetch('/api/submissions/submit/link', {
-        method: 'POST',
-        body: { assignment_id: Number(assignmentId), url: linkUrl.trim() }
-      });
-      toast?.push({ kind: 'success', message: 'Assignment submitted successfully!' });
-      setLinkUrl('');
-    } catch (err: any) {
-      console.error('Submission failed:', err);
-      toast?.push({ kind: 'error', message: err?.message || 'Submission failed. Please try again.' });
-    } finally {
-      setSubmitting(false);
-    }
-  };
 
   if (loading) {
     return (
@@ -144,28 +138,6 @@ export default function AssignmentDetails() {
   return (
     <div className="assignment-details-page">
       <div className="container">
-        {/* Header */}
-        <div className="assignment-header">
-          <button
-            className="back-button"
-            onClick={() => navigate(`/courses/${courseId}`)}
-          >
-            ← Back to Course
-          </button>
-          <div className="assignment-title-section">
-            <h1>{assignment.title}</h1>
-            <div className="assignment-meta">
-              <span className="course-info">
-                {assignment.course_code} - {assignment.course_name}
-              </span>
-              {assignment.faculty_name && (
-                <span className="faculty-info">
-                  Instructor: {assignment.faculty_name}
-                </span>
-              )}
-            </div>
-          </div>
-        </div>
 
         {/* Assignment Info Cards */}
         <div className="assignment-info-grid">
@@ -254,40 +226,10 @@ export default function AssignmentDetails() {
           </div>
         </div>
 
-        {/* Submission Form for Link-based Assignments */}
-        {(assignment.assignment_type === 'pdf' || assignment.assignment_type === 'ppt' || assignment.assignment_type === 'mixed') && user?.role === 'student' && (
-          <div className="submission-section">
-            <h2>Submit Assignment</h2>
-            <form onSubmit={handleSubmitLink} className="submission-form">
-              <div className="form-group">
-                <label htmlFor="submission-link">
-                  {assignment.assignment_type === 'mixed' ? 'GitHub Repository URL' : 'Google Drive Shareable Link'}
-                </label>
-                <input
-                  id="submission-link"
-                  type="url"
-                  className="form-input"
-                  placeholder={
-                    assignment.assignment_type === 'mixed'
-                      ? 'https://github.com/username/repository'
-                      : 'https://drive.google.com/file/d/.../view?usp=sharing'
-                  }
-                  value={linkUrl}
-                  onChange={(e) => setLinkUrl(e.target.value)}
-                  required
-                  disabled={submitting}
-                />
-              </div>
-              <button
-                type="submit"
-                className="btn btn-submit-link"
-                disabled={!linkUrl.trim() || submitting}
-              >
-                {submitting ? 'Submitting...' : `Submit ${assignment.assignment_type === 'mixed' ? 'Repository' : assignment.assignment_type.toUpperCase()}`}
-              </button>
-            </form>
-          </div>
-        )}
+
+        {/* Assignment Comments */}
+        <AssignmentComments assignmentId={assignment.id} />
+
 
         {/* Action Buttons */}
         <div className="action-buttons">

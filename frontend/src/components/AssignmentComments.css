@@ -1,0 +1,276 @@
+.assignment-comments {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 24px;
+  margin-bottom: 24px;
+}
+
+.assignment-comments h2 {
+  margin: 0 0 24px 0;
+  color: var(--text-primary);
+  font-size: 1.5rem;
+  font-weight: 600;
+}
+
+.new-comment-form h3 {
+  margin: 0 0 16px 0;
+  color: var(--text-primary);
+  font-size: 1.25rem;
+  font-weight: 600;
+}
+
+.new-comment-form textarea {
+  width: 100%;
+  padding: 12px 16px;
+  border: 2px solid #e5e7eb;
+  border-radius: 8px;
+  font-size: 1rem;
+  color: var(--text-primary);
+  background: var(--bg-primary);
+  resize: vertical;
+  min-height: 100px;
+  margin-bottom: 12px;
+  box-sizing: border-box;
+}
+
+.new-comment-form textarea:focus {
+  outline: none;
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+.submit-comment-btn {
+  background: var(--primary);
+  color: white;
+  border: none;
+  padding: 10px 20px;
+  border-radius: 6px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.submit-comment-btn:hover:not(:disabled) {
+  background: var(--primary-hover, #2563eb);
+}
+
+.submit-comment-btn:disabled {
+  background: #9ca3af;
+  cursor: not-allowed;
+}
+
+.comments-list {
+  margin-top: 32px;
+}
+
+.no-comments {
+  text-align: center;
+  padding: 40px 20px;
+  color: var(--text-secondary);
+}
+
+.no-comments p {
+  margin: 0;
+  font-size: 1.1rem;
+}
+
+.comment {
+  background: var(--bg-primary);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 16px;
+  margin-bottom: 16px;
+}
+
+.comment.instructor {
+  border-left: 4px solid #10b981;
+  background: #f0fdf4;
+}
+
+.comment.student {
+  border-left: 4px solid #3b82f6;
+  background: #eff6ff;
+}
+
+.comment.reply {
+  margin-left: 32px;
+  margin-bottom: 8px;
+  border-left-width: 2px;
+}
+
+.comment-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.author-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.author-name {
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.author-role {
+  font-size: 0.8rem;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-weight: 500;
+}
+
+.author-role.faculty,
+.author-role.ta,
+.author-role.admin {
+  background: #10b981;
+  color: white;
+}
+
+.author-role.student {
+  background: #6b7280;
+  color: white;
+}
+
+.comment-date {
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+}
+
+.comment-content {
+  color: var(--text-primary);
+  line-height: 1.5;
+  margin-bottom: 12px;
+  white-space: pre-wrap;
+}
+
+.comment-actions {
+  margin-top: 8px;
+}
+
+.reply-btn {
+  background: none;
+  border: 1px solid var(--border);
+  color: var(--text-secondary);
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.reply-btn:hover {
+  background: var(--primary);
+  color: white;
+  border-color: var(--primary);
+}
+
+.reply-form {
+  margin-top: 12px;
+  padding: 12px;
+  background: var(--bg-secondary);
+  border-radius: 6px;
+  border: 1px solid var(--border);
+}
+
+.reply-form textarea {
+  width: 100%;
+  padding: 8px 12px;
+  border: 1px solid #e5e7eb;
+  border-radius: 4px;
+  font-size: 0.9rem;
+  color: var(--text-primary);
+  background: var(--bg-primary);
+  resize: vertical;
+  min-height: 60px;
+  margin-bottom: 8px;
+  box-sizing: border-box;
+}
+
+.reply-form textarea:focus {
+  outline: none;
+  border-color: #3b82f6;
+}
+
+.reply-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.submit-reply-btn {
+  background: #10b981;
+  color: white;
+  border: none;
+  padding: 6px 12px;
+  border-radius: 4px;
+  font-size: 0.85rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.submit-reply-btn:hover:not(:disabled) {
+  background: #059669;
+}
+
+.submit-reply-btn:disabled {
+  background: #9ca3af;
+  cursor: not-allowed;
+}
+
+.cancel-reply-btn {
+  background: none;
+  border: 1px solid var(--border);
+  color: var(--text-secondary);
+  padding: 6px 12px;
+  border-radius: 4px;
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.cancel-reply-btn:hover {
+  background: #ef4444;
+  color: white;
+  border-color: #ef4444;
+}
+
+.replies {
+  margin-top: 12px;
+}
+
+.loading {
+  text-align: center;
+  padding: 40px 20px;
+  color: var(--text-secondary);
+}
+
+/* Responsive design */
+@media (max-width: 768px) {
+  .assignment-comments {
+    padding: 20px;
+  }
+
+  .comment.reply {
+    margin-left: 16px;
+  }
+
+  .comment-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 4px;
+  }
+
+  .reply-actions {
+    flex-direction: column;
+  }
+
+  .reply-actions button {
+    width: 100%;
+  }
+}

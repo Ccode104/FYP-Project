@@ -10,16 +10,16 @@
 .modal-card {
   position: relative;
   width: min(520px, 92vw);
-  background: #fff;
+  background: rgba(15, 23, 42, 0.95);
   border-radius: 14px;
   box-shadow: 0 20px 60px rgba(0,0,0,0.25);
-  border: 1px solid #e5e7eb;
+  border: 1px solid rgba(71, 85, 105, 0.5);
   padding: 16px;
 }
-.modal-title { margin: 4px 0 12px; font-size: 20px; padding-right: 32px; color: #1f2937}
+.modal-title { margin: 4px 0 12px; font-size: 20px; padding-right: 32px; color: #ffffff}
 .modal-body { padding: 8px 0; }
 .modal-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 12px; }
-.modal-close { position: absolute; top: 8px; right: 10px; border: none; background: transparent; font-size: 22px; cursor: pointer; }
+.modal-close { position: absolute; top: 8px; right: 10px; border: none; background: transparent; font-size: 22px; cursor: pointer; color: #64748b; }
 
 .modal-body .field { display: flex; flex-direction: column; gap: 8px; }
 .modal-body .label { display: block; font-size: 14px; font-weight: 500; }

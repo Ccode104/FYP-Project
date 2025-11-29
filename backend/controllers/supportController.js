@@ -15,7 +15,12 @@ export async function createTicket(req, res) {
 
     // Get the created ticket with user info
     const ticketQuery = `
-      SELECT st.*, u.name as user_name, u.email as user_email,
+      SELECT st.id, st.user_id, st.title, st.description,
+             COALESCE(st.category, 'other') as category,
+             COALESCE(st.status, 'open') as status,
+             COALESCE(st.priority, 'medium') as priority,
+             st.assigned_to, st.course_offering_id, st.created_at, st.updated_at,
+             u.name as user_name, u.email as user_email,
              c.code as course_code, c.title as course_title
       FROM support_tickets st
       JOIN users u ON st.user_id = u.id
@@ -39,7 +44,12 @@ export async function getUserTickets(req, res) {
 
   try {
     let query = `
-      SELECT st.*, u.name as user_name, u.email as user_email,
+      SELECT st.id, st.user_id, st.title, st.description,
+             COALESCE(st.category, 'other') as category,
+             COALESCE(st.status, 'open') as status,
+             COALESCE(st.priority, 'medium') as priority,
+             st.assigned_to, st.course_offering_id, st.created_at, st.updated_at,
+             u.name as user_name, u.email as user_email,
              c.code as course_code, c.title as course_title,
              au.name as assigned_to_name
       FROM support_tickets st
@@ -80,7 +90,12 @@ export async function getAllTickets(req, res) {
 
   try {
     let query = `
-      SELECT st.*, u.name as user_name, u.email as user_email,
+      SELECT st.id, st.user_id, st.title, st.description,
+             COALESCE(st.category, 'other') as category,
+             COALESCE(st.status, 'open') as status,
+             COALESCE(st.priority, 'medium') as priority,
+             st.assigned_to, st.course_offering_id, st.created_at, st.updated_at,
+             u.name as user_name, u.email as user_email,
              c.code as course_code, c.title as course_title,
              au.name as assigned_to_name
       FROM support_tickets st
@@ -134,7 +149,12 @@ export async function getTicket(req, res) {
   try {
     // Get ticket
     const ticketQuery = `
-      SELECT st.*, u.name as user_name, u.email as user_email,
+      SELECT st.id, st.user_id, st.title, st.description,
+             COALESCE(st.category, 'other') as category,
+             COALESCE(st.status, 'open') as status,
+             COALESCE(st.priority, 'medium') as priority,
+             st.assigned_to, st.course_offering_id, st.created_at, st.updated_at,
+             u.name as user_name, u.email as user_email,
              c.code as course_code, c.title as course_title,
              au.name as assigned_to_name
       FROM support_tickets st

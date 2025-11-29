@@ -1,0 +1,157 @@
+.graded-assignment-view {
+  max-width: 600px;
+  margin: 0 auto;
+  padding: 20px;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+}
+
+.graded-assignment-view button {
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  border: 1px solid var(--border);
+  padding: 8px 16px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 0.9rem;
+  margin-bottom: 16px;
+  transition: background-color 0.2s;
+}
+
+.graded-assignment-view button:hover {
+  background: var(--bg-tertiary, rgba(0,0,0,0.05));
+}
+
+.graded-assignment-view h3 {
+  margin: 0 0 12px 0;
+  color: var(--text-primary);
+  font-size: 1.25rem;
+  font-weight: 600;
+  letter-spacing: -0.025em;
+}
+
+.graded-assignment-view > p {
+  margin: 0 0 8px 0;
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+
+.graded-assignment-view h4 {
+  margin: 20px 0 12px 0;
+  color: var(--text-primary);
+  font-size: 1.1rem;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+
+.rubric-grade {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 12px;
+  margin-bottom: 8px;
+}
+
+.rubric-grade h5 {
+  margin: 0 0 6px 0;
+  color: var(--text-primary);
+  font-size: 0.95rem;
+  font-weight: 600;
+}
+
+.rubric-grade p {
+  margin: 4px 0;
+  color: var(--text-secondary);
+  font-size: 0.85rem;
+}
+
+.rubric-grade button {
+  background: var(--primary);
+  color: white;
+  border: none;
+  padding: 6px 12px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.8rem;
+  margin-top: 8px;
+  transition: background-color 0.2s;
+}
+
+.rubric-grade button:hover {
+  background: var(--primary-hover, #2563eb);
+}
+
+.regrade-form {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 16px;
+  margin-top: 16px;
+}
+
+.regrade-form h4 {
+  margin: 0 0 12px 0;
+  color: var(--text-primary);
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.regrade-form textarea {
+  width: 100%;
+  min-height: 80px;
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  font-size: 0.9rem;
+  color: var(--text-primary);
+  background: var(--bg-primary);
+  resize: vertical;
+  box-sizing: border-box;
+  margin-bottom: 12px;
+}
+
+.regrade-form button {
+  background: #10b981;
+  color: white;
+  border: none;
+  padding: 8px 16px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.9rem;
+  font-weight: 500;
+  transition: background-color 0.2s;
+}
+
+.regrade-form button:hover {
+  background: #059669;
+}
+
+.regrade-form button:disabled {
+  background: #6b7280;
+  cursor: not-allowed;
+}
+
+/* Responsive design */
+@media (max-width: 768px) {
+  .graded-assignment-view {
+    padding: 16px;
+    max-width: 100%;
+  }
+
+  .graded-assignment-view h3 {
+    font-size: 1.1rem;
+  }
+
+  .graded-assignment-view h4 {
+    font-size: 1rem;
+  }
+
+  .rubric-grade {
+    padding: 10px;
+  }
+
+  .regrade-form {
+    padding: 12px;
+  }
+}

@@ -13,7 +13,7 @@ export default function Layout({ children }: { children: ReactNode }) {
   const { pathname } = useLocation()
   const { user, logout } = useAuth()
   const navigate = useNavigate()
-  const { courseTitle } = useCourse()
+  const { courseTitle, assignmentTitle } = useCourse()
   const isAuth = pathname === '/login' || pathname === '/signup' || pathname.startsWith('/forgot')
   const isLanding = pathname === '/'
   const isLiveLecture = pathname.includes('/live-lectures/')
@@ -145,7 +145,22 @@ export default function Layout({ children }: { children: ReactNode }) {
                 {courseTitle && (
                   <>
                     <span className="breadcrumb-separator">›</span>
-                    <span className="breadcrumb-current">{courseTitle}</span>
+                    <button
+                      className="breadcrumb-link"
+                      onClick={() => {
+                        const courseId = window.location.pathname.split('/')[2];
+                        if (courseId) navigate(`/courses/${courseId}`);
+                      }}
+                      aria-label="Course"
+                    >
+                      {courseTitle}
+                    </button>
+                  </>
+                )}
+                {assignmentTitle && (
+                  <>
+                    <span className="breadcrumb-separator">›</span>
+                    <span className="breadcrumb-current">{assignmentTitle}</span>
                   </>
                 )}
               </nav>

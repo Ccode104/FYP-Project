@@ -1,12 +1,13 @@
 import MenuTiny from "./MenuTiny";
 import { useNavigate } from "react-router-dom";
+import { useState } from "react";
+import AssignmentSubmissionModal from "../AssignmentSubmissionModal";
 
 export default function PresentAssignmentsSection({
   userRole,
   presentAssignments,
   isBackend,
   onTeacherDelete,
-  onStudentClickSubmitPDF,
   onAttemptQuiz,
   onStartCodeAttempt,
 }: {
@@ -14,11 +15,12 @@ export default function PresentAssignmentsSection({
   presentAssignments: any[];
   isBackend: boolean;
   onTeacherDelete: (assignmentId: number) => Promise<void>;
-  onStudentClickSubmitPDF: (assignmentId: string) => void;
   onAttemptQuiz: (quizId: any) => void;
   onStartCodeAttempt: (assignment: any) => void;
 }) {
   const navigate = useNavigate();
+  const [submissionModalOpen, setSubmissionModalOpen] = useState(false);
+  const [selectedAssignment, setSelectedAssignment] = useState<any>(null);
   return (
     <section className="assignments-section">
       <div className="section-header">
@@ -51,19 +53,10 @@ export default function PresentAssignmentsSection({
             onClick={() => {
               if (
                 userRole === "student" &&
-                (a.assignment_type === "file" || a.assignment_type === "pdf" || a.assignment_type === "ppt" || a.assignment_type === "mixed")
+                (a.assignment_type === "pdf" || a.assignment_type === "ppt" || a.assignment_type === "mixed")
               ) {
-                onStudentClickSubmitPDF(String(a.id));
-                setTimeout(() => {
-                  const form = document.querySelector(
-                    "form[data-assignment-submit]"
-                  ) as HTMLElement | null;
-                  if (form)
-                    form.scrollIntoView({
-                      behavior: "smooth",
-                      block: "nearest",
-                    });
-                }, 80);
+                setSelectedAssignment(a);
+                setSubmissionModalOpen(true);
               }
             }}
           >
@@ -171,23 +164,13 @@ export default function PresentAssignmentsSection({
                       <polyline points="9,18 15,12 9,6" />
                     </svg>
                   </button>
-                ) : a.assignment_type === "file" ||
-                  a.assignment_type === "pdf" ? (
+                ) : a.assignment_type === "pdf" ? (
                   <button
                     className="btn-assignment submit-pdf"
                     onClick={(e) => {
                       e.stopPropagation();
-                      onStudentClickSubmitPDF(String(a.id));
-                      setTimeout(() => {
-                        const form = document.querySelector(
-                          "form[data-assignment-submit]"
-                        ) as HTMLElement | null;
-                        if (form)
-                          form.scrollIntoView({
-                            behavior: "smooth",
-                            block: "nearest",
-                          });
-                      }, 80);
+                      setSelectedAssignment(a);
+                      setSubmissionModalOpen(true);
                     }}
                   >
                     <span>Submit PDF</span>
@@ -209,17 +192,8 @@ export default function PresentAssignmentsSection({
                     className="btn-assignment submit-ppt"
                     onClick={(e) => {
                       e.stopPropagation();
-                      onStudentClickSubmitPDF(String(a.id));
-                      setTimeout(() => {
-                        const form = document.querySelector(
-                          "form[data-assignment-submit]"
-                        ) as HTMLElement | null;
-                        if (form)
-                          form.scrollIntoView({
-                            behavior: "smooth",
-                            block: "nearest",
-                          });
-                      }, 80);
+                      setSelectedAssignment(a);
+                      setSubmissionModalOpen(true);
                     }}
                   >
                     <span>Submit PPT</span>
@@ -267,7 +241,17 @@ export default function PresentAssignmentsSection({
         ))}
       </div>
 
-
+      {/* Assignment Submission Modal */}
+      {selectedAssignment && (
+        <AssignmentSubmissionModal
+          isOpen={submissionModalOpen}
+          onClose={() => {
+            setSubmissionModalOpen(false);
+            setSelectedAssignment(null);
+          }}
+          assignment={selectedAssignment}
+        />
+      )}
     </section>
   );
 }

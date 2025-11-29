@@ -1,5 +1,6 @@
 import express from 'express';
 import { requireAuth, requireRole } from '../middleware/auth.js';
+import { pool } from '../db/index.js';
 import {
   createAssignment,
   getAssignment,
@@ -322,4 +323,158 @@ router.post('/submissions/:id/grade-components', requireAuth, requireRole('facul
 router.get('/submissions/:id/components', requireAuth, getComponentSubmissions);
 
 router.delete('/:id', requireAuth, requireRole('faculty','admin'), deleteAssignment);
+
+/**
+ * @swagger
+ * /api/assignments/{id}/comments:
+ *   get:
+ *     summary: Get all comments for an assignment
+ *     tags: [Assignment Comments]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         description: Assignment ID
+ *     responses:
+ *       200:
+ *         description: List of assignment comments
+ *       401:
+ *         description: Unauthorized
+ *       404:
+ *         description: Assignment not found
+ */
+router.get('/:id/comments', requireAuth, async (req, res) => {
+  try {
+    const assignmentId = Number(req.params.id);
+    const userId = req.user.id;
+
+    // Check if user has access to this assignment
+    const assignmentCheck = await pool.query(`
+      SELECT a.id FROM assignments a
+      JOIN course_offerings co ON a.course_offering_id = co.id
+      JOIN enrollments e ON co.id = e.course_offering_id
+      WHERE a.id = $1 AND (e.student_id = $2 OR co.faculty_id = $2 OR EXISTS(
+        SELECT 1 FROM ta_assignments ta WHERE ta.course_offering_id = co.id AND ta.ta_id = $2
+      ))
+    `, [assignmentId, userId]);
+
+    if (assignmentCheck.rowCount === 0) {
+      return res.status(403).json({ error: 'Access denied' });
+    }
+
+    const comments = await pool.query(`
+      SELECT ac.*, u.name as author_name, u.role as author_role
+      FROM assignment_comments ac
+      JOIN users u ON ac.user_id = u.id
+      WHERE ac.assignment_id = $1
+      ORDER BY ac.created_at ASC
+    `, [assignmentId]);
+
+    res.json(comments.rows);
+  } catch (err) {
+    console.error('Error getting assignment comments:', err);
+    res.status(500).json({ error: 'Failed to get comments' });
+  }
+});
+
+/**
+ * @swagger
+ * /api/assignments/{id}/comments:
+ *   post:
+ *     summary: Post a new comment on an assignment
+ *     tags: [Assignment Comments]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         description: Assignment ID
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - content
+ *             properties:
+ *               content:
+ *                 type: string
+ *               parentId:
+ *                 type: integer
+ *                 description: ID of parent comment for replies
+ *     responses:
+ *       201:
+ *         description: Comment posted successfully
+ *       400:
+ *         description: Invalid request
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Access denied
+ */
+router.post('/:id/comments', requireAuth, async (req, res) => {
+  try {
+    const assignmentId = Number(req.params.id);
+    const userId = req.user.id;
+    const { content, parentId } = req.body;
+
+    if (!content || content.trim().length === 0) {
+      return res.status(400).json({ error: 'Comment content is required' });
+    }
+
+    // Check if user has access to this assignment
+    const assignmentCheck = await pool.query(`
+      SELECT a.id FROM assignments a
+      JOIN course_offerings co ON a.course_offering_id = co.id
+      JOIN enrollments e ON co.id = e.course_offering_id
+      WHERE a.id = $1 AND (e.student_id = $2 OR co.faculty_id = $2 OR EXISTS(
+        SELECT 1 FROM ta_assignments ta WHERE ta.course_offering_id = co.id AND ta.ta_id = $2
+      ))
+    `, [assignmentId, userId]);
+
+    if (assignmentCheck.rowCount === 0) {
+      return res.status(403).json({ error: 'Access denied' });
+    }
+
+    // Check if parent comment exists and belongs to same assignment
+    if (parentId) {
+      const parentCheck = await pool.query(`
+        SELECT id FROM assignment_comments
+        WHERE id = $1 AND assignment_id = $2
+      `, [parentId, assignmentId]);
+
+      if (parentCheck.rowCount === 0) {
+        return res.status(400).json({ error: 'Invalid parent comment' });
+      }
+    }
+
+    // Get user role to determine if it's an instructor reply
+    const userRole = await pool.query('SELECT role FROM users WHERE id = $1', [userId]);
+    const isInstructorReply = ['faculty', 'ta', 'admin'].includes(userRole.rows[0].role);
+
+    const result = await pool.query(`
+      INSERT INTO assignment_comments (assignment_id, user_id, parent_id, content, is_instructor_reply)
+      VALUES ($1, $2, $3, $4, $5)
+      RETURNING *, (
+        SELECT name FROM users WHERE id = assignment_comments.user_id
+      ) as author_name, (
+        SELECT role FROM users WHERE id = assignment_comments.user_id
+      ) as author_role
+    `, [assignmentId, userId, parentId || null, content.trim(), isInstructorReply]);
+
+    res.status(201).json(result.rows[0]);
+  } catch (err) {
+    console.error('Error posting assignment comment:', err);
+    res.status(500).json({ error: 'Failed to post comment' });
+  }
+});
+
 export default router;

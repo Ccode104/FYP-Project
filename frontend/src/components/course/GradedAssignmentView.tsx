@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { getGradedAssignment, submitRegradeRequest } from '../../services/student';
+import './GradedAssignmentView.css';
 
 interface RubricGrade {
   id: number;

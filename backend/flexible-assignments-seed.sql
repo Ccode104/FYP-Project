@@ -12,13 +12,14 @@ ON CONFLICT (course_id, term, section) DO NOTHING;
 
 -- 1. COMPLEX MIXED ASSIGNMENT: Code + Report + Presentation
 INSERT INTO assignments (
-    course_offering_id, title, description,
+    course_offering_id, title, description, assignment_type,
     assignment_config, submission_requirements, grading_config,
     total_points, allow_multiple_submissions, is_graded, created_by, created_at
 ) VALUES (
     (SELECT co.id FROM course_offerings co JOIN courses c ON co.course_id = c.id WHERE c.code = 'CSE304' LIMIT 1),
     'Algorithm Analysis & Implementation Project',
     'Complete project combining coding, analysis, and presentation skills',
+    'mixed',
 
     -- Assignment Configuration (Complex mixed assignment)
     '{
@@ -117,13 +118,14 @@ INSERT INTO assignments (
 
 -- 2. SMALL CODE ASSIGNMENT: Simple coding exercise
 INSERT INTO assignments (
-    course_offering_id, title, description,
+    course_offering_id, title, description, assignment_type,
     assignment_config, submission_requirements, grading_config,
     total_points, allow_multiple_submissions, is_graded, created_by, created_at
 ) VALUES (
     (SELECT co.id FROM course_offerings co JOIN courses c ON co.course_id = c.id WHERE c.code = 'CSE304' LIMIT 1),
     'Data Structures Implementation',
     'Implement basic data structures with unit tests',
+    'code',
 
     -- Simple code assignment config
     '{
@@ -174,13 +176,14 @@ INSERT INTO assignments (
 
 -- 3. HANDWRITTEN + REPORT ASSIGNMENT: Mixed document types
 INSERT INTO assignments (
-    course_offering_id, title, description,
+    course_offering_id, title, description, assignment_type,
     assignment_config, submission_requirements, grading_config,
     total_points, allow_multiple_submissions, is_graded, created_by, created_at
 ) VALUES (
     (SELECT co.id FROM course_offerings co JOIN courses c ON co.course_id = c.id WHERE c.code = 'CSE304' LIMIT 1),
     'Algorithm Design Manual',
     'Design algorithms manually and document the process',
+    'ppt',
 
     '{
         "assignment_type": "mixed",
@@ -247,13 +250,14 @@ INSERT INTO assignments (
 
 -- 4. UNGRADED HOMEWORK: Practice assignment
 INSERT INTO assignments (
-    course_offering_id, title, description,
+    course_offering_id, title, description, assignment_type,
     assignment_config, submission_requirements, grading_config,
     total_points, allow_multiple_submissions, is_graded, created_by, created_at
 ) VALUES (
     (SELECT co.id FROM course_offerings co JOIN courses c ON co.course_id = c.id WHERE c.code = 'CSE304' LIMIT 1),
     'Practice: Basic Programming Exercises',
     'Optional practice exercises to reinforce basic concepts',
+    'pdf',
 
     '{
         "assignment_type": "practice",

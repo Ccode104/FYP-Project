@@ -1,13 +1,13 @@
 .assignment-details-page {
   min-height: 100vh;
   background: var(--bg-primary);
-  padding: 20px 0;
+  padding: 16px 0;
 }
 
 .assignment-details-page .container {
   max-width: 1000px;
   margin: 0 auto;
-  padding: 0 20px;
+  padding: 0 24px;
 }
 
 .assignment-header {
@@ -28,6 +28,8 @@
   font-weight: 500;
   margin-bottom: 16px;
   transition: background-color 0.2s;
+  display: block;
+  width: fit-content;
 }
 
 .back-button:hover {
@@ -37,8 +39,9 @@
 .assignment-title-section h1 {
   margin: 0 0 8px 0;
   color: var(--text-primary);
-  font-size: 2rem;
+  font-size: 1.5rem;
   font-weight: 600;
+  text-align: center;
 }
 
 .assignment-meta {
@@ -60,109 +63,121 @@
 
 .assignment-info-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
   gap: 16px;
-  margin-bottom: 32px;
+  margin-bottom: 24px;
 }
 
 .info-card {
   background: var(--bg-secondary);
   border: 1px solid var(--border);
-  border-radius: 12px;
-  padding: 20px;
+  border-radius: 8px;
+  padding: 16px;
   display: flex;
   align-items: center;
-  gap: 16px;
+  gap: 12px;
+  transition: box-shadow 0.2s;
+}
+
+.info-card:hover {
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
 }
 
 .card-icon {
-  font-size: 2rem;
-  width: 48px;
-  height: 48px;
+  font-size: 1.5rem;
+  width: 40px;
+  height: 40px;
   display: flex;
   align-items: center;
   justify-content: center;
   background: var(--primary);
   color: white;
-  border-radius: 8px;
+  border-radius: 6px;
+  flex-shrink: 0;
 }
 
 .card-content h3 {
-  margin: 0 0 4px 0;
+  margin: 0 0 2px 0;
   color: var(--text-primary);
-  font-size: 1rem;
+  font-size: 0.9rem;
   font-weight: 600;
+  letter-spacing: -0.01em;
 }
 
 .card-content p {
   margin: 0;
   color: var(--text-secondary);
-  font-size: 0.95rem;
+  font-size: 0.85rem;
+  line-height: 1.4;
 }
 
 .description-section,
 .instructions-section {
   background: var(--bg-secondary);
   border: 1px solid var(--border);
-  border-radius: 12px;
-  padding: 24px;
-  margin-bottom: 24px;
+  border-radius: 8px;
+  padding: 20px;
+  margin-bottom: 20px;
 }
 
 .description-section h2,
 .instructions-section h2 {
-  margin: 0 0 16px 0;
+  margin: 0 0 12px 0;
   color: var(--text-primary);
-  font-size: 1.5rem;
+  font-size: 1.25rem;
   font-weight: 600;
+  letter-spacing: -0.025em;
 }
 
 .description-content {
   color: var(--text-primary);
   line-height: 1.6;
-  font-size: 1rem;
+  font-size: 0.95rem;
 }
 
 .instructions-content {
   display: flex;
-  gap: 16px;
+  gap: 12px;
   align-items: flex-start;
 }
 
 .instruction-icon {
-  font-size: 2rem;
+  font-size: 1.5rem;
   flex-shrink: 0;
   margin-top: 2px;
+  color: var(--primary);
 }
 
 .instruction-text {
   color: var(--text-primary);
   line-height: 1.6;
-  font-size: 1rem;
-  background: #e8f4fd;
-  padding: 16px;
-  border-radius: 8px;
-  border: 1px solid #3b82f6;
+  font-size: 0.9rem;
+  background: var(--bg-primary);
+  padding: 12px 16px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
   flex: 1;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
 }
 
 .submission-section {
   background: var(--bg-secondary);
   border: 1px solid var(--border);
-  border-radius: 12px;
-  padding: 24px;
-  margin-bottom: 24px;
+  border-radius: 8px;
+  padding: 20px;
+  margin-bottom: 20px;
 }
 
 .submission-section h2 {
-  margin: 0 0 16px 0;
+  margin: 0 0 12px 0;
   color: var(--text-primary);
-  font-size: 1.5rem;
+  font-size: 1.25rem;
   font-weight: 600;
+  letter-spacing: -0.025em;
 }
 
 .submission-form {
-  max-width: 600px;
+  max-width: 500px;
 }
 
 .form-group {
@@ -171,18 +186,19 @@
 
 .form-group label {
   display: block;
-  margin-bottom: 8px;
+  margin-bottom: 6px;
   color: var(--text-primary);
   font-weight: 500;
-  font-size: 1rem;
+  font-size: 0.9rem;
+  letter-spacing: -0.01em;
 }
 
 .form-input {
   width: 100%;
-  padding: 12px 16px;
-  border: 2px solid #e5e7eb;
-  border-radius: 8px;
-  font-size: 1rem;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-size: 0.95rem;
   color: var(--text-primary);
   background: var(--bg-primary);
   transition: border-color 0.2s, box-shadow 0.2s;
@@ -245,42 +261,68 @@
 
 /* Responsive design */
 @media (max-width: 768px) {
+  .assignment-details-page {
+    padding: 12px 0;
+  }
+
   .assignment-details-page .container {
     padding: 0 16px;
   }
 
-  .assignment-header {
-    padding: 20px;
-  }
-
-  .assignment-title-section h1 {
-    font-size: 1.5rem;
-  }
-
   .assignment-info-grid {
     grid-template-columns: 1fr;
+    gap: 12px;
   }
 
   .info-card {
-    padding: 16px;
+    padding: 14px;
+    gap: 10px;
+  }
+
+  .card-icon {
+    width: 36px;
+    height: 36px;
+    font-size: 1.25rem;
   }
 
   .description-section,
-  .instructions-section {
-    padding: 20px;
+  .instructions-section,
+  .submission-section {
+    padding: 16px;
+    margin-bottom: 16px;
+  }
+
+  .description-section h2,
+  .instructions-section h2,
+  .submission-section h2 {
+    font-size: 1.1rem;
+    margin-bottom: 10px;
   }
 
   .instructions-content {
     flex-direction: column;
-    gap: 12px;
+    gap: 10px;
   }
 
-  .action-buttons {
-    flex-direction: column;
-    align-items: stretch;
+  .instruction-icon {
+    font-size: 1.25rem;
   }
 
-  .action-buttons .btn {
-    width: 100%;
+  .instruction-text {
+    padding: 10px 12px;
+    font-size: 0.85rem;
+  }
+
+  .submission-form {
+    max-width: 100%;
+  }
+
+  .form-group label {
+    font-size: 0.85rem;
+  }
+
+  .form-input {
+    padding: 8px 10px;
+    font-size: 0.9rem;
   }
 }

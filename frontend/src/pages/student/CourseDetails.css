@@ -856,11 +856,21 @@
   background: linear-gradient(135deg, #059669, #047857);
 }
 
-.submit-pdf {
+.submit-pdf,
+.submit-ppt {
   background: linear-gradient(135deg, #f59e0b, #d97706);
 }
 
-.submit-pdf:hover {
+.submit-pdf:hover,
+.submit-ppt:hover {
+  background: linear-gradient(135deg, #d97706, #b45309);
+}
+
+.attempt-code {
+  background: linear-gradient(135deg, #f59e0b, #d97706);
+}
+
+.attempt-code:hover {
   background: linear-gradient(135deg, #d97706, #b45309);
 }
 

@@ -182,7 +182,7 @@ function SupportTicketList({ showAllTickets = false, courseOfferingId }: Support
                     backgroundColor: getStatusColor(ticket.status),
                     color: 'white'
                   }}>
-                    {ticket.status.replace('_', ' ')}
+                    {ticket.status?.replace('_', ' ') || 'Unknown'}
                   </span>
                   <span style={{
                     padding: '4px 8px',
@@ -205,7 +205,7 @@ function SupportTicketList({ showAllTickets = false, courseOfferingId }: Support
 
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <div style={{ fontSize: '14px', color: 'var(--muted)' }}>
-                  Category: {ticket.category.replace('_', ' ')}
+                  Category: {ticket.category?.replace('_', ' ') || 'Unknown'}
                   {ticket.assigned_to_name && <span> • Assigned to: {ticket.assigned_to_name}</span>}
                 </div>
 
@@ -287,7 +287,7 @@ function SupportTicketList({ showAllTickets = false, courseOfferingId }: Support
                 backgroundColor: getStatusColor(selectedTicket.status),
                 color: 'white'
               }}>
-                {selectedTicket.status.replace('_', ' ')}
+                {selectedTicket.status?.replace('_', ' ') || 'Unknown'}
               </span>
               <span style={{
                 padding: '4px 12px',
@@ -305,7 +305,7 @@ function SupportTicketList({ showAllTickets = false, courseOfferingId }: Support
                 backgroundColor: 'var(--muted)',
                 color: 'white'
               }}>
-                {selectedTicket.category.replace('_', ' ')}
+                {selectedTicket.category?.replace('_', ' ') || 'Unknown'}
               </span>
             </div>
 

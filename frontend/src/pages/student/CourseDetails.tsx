@@ -1011,7 +1011,6 @@ export default function CourseDetails() {
                     push({ kind: 'error', message: e?.message || 'Failed' })
                   }
                 }}
-                onStudentClickSubmitPDF={(id: string) => setSelectedAssignmentId(id)}
                 onAttemptQuiz={(quizId: any) => { location.assign(`/quizzes/${quizId}`) }}
                 onStartCodeAttempt={(assignment: any) => { void startCodeAttempt(assignment) }}
               />
