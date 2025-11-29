@@ -4,6 +4,7 @@ import bodyParser from 'body-parser';
 import swaggerUi from 'swagger-ui-express';
 import { createServer } from 'http';
 import { Server } from 'socket.io';
+import path from 'path';
 import authRoutes from './routes/auth.js';
 import courseRoutes from './routes/courses.js';
 import assignmentRoutes from './routes/assignments.js';
@@ -89,8 +90,16 @@ export async function startServer(port = 4000) {
   app.use('/api/rubrics', rubricsRoutes);
   app.use('/api/support', supportRoutes);
   app.use('/api/quiz-permissions', quizPermissionsRoutes);
-
+  
   app.get('/health', (req, res) => res.json({ ok: true }));
+  
+  // Serve static files from the React app build directory
+  app.use(express.static(path.join(process.cwd(), 'dist')));
+  
+  // Catch all handler: send back React's index.html file for any non-API routes
+  app.get('*', (req, res) => {
+    res.sendFile(path.join(process.cwd(), 'dist', 'index.html'));
+  });
 
   // Global error handler - catch any unhandled errors and return JSON
   app.use((err, req, res, next) => {

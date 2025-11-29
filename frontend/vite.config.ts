@@ -25,7 +25,7 @@ export default defineConfig({
           // Vendor chunks
           'vendor-react': ['react', 'react-dom', 'react-router-dom'],
           'vendor-ui': ['framer-motion'],
-          'vendor-utils': ['buffer', 'events', 'util', 'stream-browserify', 'simple-peer'],
+          'vendor-utils': ['buffer', 'events', 'util', 'stream-browserify', 'simple-peer', 'axios'],
           'vendor-editor': ['@monaco-editor/react'],
           'vendor-face-api': ['face-api.js'],
           'vendor-socket': ['socket.io-client'],
@@ -124,7 +124,7 @@ export default defineConfig({
         }
       }
     },
-    chunkSizeWarningLimit: 600 // Increase warning limit to 600kb
+    chunkSizeWarningLimit: 1000 // Increase warning limit to 1000kb
   },
   server: {
     proxy: {
