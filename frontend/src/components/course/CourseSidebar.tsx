@@ -20,9 +20,11 @@ interface CourseSidebarProps {
 
 interface CourseSidebarInnerProps extends CourseSidebarProps {
   isOpen: boolean
+  onSidebarLeave: () => void
+  onSidebarEnter: () => void
 }
 
-function CourseSidebarInner({ tabs, activeTab, onTabChange, userRole, isOpen }: CourseSidebarInnerProps) {
+function CourseSidebarInner({ tabs, activeTab, onTabChange, userRole, isOpen, onSidebarLeave, onSidebarEnter }: CourseSidebarInnerProps) {
   const [hoveredTab, setHoveredTab] = useState<string | null>(null)
 
   const handleKeyDown = (e: React.KeyboardEvent, tabId: string) => {
@@ -35,8 +37,11 @@ function CourseSidebarInner({ tabs, activeTab, onTabChange, userRole, isOpen }: 
   const visibleTabs = tabs.filter(tab => tab.visible !== false)
 
   return (
-    <aside 
+    <aside
       className={`course-sidebar ${isOpen ? 'open' : 'closed'}`}
+      onMouseEnter={onSidebarEnter}
+      onMouseLeave={onSidebarLeave}
+      onClick={() => { setIsOpen(false); if (props.onSidebarToggle) props.onSidebarToggle(false); }}
       role="navigation"
       aria-label="Course navigation"
     >
@@ -48,7 +53,7 @@ function CourseSidebarInner({ tabs, activeTab, onTabChange, userRole, isOpen }: 
               <button
                 role="menuitem"
                 className={`nav-item ${activeTab === tab.id ? 'active' : ''}`}
-                onClick={() => onTabChange(tab.id)}
+                onClick={(e) => { e.stopPropagation(); onTabChange(tab.id); }}
                 onKeyDown={(e) => handleKeyDown(e, tab.id)}
                 onMouseEnter={() => setHoveredTab(tab.id)}
                 onMouseLeave={() => setHoveredTab(null)}
@@ -97,9 +102,8 @@ export default function CourseSidebar(props: CourseSidebarProps) {
       {/* Hamburger Button - Positioned in top-left */}
       <button
         className="sidebar-hamburger"
-        onClick={handleToggle}
-        aria-label={isOpen ? 'Close sidebar' : 'Open sidebar'}
-        aria-expanded={isOpen}
+        onClick={() => { setIsOpen(!isOpen); if (props.onSidebarToggle) props.onSidebarToggle(!isOpen); }}
+        aria-label="Toggle sidebar"
       >
         <span className="hamburger-line"></span>
         <span className="hamburger-line"></span>
@@ -107,7 +111,7 @@ export default function CourseSidebar(props: CourseSidebarProps) {
       </button>
 
       {/* Sidebar Navigation */}
-      <CourseSidebarInner {...props} isOpen={isOpen} />
+      <CourseSidebarInner {...props} isOpen={isOpen} onSidebarLeave={() => { setIsOpen(false); if (props.onSidebarToggle) props.onSidebarToggle(false); }} onSidebarEnter={() => { setIsOpen(true); if (props.onSidebarToggle) props.onSidebarToggle(true); }} />
       
       {/* Overlay for mobile */}
       {isOpen && (

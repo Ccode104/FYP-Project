@@ -4,11 +4,12 @@ import { useLocation } from 'react-router-dom'
 import ThemeToggle from './ThemeToggle'
 import { useAuth, getDashboardPathForRole } from '../context/AuthContext'
 import { useNavigate } from 'react-router-dom'
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useCallback } from 'react'
 import { useCourse } from '../context/CourseContext'
 
 export default function Layout({ children }: { children: ReactNode }) {
   const [showUserDropdown, setShowUserDropdown] = useState(false)
+  const [headerVisible, setHeaderVisible] = useState(true)
   const dropdownRef = useRef<HTMLDivElement>(null)
   const { pathname } = useLocation()
   const { user, logout } = useAuth()
@@ -16,6 +17,7 @@ export default function Layout({ children }: { children: ReactNode }) {
   const { courseTitle, assignmentTitle } = useCourse()
   const isAuth = pathname === '/login' || pathname === '/signup' || pathname.startsWith('/forgot')
   const isLanding = pathname === '/'
+  const isLoginPage = pathname === '/login'
   const isLiveLecture = pathname.includes('/live-lectures/')
   const isPublicPage = isLanding || isAuth
   const isFullscreenPage = isLiveLecture
@@ -33,11 +35,28 @@ export default function Layout({ children }: { children: ReactNode }) {
     }
   }, [showUserDropdown])
 
+  // Hide header on scroll down
+  useEffect(() => {
+    let lastScrollY = window.scrollY
+    const handleScroll = () => {
+      const currentScrollY = window.scrollY
+      if (currentScrollY > lastScrollY && currentScrollY > 100) {
+        setHeaderVisible(false)
+      } else {
+        setHeaderVisible(true)
+      }
+      lastScrollY = currentScrollY
+    }
+
+    window.addEventListener('scroll', handleScroll, { passive: true })
+    return () => window.removeEventListener('scroll', handleScroll)
+  }, [])
+
   // For landing and auth pages, show common navbar
   if (isPublicPage) {
     return (
-      <div className="site-layout">
-        <header className="site-header public-header">
+      <div className={`site-layout ${isLoginPage ? 'login-background' : ''}`}>
+        <header className={`site-header public-header ${headerVisible ? '' : 'header-hidden'} ${isLoginPage ? 'login-transparent' : ''}`}>
           <div className="site-header__inner">
             <div className="site-header__left">
               <button 
@@ -78,7 +97,7 @@ export default function Layout({ children }: { children: ReactNode }) {
                       Sign Up
                     </button>
                   </nav>
-                  <ThemeToggle />
+                  {!isLoginPage && <ThemeToggle />}
                 </>
               ) : (
                 <>
@@ -86,7 +105,7 @@ export default function Layout({ children }: { children: ReactNode }) {
                     <span className="user-name">{user.name}</span>
                     <span className="user-role">{user.role.toUpperCase()}</span>
                   </div>
-                  <ThemeToggle />
+                  {!isLoginPage && <ThemeToggle />}
                   <button className="btn btn-ghost logout-btn" onClick={logout}>
                     Logout
                   </button>
@@ -100,7 +119,7 @@ export default function Layout({ children }: { children: ReactNode }) {
           {children}
         </main>
 
-        <footer className="site-footer">
+        <footer className={`site-footer ${isLoginPage ? 'login-transparent' : ''}`}>
           <p className="site-footer__text">
             © 2025 Unified Academic Portal — Created by Shoyam Rai, Manas Jungade, Abhishek Chandurkar, and Tanmay Sharnagat
           </p>
@@ -123,7 +142,7 @@ export default function Layout({ children }: { children: ReactNode }) {
   // For authenticated users on dashboard pages
   return (
     <div className="site-layout">
-      <header className="site-header">
+      <header className={`site-header ${headerVisible ? '' : 'header-hidden'}`}>
         <div className="site-header__inner">
           <div className="site-header__left">
             <button

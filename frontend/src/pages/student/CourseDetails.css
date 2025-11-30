@@ -167,7 +167,6 @@
   margin: 0;
   padding: 0;
   padding-top: 0;
-  margin-left: 280px;
   transition: margin-left 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
@@ -176,14 +175,19 @@
 }
 
 @media (max-width: 768px) {
-  .course-details-page,
-  .course-details-page.sidebar-closed {
+  .course-details-page {
     margin-left: 0;
   }
 }
 
 .course-details-page .container {
   padding: 24px;
+}
+
+.course-details-page.sidebar-closed .container {
+  max-width: none;
+  padding-right: 24px;
+  width: 100%;
 }
 
 /* Section Fade Transitions */
@@ -498,6 +502,25 @@
   color: var(--muted);
 }
 
+/* Prevent text overflow in assignment sections */
+.assignments-section .list li {
+  overflow: hidden;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+}
+
+.assignments-section .list li strong {
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+  hyphens: auto;
+}
+
+.assignments-section .list li .muted {
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+  hyphens: auto;
+}
+
 /* Loading spinner for code execution */
 .course-details-page .spinner {
   width: 16px;
@@ -595,7 +618,7 @@
   content: "";
   position: absolute;
   bottom: -2px;
-  left: 0;
+  left: 8px;
   width: 80px;
   height: 2px;
   background: linear-gradient(90deg, var(--primary), var(--secondary));
@@ -604,7 +627,7 @@
 
 .section-title {
   color: var(--text);
-  margin: 0;
+  margin: 0 0 0 8px;
   font-size: 24px;
   font-weight: 700;
   letter-spacing: -0.02em;
@@ -620,6 +643,16 @@
   padding: 6px 14px;
   border-radius: 20px;
   border: 1px solid var(--border);
+  margin-left: -8px;
+}
+
+/* Adjust text alignment when sidebar is closed */
+.course-details-page.sidebar-closed .section-title {
+  margin-left: 16px;
+}
+
+.course-details-page.sidebar-closed .assignment-count {
+  margin-left: 8px;
 }
 
 .empty-state {
@@ -664,6 +697,15 @@
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
   gap: 24px;
+}
+
+.course-details-page.sidebar-closed .assignments-section {
+  padding-left: 0;
+  padding-right: 0;
+}
+
+.course-details-page.sidebar-closed .assignments-grid {
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
 }
 
 .assignment-card {

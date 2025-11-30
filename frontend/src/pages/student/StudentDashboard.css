@@ -11,11 +11,9 @@
   gap: 24px;
   margin-bottom: 40px;
   padding: 32px;
-  background: linear-gradient(135deg, rgba(100, 116, 139, 0.05), rgba(148, 163, 184, 0.05));
+  background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-sm);
-  animation: slideInDown 0.6s ease-out;
 }
 
 @keyframes slideInDown {
@@ -142,6 +140,10 @@
   grid-template-columns: 1fr;
   gap: 32px;
   animation: fadeInUp 0.8s ease-out 0.6s both;
+}
+/* Calendar Section */
+.calendar-section {
+  animation: fadeInUp 0.8s ease-out 0.7s both;
 }
 
 /* Courses Section */

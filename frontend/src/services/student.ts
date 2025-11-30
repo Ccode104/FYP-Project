@@ -33,3 +33,16 @@ export async function submitRegradeRequest(data: {
 export async function enrollSelf(offeringId: number) {
   return apiFetch(`/api/student/enroll`, { method: 'POST', body: { offeringId } })
 }
+
+export async function getLiveLecturesForCourses(courseIds: number[]): Promise<any[]> {
+  const lectures = []
+  for (const courseId of courseIds) {
+    try {
+      const courseLectures = await apiFetch<any[]>(`/api/live-lectures/course/${courseId}`)
+      lectures.push(...courseLectures)
+    } catch (error) {
+      console.error(`Failed to fetch lectures for course ${courseId}:`, error)
+    }
+  }
+  return lectures
+}

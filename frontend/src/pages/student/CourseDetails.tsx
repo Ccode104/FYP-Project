@@ -108,13 +108,10 @@ export default function CourseDetails() {
   const [offeringDetails, setOfferingDetails] = useState<any>(null)
   const [sidebarOpen, setSidebarOpen] = useState(true)
 
-  // Auto-close sidebar when switching tabs on mobile/small screens
+  // Auto-close sidebar when switching tabs
   const handleTabChange = (tabId: string) => {
     setTab(tabId as any)
-    // Close sidebar on mobile when switching tabs
-    if (window.innerWidth < 768) {
-      setSidebarOpen(false)
-    }
+    setSidebarOpen(false)
   }
   const [readMessageIds, setReadMessageIds] = useState<Set<number>>(() => {
     try {
@@ -289,9 +286,9 @@ export default function CourseDetails() {
 
     const studentTabs: TabItem[] = [
       { id: 'present', label: 'Assignments', icon: '📋', tooltip: 'View assignments and results', badge: assignmentCount },
-      { id: 'quizzes', label: 'Quizzes', icon: '📝', tooltip: 'Available quizzes and results', badge: quizCount },
-      { id: 'notes', label: 'Notes', icon: '📖', tooltip: 'Course notes and materials' },
-      { id: 'pyq', label: 'Previous Papers', icon: '📄', tooltip: 'Previous year questions' },
+      { id: 'quizzes', label: 'Quizzes', icon: '❓', tooltip: 'Available quizzes and results', badge: quizCount },
+      { id: 'notes', label: 'Notes', icon: '📝', tooltip: 'Course notes and materials' },
+      { id: 'pyq', label: 'Previous Papers', icon: '📚', tooltip: 'Previous year questions' },
       { id: 'progress', label: 'Progress', icon: '📊', tooltip: 'Track your progress' },
       { id: 'videos', label: 'Videos', icon: '🎥', tooltip: 'Course video lectures' },
       { id: 'live-lectures', label: 'Live Lectures', icon: '📺', tooltip: 'Live video lectures' },
@@ -301,7 +298,7 @@ export default function CourseDetails() {
 
     const teacherTabs: TabItem[] = [
       { id: 'present', label: 'Assignments', icon: '📋', tooltip: 'View all assignments' },
-      { id: 'quizzes', label: 'Quizzes', icon: '📝', tooltip: 'Manage quizzes' },
+      { id: 'quizzes', label: 'Quizzes', icon: '❓', tooltip: 'Manage quizzes' },
       { id: 'manage', label: 'Create', icon: '➕', tooltip: 'Create new assignments' },
       { id: 'submissions', label: 'Submissions', icon: '📥', tooltip: 'View student submissions' },
       //{ id: 'progress', label: 'Progress', icon: '📊', tooltip: 'Student progress overview' },
@@ -314,7 +311,7 @@ export default function CourseDetails() {
 
     const taTabs: TabItem[] = [
       { id: 'present', label: 'Assignments', icon: '📋', tooltip: 'View assignments' },
-      { id: 'quizzes', label: 'Quizzes', icon: '📝', tooltip: 'View quizzes' },
+      { id: 'quizzes', label: 'Quizzes', icon: '❓', tooltip: 'View quizzes' },
       { id: 'grading', label: 'Grading', icon: '✏️', tooltip: 'Grade submissions' },
       { id: 'progress', label: 'Progress', icon: '📊', tooltip: 'Student progress' },
       { id: 'discussion', label: 'Discussion', icon: '💬', tooltip: 'Discussion forum', badge: discussionCount },
@@ -894,7 +891,7 @@ export default function CourseDetails() {
             <div className="tabs-container">
               {user?.role === 'student' ? (
                 <>
-                  <button className={`tab-button ${tab === 'present' ? 'active' : ''}`} onClick={() => setTab('present')} aria-pressed={tab === 'present'}>
+                  <button className={`tab-button ${tab === 'present' ? 'active' : ''}`} onClick={() => handleTabChange('present')} aria-pressed={tab === 'present'}>
                     <span className="tab-icon">📚</span>
                     Assignments
                   </button>

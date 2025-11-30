@@ -1,10 +1,11 @@
 import { useNavigate } from 'react-router-dom'
 import CourseCard from '../../components/CourseCard'
+import Calendar from '../../components/Calendar'
 import { useAuth } from '../../context/AuthContext'
 import { useEffect, useState } from 'react'
 import './StudentDashboard.css'
 import Modal from '../../components/Modal'
-import { enrollSelf } from '../../services/student'
+import { enrollSelf, getLiveLecturesForCourses } from '../../services/student'
 import { enrollStudent, unenrollStudent } from '../../services/courses'
 import { useToast } from '../../components/ToastProvider'
 import { apiFetch } from '../../services/api'
@@ -68,6 +69,7 @@ export default function StudentDashboard() {
   const [offerings, setOfferings] = useState<any[]>([])
   const [err, setErr] = useState<string | null>(null)
   const [courseCounts, setCourseCounts] = useState<Record<number, { pendingAssignments: number; pendingQuizzes: number; unreadNotifications: number }>>({})
+  const [lectures, setLectures] = useState<any[]>([])
 
   // Cache for course data to prevent unnecessary API calls
   const [lastFetchTime, setLastFetchTime] = useState<number>(0)
@@ -116,6 +118,25 @@ export default function StudentDashboard() {
 
         setCourseCounts(counts)
         setLastFetchTime(now)
+
+        // Fetch live lectures for all enrolled courses
+        const courseIds = response.courses.map((course: any) => course.id)
+        if (courseIds.length > 0) {
+          try {
+            const allLectures = await getLiveLecturesForCourses(courseIds)
+            // Add course title to each lecture
+            const lecturesWithTitles = allLectures.map((lecture: any) => ({
+              ...lecture,
+              course_title: response.courses.find((c: any) => c.id === lecture.course_offering_id)?.course_title
+            }))
+            setLectures(lecturesWithTitles)
+          } catch (error) {
+            console.error('Failed to fetch lectures:', error)
+            setLectures([])
+          }
+        } else {
+          setLectures([])
+        }
 
         console.log('Course card data loaded:', {
           totalCourses: response.courses.length,
@@ -198,6 +219,13 @@ export default function StudentDashboard() {
 
 
       <div className="dashboard-grid">
+        <div className="calendar-section">
+          <div className="section-header">
+            <h3 className="section-title h3">Schedule</h3>
+          </div>
+          <Calendar lectures={lectures} />
+        </div>
+
         <div className="courses-section">
           <div className="section-header">
             <h3 className="section-title h3">Your Courses</h3>

@@ -87,7 +87,7 @@ export default function Login() {
   return (
     <div className="auth-page" style={{ backgroundImage: `linear-gradient(rgba(0, 0, 0, 0.45), rgba(0, 0, 0, 0.45)), url(${backgroundImg})` }}>
       <div className="auth-card modal-style">
-        <header className="brand compact" role="banner">
+        <header className="brand compact no-brand-icon" role="banner">
           <div className="brand-icon" aria-hidden>
             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false">
               <rect x="3" y="7" width="18" height="12" rx="2.5" stroke="#4f46e5" strokeWidth="1.5"/>

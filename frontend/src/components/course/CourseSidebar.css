@@ -60,28 +60,40 @@
   left: 0;
   top: 76px;
   height: calc(100vh - 76px);
-  width: 280px;
+  width: 60px;
   background: var(--surface);
   border-right: 1px solid var(--border);
   display: flex;
   flex-direction: column;
   z-index: 99;
-  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   overflow: hidden;
 }
 
 .dark .course-sidebar {
   background: var(--bg-secondary);
   border-right-color: var(--border);
-  box-shadow: 2px 0 12px rgba(0, 0, 0, 0.3);
 }
 
-.course-sidebar.closed {
-  transform: translateX(-280px);
+.course-sidebar.closed .nav-label {
+  display: none;
+}
+
+.course-sidebar.closed .nav-badge {
+  display: none;
+}
+
+.course-sidebar.closed .nav-item {
+  justify-content: center;
+  padding: 12px;
+}
+
+.course-sidebar.closed .sidebar-footer {
+  display: none;
 }
 
 .course-sidebar.open {
-  transform: translateX(0);
+  width: 280px;
 }
 
 /* Navigation */
@@ -132,7 +144,6 @@
   font-size: 15px;
   font-weight: 500;
   cursor: pointer;
-  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
   width: 100%;
   text-align: left;
   white-space: nowrap;
@@ -141,100 +152,47 @@
 .nav-item:hover {
   background: var(--bg-secondary);
   color: var(--text);
-  transform: translateX(4px);
 }
 
 .dark .nav-item:hover {
   background: var(--surface-elevated);
 }
 
-/* Active State with Glow Effect */
 .nav-item.active {
-  background: linear-gradient(135deg, var(--primary) 0%, var(--primary-hover) 100%);
+  background: var(--primary);
   color: white;
-  box-shadow: 
-    0 4px 12px rgba(79, 70, 229, 0.3),
-    0 0 0 1px rgba(79, 70, 229, 0.1),
-    inset 0 1px 0 rgba(255, 255, 255, 0.1);
-  transform: translateX(0);
 }
 
-.dark .nav-item.active {
-  box-shadow: 
-    0 4px 16px rgba(99, 102, 241, 0.4),
-    0 0 0 1px rgba(99, 102, 241, 0.2),
-    inset 0 1px 0 rgba(255, 255, 255, 0.1);
-}
-
-.nav-item.active:hover {
-  transform: translateX(0);
-  box-shadow: 
-    0 6px 16px rgba(79, 70, 229, 0.4),
-    0 0 0 1px rgba(79, 70, 229, 0.2),
-    inset 0 1px 0 rgba(255, 255, 255, 0.15);
-}
-
-/* Icon */
 .nav-icon {
   font-size: 20px;
   min-width: 24px;
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: transform 0.2s ease;
 }
 
-.nav-item.active .nav-icon {
-  transform: scale(1.1);
-}
-
-/* Label */
 .nav-label {
   flex: 1;
   overflow: hidden;
   text-overflow: ellipsis;
-  animation: fadeIn 0.2s ease;
 }
 
-@keyframes fadeIn {
-  from {
-    opacity: 0;
-    transform: translateX(-4px);
-  }
-  to {
-    opacity: 1;
-    transform: translateX(0);
-  }
-}
 
-/* Badge */
 .nav-badge {
   min-width: 20px;
   height: 20px;
   padding: 0 6px;
   border-radius: 10px;
-  background: #ef4444;
-  color: white;
+  background: var(--text);
+  color: var(--bg);
   font-size: 11px;
   font-weight: 600;
   display: flex;
   align-items: center;
   justify-content: center;
-  animation: pulse 2s infinite;
 }
 
-.nav-item.active .nav-badge {
-  background: rgba(255, 255, 255, 0.3);
-}
 
-@keyframes pulse {
-  0%, 100% {
-    transform: scale(1);
-  }
-  50% {
-    transform: scale(1.05);
-  }
-}
 
 /* Sidebar Overlay for mobile */
 .sidebar-overlay {
@@ -307,12 +265,12 @@
 
 /* Smooth Content Transitions */
 .course-content {
-  margin-left: 280px;
-  transition: margin-left 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  padding-left: 280px;
+  transition: padding-left 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .course-content.sidebar-closed {
-  margin-left: 0;
+  padding-left: 60px;
 }
 
 @media (max-width: 768px) {
