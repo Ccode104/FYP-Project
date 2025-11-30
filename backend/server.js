@@ -43,7 +43,7 @@ export async function startServer(port = 4000) {
   // Initialize Socket.IO with CORS
   const io = new Server(server, {
     cors: {
-      origin: [process.env.FRONTEND_URL, "http://13.233.144.115:4000", "http://localhost:5173", "http://localhost:5174"],
+      origin: [process.env.FRONTEND_URL, "http://13.233.144.115:4000", "http://localhost:5173", "http://localhost:5174","http://localhost:8083"],
       methods: ["GET", "POST"],
       credentials: true
     }
@@ -52,7 +52,7 @@ export async function startServer(port = 4000) {
   // CORS configuration - allow all origins in development
   app.use(
     cors({
-      origin: [process.env.FRONTEND_URL, "http://13.233.144.115:4000", "http://localhost:5173", "http://localhost:5174"],
+      origin: [process.env.FRONTEND_URL, "http://13.233.144.115:4000", "http://localhost:5173", "http://localhost:5174","http://localhost:8083"],
       methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
       allowedHeaders: ["Content-Type", "Authorization"],
       credentials: true,

@@ -1,6 +1,9 @@
 import AsyncStorage from '@react-native-async-storage/async-storage'
+import { Platform } from 'react-native'
 
-export const API_URL = __DEV__ ? 'http://192.168.29.233:4000/api' : 'https://your-production-api.com/api'
+export const API_URL = __DEV__
+  ? (Platform.OS === 'web' ? 'http://localhost:4000/api' : 'http://192.168.29.233:4000/api')
+  : 'https://your-production-api.com/api'
 
 export type HttpMethod = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE'
 
