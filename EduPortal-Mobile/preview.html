@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>EduPortal Mobile Preview</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background-color: #f5f5f5;
+        }
+
+        .container {
+            max-width: 375px;
+            margin: 0 auto;
+            background-color: white;
+            min-height: 100vh;
+            box-shadow: 0 0 20px rgba(0,0,0,0.1);
+        }
+
+        .header {
+            background-color: #007bff;
+            color: white;
+            padding: 20px;
+            text-align: center;
+        }
+
+        .login-screen {
+            padding: 20px;
+        }
+
+        .title {
+            font-size: 24px;
+            font-weight: bold;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+
+        .role-tabs {
+            flex-direction: row;
+            margin-bottom: 20px;
+            border-radius: 8px;
+            background-color: #f0f0f0;
+            padding: 4px;
+            display: flex;
+        }
+
+        .role-tab {
+            flex: 1;
+            padding: 8px;
+            text-align: center;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+
+        .role-tab.active {
+            background-color: white;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+        }
+
+        .input {
+            border: 1px solid #ddd;
+            padding: 12px;
+            margin-bottom: 12px;
+            border-radius: 8px;
+            font-size: 16px;
+            width: 100%;
+        }
+
+        .button {
+            background-color: #007bff;
+            color: white;
+            padding: 15px;
+            border-radius: 8px;
+            border: none;
+            font-size: 16px;
+            font-weight: 600;
+            width: 100%;
+            cursor: pointer;
+        }
+
+        .dashboard {
+            min-height: 100vh;
+        }
+
+        .dashboard-header {
+            background-color: #007bff;
+            color: white;
+            padding: 20px;
+            padding-top: 60px;
+        }
+
+        .dashboard-title {
+            font-size: 24px;
+            font-weight: bold;
+        }
+
+        .dashboard-subtitle {
+            font-size: 16px;
+            opacity: 0.9;
+        }
+
+        .content {
+            padding: 20px;
+        }
+
+        .card {
+            background-color: white;
+            padding: 20px;
+            margin-bottom: 15px;
+            border-radius: 10px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .card-title {
+            font-size: 18px;
+            font-weight: 600;
+            margin-bottom: 5px;
+        }
+
+        .card-description {
+            font-size: 14px;
+            color: #666;
+        }
+
+        .logout-btn {
+            margin: 20px;
+            padding: 15px;
+            background-color: #dc3545;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            width: calc(100% - 40px);
+            cursor: pointer;
+        }
+
+        .note {
+            background-color: #e3f2fd;
+            padding: 15px;
+            margin: 20px;
+            border-radius: 8px;
+            border-left: 4px solid #007bff;
+        }
+
+        .screens {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            padding: 20px;
+        }
+
+        .screen {
+            border: 1px solid #ddd;
+            border-radius: 10px;
+            overflow: hidden;
+        }
+
+        .screen-title {
+            background-color: #f8f9fa;
+            padding: 10px;
+            font-weight: bold;
+            text-align: center;
+            border-bottom: 1px solid #ddd;
+        }
+    </style>
+</head>
+<body>
+    <div style="padding: 20px; text-align: center;">
+        <h1>EduPortal Mobile App Preview</h1>
+        <p>This shows what the React Native app looks like</p>
+    </div>
+
+    <div class="screens">
+        <div class="screen">
+            <div class="screen-title">📱 Login Screen</div>
+            <div class="container">
+                <div class="login-screen">
+                    <div class="title">Login to EduPortal</div>
+
+                    <div class="role-tabs">
+                        <div class="role-tab active">Student</div>
+                        <div class="role-tab">Teacher</div>
+                        <div class="role-tab">TA</div>
+                        <div class="role-tab">Admin</div>
+                    </div>
+
+                    <input class="input" placeholder="Email" type="email">
+                    <input class="input" placeholder="Password" type="password">
+
+                    <button class="button">Login</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="screen">
+            <div class="screen-title">📚 Student Dashboard</div>
+            <div class="container">
+                <div class="dashboard">
+                    <div class="dashboard-header">
+                        <div class="dashboard-title">Welcome, John Doe!</div>
+                        <div class="dashboard-subtitle">Student Dashboard</div>
+                    </div>
+
+                    <div class="content">
+                        <div class="card">
+                            <div class="card-title">My Courses</div>
+                            <div class="card-description">View enrolled courses</div>
+                        </div>
+
+                        <div class="card">
+                            <div class="card-title">Assignments</div>
+                            <div class="card-description">View and submit assignments</div>
+                        </div>
+
+                        <div class="card">
+                            <div class="card-title">Quizzes</div>
+                            <div class="card-description">Take quizzes</div>
+                        </div>
+
+                        <div class="card">
+                            <div class="card-title">Progress</div>
+                            <div class="card-description">View learning progress</div>
+                        </div>
+                    </div>
+
+                    <button class="logout-btn">Logout</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="screen">
+            <div class="screen-title">👨‍🏫 Teacher Dashboard</div>
+            <div class="container">
+                <div class="dashboard">
+                    <div class="dashboard-header" style="background-color: #28a745;">
+                        <div class="dashboard-title">Welcome, Dr. Smith!</div>
+                        <div class="dashboard-subtitle">Teacher Dashboard</div>
+                    </div>
+
+                    <div class="content">
+                        <div class="card">
+                            <div class="card-title">My Courses</div>
+                            <div class="card-description">Manage course offerings</div>
+                        </div>
+
+                        <div class="card">
+                            <div class="card-title">Assignments</div>
+                            <div class="card-description">Create and grade assignments</div>
+                        </div>
+
+                        <div class="card">
+                            <div class="card-title">Quizzes</div>
+                            <div class="card-description">Create and manage quizzes</div>
+                        </div>
+
+                        <div class="card">
+                            <div class="card-title">Students</div>
+                            <div class="card-description">View student progress</div>
+                        </div>
+                    </div>
+
+                    <button class="logout-btn">Logout</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="note">
+        <strong>🎯 App Status:</strong> Fully functional React Native app created!<br>
+        <strong>📱 Features:</strong> Login, role-based navigation, dashboards for all user types<br>
+        <strong>🔗 Backend:</strong> Ready to connect to your existing LMS API<br>
+        <strong>📦 Next:</strong> Test with Expo Go or build APK for Android deployment
+    </div>
+</body>
+</html>

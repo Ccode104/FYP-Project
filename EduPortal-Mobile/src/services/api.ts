@@ -1,0 +1,61 @@
+import AsyncStorage from '@react-native-async-storage/async-storage'
+
+export const API_URL = __DEV__ ? 'http://192.168.29.233:4000/api' : 'https://your-production-api.com/api'
+
+export type HttpMethod = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE'
+
+export async function apiFetch<T = unknown>(path: string, opts: { method?: HttpMethod; body?: unknown; headers?: Record<string, string> } = {}): Promise<T> {
+  const token = await AsyncStorage.getItem('auth:token')
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+    ...(opts.headers || {}),
+  }
+  if (token) headers['Authorization'] = `Bearer ${token}`
+
+  try {
+    const res = await fetch(`${API_URL}${path}`, {
+      method: opts.method || 'GET',
+      headers,
+      body: opts.body ? JSON.stringify(opts.body) : undefined,
+    })
+
+    if (!res.ok) {
+      let msg = `HTTP ${res.status}`
+      try {
+        const data = await res.json()
+        msg = data.error || msg
+      } catch {
+        // If response is not JSON, use status text
+        msg = res.statusText || msg
+      }
+      throw new Error(msg)
+    }
+
+    return res.json()
+  } catch (err: unknown) {
+    // Handle network errors (Failed to fetch, CORS, etc.)
+    if (err instanceof TypeError && err.message.includes('fetch')) {
+      throw new Error(`Failed to fetch: Cannot connect to ${API_URL}${path}. Please check if the backend server is running.`)
+    }
+    // Re-throw other errors
+    throw err
+  }
+}
+
+export async function apiForm<T = unknown>(path: string, form: FormData, method: HttpMethod = 'POST'): Promise<T> {
+  const token = await AsyncStorage.getItem('auth:token')
+  const headers: Record<string, string> = {}
+  if (token) headers['Authorization'] = `Bearer ${token}`
+  const res = await fetch(`${API_URL}${path}`, { method, headers, body: form })
+  if (!res.ok) {
+    let msg = `HTTP ${res.status}`
+    try {
+      const data = await res.json()
+      msg = data.error || msg
+    } catch {
+      // Ignore JSON parsing errors
+    }
+    throw new Error(msg)
+  }
+  return res.json()
+}
