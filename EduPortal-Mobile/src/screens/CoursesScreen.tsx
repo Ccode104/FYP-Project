@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react'
 import { View, Text, StyleSheet, FlatList, TouchableOpacity, Alert } from 'react-native'
 import { listCourses, enrollStudent } from '../services/courses'
 import { useAuth } from '../contexts/AuthContext'
+import { useTheme } from '../contexts/ThemeContext'
+import CourseCard from '../components/CourseCard'
 
 interface Course {
   id: number
@@ -12,6 +14,7 @@ interface Course {
 
 export default function CoursesScreen() {
   const { user } = useAuth()
+  const { theme } = useTheme()
   const [courses, setCourses] = useState<Course[]>([])
   const [loading, setLoading] = useState(true)
 
@@ -44,33 +47,22 @@ export default function CoursesScreen() {
   }
 
   const renderCourse = ({ item }: { item: Course }) => (
-    <View style={styles.courseCard}>
-      <View style={styles.courseInfo}>
-        <Text style={styles.courseCode}>{item.code}</Text>
-        <Text style={styles.courseTitle}>{item.title}</Text>
-        {item.description && (
-          <Text style={styles.courseDescription}>{item.description}</Text>
-        )}
-      </View>
-      <TouchableOpacity
-        style={styles.enrollButton}
-        onPress={() => handleEnroll(item.id)}
-      >
-        <Text style={styles.enrollText}>Enroll</Text>
-      </TouchableOpacity>
-    </View>
+    <CourseCard
+      course={item}
+      onPress={() => handleEnroll(item.id)}
+    />
   )
 
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>Available Courses</Text>
+    <View style={[styles.container, { backgroundColor: theme.bg }]}>
+      <Text style={[styles.title, { color: theme.text }]}>Available Courses</Text>
 
       {loading ? (
-        <Text style={styles.loading}>Loading courses...</Text>
+        <Text style={[styles.loading, { color: theme['text-secondary'] }]}>Loading courses...</Text>
       ) : courses.length === 0 ? (
         <View style={styles.emptyState}>
           <Text style={styles.emptyIcon}>📚</Text>
-          <Text style={styles.emptyTitle}>No courses available</Text>
+          <Text style={[styles.emptyTitle, { color: theme.text }]}>No courses available</Text>
         </View>
       ) : (
         <FlatList
@@ -87,19 +79,16 @@ export default function CoursesScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f5f5f5',
   },
   title: {
     fontSize: 24,
     fontWeight: 'bold',
     textAlign: 'center',
     margin: 20,
-    color: '#333',
   },
   loading: {
     textAlign: 'center',
     marginTop: 20,
-    color: '#666',
   },
   emptyState: {
     alignItems: 'center',
@@ -113,51 +102,8 @@ const styles = StyleSheet.create({
   emptyTitle: {
     fontSize: 18,
     fontWeight: 'bold',
-    color: '#333',
   },
   list: {
     flex: 1,
-  },
-  courseCard: {
-    backgroundColor: 'white',
-    margin: 10,
-    padding: 15,
-    borderRadius: 10,
-    flexDirection: 'row',
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  courseInfo: {
-    flex: 1,
-  },
-  courseCode: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: '#007bff',
-    marginBottom: 5,
-  },
-  courseTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    marginBottom: 5,
-    color: '#333',
-  },
-  courseDescription: {
-    fontSize: 14,
-    color: '#666',
-  },
-  enrollButton: {
-    backgroundColor: '#28a745',
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-    borderRadius: 8,
-  },
-  enrollText: {
-    color: 'white',
-    fontWeight: '600',
   },
 })

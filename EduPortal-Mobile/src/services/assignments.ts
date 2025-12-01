@@ -71,3 +71,45 @@ export async function gradeSubmission(submissionId: string, grade: number, feedb
     body: { grade, feedback }
   })
 }
+
+export async function getStudentAssignments() {
+  try {
+    // First get all enrolled courses
+    const coursesResponse = await apiFetch('/student/courses')
+    const courses = coursesResponse as Array<{ id: number }>
+
+    // Then get assignments for each course (using same endpoint as website)
+    const assignmentsPromises = courses.map(course =>
+      apiFetch(`/courses/${course.id}/assignments`)
+    )
+
+    const assignmentsArrays = await Promise.all(assignmentsPromises)
+    const allAssignments = assignmentsArrays.flat()
+
+    // Get submissions to mark which assignments are submitted (using same endpoint as website)
+    const submissionsPromises = courses.map(course =>
+      apiFetch(`/student/courses/${course.id}/submissions`)
+    )
+
+    const submissionsArrays = await Promise.all(submissionsPromises)
+    const allSubmissions = submissionsArrays.flat()
+
+    // Create a set of submitted assignment IDs
+    const submittedAssignmentIds = new Set(
+      allSubmissions.map((s: any) => s.assignment_id)
+    )
+
+    // Mark assignments as submitted
+    return allAssignments.map((assignment: any) => ({
+      ...assignment,
+      isSubmitted: submittedAssignmentIds.has(assignment.id)
+    }))
+  } catch (error: any) {
+    // If authentication error, return empty array instead of throwing
+    if (error.message?.includes('Missing token') || error.message?.includes('Unauthorized')) {
+      return []
+    }
+    // Re-throw other errors
+    throw error
+  }
+}

@@ -2,14 +2,26 @@ import React, { useState, useEffect } from 'react'
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, FlatList } from 'react-native'
 import { useNavigation } from '@react-navigation/native'
 import { useAuth } from '../contexts/AuthContext'
+import { useTheme } from '../contexts/ThemeContext'
 import { getTADashboardData } from '../services/ta'
+import SidebarNav from '../components/SidebarNav'
 
 export default function TADashboard() {
   const { user, logout } = useAuth()
+  const { theme } = useTheme()
   const navigation = useNavigation()
 
   const [dashboardData, setDashboardData] = useState<any>(null)
   const [loading, setLoading] = useState(true)
+  const [sidebarOpen, setSidebarOpen] = useState(false)
+  const [activeTab, setActiveTab] = useState('dashboard')
+
+  const sidebarTabs = [
+    { id: 'dashboard', label: 'Dashboard', icon: '🏠' },
+    { id: 'courses', label: 'Courses', icon: '📚' },
+    { id: 'assignments', label: 'Assignments', icon: '📝' },
+    { id: 'quizzes', label: 'Quizzes', icon: '📋' },
+  ]
 
   useEffect(() => {
     loadDashboardData()
@@ -74,21 +86,26 @@ export default function TADashboard() {
   )
 
   return (
-    <View style={styles.mainContainer}>
-      <ScrollView style={styles.scrollContainer} contentContainerStyle={styles.container}>
-      <View style={styles.header}>
-        <Text style={styles.title}>Welcome back, {user?.name}!</Text>
-        <Text style={styles.subtitle}>Manage your TA duties and grade student work</Text>
+    <View style={[styles.mainContainer, { backgroundColor: theme.bg }]}>
+      <SidebarNav
+        tabs={sidebarTabs}
+        activeTab={activeTab}
+        onTabChange={(tabId) => setActiveTab(tabId)}
+        isOpen={sidebarOpen}
+        onToggle={() => setSidebarOpen(!sidebarOpen)}
+      />
 
+      <ScrollView style={styles.scrollContainer} contentContainerStyle={styles.container}>
+      <View style={[styles.header, { backgroundColor: theme.primary }]}>
         <View style={styles.actionButtons}>
-          <TouchableOpacity style={styles.actionButton}>
-            <Text style={styles.actionText}>👤 Profile</Text>
+          <TouchableOpacity style={[styles.actionButton, { backgroundColor: 'rgba(255, 255, 255, 0.2)' }]}>
+            <Text style={[styles.actionText, { color: theme.bg }]}>👤 Profile</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.actionButton}>
-            <Text style={styles.actionText}>🤖 AI Assistant</Text>
+          <TouchableOpacity style={[styles.actionButton, { backgroundColor: 'rgba(255, 255, 255, 0.2)' }]}>
+            <Text style={[styles.actionText, { color: theme.bg }]}>🤖 AI Assistant</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.actionButton}>
-            <Text style={styles.actionText}>📊 Proctoring Analytics</Text>
+          <TouchableOpacity style={[styles.actionButton, { backgroundColor: 'rgba(255, 255, 255, 0.2)' }]}>
+            <Text style={[styles.actionText, { color: theme.bg }]}>📊 Proctoring Analytics</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -211,12 +228,12 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   container: {
-    paddingBottom: 20,
+    paddingBottom: 40,
   },
   header: {
-    backgroundColor: '#ffc107',
-    padding: 20,
+    padding: 16,
     paddingTop: 60,
+    paddingBottom: 16,
   },
   title: {
     fontSize: 24,

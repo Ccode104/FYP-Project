@@ -27,6 +27,9 @@ import Chatbot from '../screens/Chatbot'
 import Leaderboard from '../screens/Leaderboard'
 import Profile from '../screens/Profile'
 import CourseDetails from '../screens/CourseDetails'
+import AssignmentDetails from '../screens/AssignmentDetails'
+import AssignmentSubmissionScreen from '../screens/AssignmentSubmissionScreen'
+import QuizTakeScreen from '../screens/QuizTakeScreen'
 
 const Stack = createStackNavigator<RootStackParamList>()
 
@@ -63,6 +66,9 @@ export default function AppNavigator() {
                 <Stack.Screen name="Leaderboard" component={Leaderboard} />
                 <Stack.Screen name="Profile" component={Profile} />
                 <Stack.Screen name="CourseDetails" component={CourseDetails} />
+                <Stack.Screen name="AssignmentDetails" component={AssignmentDetails} />
+                <Stack.Screen name="AssignmentSubmission" component={AssignmentSubmissionScreen} />
+                <Stack.Screen name="QuizTake" component={QuizTakeScreen} />
               </>
             )}
             {user.role === 'teacher' && (

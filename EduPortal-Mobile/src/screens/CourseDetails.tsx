@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react'
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, FlatList, Alert, TextInput } from 'react-native'
-import { RouteProp, useRoute } from '@react-navigation/native'
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, FlatList, Alert, TextInput, Modal } from 'react-native'
+import { RouteProp, useRoute, useNavigation } from '@react-navigation/native'
+import { StackNavigationProp } from '@react-navigation/stack'
 import { RootStackParamList } from '../types/navigation'
 import { listDiscussionMessages, DiscussionMessage } from '../services/discussion'
 import { getVideosByCourseOffering } from '../services/videos'
@@ -11,6 +12,10 @@ import { useAuth } from '../contexts/AuthContext'
 import { getMyProgress } from '../services/progress'
 import { createAssignment, getAssignmentSubmissions, gradeSubmission } from '../services/assignments'
 import { getTAAssignments, getGradingSubmissions, submitGrading } from '../services/ta'
+import SidebarNav from '../components/SidebarNav'
+import QuizCard from '../components/QuizCard'
+import AssignmentCard from '../components/AssignmentCard'
+import MobileCodeEditor from '../components/MobileCodeEditor'
 
 interface Assignment {
   id: number
@@ -35,87 +40,228 @@ interface Video {
   url: string
 }
 
-const AssignmentsTab = ({ offeringId }: { offeringId: string }) => {
-  const [assignments, setAssignments] = useState<Assignment[]>([])
+const AssignmentsTab = ({ offeringId, navigation }: { offeringId: string; navigation: any }) => {
+  const { user } = useAuth()
+  const [assignments, setAssignments] = useState<any[]>([])
+  const [mySubmissions, setMySubmissions] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
+  const [codeEditorVisible, setCodeEditorVisible] = useState(false)
+  const [selectedCodeAssignment, setSelectedCodeAssignment] = useState<any>(null)
 
   useEffect(() => {
     loadAssignments()
-  }, [offeringId])
+  }, [offeringId, user])
 
   const loadAssignments = async () => {
     try {
       setLoading(true)
-      const data = await getAssignmentsForOffering(offeringId)
-      setAssignments(data as Assignment[])
-    } catch (error) {
+
+      const assignmentsData = await getAssignmentsForOffering(offeringId)
+
+      const safeAssignments = Array.isArray(assignmentsData) ? assignmentsData : []
+      setAssignments(safeAssignments)
+
+      // Load student's submissions if user is student and authenticated
+      if (user?.role === 'student' && user?.id && user?.email) {
+        try {
+          const submissions = await apiFetch<any[]>(`/student/courses/${offeringId}/submissions`)
+          setMySubmissions(submissions || [])
+        } catch (submissionsError: any) {
+          console.error('Failed to load submissions:', submissionsError?.message || submissionsError)
+          // Don't show alert for submissions loading failure, just log it
+          setMySubmissions([])
+        }
+      } else {
+        setMySubmissions([])
+      }
+    } catch (error: any) {
+      console.error('❌ [ERROR] Failed to load assignments:', error)
+      console.error('❌ [ERROR] Assignment loading error details:', {
+        message: error?.message,
+        stack: error?.stack,
+        name: error?.name,
+        status: error?.status
+      })
       Alert.alert('Error', 'Failed to load assignments')
+      setAssignments([])
     } finally {
       setLoading(false)
     }
   }
 
-  const renderAssignment = ({ item }: { item: Assignment }) => (
-    <View style={styles.itemContainer}>
-      <Text style={styles.itemTitle}>{item.title}</Text>
-      <Text style={styles.itemDescription}>{item.description}</Text>
-      <Text style={styles.itemMeta}>Due: {new Date(item.due_at).toLocaleString()}</Text>
-      <Text style={styles.itemMeta}>Points: {item.total_points}</Text>
-    </View>
-  )
+  // Process assignments with submission status
+  const processedAssignments = assignments
+    .filter((assignment: any) => assignment && typeof assignment === 'object') // Filter out null/undefined/invalid objects
+    .map((assignment: any) => {
+      const submission = mySubmissions.find((s: any) => s?.assignment_id === assignment.id)
+      return {
+        ...assignment,
+        isSubmitted: !!submission,
+        // Ensure assignment_type exists with fallback
+        assignment_type: assignment.assignment_type || 'file'
+      }
+    })
+    .filter(Boolean) // Remove any remaining invalid assignments
 
   if (loading) return <Text style={styles.tabContent}>Loading assignments...</Text>
-  if (assignments.length === 0) return <Text style={styles.tabContent}>No assignments available</Text>
+  if (!Array.isArray(processedAssignments) || processedAssignments.length === 0) return <Text style={styles.tabContent}>No assignments available</Text>
+
+  const handleAssignmentAction = (assignment: any) => {
+    if (assignment?.is_quiz) {
+      // Navigate to quiz
+      Alert.alert('Start Quiz', `Quiz ${assignment?.quiz_id} would start here`)
+    } else if (assignment?.assignment_type === 'code') {
+      // Open code editor
+      setSelectedCodeAssignment(assignment)
+      setCodeEditorVisible(true)
+    } else if (assignment?.assignment_type === 'pdf' || assignment?.assignment_type === 'ppt' || assignment?.assignment_type === 'mixed') {
+      // Navigate to submission screen
+      navigation.navigate('AssignmentSubmission', { assignment })
+    }
+  }
+
+
+  const handleCodeEditorClose = () => {
+    setCodeEditorVisible(false)
+    setSelectedCodeAssignment(null)
+  }
+
+  const handleCodeSubmissionSuccess = () => {
+    // Reload assignments to update submission status
+    loadAssignments()
+    handleCodeEditorClose()
+  }
 
   return (
-    <FlatList
-      data={assignments}
-      renderItem={renderAssignment}
-      keyExtractor={(item) => item.id.toString()}
-      style={styles.list}
-    />
+    <>
+      <ScrollView style={styles.list} contentContainerStyle={{ paddingBottom: 20 }}>
+        {processedAssignments.map((assignment: any) => {
+          if (!assignment || typeof assignment !== 'object') return null;
+          return (
+            <AssignmentCard
+              key={assignment.id || Math.random()}
+              assignment={assignment}
+              userRole={user?.role}
+              onPress={() => {
+                // Handle different assignment types for press action
+                if (user?.role === 'student' && (assignment?.assignment_type === 'pdf' || assignment?.assignment_type === 'ppt' || assignment?.assignment_type === 'mixed')) {
+                  navigation.navigate('AssignmentSubmission', { assignment })
+                }
+              }}
+              onAction={() => handleAssignmentAction(assignment)}
+              onViewDetails={() => {
+                // Navigate to detailed assignment view
+                navigation.navigate('AssignmentDetails', { assignmentId: assignment?.id?.toString() || '' })
+              }}
+              actionLabel={
+                assignment?.is_quiz ? 'Start Quiz' :
+                assignment?.assignment_type === 'code' ? (assignment?.isSubmitted ? 'View Submission' : 'Code Editor') :
+                assignment?.assignment_type === 'pdf' ? 'Submit PDF' :
+                assignment?.assignment_type === 'ppt' ? 'Submit PPT' :
+                assignment?.assignment_type === 'mixed' ? 'Submit Repository' : 'View Details'
+              }
+            />
+          );
+        })}
+      </ScrollView>
+
+
+      {/* Code Editor Modal */}
+      <Modal
+        visible={codeEditorVisible}
+        animationType="slide"
+        onRequestClose={handleCodeEditorClose}
+      >
+        {selectedCodeAssignment && (
+          <MobileCodeEditor
+            assignmentId={selectedCodeAssignment.id}
+            assignmentTitle={selectedCodeAssignment.title}
+            onClose={handleCodeEditorClose}
+            onSuccess={handleCodeSubmissionSuccess}
+          />
+        )}
+      </Modal>
+    </>
   )
 }
 
 const QuizzesTab = ({ offeringId }: { offeringId: string }) => {
-  const [quizzes, setQuizzes] = useState<Quiz[]>([])
+  const { user } = useAuth()
+  const [quizzes, setQuizzes] = useState<any[]>([])
+  const [myQuizAttempts, setMyQuizAttempts] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     loadQuizzes()
-  }, [offeringId])
+  }, [offeringId, user])
 
   const loadQuizzes = async () => {
     try {
       setLoading(true)
-      const data = await getQuizzesForOffering(offeringId)
-      setQuizzes(data as Quiz[])
+      const quizzesData = await getQuizzesForOffering(offeringId)
+      setQuizzes(Array.isArray(quizzesData) ? quizzesData : [])
+
+      // Load student's quiz attempts if user is student
+      if (user?.role === 'student' && user?.id) {
+        try {
+          const attempts = await apiFetch<any[]>(`/api/students/${user.id}/quiz-attempts`)
+          setMyQuizAttempts(attempts || [])
+        } catch (attemptsError) {
+          console.error('Failed to load quiz attempts:', attemptsError)
+          setMyQuizAttempts([])
+        }
+      }
     } catch (error) {
       Alert.alert('Error', 'Failed to load quizzes')
+      setQuizzes([])
     } finally {
       setLoading(false)
     }
   }
 
-  const renderQuiz = ({ item }: { item: Quiz }) => (
-    <View style={styles.itemContainer}>
-      <Text style={styles.itemTitle}>{item.title}</Text>
-      <Text style={styles.itemMeta}>Start: {new Date(item.start_at).toLocaleString()}</Text>
-      <Text style={styles.itemMeta}>End: {new Date(item.end_at).toLocaleString()}</Text>
-      <Text style={styles.itemMeta}>Max Score: {item.max_score}</Text>
-    </View>
-  )
+  // Process quizzes with attempt status
+  const processedQuizzes = quizzes.map((quiz: any) => {
+    const quizAttempts = myQuizAttempts.filter((a: any) => a.quiz_id === quiz.id)
+    const hasViolatedAttempt = quizAttempts.some((a: any) => a.violated)
+    return {
+      id: quiz.id,
+      title: quiz.title,
+      due_at: quiz.end_at || quiz.due_at,
+      release_at: quiz.start_at,
+      is_quiz: true,
+      quiz_id: quiz.id,
+      is_proctored: quiz.is_proctored,
+      time_limit: quiz.time_limit,
+      isSubmitted: quizAttempts.length > 0,
+      isViolated: hasViolatedAttempt
+    }
+  })
 
   if (loading) return <Text style={styles.tabContent}>Loading quizzes...</Text>
-  if (quizzes.length === 0) return <Text style={styles.tabContent}>No quizzes available</Text>
+  if (processedQuizzes.length === 0) return <Text style={styles.tabContent}>No quizzes available</Text>
 
   return (
-    <FlatList
-      data={quizzes}
-      renderItem={renderQuiz}
-      keyExtractor={(item) => item.id.toString()}
-      style={styles.list}
-    />
+    <ScrollView style={styles.list} contentContainerStyle={{ paddingBottom: 20 }}>
+      {processedQuizzes.map((quiz: any) => (
+        <QuizCard
+          key={quiz.id}
+          quiz={quiz}
+          userRole={user?.role}
+          onStartQuiz={() => {
+            // Navigate to quiz (placeholder for now)
+            Alert.alert('Start Quiz', `Quiz ${quiz.quiz_id} would start here`)
+          }}
+          onViewResults={() => {
+            // Find the attempt and show results
+            const attempt = myQuizAttempts.find((a: any) => a.quiz_id === quiz.quiz_id)
+            if (attempt) {
+              // This would need to be handled by parent component
+              Alert.alert('View Results', 'Results modal would open here')
+            }
+          }}
+        />
+      ))}
+    </ScrollView>
   )
 }
 
@@ -344,9 +490,9 @@ const ProgressTab = ({ offeringId }: { offeringId: string }) => {
 }
 
 const ChatbotTab = ({ offeringId }: { offeringId: string }) => {
-  // Import and use the full Chatbot component with course context
-  const ChatbotComponent = require('../screens/Chatbot').default
-  return <ChatbotComponent courseId={offeringId} />
+  // Use mobile-optimized chatbot with security guardrails
+  const MobileChatbot = require('../components/MobileChatbot').default
+  return <MobileChatbot courseId={offeringId} />
 }
 
 const LiveLecturesTab = ({ offeringId }: { offeringId: string }) => {
@@ -722,17 +868,29 @@ interface OfferingDetails {
 
 export default function CourseDetails() {
   const route = useRoute<CourseDetailsRouteProp>()
+  const navigation = useNavigation<StackNavigationProp<RootStackParamList>>()
   const { offeringId } = route.params
   const { user } = useAuth()
   const [activeTab, setActiveTab] = useState('present')
   const [offeringDetails, setOfferingDetails] = useState<OfferingDetails | null>(null)
   const [loading, setLoading] = useState(true)
+  const [sidebarOpen, setSidebarOpen] = useState(false)
 
   useEffect(() => {
     if (offeringId) {
       loadOfferingDetails()
     }
   }, [offeringId])
+
+  useEffect(() => {
+    // Set the navigation title when offering details are loaded
+    if (offeringDetails) {
+      const title = `${offeringDetails.course_code || ''} - ${offeringDetails.title || `Offering #${offeringId}`}`
+      navigation.setOptions({
+        title: title,
+      })
+    }
+  }, [offeringDetails, offeringId, navigation])
 
   const loadOfferingDetails = async () => {
     try {
@@ -747,74 +905,126 @@ export default function CourseDetails() {
     }
   }
 
-  // Role-based tabs configuration matching web LMS exactly
-  const getTabs = () => {
+  // Role-based sidebar tabs configuration
+  const getSidebarTabs = () => {
     if (user?.role === 'teacher') {
       return [
-        { key: 'present', label: 'Assignments', component: AssignmentsTab },
-        { key: 'quizzes', label: 'Quizzes', component: QuizzesTab },
-        { key: 'manage', label: 'Create', component: ManageTab },
-        { key: 'submissions', label: 'Submissions', component: SubmissionsTab },
-        { key: 'videos', label: 'Videos', component: VideosTab },
-        { key: 'live-lectures', label: 'Live Lectures', component: LiveLecturesTab },
-        { key: 'notes', label: 'Notes', component: NotesTab },
-        { key: 'pyq', label: 'Previous Papers', component: PyqTab },
-        { key: 'discussion', label: 'Discussion', component: DiscussionsTab },
+        { id: 'present', label: 'Assignments', icon: '📝' },
+        { id: 'quizzes', label: 'Quizzes', icon: '📋' },
+        { id: 'manage', label: 'Create', icon: '➕' },
+        { id: 'submissions', label: 'Submissions', icon: '📥' },
+        { id: 'videos', label: 'Videos', icon: '🎥' },
+        { id: 'live-lectures', label: 'Live Lectures', icon: '📹' },
+        { id: 'notes', label: 'Notes', icon: '📄' },
+        { id: 'pyq', label: 'Previous Papers', icon: '📚' },
+        { id: 'discussion', label: 'Discussion', icon: '💬' },
       ]
     } else if (user?.role === 'ta') {
       return [
-        { key: 'present', label: 'Assignments', component: AssignmentsTab },
-        { key: 'quizzes', label: 'Quizzes', component: QuizzesTab },
-        { key: 'grading', label: 'Grading', component: GradingTab },
-        { key: 'progress', label: 'Progress', component: ProgressTab },
-        { key: 'discussion', label: 'Discussion', component: DiscussionsTab },
+        { id: 'present', label: 'Assignments', icon: '📝' },
+        { id: 'quizzes', label: 'Quizzes', icon: '📋' },
+        { id: 'grading', label: 'Grading', icon: '📊' },
+        { id: 'progress', label: 'Progress', icon: '📈' },
+        { id: 'discussion', label: 'Discussion', icon: '💬' },
       ]
     } else {
       // Student
       return [
-        { key: 'present', label: 'Assignments', component: AssignmentsTab },
-        { key: 'quizzes', label: 'Quizzes', component: QuizzesTab },
-        { key: 'notes', label: 'Notes', component: NotesTab },
-        { key: 'pyq', label: 'Previous Papers', component: PyqTab },
-        { key: 'progress', label: 'Progress', component: ProgressTab },
-        { key: 'videos', label: 'Videos', component: VideosTab },
-        { key: 'live-lectures', label: 'Live Lectures', component: LiveLecturesTab },
-        { key: 'discussion', label: 'Discussion', component: DiscussionsTab },
-        { key: 'chatbot', label: 'AI Assistant', component: ChatbotTab },
+        { id: 'present', label: 'Assignments', icon: '📝' },
+        { id: 'quizzes', label: 'Quizzes', icon: '📋' },
+        { id: 'notes', label: 'Notes', icon: '📄' },
+        { id: 'pyq', label: 'Previous Papers', icon: '📚' },
+        { id: 'progress', label: 'Progress', icon: '📈' },
+        { id: 'videos', label: 'Videos', icon: '🎥' },
+        { id: 'live-lectures', label: 'Live Lectures', icon: '📹' },
+        { id: 'discussion', label: 'Discussion', icon: '💬' },
+        { id: 'chatbot', label: 'AI Assistant', icon: '🤖' },
       ]
     }
   }
 
-  const tabs = getTabs()
+  // Role-based component mapping
+  const getTabComponents = () => {
+    if (user?.role === 'teacher') {
+      return {
+        present: (props: any) => <AssignmentsTab {...props} navigation={navigation} />,
+        quizzes: QuizzesTab,
+        manage: ManageTab,
+        submissions: SubmissionsTab,
+        videos: VideosTab,
+        'live-lectures': LiveLecturesTab,
+        notes: NotesTab,
+        pyq: PyqTab,
+        discussion: DiscussionsTab,
+      }
+    } else if (user?.role === 'ta') {
+      return {
+        present: (props: any) => <AssignmentsTab {...props} navigation={navigation} />,
+        quizzes: QuizzesTab,
+        grading: GradingTab,
+        progress: ProgressTab,
+        discussion: DiscussionsTab,
+      }
+    } else {
+      // Student
+      return {
+        present: (props: any) => <AssignmentsTab {...props} navigation={navigation} />,
+        quizzes: QuizzesTab,
+        notes: NotesTab,
+        pyq: PyqTab,
+        progress: ProgressTab,
+        videos: VideosTab,
+        'live-lectures': LiveLecturesTab,
+        discussion: DiscussionsTab,
+        chatbot: ChatbotTab,
+      }
+    }
+  }
 
-  const ActiveComponent = tabs.find(tab => tab.key === activeTab)?.component || AssignmentsTab
+  const sidebarTabs = getSidebarTabs()
+  const tabComponents = getTabComponents()
+
+  const ActiveComponent = tabComponents[activeTab as keyof typeof tabComponents] || AssignmentsTab
 
   const courseTitle = offeringDetails
     ? `${offeringDetails.course_code || ''} - ${offeringDetails.title || `Offering #${offeringId}`}`
     : `Course Offering ${offeringId}`
 
+  const handleTabChange = (tabId: string) => {
+    setActiveTab(tabId)
+  }
+
+  // Get the display name for the current tab
+  const getCurrentTabName = () => {
+    const tab = sidebarTabs.find(t => t.id === activeTab)
+    return tab ? tab.label : 'Content'
+  }
+
   return (
     <View style={styles.container}>
-      <View style={styles.header}>
-        <Text style={styles.title}>{courseTitle}</Text>
-      </View>
-
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.tabBar}>
-        {tabs.map((tab) => (
-          <TouchableOpacity
-            key={tab.key}
-            style={[styles.tab, activeTab === tab.key && styles.activeTab]}
-            onPress={() => setActiveTab(tab.key)}
-          >
-            <Text style={[styles.tabText, activeTab === tab.key && styles.activeTabText]}>
-              {tab.label}
-            </Text>
-          </TouchableOpacity>
-        ))}
-      </ScrollView>
+      <SidebarNav
+        tabs={sidebarTabs}
+        activeTab={activeTab}
+        onTabChange={handleTabChange}
+        isOpen={sidebarOpen}
+        onToggle={() => setSidebarOpen(false)} // Close sidebar when toggled
+      />
 
       <View style={styles.content}>
-        <ActiveComponent offeringId={offeringId} />
+        <View style={styles.tabHeader}>
+          <TouchableOpacity
+            style={styles.hamburgerButton}
+            onPress={() => setSidebarOpen(!sidebarOpen)}
+          >
+            <Text style={styles.hamburgerIcon}>☰</Text>
+          </TouchableOpacity>
+          <Text style={styles.tabHeaderText}>{getCurrentTabName()}</Text>
+          <View style={{ width: 40 }} /> {/* Spacer for balance */}
+        </View>
+
+        <View style={styles.tabContent}>
+          <ActiveComponent offeringId={offeringId} navigation={navigation} />
+        </View>
       </View>
     </View>
   )
@@ -823,46 +1033,38 @@ export default function CourseDetails() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    flexDirection: 'row',
     backgroundColor: '#f5f5f5',
-  },
-  header: {
-    backgroundColor: '#007bff',
-    padding: 20,
-    paddingTop: 60,
-  },
-  title: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: 'white',
-  },
-  tabBar: {
-    backgroundColor: 'white',
-    maxHeight: 50,
-  },
-  tab: {
-    paddingHorizontal: 20,
-    paddingVertical: 15,
-    borderBottomWidth: 2,
-    borderBottomColor: 'transparent',
-  },
-  activeTab: {
-    borderBottomColor: '#007bff',
-  },
-  tabText: {
-    fontSize: 16,
-    color: '#666',
-  },
-  activeTabText: {
-    color: '#007bff',
-    fontWeight: 'bold',
   },
   content: {
     flex: 1,
   },
-  tabContent: {
-    padding: 20,
-    fontSize: 16,
+  tabHeader: {
+    backgroundColor: 'white',
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: '#e0e0e0',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  hamburgerButton: {
+    padding: 8,
+  },
+  hamburgerIcon: {
+    fontSize: 20,
     color: '#333',
+  },
+  tabHeaderText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#333',
+    flex: 1,
+    textAlign: 'center',
+  },
+  tabContent: {
+    flex: 1,
   },
   list: {
     flex: 1,

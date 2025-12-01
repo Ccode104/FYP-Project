@@ -95,10 +95,16 @@ export async function startServer(port = 4000) {
   
   // Serve static files from the React app build directory
   app.use(express.static(path.join(process.cwd(), 'dist')));
-  
+
   // Catch all handler: send back React's index.html file for any non-API routes
   app.get('*', (req, res) => {
-    res.sendFile(path.join(process.cwd(), 'dist', 'index.html'));
+    // Only serve index.html for non-API routes
+    if (!req.path.startsWith('/api/')) {
+      res.sendFile(path.join(process.cwd(), 'dist', 'index.html'));
+    } else {
+      // For unmatched API routes, return 404
+      res.status(404).json({ error: 'API endpoint not found' });
+    }
   });
 
   // Global error handler - catch any unhandled errors and return JSON

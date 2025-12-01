@@ -21,6 +21,7 @@ export type RootStackParamList = {
   Profile: undefined;
   CourseDetails: { offeringId: string };
   AssignmentDetails: { assignmentId: string };
+  AssignmentSubmission: { assignment: { id: number; title: string; assignment_type: string } };
   QuizTake: { quizId: string };
   LiveLectureRoom: { lectureId: string };
   VideoPlayer: { videoId: string };

@@ -3,12 +3,15 @@ import { View, Text, StyleSheet, TouchableOpacity, FlatList, Alert, ScrollView }
 import { useNavigation } from '@react-navigation/native'
 import { StackNavigationProp } from '@react-navigation/stack'
 import { useAuth } from '../contexts/AuthContext'
+import { useTheme } from '../contexts/ThemeContext'
 import { listMyOfferings } from '../services/courses'
 import { getPendingRequests, respondToRequest, AccessRequest } from '../services/quizPermissions'
 import { RootStackParamList } from '../types/navigation'
+import SidebarNav from '../components/SidebarNav'
 
 export default function TeacherDashboard() {
   const { user, logout } = useAuth()
+  const { theme } = useTheme()
   const navigation = useNavigation<StackNavigationProp<RootStackParamList>>()
 
   interface CourseOffering {
@@ -23,6 +26,17 @@ export default function TeacherDashboard() {
   const [loading, setLoading] = useState(true)
   const [quizRequests, setQuizRequests] = useState<AccessRequest[]>([])
   const [loadingRequests, setLoadingRequests] = useState(false)
+  const [sidebarOpen, setSidebarOpen] = useState(false)
+  const [activeTab, setActiveTab] = useState('dashboard')
+
+  const sidebarTabs = [
+    { id: 'dashboard', label: 'Dashboard', icon: '🏠' },
+    { id: 'courses', label: 'Courses', icon: '📚' },
+    { id: 'assignments', label: 'Assignments', icon: '📝' },
+    { id: 'quizzes', label: 'Quizzes', icon: '📋' },
+    { id: 'progress', label: 'Progress', icon: '📊' },
+    { id: 'resources', label: 'Resources', icon: '📁' },
+  ]
 
   const loadQuizRequests = async () => {
     try {
@@ -44,6 +58,30 @@ export default function TeacherDashboard() {
     } catch (error: any) {
       console.error('Failed to respond to request:', error)
       Alert.alert('Error', error.message || 'Failed to process request')
+    }
+  }
+
+  const handleTabChange = (tabId: string) => {
+    setActiveTab(tabId)
+    switch (tabId) {
+      case 'courses':
+        navigation.navigate('Courses' as any)
+        break
+      case 'assignments':
+        navigation.navigate('Assignments' as any)
+        break
+      case 'quizzes':
+        navigation.navigate('Quizzes' as any)
+        break
+      case 'progress':
+        navigation.navigate('Progress' as any)
+        break
+      case 'resources':
+        navigation.navigate('Resources' as any)
+        break
+      default:
+        // Stay on dashboard
+        break
     }
   }
 
@@ -132,31 +170,37 @@ export default function TeacherDashboard() {
   )
 
   return (
-    <ScrollView style={styles.container}>
-      <View style={styles.header}>
-        <Text style={styles.title}>Welcome back, {user?.name}!</Text>
-        <Text style={styles.subtitle}>Manage your courses and create new offerings</Text>
+    <View style={[styles.container, { backgroundColor: theme.bg }]}>
+      <SidebarNav
+        tabs={sidebarTabs}
+        activeTab={activeTab}
+        onTabChange={handleTabChange}
+        isOpen={sidebarOpen}
+        onToggle={() => setSidebarOpen(!sidebarOpen)}
+      />
 
-        <View style={styles.actionButtons}>
-          <TouchableOpacity style={styles.actionButton}>
-            <Text style={styles.actionText}>👤 Profile</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.actionButton}>
-            <Text style={styles.actionText}>🚫 Suspended Quizzes</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.actionButton}>
-            <Text style={styles.actionText}>📊 Proctoring Analytics</Text>
-          </TouchableOpacity>
+      <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
+        <View style={[styles.header, { backgroundColor: theme.primary }]}>
+          <View style={styles.actionButtons}>
+            <TouchableOpacity style={[styles.actionButton, { backgroundColor: 'rgba(255, 255, 255, 0.2)' }]}>
+              <Text style={[styles.actionText, { color: theme.bg }]}>👤 Profile</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={[styles.actionButton, { backgroundColor: 'rgba(255, 255, 255, 0.2)' }]}>
+              <Text style={[styles.actionText, { color: theme.bg }]}>🚫 Suspended Quizzes</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={[styles.actionButton, { backgroundColor: 'rgba(255, 255, 255, 0.2)' }]}>
+              <Text style={[styles.actionText, { color: theme.bg }]}>📊 Proctoring Analytics</Text>
+            </TouchableOpacity>
+          </View>
         </View>
-      </View>
 
       <View style={styles.section}>
         <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>My Offerings</Text>
-          <Text style={styles.sectionCount}>{offerings.length} offerings</Text>
+          <Text style={[styles.sectionTitle, { color: theme.text }]}>My Offerings</Text>
+          <Text style={[styles.sectionCount, { color: theme['text-secondary'] }]}>{offerings.length} offerings</Text>
         </View>
 
-        <View style={styles.sectionContent}>
+        <View style={[styles.sectionContent, { backgroundColor: theme.surface, borderColor: theme.border }]}>
           {loading ? (
             <Text style={styles.loadingText}>Loading offerings...</Text>
           ) : offerings.length === 0 ? (
@@ -209,32 +253,37 @@ export default function TeacherDashboard() {
         </View>
       </View>
 
-      <TouchableOpacity style={styles.logoutButton} onPress={logout}>
-        <Text style={styles.logoutText}>Logout</Text>
+      <TouchableOpacity style={[styles.logoutButton, { backgroundColor: theme.error }]} onPress={logout}>
+        <Text style={[styles.logoutText, { color: theme.bg }]}>Logout</Text>
       </TouchableOpacity>
     </ScrollView>
+    </View>
   )
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f5f5f5',
+    paddingBottom: 40,
+  },
+  scrollView: {
+    flex: 1,
+  },
+  scrollContent: {
+    flexGrow: 1,
   },
   header: {
-    backgroundColor: '#28a745',
-    padding: 20,
+    padding: 16,
     paddingTop: 60,
+    paddingBottom: 16,
   },
   title: {
-    fontSize: 24,
+    fontSize: 20,
     fontWeight: 'bold',
-    color: 'white',
     marginBottom: 8,
   },
   subtitle: {
     fontSize: 16,
-    color: 'white',
     opacity: 0.9,
     marginBottom: 20,
   },
@@ -243,7 +292,6 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
   },
   actionButton: {
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
     padding: 10,
     borderRadius: 8,
     flex: 1,
@@ -251,7 +299,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   actionText: {
-    color: 'white',
     fontSize: 12,
     fontWeight: '600',
   },
@@ -268,18 +315,14 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 20,
     fontWeight: 'bold',
-    color: '#333',
   },
   sectionCount: {
     fontSize: 14,
-    color: '#666',
     fontWeight: '600',
   },
   sectionContent: {
-    backgroundColor: 'white',
     borderRadius: 10,
     padding: 15,
-    shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
@@ -288,7 +331,6 @@ const styles = StyleSheet.create({
   loadingText: {
     textAlign: 'center',
     padding: 20,
-    color: '#666',
   },
   emptyState: {
     alignItems: 'center',
@@ -302,11 +344,9 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: 'bold',
     marginBottom: 5,
-    color: '#333',
   },
   emptyDescription: {
     fontSize: 14,
-    color: '#666',
     textAlign: 'center',
   },
   offeringItem: {
@@ -386,14 +426,6 @@ const styles = StyleSheet.create({
   requestActions: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-  },
-  actionButton: {
-    paddingHorizontal: 15,
-    paddingVertical: 8,
-    borderRadius: 6,
-    flex: 1,
-    marginHorizontal: 2,
-    alignItems: 'center',
   },
   approveButton: {
     backgroundColor: '#28a745',

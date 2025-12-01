@@ -1,11 +1,14 @@
 import React from 'react';
 import { View, Text, StyleSheet, ScrollView } from 'react-native';
+import { useTheme } from '../contexts/ThemeContext';
 
 export default function QuizzesScreen() {
+  const { theme } = useTheme();
+
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.scrollContent}>
-      <Text style={styles.title}>Quizzes</Text>
-      <Text style={styles.description}>List of available quizzes will be displayed here.</Text>
+    <ScrollView style={[styles.container, { backgroundColor: theme.bg }]} contentContainerStyle={styles.scrollContent}>
+      <Text style={[styles.title, { color: theme.text }]}>Quizzes</Text>
+      <Text style={[styles.description, { color: theme['text-secondary'] }]}>List of available quizzes will be displayed here.</Text>
     </ScrollView>
   );
 }
@@ -13,7 +16,6 @@ export default function QuizzesScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f5f5f5',
   },
   scrollContent: {
     flexGrow: 1,
@@ -27,7 +29,6 @@ const styles = StyleSheet.create({
   },
   description: {
     fontSize: 16,
-    color: '#666',
     textAlign: 'center',
   },
 });
