@@ -14,6 +14,35 @@ This project meets all requirements for Hackathon submission:
 - [x] **Sample Data/Test Cases**: Included seed data and test scripts
 - [x] **License Information**: MIT License included
 
+## Implementation Status
+
+### ✅ Fully Implemented Features
+- User authentication and role-based access control (student, faculty, TA, admin)
+- Course management and enrollment system
+- Assignment system with file/code submissions and grading
+- Quiz system with proctoring capabilities
+- Interactive video lectures with embedded questions
+- Code challenge platform with Judge0 integration
+- Discussion forums and messaging system
+- Resource management (notes, PYQs, presentations)
+- Real-time proctoring with violation detection
+- Gamification system with achievements and leaderboards
+- AI-powered chatbot using Groq API
+- Plagiarism detection for assignments (Moss integration)
+- File upload and processing (PDF, Word, images)
+- Live lectures with participant management
+- Admin dashboard and analytics
+- Mobile app (React Native)
+
+### ⚠️ Partially Implemented
+- **Database Layer**: Uses direct PostgreSQL queries instead of Prisma ORM
+- **Testing**: Manual test scripts available, automated testing framework pending
+
+### ❌ Future Development
+- Automated unit and integration testing
+- Advanced analytics and reporting (Currently basic version)
+- Additional AI features
+
 ### Key Features
 
 - **Role-Based Access Control**: Separate interfaces and permissions for students, teachers, TAs, and admins
@@ -35,7 +64,7 @@ This project meets all requirements for Hackathon submission:
 ### Backend
 - **Runtime**: Node.js (ES Modules)
 - **Framework**: Express.js
-- **Database**: PostgreSQL with Prisma ORM
+- **Database**: PostgreSQL with direct SQL queries
 - **Authentication**: JWT (JSON Web Tokens) with bcrypt password hashing
 - **File Storage**: AWS S3 / Cloudinary integration
 - **AI Integration**: Groq SDK for chatbot functionality
@@ -59,12 +88,21 @@ This project meets all requirements for Hackathon submission:
 - **Real-time Updates**: Socket.IO Client
 - **Face Detection**: face-api.js (for proctoring)
 
+### Mobile Application
+- **Framework**: React Native with Expo
+- **Language**: TypeScript
+- **Navigation**: React Navigation (Stack & Bottom Tabs)
+- **State Management**: React Context API
+- **HTTP Client**: Axios
+- **Storage**: AsyncStorage
+- **Platform Support**: iOS, Android, Web
+
 ### Development Tools
 - **Version Control**: Git
 - **Package Management**: npm
 - **Linting**: ESLint
 - **Type Checking**: TypeScript
-- **Testing**: Not implemented (marked for future development)
+- **Testing**: Manual test scripts available, automated testing marked for future development
 
 ## System Architecture
 
@@ -159,22 +197,16 @@ The project includes comprehensive sample data and test cases to demonstrate fun
 
 ### Database Seed Data
 
-Several SQL seed files are provided in the `backend/` directory:
+The hosted Neon database comes pre-seeded with comprehensive sample data including:
 
-- `comprehensive-seed-data.sql`: Full dataset with users, courses, assignments, quizzes, etc.
-- `minimal-seed-data.sql`: Basic setup with essential data
-- `simple-seed-data.sql`: Minimal data for quick testing
-- `comprehensive-test-seed.sql`: Test-specific data
-- `simple-test-seed.sql`: Simple test data
+- **Users**: Admin, faculty, TA, and student accounts with different roles
+- **Courses**: Sample courses with complete content
+- **Assignments**: Various assignment types including code and file submissions
+- **Quizzes**: Interactive quizzes with proctoring capabilities
+- **Resources**: Study materials, notes, and previous year questions
+- **Gamification Data**: Achievements, leaderboards, and progress tracking
 
-To populate the database with sample data:
-
-1. Ensure PostgreSQL is running and database is created
-2. Run the appropriate seed script:
-   ```bash
-   cd backend
-   psql -U your_username -d edu_portal -f comprehensive-seed-data.sql
-   ```
+**Note:** All sample data is already loaded in the Neon database. No additional seeding steps are required.
 
 ### Test Scripts
 
@@ -191,14 +223,15 @@ cd backend
 node test-database.js
 ```
 
-### Sample Users
+### Sample Users (Use these to quickly test all the features)
 
 After seeding, you can log in with these sample accounts:
+(EmailId / Password)
 
-- **Admin**: admin@example.com / admin123
-- **Faculty**: faculty@example.com / faculty123
-- **Student**: student@example.com / student123
-- **TA**: ta@example.com / ta123
+- **Admin**: admin@gmail.com / abcde
+- **Teacher**: teacher@gmail.com / abc@123
+- **Student**: student@gmail.com / abcde
+- **TA**: ta@gmail.com / abcde
 
 ## API Endpoints
 
@@ -356,9 +389,13 @@ The application uses React Context for global state:
 
 ### Prerequisites
 - Node.js 18+
-- PostgreSQL database
 - npm or yarn package manager
 - Git
+
+### 🚀 Quick Access (No Setup Required)
+**If you encounter any setup issues or prefer instant access, visit the deployed application at: [http://13.233.144.115/](http://13.233.144.115/). When you will click/copy the link, the browser will use https. Make sure to replace it with http to make it work.** 
+
+The live deployment includes the full Edu Portal with pre-configured database and all features ready to demonstrate.
 
 ### Backend Setup
 
@@ -371,11 +408,12 @@ The application uses React Context for global state:
    ```bash
    npm install
    ```
+   
 
 3. **Environment Configuration:**
    Create `.env` file with required variables:
    ```
-   DATABASE_URL=postgresql://username:password@localhost:5432/edu_portal
+   DATABASE_URL=postgresql://neondb_owner:npg_5XCAvync1BOQ@ep-holy-sky-adi7bdu6-pooler.c-2.us-east-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require
    JWT_SECRET=your_jwt_secret_key
    GROQ_API_KEY=your_groq_api_key
    CLOUDINARY_CLOUD_NAME=your_cloudinary_name
@@ -384,17 +422,15 @@ The application uses React Context for global state:
    AWS_ACCESS_KEY_ID=your_aws_key
    AWS_SECRET_ACCESS_KEY=your_aws_secret
    ```
+   **Note** that the DATABASE_URL is to be used AS IT IS and NOT REPLACED.
+   For the VIDEO feature in students, you will have to go to teachers dashboard UPLOAD A VIDEO and then ADD some questions to test the feature. 
 
-4. **Database Setup:**
-   ```bash
-   # Run database migrations
-   npm run migrate
-   ```
-
-5. **Start Development Server:**
+4. **Start Development Server:**
    ```bash
    npm run dev
    ```
+
+**Note:** The hosted Neon database comes pre-seeded with comprehensive sample data including users, courses, assignments, and quizzes. No database setup or seeding steps are required.
 
 ### Frontend Setup
 
@@ -409,15 +445,65 @@ The application uses React Context for global state:
    ```
 
 3. **Environment Configuration:**
-   Create `.env` file:
-   ```
-   VITE_API_BASE_URL=http://localhost:3000/api
-   ```
+    Create `.env` file:
+    ```
+    VITE_API_BASE_URL=http://localhost:4000/api
+    ```
 
 4. **Start Development Server:**
-   ```bash
-   npm run dev
-   ```
+    ```bash
+    npm run dev
+    ```
+
+### Mobile Application Setup
+
+The Edu Portal includes a companion mobile application built with React Native and Expo.
+
+1. **Prerequisites:**
+   - Node.js 18+
+   - npm or yarn
+   - Expo CLI (install globally: `npm install -g @expo/cli`)
+   - Expo Go app on your mobile device (available on App Store/Google Play)
+
+2. **Navigate to mobile directory:**
+    ```bash
+    cd EduPortal-Mobile
+    ```
+
+3. **Install dependencies:**
+    ```bash
+    npm install
+    ```
+
+4. **Environment Configuration:**
+    Create `.env` file:
+    ```env
+    EXPO_PUBLIC_API_URL=http://your-backend-ip:4000/api
+    ```
+
+5. **Start Development Server:**
+    ```bash
+    npm start
+    # or
+    expo start
+    ```
+
+6. **Run on Device:**
+    - Install "Expo Go" app on your mobile device
+    - Scan the QR code displayed in terminal with Expo Go app
+    - If connection issues occur, try disabling Windows Firewall temporarily
+
+7. **Platform-Specific Commands:**
+    ```bash
+    # Android
+    expo start --android
+
+    # iOS (macOS only)
+    expo start --ios
+
+    # Web
+    expo start --web
+    ```
 
 ### Production Deployment
 
