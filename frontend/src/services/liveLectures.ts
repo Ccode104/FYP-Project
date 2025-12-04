@@ -47,3 +47,8 @@ export async function leaveLiveLecture(lectureId: number): Promise<any> {
 export async function getLiveLectureParticipants(lectureId: number): Promise<any> {
   return apiFetch(`/api/live-lectures/${lectureId}/participants`);
 }
+
+// Clean up orphaned participants for a live lecture (Instructor only)
+export async function cleanupLiveLectureParticipants(lectureId: number): Promise<any> {
+  return apiFetch(`/api/live-lectures/${lectureId}/participants/cleanup`, { method: 'POST' });
+}

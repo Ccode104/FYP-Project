@@ -1,3 +1,4 @@
+import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
 import bodyParser from 'body-parser';
@@ -5,6 +6,8 @@ import swaggerUi from 'swagger-ui-express';
 import { createServer } from 'http';
 import { Server } from 'socket.io';
 import path from 'path';
+import jwt from 'jsonwebtoken';
+import { pool } from './db/index.js';
 import authRoutes from './routes/auth.js';
 import courseRoutes from './routes/courses.js';
 import assignmentRoutes from './routes/assignments.js';
@@ -33,21 +36,46 @@ import supportRoutes from './routes/support.js';
 import quizPermissionsRoutes from './routes/quizPermissions.js';
 import swaggerSpec from './swagger.js';
 
+const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret';
+
+// Socket authentication middleware
+function authenticateSocket(socket, next) {
+  const token = socket.handshake.auth?.token;
+  if (!token) {
+    return next(new Error('Authentication token missing'));
+  }
+
+  try {
+    const payload = jwt.verify(token, JWT_SECRET);
+    socket.user = { id: payload.id, role: payload.role, email: payload.email };
+    next();
+  } catch (err) {
+    next(new Error('Invalid authentication token'));
+  }
+}
+
 export async function startServer(port = 4000) {
   const app = express();
   const server = createServer(app);
 
-  // In-memory store for whiteboard state (per lecture)
-  const whiteboardState = {};
 
-  // Initialize Socket.IO with CORS
+  // Initialize Socket.IO with CORS and authentication
   const io = new Server(server, {
     cors: {
       origin: [process.env.FRONTEND_URL, "http://13.233.144.115:4000", "http://localhost:5173", "http://localhost:5174","http://localhost:8083"],
       methods: ["GET", "POST"],
       credentials: true
-    }
+    },
+    // Improve connection stability
+    pingTimeout: 60000,
+    pingInterval: 25000,
+    upgradeTimeout: 30000,
+    allowEIO3: true,
+    transports: ['websocket', 'polling']
   });
+
+  // Apply authentication middleware to Socket.IO
+  io.use(authenticateSocket);
 
   // CORS configuration - allow all origins in development
   app.use(
@@ -203,8 +231,10 @@ export async function startServer(port = 4000) {
     });
 
     // Live lecture events
-    socket.on('join-live-lecture', (data) => {
-      const { lectureId, userId, userType } = data;
+    socket.on('join-live-lecture', async (data) => {
+      const { lectureId } = data;
+      const userId = socket.user.id;
+      const userType = socket.user.role;
       console.log(`User ${userId} (${userType}) joining live lecture: ${lectureId}`);
 
       // Join lecture-specific room
@@ -215,12 +245,50 @@ export async function startServer(port = 4000) {
         socket.join(`lecture-teachers-${lectureId}`);
       }
 
+      // Notify the joining user that they successfully joined
       socket.emit('lecture-joined', { lectureId, status: 'connected' });
+
+      // Get user information to broadcast to other participants
+      try {
+        const userResult = await pool.query(
+          'SELECT name, email FROM users WHERE id = $1',
+          [userId]
+        );
+
+        if (userResult.rows.length > 0) {
+          const userInfo = userResult.rows[0];
+
+          // Notify all other participants in the lecture that someone joined
+          socket.to(`lecture-${lectureId}`).emit('participant-joined', {
+            lectureId,
+            userId,
+            userName: userInfo.name || userInfo.email || `User ${userId}`,
+            role: userType === 'faculty' ? 'teacher' : (userType === 'ta' ? 'ta' : 'student'),
+            isMuted: true, // Default state
+            isVideoOff: true, // Default state
+            isHandRaised: false,
+            isScreenSharing: false,
+            joinedAt: new Date().toISOString()
+          });
+
+          console.log(`Notified other participants about user ${userId} joining lecture ${lectureId}`);
+        }
+      } catch (error) {
+        console.error('Error fetching user info for participant join notification:', error);
+      }
     });
 
     socket.on('leave-live-lecture', (data) => {
-      const { lectureId, userId } = data;
+      const { lectureId } = data;
+      const userId = socket.user.id;
       console.log(`User ${userId} leaving live lecture: ${lectureId}`);
+
+      // Notify other participants that this user is leaving
+      socket.to(`lecture-${lectureId}`).emit('participant-left', {
+        lectureId,
+        userId,
+        leftAt: new Date().toISOString()
+      });
 
       socket.leave(`lecture-${lectureId}`);
       socket.leave(`lecture-teachers-${lectureId}`);
@@ -229,6 +297,21 @@ export async function startServer(port = 4000) {
     });
 
     // WebRTC signaling for live lectures
+    socket.on('webrtc-signal', (data) => {
+      const { lectureId, signal, toUserId } = data;
+      const fromUserId = socket.user.id;
+      console.log(`WebRTC signal from ${fromUserId} to ${toUserId} in lecture ${lectureId}`);
+
+      // Broadcast signal to all participants in the lecture room
+      // The frontend will filter and only process signals intended for them
+      socket.to(`lecture-${lectureId}`).emit('webrtc-signal', {
+        lectureId,
+        signal,
+        fromUserId,
+        toUserId
+      });
+    });
+
     socket.on('webrtc-offer', (data) => {
       const { lectureId, offer, fromUserId, toUserId } = data;
       console.log(`WebRTC offer from ${fromUserId} to ${toUserId} in lecture ${lectureId}`);
@@ -270,7 +353,9 @@ export async function startServer(port = 4000) {
 
     // Live lecture chat
     socket.on('lecture-chat-message', (data) => {
-      const { lectureId, message, userId, userName } = data;
+      const { lectureId, message } = data;
+      const userId = socket.user.id;
+      const userName = socket.user.email; // Use email as display name, or we could fetch name from DB
       console.log(`Chat message in lecture ${lectureId} from ${userId}: ${message}`);
 
       // Broadcast message to all participants in the lecture
@@ -279,13 +364,15 @@ export async function startServer(port = 4000) {
         message,
         userId,
         userName,
+        role: socket.user.role,
         timestamp: new Date().toISOString()
       });
     });
 
     // Teacher controls
     socket.on('lecture-mute-participant', (data) => {
-      const { lectureId, participantId, mutedBy } = data;
+      const { lectureId, participantId } = data;
+      const mutedBy = socket.user.id;
       console.log(`Muting participant ${participantId} in lecture ${lectureId} by ${mutedBy}`);
 
       // Send mute command to specific participant
@@ -298,7 +385,8 @@ export async function startServer(port = 4000) {
     });
 
     socket.on('lecture-unmute-participant', (data) => {
-      const { lectureId, participantId, unmutedBy } = data;
+      const { lectureId, participantId } = data;
+      const unmutedBy = socket.user.id;
       console.log(`Unmuting participant ${participantId} in lecture ${lectureId} by ${unmutedBy}`);
 
       // Send unmute command to specific participant
@@ -311,44 +399,84 @@ export async function startServer(port = 4000) {
     });
 
     // Whiteboard events
-    socket.on('whiteboard-draw', (data) => {
+    socket.on('whiteboard-draw', async (data) => {
       const { lectureId, drawingData } = data;
-      
-      // Initialize state for this lecture if not exists
-      if (!whiteboardState[lectureId]) {
-        whiteboardState[lectureId] = [];
+      const userId = socket.user.id;
+
+      try {
+        // Store drawing in database
+        await pool.query(
+          'INSERT INTO whiteboard_states (live_lecture_id, drawing_data, created_by) VALUES ($1, $2, $3)',
+          [lectureId, JSON.stringify(drawingData), userId]
+        );
+
+        // Broadcast to others
+        socket.to(`lecture-${lectureId}`).emit('whiteboard-draw', drawingData);
+      } catch (error) {
+        console.error('Error saving whiteboard drawing:', error);
       }
-      
-      // Add to history
-      whiteboardState[lectureId].push(drawingData);
-      
-      // Broadcast to others
-      socket.to(`lecture-${lectureId}`).emit('whiteboard-draw', drawingData);
     });
 
-    socket.on('whiteboard-clear', (data) => {
+    socket.on('whiteboard-clear', async (data) => {
       const { lectureId } = data;
-      
-      // Clear history
-      whiteboardState[lectureId] = [];
-      
-      // Broadcast clear event
-      socket.to(`lecture-${lectureId}`).emit('whiteboard-clear');
+      const userId = socket.user.id;
+
+      try {
+        // Update lecture's whiteboard cleared timestamp
+        await pool.query(
+          'UPDATE live_lectures SET whiteboard_cleared_at = NOW() WHERE id = $1',
+          [lectureId]
+        );
+
+        // Broadcast clear event
+        socket.to(`lecture-${lectureId}`).emit('whiteboard-clear');
+      } catch (error) {
+        console.error('Error clearing whiteboard:', error);
+      }
     });
 
-    socket.on('request-whiteboard-state', (data) => {
+    socket.on('request-whiteboard-state', async (data) => {
       const { lectureId } = data;
-      if (whiteboardState[lectureId] && whiteboardState[lectureId].length > 0) {
-        socket.emit('whiteboard-state', {
-          lectureId,
-          history: whiteboardState[lectureId]
-        });
+
+      try {
+        // Get whiteboard cleared timestamp
+        const clearedResult = await pool.query(
+          'SELECT whiteboard_cleared_at FROM live_lectures WHERE id = $1',
+          [lectureId]
+        );
+
+        const clearedAt = clearedResult.rows[0]?.whiteboard_cleared_at;
+
+        // Get all drawings after the last clear
+        let query = 'SELECT drawing_data FROM whiteboard_states WHERE live_lecture_id = $1';
+        let params = [lectureId];
+
+        if (clearedAt) {
+          query += ' AND created_at > $2';
+          params.push(clearedAt);
+        }
+
+        query += ' ORDER BY created_at ASC';
+
+        const drawingsResult = await pool.query(query, params);
+        const history = drawingsResult.rows.map(row => row.drawing_data);
+
+        if (history.length > 0) {
+          socket.emit('whiteboard-state', {
+            lectureId,
+            history
+          });
+        }
+      } catch (error) {
+        console.error('Error fetching whiteboard state:', error);
       }
     });
 
     // Hand raising and reactions
     socket.on('raise-hand', (data) => {
-      const { lectureId, userId, userName, isRaised } = data;
+      const { lectureId, isRaised } = data;
+      const userId = socket.user.id;
+      const userName = socket.user.email; // Use email as display name
       socket.to(`lecture-${lectureId}`).emit('hand-raised-update', {
         userId,
         userName,
@@ -358,7 +486,8 @@ export async function startServer(port = 4000) {
     });
 
     socket.on('send-reaction', (data) => {
-      const { lectureId, userId, reaction } = data;
+      const { lectureId, reaction } = data;
+      const userId = socket.user.id;
       socket.to(`lecture-${lectureId}`).emit('reaction-received', {
         userId,
         reaction,
@@ -368,7 +497,8 @@ export async function startServer(port = 4000) {
 
     // Screen share status
     socket.on('screen-share-status', (data) => {
-      const { lectureId, userId, isSharing } = data;
+      const { lectureId, isSharing } = data;
+      const userId = socket.user.id;
       socket.to(`lecture-${lectureId}`).emit('screen-share-update', {
         userId,
         isSharing

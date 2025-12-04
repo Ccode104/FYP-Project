@@ -17,30 +17,30 @@ interface Participant {
 }
 
 interface VideoGridProps {
-  participants: Participant[];
-  currentUserId: number;
-  videoElementsRef: React.MutableRefObject<{ [key: string]: HTMLVideoElement | null }>;
-  streamRef: React.MutableRefObject<MediaStream | null>;
-  onPinParticipant?: (userId: number | null) => void;
-  pinnedParticipantId?: number | null;
-  isScreenSharing?: boolean;
-  screenStream?: MediaStream | null;
-  screenSharingUserId?: number | null;
-  onParticipantClick?: (participant: Participant) => void;
-}
+   participants: Participant[];
+   currentUserId: number;
+   videoElementsRef: React.MutableRefObject<{ [key: string]: HTMLVideoElement | null }>;
+   localStream: MediaStream | null;
+   onPinParticipant?: (userId: number | null) => void;
+   pinnedParticipantId?: number | null;
+   isScreenSharing?: boolean;
+   screenStream?: MediaStream | null;
+   screenSharingUserId?: number | null;
+   onParticipantClick?: (participant: Participant) => void;
+ }
 
 export const VideoGrid: React.FC<VideoGridProps> = ({
-  participants,
-  currentUserId,
-  videoElementsRef,
-  streamRef,
-  onPinParticipant,
-  pinnedParticipantId,
-  isScreenSharing = false,
-  screenStream,
-  screenSharingUserId,
-  onParticipantClick,
-}) => {
+   participants,
+   currentUserId,
+   videoElementsRef,
+   localStream,
+   onPinParticipant,
+   pinnedParticipantId,
+   isScreenSharing = false,
+   screenStream,
+   screenSharingUserId,
+   onParticipantClick,
+ }) => {
   const localVideoRef = useRef<HTMLVideoElement>(null);
   const pinnedVideoRef = useRef<HTMLVideoElement>(null);
 
@@ -50,8 +50,8 @@ export const VideoGrid: React.FC<VideoGridProps> = ({
     if (pinnedVideoRef.current && pinnedParticipantId !== undefined) {
       if (pinnedParticipantId === null || pinnedParticipantId === currentUserId) {
         // Show local video
-        if (streamRef.current) {
-          pinnedVideoRef.current.srcObject = streamRef.current;
+        if (localStream) {
+          pinnedVideoRef.current.srcObject = localStream;
         }
       } else {
         // Show remote participant's video
@@ -64,34 +64,40 @@ export const VideoGrid: React.FC<VideoGridProps> = ({
         }
       }
     }
-  }, [pinnedParticipantId, currentUserId]);
+  }, [pinnedParticipantId, currentUserId, localStream]);
 
   // Assign stream to local video elements when stream becomes available
   useEffect(() => {
     const assignStreamToLocalVideos = () => {
-      if (streamRef.current) {
+      if (localStream) {
         // Assign to local video element if it exists
-        if (localVideoRef.current && localVideoRef.current.srcObject !== streamRef.current) {
-          localVideoRef.current.srcObject = streamRef.current;
+        if (localVideoRef.current && localVideoRef.current.srcObject !== localStream) {
+          localVideoRef.current.srcObject = localStream;
         }
         // Assign to pinned video if showing local video
         if (pinnedVideoRef.current &&
             (pinnedParticipantId === null || pinnedParticipantId === currentUserId) &&
-            pinnedVideoRef.current.srcObject !== streamRef.current) {
-          pinnedVideoRef.current.srcObject = streamRef.current;
+            pinnedVideoRef.current.srcObject !== localStream) {
+          pinnedVideoRef.current.srcObject = localStream;
         }
       }
     };
 
     // Assign immediately if stream exists
     assignStreamToLocalVideos();
-  }, [pinnedParticipantId, currentUserId]); // Stable dependencies
+  }, [pinnedParticipantId, currentUserId, localStream]); // Stable dependencies
 
   // Deduplicate participants and ensure proper naming
   const uniqueParticipants = useMemo(() => {
-    // First, deduplicate by userId
+    // First, deduplicate by userId and filter out invalid participants
     const deduplicated = participants.reduce((acc: Participant[], participant) => {
-      const existingIndex = acc.findIndex(p => p.userId === participant.userId || p.id === participant.id);
+      // Skip participants with invalid data
+      if (!participant.userId || !participant.userName) {
+        console.warn('Skipping invalid participant:', participant);
+        return acc;
+      }
+
+      const existingIndex = acc.findIndex(p => p.userId === participant.userId);
       if (existingIndex === -1) {
         acc.push(participant);
       } else {
@@ -104,31 +110,17 @@ export const VideoGrid: React.FC<VideoGridProps> = ({
       return acc;
     }, []);
 
-    // Add current user if not already present and we have video or other participants
-    const hasCurrentUserVideo = streamRef.current?.getVideoTracks().some(track => track.enabled) || false;
-    const hasOtherParticipants = deduplicated.length > 0;
-    const includeCurrentUser = hasCurrentUserVideo || hasOtherParticipants;
-
+    // Only add current user if they are actually participating (have joined the lecture)
+    // Don't add "You" tile just because video is enabled
     const currentUserExists = deduplicated.some(p => p.userId === currentUserId);
 
-    if (includeCurrentUser && !currentUserExists) {
-      // Find current user in original participants array to get their real name
+    // If current user is not in the participant list but should be (they joined),
+    // add them with proper data
+    if (!currentUserExists && participants.some(p => p.userId === currentUserId)) {
       const currentUserFromParticipants = participants.find(p => p.userId === currentUserId);
-
-      const currentUserParticipant: Participant = {
-        id: currentUserId,
-        userId: currentUserId,
-        userName: currentUserFromParticipants?.userName || 'You',
-        role: currentUserFromParticipants?.role || 'student',
-        isOnline: true,
-        isMuted: !streamRef.current?.getAudioTracks().some(track => track.enabled) || false,
-        isVideoOff: !hasCurrentUserVideo,
-        isHandRaised: currentUserFromParticipants?.isHandRaised || false,
-        isSpeaking: false,
-        joinedAt: currentUserFromParticipants?.joinedAt || new Date().toISOString(),
-      };
-
-      deduplicated.unshift(currentUserParticipant); // Add current user first
+      if (currentUserFromParticipants) {
+        deduplicated.unshift(currentUserFromParticipants); // Add current user first
+      }
     }
 
     return deduplicated;
@@ -159,13 +151,13 @@ export const VideoGrid: React.FC<VideoGridProps> = ({
 
   const hasVideo = (participant: Participant, isLocal: boolean) => {
     if (isLocal) {
-      // For local participant, check actual video track enabled state
-      return !!streamRef.current?.getVideoTracks().some(track => track.enabled);
+      // For local participant, check if video is enabled and stream exists
+      return !isVideoOff && !!streamRef.current?.getVideoTracks().some(track => track.enabled);
     } else {
       // For remote participants, check if participant has video enabled AND stream has arrived
       if (participant.isVideoOff) return false;
-      return !!videoElementsRef.current[participant.userId.toString()]?.srcObject ||
-              !!videoElementsRef.current[participant.userId.toString()];
+      const videoEl = videoElementsRef.current[participant.userId.toString()];
+      return !!videoEl?.srcObject;
     }
   };
 
@@ -198,23 +190,23 @@ export const VideoGrid: React.FC<VideoGridProps> = ({
             <video
               ref={(el) => {
                 if (isLocal) {
-                  // Store the element ref
-                  if (isLarge) {
-                    // pinnedVideoRef.current = el;
-                  } else {
-                    // localVideoRef.current = el;
-                  }
-                  // Assign stream if available and not already assigned
-                  if (el && streamRef.current && el.srcObject !== streamRef.current) {
+                  // For local video, assign stream directly
+                  if (el && streamRef.current) {
                     el.srcObject = streamRef.current;
                   }
                 } else {
                   // For remote participants, store ref for WebRTC stream assignment
-                  videoElementsRef.current[participant.userId.toString()] = el;
-                  // If stream already arrived, assign it (only if not already assigned)
-                  const existingStream = videoElementsRef.current[participant.userId.toString()]?.srcObject;
-                  if (el && existingStream && el.srcObject !== existingStream) {
-                    el.srcObject = existingStream;
+                  if (el) {
+                    videoElementsRef.current[participant.userId.toString()] = el;
+                    // If stream already arrived, assign it
+                    const existingStream = el.srcObject;
+                    if (!existingStream) {
+                      // Check if stream is available in the ref
+                      const storedStream = videoElementsRef.current[participant.userId.toString()]?.srcObject;
+                      if (storedStream) {
+                        el.srcObject = storedStream;
+                      }
+                    }
                   }
                 }
               }}

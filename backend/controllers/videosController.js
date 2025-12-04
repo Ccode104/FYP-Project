@@ -14,13 +14,31 @@ export async function uploadVideo(req, res) {
     
     // Check if file was uploaded
     if (!req.file) {
-      console.error('No file in req.file');
+      logger.error('No file in req.file');
       return res.status(400).json({ error: "No video file provided" });
     }
 
-    // Log the file structure to understand what multer-storage-cloudinary returns
-    console.log('File object keys:', Object.keys(req.file));
-    console.log('File object:', JSON.stringify(req.file, null, 2));
+    // Validate file type and size
+    const allowedMimeTypes = ['video/mp4', 'video/avi', 'video/mov', 'video/wmv', 'video/flv', 'video/webm', 'video/mkv'];
+    const maxFileSize = 500 * 1024 * 1024; // 500MB
+
+    if (req.file.mimetype && !allowedMimeTypes.includes(req.file.mimetype)) {
+      logger.warn(`Invalid file type uploaded: ${req.file.mimetype}`);
+      return res.status(400).json({
+        error: "Invalid file type",
+        details: `Allowed types: ${allowedMimeTypes.join(', ')}`
+      });
+    }
+
+    if (req.file.size && req.file.size > maxFileSize) {
+      logger.warn(`File too large: ${req.file.size} bytes`);
+      return res.status(400).json({
+        error: "File too large",
+        details: `Maximum size: ${maxFileSize / (1024 * 1024)}MB`
+      });
+    }
+
+    logger.info(`Video upload started: ${req.file.originalname || 'unknown'}, size: ${req.file.size || 'unknown'} bytes`);
 
     // Extract form data
     const { title, description, course_offering_id } = req.body;
@@ -43,51 +61,52 @@ export async function uploadVideo(req, res) {
     // The file is already uploaded to Cloudinary by the middleware
     const cloudinaryResult = req.file;
 
-    // multer-storage-cloudinary / cloudinary-uploader may return URL under different keys
-    // common keys: secure_url, url, path, location
-    let videoUrl = null;
-    let publicId = null;
-    if (cloudinaryResult) {
-      videoUrl = cloudinaryResult.secure_url || cloudinaryResult.url || cloudinaryResult.path || cloudinaryResult.location || (cloudinaryResult.file && cloudinaryResult.file.url) || null;
-      publicId = cloudinaryResult.public_id || cloudinaryResult.publicId || cloudinaryResult.filename || cloudinaryResult.public_id || null;
+    if (!cloudinaryResult) {
+      logger.error('No Cloudinary result in req.file');
+      return res.status(500).json({
+        error: 'Video upload failed',
+        details: 'No upload result received from Cloudinary'
+      });
     }
 
-    if (!videoUrl || !publicId) {
-      // Log full object to help debug storage adapter's output
-      logger.error('Unexpected Cloudinary upload result format', {
-        keys: cloudinaryResult ? Object.keys(cloudinaryResult) : null,
-        sample: cloudinaryResult ? JSON.stringify(cloudinaryResult).slice(0, 2000) : null,
-      });
+    // Extract URL and public ID with improved error handling
+    let videoUrl = null;
+    let publicId = null;
 
-      // Try to gracefully recover: if publicId exists but url missing, attempt to fetch resource
+    try {
+      // Try different possible keys for URL
+      videoUrl = cloudinaryResult.secure_url || cloudinaryResult.url || cloudinaryResult.path || cloudinaryResult.location;
+      publicId = cloudinaryResult.public_id || cloudinaryResult.publicId || cloudinaryResult.filename;
+
+      // If URL is still missing but we have publicId, try to fetch from Cloudinary
       if (!videoUrl && publicId) {
-        try {
-          const videoResource = await cloudinary.api.resource(publicId, { resource_type: 'video' });
-          videoUrl = videoResource.secure_url || videoResource.url || videoResource.path || null;
-        } catch (fetchErr) {
-          logger.warn('Could not fetch Cloudinary resource for publicId to extract URL', fetchErr.message || fetchErr);
-        }
+        logger.warn('URL missing from upload result, attempting to fetch from Cloudinary API', { publicId });
+        const videoResource = await cloudinary.api.resource(publicId, { resource_type: 'video' });
+        videoUrl = videoResource.secure_url || videoResource.url;
       }
 
-      if (!videoUrl) {
-        return res.status(500).json({ 
-            error: 'Failed to get video URL from Cloudinary',
-            details: 'The file was uploaded but no URL was returned; check Cloudinary storage adapter or credentials',
-          cloudinary_result_keys: cloudinaryResult ? Object.keys(cloudinaryResult) : null,
+      if (!videoUrl || !publicId) {
+        logger.error('Failed to extract video URL and/or public ID from Cloudinary result', {
+          hasUrl: !!videoUrl,
+          hasPublicId: !!publicId,
+          resultKeys: Object.keys(cloudinaryResult),
+          resultSample: JSON.stringify(cloudinaryResult).slice(0, 1000)
+        });
+        return res.status(500).json({
+          error: 'Failed to process uploaded video',
+          details: 'Could not extract video URL or public ID from Cloudinary response'
         });
       }
-
-      if (!publicId) {
-        return res.status(500).json({ 
-          error: 'Failed to get video public ID from Cloudinary',
-          details: 'Cloudinary did not return a public ID for the uploaded resource',
-          cloudinary_result_keys: cloudinaryResult ? Object.keys(cloudinaryResult) : null,
-        });
-      }
+    } catch (extractError) {
+      logger.error('Error extracting Cloudinary data:', extractError);
+      return res.status(500).json({
+        error: 'Video processing failed',
+        details: 'Error processing Cloudinary upload result'
+      });
     }
 
     // Try to get video duration from Cloudinary metadata
-    // Note: Duration might not be immediately available, so we'll try to fetch it
+    // Note: Duration might not be immediately available after upload
     let duration = null;
     try {
       // Fetch video resource details from Cloudinary to get duration
@@ -95,9 +114,15 @@ export async function uploadVideo(req, res) {
         resource_type: "video",
       });
       duration = videoResource.duration || null; // Duration in seconds
+
+      if (duration) {
+        logger.info(`Video duration extracted: ${duration} seconds for ${publicId}`);
+      } else {
+        logger.warn(`No duration available for video ${publicId} - may need to check later`);
+      }
     } catch (err) {
       // If duration extraction fails, log but don't fail the upload
-      logger.warn("Could not extract video duration:", err.message);
+      logger.warn(`Could not extract video duration for ${publicId}:`, err.message);
       duration = null;
     }
 

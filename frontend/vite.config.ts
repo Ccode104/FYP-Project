@@ -6,9 +6,12 @@ export default defineConfig({
   plugins: [react()],
   define: {
     global: 'globalThis',
+    'process.nextTick': '((fn) => setTimeout(fn, 0))',
+    'util.debuglog': '(() => () => {})',
+    'util.inspect': '((obj) => JSON.stringify(obj))',
   },
   optimizeDeps: {
-    include: ['simple-peer', 'buffer', 'events', 'util', 'stream-browserify'],
+    include: ['simple-peer', 'buffer', 'events', 'util', 'stream-browserify', 'readable-stream'],
   },
   resolve: {
     alias: {
@@ -16,6 +19,7 @@ export default defineConfig({
       events: 'events',
       stream: 'stream-browserify',
       util: 'util',
+      'readable-stream': 'readable-stream',
     },
   },
   build: {
@@ -25,7 +29,7 @@ export default defineConfig({
           // Vendor chunks
           'vendor-react': ['react', 'react-dom', 'react-router-dom'],
           'vendor-ui': ['framer-motion'],
-          'vendor-utils': ['buffer', 'events', 'util', 'stream-browserify', 'simple-peer', 'axios'],
+          'vendor-utils': ['buffer', 'events', 'util', 'stream-browserify', 'readable-stream', 'simple-peer', 'axios'],
           'vendor-editor': ['@monaco-editor/react'],
           'vendor-face-api': ['face-api.js'],
           'vendor-socket': ['socket.io-client'],

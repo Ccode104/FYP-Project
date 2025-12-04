@@ -9,6 +9,7 @@ import {
   joinLiveLecture,
   leaveLiveLecture,
   getLiveLectureParticipants,
+  cleanupLiveLectureParticipants,
 } from '../controllers/liveLecturesController.js';
 
 const router = express.Router();
@@ -192,6 +193,28 @@ router.post('/:id/join', joinLiveLecture);
  *         description: Participant record not found
  */
 router.post('/:id/leave', leaveLiveLecture);
+
+/**
+ * @swagger
+ * /api/live-lectures/{id}/participants/cleanup:
+ *   post:
+ *     summary: Clean up orphaned participants for a live lecture (Instructor only)
+ *     tags: [Live Lectures]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *     responses:
+ *       200:
+ *         description: Cleanup completed successfully
+ *       403:
+ *         description: Forbidden - Not an instructor
+ */
+router.post('/:id/participants/cleanup', requireRole('faculty', 'admin', 'ta'), cleanupLiveLectureParticipants);
 
 /**
  * @swagger

@@ -17,6 +17,20 @@ export async function createLiveLecture(req, res) {
       return res.status(400).json({ error: "Title and course_offering_id are required" });
     }
 
+    // Validate scheduled_at format if provided
+    if (scheduled_at) {
+      const scheduledDate = new Date(scheduled_at);
+      if (isNaN(scheduledDate.getTime())) {
+        return res.status(400).json({ error: "Invalid scheduled_at format. Use ISO 8601 date-time string." });
+      }
+
+      // Check if scheduled time is not in the past
+      const now = new Date();
+      if (scheduledDate <= now) {
+        return res.status(400).json({ error: "scheduled_at must be in the future" });
+      }
+    }
+
     // Verify user has permission to create lectures for this course
     const courseCheck = await pool.query(
       'SELECT id FROM course_offerings WHERE id = $1 AND faculty_id = $2',
@@ -73,9 +87,17 @@ export async function getLiveLecturesByCourse(req, res) {
 
     // Check access permission
     let hasAccess = false;
-    if (userRole === 'faculty' || userRole === 'admin' || userRole === 'ta') {
-      hasAccess = true;
+    if (userRole === 'admin') {
+      hasAccess = true; // Admins can access all courses
+    } else if (userRole === 'faculty' || userRole === 'ta') {
+      // Teachers/TAs can only access courses they teach/are assigned to
+      const teachingCheck = await pool.query(
+        'SELECT id FROM course_offerings WHERE id = $1 AND faculty_id = $2',
+        [courseOfferingId, userId]
+      );
+      hasAccess = teachingCheck.rows.length > 0;
     } else {
+      // Students can only access courses they're enrolled in
       const enrollmentCheck = await pool.query(
         'SELECT id FROM enrollments WHERE course_offering_id = $1 AND student_id = $2',
         [courseOfferingId, userId]
@@ -87,6 +109,12 @@ export async function getLiveLecturesByCourse(req, res) {
       return res.status(403).json({ error: 'You do not have access to this course' });
     }
 
+    // Build query based on user role
+    let whereClause = 'll.course_offering_id = $1';
+
+    // All users can see all lectures (live, scheduled, ended, cancelled)
+    // No status filtering needed
+
     const query = `
       SELECT
         ll.*,
@@ -96,9 +124,16 @@ export async function getLiveLecturesByCourse(req, res) {
       FROM live_lectures ll
       JOIN users u ON ll.created_by = u.id
       LEFT JOIN live_lecture_participants llp ON ll.id = llp.live_lecture_id AND llp.left_at IS NULL
-      WHERE ll.course_offering_id = $1
+      WHERE ${whereClause}
       GROUP BY ll.id, u.name, u.email
-      ORDER BY ll.scheduled_at DESC NULLS LAST, ll.created_at DESC
+      ORDER BY
+        CASE
+          WHEN ll.status = 'live' THEN 1
+          WHEN ll.status = 'scheduled' THEN 2
+          ELSE 3
+        END,
+        ll.scheduled_at DESC NULLS LAST,
+        ll.created_at DESC
     `;
 
     const result = await pool.query(query, [courseOfferingId]);
@@ -149,9 +184,17 @@ export async function getLiveLectureById(req, res) {
 
     // Check access permission
     let hasAccess = false;
-    if (userRole === 'faculty' || userRole === 'admin' || userRole === 'ta') {
-      hasAccess = true;
+    if (userRole === 'admin') {
+      hasAccess = true; // Admins can access all courses
+    } else if (userRole === 'faculty' || userRole === 'ta') {
+      // Teachers/TAs can only access courses they teach/are assigned to
+      const teachingCheck = await pool.query(
+        'SELECT id FROM course_offerings WHERE id = $1 AND faculty_id = $2',
+        [lecture.course_offering_id, userId]
+      );
+      hasAccess = teachingCheck.rows.length > 0;
     } else {
+      // Students can only access courses they're enrolled in
       const enrollmentCheck = await pool.query(
         'SELECT id FROM enrollments WHERE course_offering_id = $1 AND student_id = $2',
         [lecture.course_offering_id, userId]
@@ -295,57 +338,107 @@ export async function joinLiveLecture(req, res) {
     const userId = req.user.id;
     const userRole = req.user.role;
 
+    console.log(`User ${userId} (${userRole}) attempting to join lecture ${lectureId}`);
+
     if (isNaN(lectureId)) {
+      console.log('Invalid lecture ID provided');
       return res.status(400).json({ error: 'Invalid lecture ID' });
     }
 
     // Check if lecture exists and is live
+    console.log(`Checking if lecture ${lectureId} exists and is live`);
     const lectureCheck = await pool.query(
       'SELECT id, status, course_offering_id FROM live_lectures WHERE id = $1',
       [lectureId]
     );
 
+    console.log(`Lecture check result:`, lectureCheck.rows);
+
     if (lectureCheck.rows.length === 0) {
+      console.log(`Lecture ${lectureId} not found`);
       return res.status(404).json({ error: 'Live lecture not found' });
     }
 
     const lecture = lectureCheck.rows[0];
-    if (lecture.status !== 'live') {
-      return res.status(400).json({ error: 'Lecture is not currently live' });
+    console.log(`Lecture status: ${lecture.status}`);
+
+    // Allow joining if lecture is live OR scheduled (users can wait for it to start)
+    if (lecture.status !== 'live' && lecture.status !== 'scheduled') {
+      console.log(`Cannot join lecture with status: ${lecture.status}`);
+      return res.status(400).json({ error: `Cannot join lecture with status: ${lecture.status}` });
     }
 
-    // Check access permission
+    // Check access permission and normalize role
+    console.log(`Checking access permissions for user role: ${userRole}`);
     let hasAccess = false;
-    let role = 'student';
-    if (userRole === 'faculty' || userRole === 'admin' || userRole === 'ta') {
+    let normalizedRole = 'student';
+
+    if (userRole === 'admin') {
       hasAccess = true;
-      // Normalize role for database constraint
-      role = userRole === 'faculty' ? 'teacher' : userRole;
-    } else {
+      normalizedRole = 'teacher'; // Admins are treated as teachers
+      console.log(`Admin granted access, normalized role: ${normalizedRole}`);
+    } else if (userRole === 'faculty' || userRole === 'ta') {
+      // Teachers/TAs can only access courses they teach/are assigned to
+      const teachingCheck = await pool.query(
+        'SELECT id FROM course_offerings WHERE id = $1 AND faculty_id = $2',
+        [lecture.course_offering_id, userId]
+      );
+      hasAccess = teachingCheck.rows.length > 0;
+      // Normalize role for database constraint (only allows 'student', 'teacher', 'ta')
+      if (userRole === 'faculty') {
+        normalizedRole = 'teacher';
+      } else if (userRole === 'ta') {
+        normalizedRole = 'ta';
+      }
+      console.log(`Staff user ${hasAccess ? 'granted' : 'denied'} access, normalized role: ${normalizedRole}`);
+    } else if (userRole === 'student') {
+      console.log(`Checking student enrollment in course ${lecture.course_offering_id}`);
       const enrollmentCheck = await pool.query(
         'SELECT id FROM enrollments WHERE course_offering_id = $1 AND student_id = $2',
         [lecture.course_offering_id, userId]
       );
       hasAccess = enrollmentCheck.rows.length > 0;
+      normalizedRole = 'student';
+      console.log(`Student enrollment check: ${hasAccess ? 'enrolled' : 'not enrolled'}`);
+    } else {
+      // Unknown role, deny access
+      console.log(`Unknown user role: ${userRole}, denying access`);
+      hasAccess = false;
     }
 
     if (!hasAccess) {
+      console.log('Access denied');
       return res.status(403).json({ error: 'You do not have access to this lecture' });
     }
 
-    // Add or update participant
+    // Add or update participant with initial media states
+    console.log(`Inserting participant record for user ${userId} in lecture ${lectureId}`);
     const upsertQuery = `
-      INSERT INTO live_lecture_participants (live_lecture_id, user_id, role)
-      VALUES ($1, $2, $3)
+      INSERT INTO live_lecture_participants (
+        live_lecture_id, user_id, role, is_muted, is_video_off, is_hand_raised, is_screen_sharing, last_activity
+      )
+      VALUES ($1, $2, $3, $4, $5, $6, $7, NOW())
       ON CONFLICT (live_lecture_id, user_id)
       DO UPDATE SET
         joined_at = NOW(),
         left_at = NULL,
-        role = EXCLUDED.role
+        role = EXCLUDED.role,
+        last_activity = NOW()
       RETURNING *
     `;
 
-    const result = await pool.query(upsertQuery, [lectureId, userId, role]);
+    // Default states: muted and video off for privacy
+    const result = await pool.query(upsertQuery, [
+      lectureId,
+      userId,
+      normalizedRole,
+      true,  // is_muted
+      true,  // is_video_off
+      false, // is_hand_raised
+      false  // is_screen_sharing
+    ]);
+
+    console.log(`Participant record inserted/updated successfully:`, result.rows[0]);
 
     // Emit socket event
     const io = req.app.get('io');
@@ -353,7 +446,7 @@ export async function joinLiveLecture(req, res) {
       io.to(`lecture-${lectureId}`).emit('participant-joined', {
         lectureId,
         userId,
-        role,
+        role: normalizedRole,
         joined_at: result.rows[0].joined_at
       });
     }
@@ -418,6 +511,64 @@ export async function leaveLiveLecture(req, res) {
 }
 
 /**
+ * Clean up orphaned or inactive participants
+ * @param {Object} req - Express request object
+ * @param {Object} res - Express response object
+ */
+export async function cleanupLiveLectureParticipants(req, res) {
+  try {
+    const lectureId = parseInt(req.params.id);
+    const userId = req.user.id;
+    const userRole = req.user.role;
+
+    if (isNaN(lectureId)) {
+      return res.status(400).json({ error: 'Invalid lecture ID' });
+    }
+
+    // Only allow teachers/admins to perform cleanup
+    if (userRole !== 'faculty' && userRole !== 'admin' && userRole !== 'ta') {
+      return res.status(403).json({ error: 'Only instructors can perform participant cleanup' });
+    }
+
+    // Check if user has permission for this lecture
+    const lectureCheck = await pool.query(
+      'SELECT id FROM live_lectures WHERE id = $1 AND created_by = $2',
+      [lectureId, userId]
+    );
+
+    if (lectureCheck.rows.length === 0 && userRole !== 'admin') {
+      return res.status(403).json({ error: 'You do not have permission to manage this lecture' });
+    }
+
+    // Clean up participants who have been inactive for more than 5 minutes
+    // or have invalid states
+    const cleanupQuery = `
+      UPDATE live_lecture_participants
+      SET left_at = NOW()
+      WHERE live_lecture_id = $1
+        AND left_at IS NULL
+        AND (
+          last_activity < NOW() - INTERVAL '5 minutes'
+          OR user_id NOT IN (SELECT id FROM users)
+        )
+    `;
+
+    const result = await pool.query(cleanupQuery, [lectureId]);
+
+    logger.info(`Cleaned up ${result.rowCount} orphaned participants for lecture ${lectureId}`);
+
+    res.json({
+      success: true,
+      message: `Cleaned up ${result.rowCount} orphaned participants`,
+      cleanedCount: result.rowCount
+    });
+  } catch (error) {
+    logger.error('Error cleaning up participants:', error);
+    res.status(500).json({ error: 'Failed to cleanup participants', message: error.message });
+  }
+}
+
+/**
  * Get participants for a live lecture
  * @param {Object} req - Express request object
  * @param {Object} res - Express response object
@@ -434,8 +585,16 @@ export async function getLiveLectureParticipants(req, res) {
 
     // Check if user has access to view participants
     let hasAccess = false;
-    if (userRole === 'faculty' || userRole === 'admin' || userRole === 'ta') {
-      hasAccess = true;
+    if (userRole === 'admin') {
+      hasAccess = true; // Admins can access all courses
+    } else if (userRole === 'faculty' || userRole === 'ta') {
+      // Teachers/TAs can only access courses they teach/are assigned to
+      const teachingCheck = await pool.query(`
+        SELECT co.id FROM course_offerings co
+        JOIN live_lectures ll ON ll.course_offering_id = co.id
+        WHERE ll.id = $1 AND co.faculty_id = $2
+      `, [lectureId, userId]);
+      hasAccess = teachingCheck.rows.length > 0;
     } else {
       // For students, check if they are enrolled in the course offering
       const enrollmentCheck = await pool.query(`
@@ -449,6 +608,15 @@ export async function getLiveLectureParticipants(req, res) {
     if (!hasAccess) {
       return res.status(403).json({ error: 'You do not have permission to view participants' });
     }
+
+    // First, clean up any orphaned participants
+    await pool.query(`
+      UPDATE live_lecture_participants
+      SET left_at = NOW()
+      WHERE live_lecture_id = $1
+        AND left_at IS NULL
+        AND last_activity < NOW() - INTERVAL '10 minutes'
+    `, [lectureId]);
 
     const query = `
       SELECT
