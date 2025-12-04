@@ -1,7 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, TextInput, TouchableOpacity, Modal, Alert, StyleSheet, ScrollView } from 'react-native';
 import { useTheme } from '../contexts/ThemeContext';
 import { apiFetch } from '../services/api';
+import GitHubConnectButton from './GitHubConnectButton';
+import GitHubRepositorySelector from './GitHubRepositorySelector';
 
 interface AssignmentSubmissionModalProps {
   isOpen: boolean;
@@ -23,6 +25,47 @@ export default function AssignmentSubmissionModal({
   const { theme } = useTheme();
   const [linkUrl, setLinkUrl] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [isGitHubConnected, setIsGitHubConnected] = useState<boolean | null>(null);
+  const [selectedRepository, setSelectedRepository] = useState<any>(null);
+  const [submissionMode, setSubmissionMode] = useState<'manual' | 'github'>('manual');
+
+  // Check GitHub connection status when modal opens
+  useEffect(() => {
+    if (isOpen && assignment?.assignment_type === 'mixed') {
+      checkGitHubConnection();
+    }
+  }, [isOpen, assignment]);
+
+  // Check GitHub connection status
+  const checkGitHubConnection = async () => {
+    try {
+      const response = await apiFetch<{ profile: any }>('/users/profile');
+      const profile = response.profile;
+      const connected = profile.github_connected && profile.github_username;
+      setIsGitHubConnected(connected);
+      if (connected) {
+        setSubmissionMode('github');
+      }
+    } catch (err) {
+      setIsGitHubConnected(false);
+    }
+  };
+
+  // Handle GitHub connection change
+  const handleGitHubConnectionChange = (connected: boolean) => {
+    setIsGitHubConnected(connected);
+    if (connected) {
+      setSubmissionMode('github');
+    } else {
+      setSubmissionMode('manual');
+    }
+  };
+
+  // Handle repository selection
+  const handleRepositorySelect = (repository: any) => {
+    setSelectedRepository(repository);
+    setSubmissionMode('github');
+  };
 
   // Guard against null assignment
   if (!assignment) {
@@ -61,6 +104,43 @@ export default function AssignmentSubmissionModal({
   };
 
   const handleSubmit = async () => {
+    // Handle GitHub repository submission
+    if (assignment.assignment_type === 'mixed' && submissionMode === 'github') {
+      if (!selectedRepository) {
+        Alert.alert('Error', 'Please select a GitHub repository');
+        return;
+      }
+
+      setSubmitting(true);
+      try {
+        await apiFetch('/submissions/submit/github-repo', {
+          method: 'POST',
+          body: { assignment_id: assignment.id, repo_url: selectedRepository.html_url }
+        });
+
+        Alert.alert('Success', 'Assignment submitted successfully!', [
+          {
+            text: 'OK',
+            onPress: () => {
+              setLinkUrl('');
+              setSelectedRepository(null);
+              setSubmissionMode('manual');
+              onClose();
+              onSuccess?.();
+            }
+          }
+        ]);
+      } catch (err: any) {
+        console.error('GitHub submission failed:', err);
+        const errorMessage = err?.message || 'Submission failed. Please try again.';
+        Alert.alert('Submission Failed', errorMessage);
+      } finally {
+        setSubmitting(false);
+      }
+      return;
+    }
+
+    // Handle manual URL submission (fallback)
     const trimmedUrl = linkUrl.trim();
 
     if (!trimmedUrl) {
@@ -86,6 +166,8 @@ export default function AssignmentSubmissionModal({
           text: 'OK',
           onPress: () => {
             setLinkUrl('');
+            setSelectedRepository(null);
+            setSubmissionMode('manual');
             onClose();
             onSuccess?.();
           }
@@ -103,6 +185,8 @@ export default function AssignmentSubmissionModal({
   const handleClose = () => {
     if (!submitting) {
       setLinkUrl('');
+      setSelectedRepository(null);
+      setSubmissionMode('manual');
       onClose();
     }
   };
@@ -148,26 +232,65 @@ export default function AssignmentSubmissionModal({
             </View>
 
             <View style={styles.form}>
-               <Text style={[styles.label, { color: theme.text }]}>
-                 {getLabel()}
-               </Text>
-               <View style={[styles.inputContainer, { borderColor: theme.border }]}>
-                 <TextInput
-                   style={[styles.input, {
-                     backgroundColor: theme.bg,
-                     color: theme.text
-                   }]}
-                   value={linkUrl}
-                   onChangeText={setLinkUrl}
-                   placeholder={getPlaceholder()}
-                   placeholderTextColor={theme['text-secondary']}
-                   autoCapitalize="none"
-                   autoCorrect={false}
-                   keyboardType="url"
-                   multiline={false}
-                   editable={!submitting}
-                 />
-               </View>
+              {assignment.assignment_type === 'mixed' ? (
+                <>
+                  {/* GitHub Integration Section */}
+                  <Text style={[styles.label, { color: theme.text }]}>
+                    GitHub Repository Submission
+                  </Text>
+
+                  {isGitHubConnected === null ? (
+                    <View style={[styles.loadingContainer, { backgroundColor: theme['bg-secondary'] }]}>
+                      <Text style={[styles.loadingText, { color: theme['text-secondary'] }]}>
+                        Checking GitHub connection...
+                      </Text>
+                    </View>
+                  ) : isGitHubConnected ? (
+                    <GitHubRepositorySelector
+                      onRepositorySelect={handleRepositorySelect}
+                      selectedRepository={selectedRepository}
+                    />
+                  ) : (
+                    <View style={[styles.githubConnectContainer, { backgroundColor: theme['bg-secondary'] }]}>
+                      <Text style={[styles.githubConnectText, { color: theme['text-secondary'] }]}>
+                        Connect your GitHub account to select repositories directly, or enter a repository URL manually below.
+                      </Text>
+                      <GitHubConnectButton
+                        onConnectionChange={handleGitHubConnectionChange}
+                        style={styles.githubConnectButton}
+                      />
+                    </View>
+                  )}
+
+                  {/* Manual URL Input as Fallback */}
+                  <View style={styles.divider}>
+                    <Text style={[styles.dividerText, { color: theme['text-secondary'] }]}>
+                      Or enter repository URL manually
+                    </Text>
+                  </View>
+                </>
+              ) : null}
+
+              <Text style={[styles.label, { color: theme.text }]}>
+                {getLabel()}
+              </Text>
+              <View style={[styles.inputContainer, { borderColor: theme.border }]}>
+                <TextInput
+                  style={[styles.input, {
+                    backgroundColor: theme.bg,
+                    color: theme.text
+                  }]}
+                  value={linkUrl}
+                  onChangeText={setLinkUrl}
+                  placeholder={getPlaceholder()}
+                  placeholderTextColor={theme['text-secondary']}
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  keyboardType="url"
+                  multiline={false}
+                  editable={!submitting}
+                />
+              </View>
 
               <View style={styles.buttonRow}>
                 <TouchableOpacity
@@ -182,13 +305,21 @@ export default function AssignmentSubmissionModal({
                   style={[
                     styles.submitButton,
                     {
-                      backgroundColor: validateUrl(linkUrl.trim(), assignment.assignment_type) && !submitting
+                      backgroundColor: (
+                        (assignment.assignment_type === 'mixed' && submissionMode === 'github' && selectedRepository) ||
+                        (validateUrl(linkUrl.trim(), assignment.assignment_type))
+                      ) && !submitting
                         ? theme.primary
                         : theme['text-secondary']
                     }
                   ]}
                   onPress={handleSubmit}
-                  disabled={!validateUrl(linkUrl.trim(), assignment.assignment_type) || submitting}
+                  disabled={
+                    !(
+                      (assignment.assignment_type === 'mixed' && submissionMode === 'github' && selectedRepository) ||
+                      (validateUrl(linkUrl.trim(), assignment.assignment_type))
+                    ) || submitting
+                  }
                 >
                   <Text style={[styles.submitText, { color: theme.bg }]}>
                     {submitting ? 'Submitting...' : `Submit ${assignment.assignment_type === 'mixed' ? 'Repository' : assignment.assignment_type.toUpperCase()}`}
@@ -305,5 +436,35 @@ const styles = StyleSheet.create({
   submitText: {
     fontSize: 16,
     fontWeight: '600',
+  },
+  loadingContainer: {
+    padding: 16,
+    borderRadius: 8,
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  loadingText: {
+    fontSize: 14,
+  },
+  githubConnectContainer: {
+    padding: 16,
+    borderRadius: 8,
+    marginBottom: 16,
+  },
+  githubConnectText: {
+    fontSize: 14,
+    lineHeight: 20,
+    marginBottom: 12,
+  },
+  githubConnectButton: {
+    marginBottom: 8,
+  },
+  divider: {
+    alignItems: 'center',
+    marginVertical: 16,
+  },
+  dividerText: {
+    fontSize: 14,
+    fontWeight: '500',
   },
 });

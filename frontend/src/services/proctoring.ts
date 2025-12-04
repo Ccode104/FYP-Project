@@ -116,7 +116,8 @@ class ProctoringService {
       : 'http://localhost:4000';
 
     this.socket = io(socketUrl, {
-      transports: ['websocket', 'polling']
+      transports: ['websocket', 'polling'],
+      auth: { token: localStorage.getItem('auth:token') }
     });
 
     return new Promise((resolve, reject) => {

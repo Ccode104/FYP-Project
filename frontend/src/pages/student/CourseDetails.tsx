@@ -16,7 +16,6 @@ import InteractiveVideoPlayer from '../../components/InteractiveVideoPlayer'
 import VideoQuestionManager from '../../components/VideoQuestionManager'
 import VideoQuizResults from '../../components/VideoQuizResults'
 import Modal from '../../components/Modal'
-import Chatbot from '../../components/Chatbot'
 import TeacherCodeSubmissionViewer from '../../components/course/TeacherCodeSubmissionViewer'
 import BackendSubmissions from '../../components/course/BackendSubmissions'
 import TAGrading from '../../components/course/TAGrading'
@@ -69,7 +68,7 @@ export default function CourseDetails() {
   const { user } = useAuth()
   const navigate = useNavigate()
   const { setCourseTitle } = useCourse()
-  const [tab, setTab] = useState<'assignment' | 'present' | 'past' | 'pyq' | 'notes' | 'quizzes' | 'quizzes_submitted' | 'manage' | 'submissions' | 'grading' | 'progress' | 'discussion' | 'chatbot' | 'pdfchat' | 'videos' | 'live-lectures'>('present')
+  const [tab, setTab] = useState<'assignment' | 'present' | 'past' | 'pyq' | 'notes' | 'quizzes' | 'quizzes_submitted' | 'manage' | 'submissions' | 'grading' | 'progress' | 'discussion' | 'pdfchat' | 'videos' | 'live-lectures'>('present')
   const [backendVideos, setBackendVideos] = useState<any[]>([])
   const [selectedVideo, setSelectedVideo] = useState<any | null>(null)
   const [videoQuestions, setVideoQuestions] = useState<any[]>([])
@@ -293,19 +292,17 @@ export default function CourseDetails() {
       { id: 'videos', label: 'Videos', icon: '🎥', tooltip: 'Course video lectures' },
       { id: 'live-lectures', label: 'Live Lectures', icon: '📺', tooltip: 'Live video lectures' },
       { id: 'discussion', label: 'Discussion', icon: '💬', tooltip: 'Discussion forum', badge: discussionCount },
-      { id: 'chatbot', label: 'AI Assistant', icon: '🤖', tooltip: 'AI-powered help for courses and documents' },
     ]
 
     const teacherTabs: TabItem[] = [
       { id: 'present', label: 'Assignments', icon: '📋', tooltip: 'View all assignments' },
       { id: 'quizzes', label: 'Quizzes', icon: '❓', tooltip: 'Manage quizzes' },
-      { id: 'manage', label: 'Create', icon: '➕', tooltip: 'Create new assignments' },
+      { id: 'manage', label: 'Create Assignment and Quiz', icon: '➕', tooltip: 'Create new assignments and quizzes' },
+      { id: 'resources', label: 'Upload Resources', icon: '📚', tooltip: 'Upload course resources' },
       { id: 'submissions', label: 'Submissions', icon: '📥', tooltip: 'View student submissions' },
       //{ id: 'progress', label: 'Progress', icon: '📊', tooltip: 'Student progress overview' },
       { id: 'videos', label: 'Videos', icon: '🎥', tooltip: 'Manage video lectures' },
       { id: 'live-lectures', label: 'Live Lectures', icon: '📺', tooltip: 'Manage live lectures' },
-      { id: 'notes', label: 'Notes', icon: '📖', tooltip: 'Course notes' },
-      { id: 'pyq', label: 'Previous Papers', icon: '📄', tooltip: 'Previous questions' },
       { id: 'discussion', label: 'Discussion', icon: '💬', tooltip: 'Discussion forum', badge: discussionCount },
     ]
 
@@ -784,7 +781,7 @@ export default function CourseDetails() {
   // Redirect teachers to the new 'Assignment' tab if they are on hidden tabs
   useEffect(() => {
     if (user?.role === 'teacher') {
-      const hiddenForTeacher = new Set(['present', 'past', 'progress', 'chatbot', 'pdfchat'])
+      const hiddenForTeacher = new Set(['present', 'past', 'progress', 'pdfchat'])
       if (hiddenForTeacher.has(tab)) {
         setTab('assignment')
       }
@@ -1123,12 +1120,121 @@ export default function CourseDetails() {
 
           {tab === 'quizzes' && (
             <div>
-              {/* Available Quizzes */}
-              <section className="assignments-section">
-                <div className="section-header">
-                  <h2 className="section-title">Available Quizzes</h2>
-                  <span className="assignment-count">{quizzesOnly.length} quizzes</span>
-                </div>
+              {user?.role === 'teacher' ? (
+                /* Teacher Quiz Management */
+                <section className="assignments-section">
+                  <div className="section-header">
+                    <h2 className="section-title">Quiz Management</h2>
+                    <span className="assignment-count">{backendQuizzes.length} quizzes</span>
+                  </div>
+
+                  {backendQuizzes.length === 0 ? (
+                    <p className="muted">No quizzes created for this course yet.</p>
+                  ) : (
+                    <div style={{ overflowX: 'auto' }}>
+                      <table className="table">
+                        <thead>
+                          <tr>
+                            <th>Title</th>
+                            <th>Status</th>
+                            <th>Start Time</th>
+                            <th>End Time</th>
+                            <th>Max Score</th>
+                            <th>Proctored</th>
+                            <th>Actions</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {backendQuizzes.map((quiz: any) => (
+                            <tr key={quiz.id}>
+                              <td>
+                                <strong>{quiz.title}</strong>
+                                {quiz.description && (
+                                  <div className="muted" style={{ fontSize: '12px', marginTop: '4px' }}>
+                                    {quiz.description.length > 60 ? quiz.description.substring(0, 60) + '...' : quiz.description}
+                                  </div>
+                                )}
+                              </td>
+                              <td>
+                                <span style={{
+                                  display: 'inline-block',
+                                  padding: '2px 6px',
+                                  borderRadius: '4px',
+                                  fontSize: '11px',
+                                  fontWeight: 'bold',
+                                  background: new Date(quiz.start_at) > new Date() ? '#ffc107' : new Date(quiz.end_at) < new Date() ? '#6c757d' : '#28a745',
+                                  color: 'white'
+                                }}>
+                                  {new Date(quiz.start_at) > new Date() ? 'SCHEDULED' : new Date(quiz.end_at) < new Date() ? 'ENDED' : 'ACTIVE'}
+                                </span>
+                              </td>
+                              <td>{quiz.start_at ? new Date(quiz.start_at).toLocaleString() : 'N/A'}</td>
+                              <td>{quiz.end_at ? new Date(quiz.end_at).toLocaleString() : 'N/A'}</td>
+                              <td>{quiz.max_score || 'N/A'}</td>
+                              <td>
+                                {quiz.is_proctored ? (
+                                  <span style={{ color: '#dc2626', fontWeight: 'bold' }}>🔒 Yes</span>
+                                ) : (
+                                  <span style={{ color: '#28a745' }}>No</span>
+                                )}
+                              </td>
+                              <td>
+                                <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
+                                  <button
+                                    className="btn btn-sm btn-primary"
+                                    onClick={() => {
+                                      // Navigate to quiz details/results page
+                                      navigate(`/quizzes/${quiz.id}/results`);
+                                    }}
+                                  >
+                                    View Results
+                                  </button>
+                                  <button
+                                    className="btn btn-sm"
+                                    onClick={() => {
+                                      // TODO: Implement edit quiz functionality
+                                      push({ kind: 'info', message: 'Edit functionality coming soon' });
+                                    }}
+                                  >
+                                    Edit
+                                  </button>
+                                  <button
+                                    className="btn btn-sm btn-danger"
+                                    onClick={async () => {
+                                      if (confirm(`Delete quiz "${quiz.title}"? This action cannot be undone.`)) {
+                                        try {
+                                          await apiFetch(`/api/quizzes/${quiz.id}`, { method: 'DELETE' });
+                                          push({ kind: 'success', message: 'Quiz deleted successfully' });
+                                          // Refresh quizzes list
+                                          const quizzesMod = await import('../../services/quizzes');
+                                          const quizzes = await quizzesMod.listCourseQuizzes(Number(courseId));
+                                          setBackendQuizzes(quizzes);
+                                        } catch (err: any) {
+                                          push({ kind: 'error', message: err?.message || 'Failed to delete quiz' });
+                                        }
+                                      }
+                                    }}
+                                  >
+                                    Delete
+                                  </button>
+                                </div>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </section>
+              ) : (
+                /* Student Quiz Interface */
+                <>
+                  {/* Available Quizzes */}
+                  <section className="assignments-section">
+                    <div className="section-header">
+                      <h2 className="section-title">Available Quizzes</h2>
+                      <span className="assignment-count">{quizzesOnly.length} quizzes</span>
+                    </div>
                 {quizzesOnly.length === 0 ? (
                   <p className="muted">No quizzes available at the moment.</p>
                 ) : (
@@ -1307,6 +1413,8 @@ export default function CourseDetails() {
                   </div>
                 </section>
               )}
+                </>
+              )}
             </div>
           )}
 
@@ -1318,7 +1426,7 @@ export default function CourseDetails() {
                 <>
                   <h3>Create Assignment</h3>
                   <p className="muted" style={{ marginBottom: 16 }}>Choose the type of assignment you want to create:</p>
-                  <div className="grid" style={{ gridTemplateColumns: '1fr 1fr', gap: 16, maxWidth: 600 }}>
+                  <div className="grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 16, maxWidth: 800 }}>
                     <button
                       className="btn btn-primary"
                       style={{ padding: 24, fontSize: 16, height: 120, display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', gap: 8 }}
@@ -1358,14 +1466,6 @@ export default function CourseDetails() {
                     >
                       <span style={{ fontSize: 32 }}>🔗</span>
                       <span>Mixed Submission</span>
-                    </button>
-                    <button
-                      className="btn btn-primary"
-                      style={{ padding: 24, fontSize: 16, height: 120, display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', gap: 8 }}
-                      onClick={() => setAssignmentCreationType('resources')}
-                    >
-                      <span style={{ fontSize: 32 }}>📚</span>
-                      <span>Upload Resources</span>
                     </button>
                   </div>
                 </>
@@ -1917,12 +2017,9 @@ export default function CourseDetails() {
             </section>
           )}
 
-          {user?.role === 'teacher' && tab === 'manage' && assignmentCreationType === 'resources' && (
+          {user?.role === 'teacher' && tab === 'resources' && (
             <section className="card">
-              <div style={{ display: 'flex', alignItems: 'center', marginBottom: 16 }}>
-                <button className="btn" onClick={() => setAssignmentCreationType('selection')} style={{ marginRight: 8 }}>← Back</button>
-                <h3 style={{ margin: 0 }}>Upload Course Resources</h3>
-              </div>
+              <h3>Upload Course Resources</h3>
               <div className="form" style={{ maxWidth: 800 }}>
                 <div className="card" style={{ marginBottom: 16, padding: 16 }}>
                   <h4 style={{ marginTop: 0 }}>Upload Resource</h4>
@@ -2046,30 +2143,6 @@ export default function CourseDetails() {
             </div>
           )}
 
-         {tab === 'chatbot' && isBackend && (
-           <section className="assignments-section">
-             <div className="section-header">
-               <h2 className="section-title">
-                 <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ marginRight: '8px', verticalAlign: 'middle' }}>
-                   <path d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-                 </svg>
-                 AI Assistant
-               </h2>
-               <span className="assignment-count">
-                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ marginRight: '4px', verticalAlign: 'middle' }}>
-                   <circle cx="12" cy="12" r="10" />
-                   <polyline points="12 6 12 12 16 14" />
-                 </svg>
-                 Course & Document Q&A
-               </span>
-             </div>
-             <div className="ai-assistant-intro">
-               <div className="ai-icon">🤖</div>
-               <p>Get AI-powered answers for course questions or upload documents for Q&A. Switch between Course Q&A and Document Q&A modes.</p>
-             </div>
-             <Chatbot courseId={courseId} />
-           </section>
-         )}
           {tab === 'videos' && isBackend && (
             <section className="assignments-section">
               <div className="section-header">
@@ -2174,13 +2247,22 @@ export default function CourseDetails() {
                           {backendVideos.map((video: any) => (
                             <tr key={video.id}>
                               <td>
-                                <button
-                                  className="btn"
-                                  style={{ textAlign: 'left', padding: 0, background: 'none', border: 'none', color: 'inherit', cursor: 'pointer', textDecoration: 'underline' }}
-                                  onClick={() => setSelectedVideo(video)}
-                                >
-                                  {video.title}
-                                </button>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                                  <button
+                                    className="btn"
+                                    style={{ textAlign: 'left', padding: 0, background: 'none', border: 'none', color: 'inherit', cursor: 'pointer', textDecoration: 'underline' }}
+                                    onClick={() => setSelectedVideo(video)}
+                                  >
+                                    {video.title}
+                                  </button>
+                                  <button
+                                    className="btn btn-sm"
+                                    style={{ fontSize: '11px', padding: '2px 6px', alignSelf: 'flex-start' }}
+                                    onClick={() => navigate(`/videos/${video.id}`)}
+                                  >
+                                    📺 Full Screen
+                                  </button>
+                                </div>
                               </td>
                               {user?.role === 'teacher' && (
                                 <td>

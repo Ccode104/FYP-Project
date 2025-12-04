@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import './CourseSidebar.css'
 
 export interface TabItem {
@@ -22,9 +22,10 @@ interface CourseSidebarInnerProps extends CourseSidebarProps {
   isOpen: boolean
   onSidebarLeave: () => void
   onSidebarEnter: () => void
+  onSidebarClick: () => void
 }
 
-function CourseSidebarInner({ tabs, activeTab, onTabChange, userRole, isOpen, onSidebarLeave, onSidebarEnter }: CourseSidebarInnerProps) {
+function CourseSidebarInner({ tabs, activeTab, onTabChange, userRole, isOpen, onSidebarLeave, onSidebarEnter, onSidebarClick }: CourseSidebarInnerProps) {
   const [hoveredTab, setHoveredTab] = useState<string | null>(null)
 
   const handleKeyDown = (e: React.KeyboardEvent, tabId: string) => {
@@ -41,7 +42,7 @@ function CourseSidebarInner({ tabs, activeTab, onTabChange, userRole, isOpen, on
       className={`course-sidebar ${isOpen ? 'open' : 'closed'}`}
       onMouseEnter={onSidebarEnter}
       onMouseLeave={onSidebarLeave}
-      onClick={() => { setIsOpen(false); if (props.onSidebarToggle) props.onSidebarToggle(false); }}
+      onClick={onSidebarClick}
       role="navigation"
       aria-label="Course navigation"
     >
@@ -88,12 +89,58 @@ function CourseSidebarInner({ tabs, activeTab, onTabChange, userRole, isOpen, on
 // Main export component with toggle state management
 export default function CourseSidebar(props: CourseSidebarProps) {
   const [isOpen, setIsOpen] = useState(true)
+  const [openedByHamburger, setOpenedByHamburger] = useState(false)
+
+  // Handle global click to close sidebar when opened by hover
+  useEffect(() => {
+    const handleGlobalClick = () => {
+      if (isOpen && !openedByHamburger) {
+        setIsOpen(false)
+        if (props.onSidebarToggle) {
+          props.onSidebarToggle(false)
+        }
+      }
+    }
+
+    if (isOpen && !openedByHamburger) {
+      document.addEventListener('click', handleGlobalClick)
+      return () => document.removeEventListener('click', handleGlobalClick)
+    }
+  }, [isOpen, openedByHamburger, props.onSidebarToggle])
 
   const handleToggle = () => {
     const newState = !isOpen
     setIsOpen(newState)
+    setOpenedByHamburger(newState) // Track if opened by hamburger
     if (props.onSidebarToggle) {
       props.onSidebarToggle(newState)
+    }
+  }
+
+  const handleSidebarEnter = () => {
+    if (!openedByHamburger) { // Only open on hover if not opened by hamburger
+      setIsOpen(true)
+      if (props.onSidebarToggle) {
+        props.onSidebarToggle(true)
+      }
+    }
+  }
+
+  const handleSidebarLeave = () => {
+    if (!openedByHamburger) { // Only close on leave if not opened by hamburger
+      setIsOpen(false)
+      if (props.onSidebarToggle) {
+        props.onSidebarToggle(false)
+      }
+    }
+  }
+
+  const handleSidebarClick = () => {
+    if (!openedByHamburger) { // Only close on click if opened by hover
+      setIsOpen(false)
+      if (props.onSidebarToggle) {
+        props.onSidebarToggle(false)
+      }
     }
   }
 
@@ -102,7 +149,7 @@ export default function CourseSidebar(props: CourseSidebarProps) {
       {/* Hamburger Button - Positioned in top-left */}
       <button
         className="sidebar-hamburger"
-        onClick={() => { setIsOpen(!isOpen); if (props.onSidebarToggle) props.onSidebarToggle(!isOpen); }}
+        onClick={handleToggle}
         aria-label="Toggle sidebar"
       >
         <span className="hamburger-line"></span>
@@ -111,12 +158,18 @@ export default function CourseSidebar(props: CourseSidebarProps) {
       </button>
 
       {/* Sidebar Navigation */}
-      <CourseSidebarInner {...props} isOpen={isOpen} onSidebarLeave={() => { setIsOpen(false); if (props.onSidebarToggle) props.onSidebarToggle(false); }} onSidebarEnter={() => { setIsOpen(true); if (props.onSidebarToggle) props.onSidebarToggle(true); }} />
-      
+      <CourseSidebarInner
+        {...props}
+        isOpen={isOpen}
+        onSidebarLeave={handleSidebarLeave}
+        onSidebarEnter={handleSidebarEnter}
+        onSidebarClick={handleSidebarClick}
+      />
+
       {/* Overlay for mobile */}
       {isOpen && (
-        <div 
-          className="sidebar-overlay" 
+        <div
+          className="sidebar-overlay"
           onClick={handleToggle}
           aria-hidden="true"
         />

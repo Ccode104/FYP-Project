@@ -92,10 +92,10 @@ Professor: ${course.faculty_name || "Not assigned"}`;
   }
 }
 
-// Tool 2: Document Search Tool
+// Tool 2: Document Search Tool (Enhanced RAG for PYQs and Notes)
 class DocumentSearchTool extends Tool {
   name = "document_search";
-  description = "Search through uploaded documents for relevant information. Input should be a JSON string with 'documentIds' array and 'query' string.";
+  description = "Search through uploaded documents, course notes, and PYQs for relevant information. Input should be a JSON string with 'documentIds' array, 'courseId' for course resources, and 'query' string.";
 
   constructor() {
     super();
@@ -103,47 +103,210 @@ class DocumentSearchTool extends Tool {
 
   async _call(input) {
     try {
-      const { documentIds, query } = JSON.parse(input);
+      const { documentIds = [], courseId, query } = JSON.parse(input);
       let results = [];
 
+      // Check if this is a document summary request
+      const summaryKeywords = ['tell me about', 'what is this', 'what is the', 'describe', 'summary', 'overview', 'about this doc'];
+      const isSummaryRequest = summaryKeywords.some(keyword => query.toLowerCase().includes(keyword));
+
+      // Search uploaded documents
       for (const docId of documentIds) {
         const doc = pdfTextStore.get(docId);
+        console.log(`DocumentSearchTool: Looking for doc ${docId}, found:`, !!doc);
         if (doc) {
-          // Simple text search - in production, use vector search
-          const content = doc.content.toLowerCase();
-          const searchQuery = query.toLowerCase();
-
-          if (content.includes(searchQuery)) {
-            // Extract relevant snippets (simple approach)
-            const sentences = doc.content.split(/[.!?]+/).filter(s => s.trim());
-            const relevantSentences = sentences.filter(sentence =>
-              sentence.toLowerCase().includes(searchQuery)
-            ).slice(0, 3);
+          if (isSummaryRequest) {
+            // Return document metadata and basic info
+            const wordCount = doc.content.split(/\s+/).length;
+            const charCount = doc.content.length;
+            const snippet = doc.content.substring(0, 200) + (doc.content.length > 200 ? '...' : '');
 
             results.push({
+              source: 'uploaded_document',
               filename: doc.filename,
-              snippets: relevantSentences,
+              snippets: [`Document: ${doc.filename}\nType: ${doc.usedOCR ? 'OCR Processed' : 'Text Document'}\nSize: ${wordCount} words, ${charCount} characters\nUploaded: ${doc.uploaded_at}\n\nContent Preview:\n${snippet}`],
               usedOCR: doc.usedOCR
             });
+          } else {
+            // Search within document content
+            const content = doc.content.toLowerCase();
+            const searchQuery = query.toLowerCase();
+
+            if (content.includes(searchQuery)) {
+              const sentences = doc.content.split(/[.!?]+/).filter(s => s.trim());
+              const relevantSentences = sentences.filter(sentence =>
+                sentence.toLowerCase().includes(searchQuery)
+              ).slice(0, 3);
+
+              if (relevantSentences.length > 0) {
+                results.push({
+                  source: 'uploaded_document',
+                  filename: doc.filename,
+                  snippets: relevantSentences,
+                  usedOCR: doc.usedOCR
+                });
+              }
+            }
           }
         }
       }
 
-      if (results.length === 0) {
-        return "No relevant information found in the uploaded documents.";
+      // Search course resources (PYQs and Notes) if courseId provided
+      if (courseId) {
+        try {
+          // Search lecture notes
+          const notesData = await pool.query(
+            `SELECT title, description FROM resources
+             WHERE course_offering_id = $1 AND resource_type = 'lecture_note'
+             AND (title ILIKE $2 OR description ILIKE $2)`,
+            [courseId, `%${query}%`]
+          );
+
+          notesData.rows.forEach(note => {
+            results.push({
+              source: 'course_notes',
+              filename: note.title,
+              snippets: [note.description || 'No description available'],
+              usedOCR: false
+            });
+          });
+
+          // Search PYQs
+          const pyqData = await pool.query(
+            `SELECT title, description FROM resources
+             WHERE course_offering_id = $1 AND resource_type = 'pyq'
+             AND (title ILIKE $2 OR description ILIKE $2)`,
+            [courseId, `%${query}%`]
+          );
+
+          pyqData.rows.forEach(pyq => {
+            results.push({
+              source: 'pyq',
+              filename: pyq.title,
+              snippets: [pyq.description || 'No description available'],
+              usedOCR: false
+            });
+          });
+
+        } catch (dbError) {
+          console.error("Error searching course resources:", dbError);
+        }
       }
 
-      return results.map(r =>
-        `Document: ${r.filename}${r.usedOCR ? ' (OCR processed)' : ''}\nRelevant content:\n${r.snippets.join('\n')}`
-      ).join('\n\n');
+      if (results.length === 0) {
+        return `No relevant information found for "${query}". Try rephrasing your question or check if the content is available in course materials.`;
+      }
+
+      return results.map(r => {
+        const sourceLabel = r.source === 'uploaded_document' ? 'Document' :
+                           r.source === 'course_notes' ? 'Course Notes' :
+                           r.source === 'pyq' ? 'Previous Year Question' : 'Resource';
+        return `${sourceLabel}: ${r.filename}${r.usedOCR ? ' (OCR processed)' : ''}\nRelevant content:\n${r.snippets.join('\n')}`;
+      }).join('\n\n');
     } catch (error) {
       console.error("DocumentSearchTool error:", error);
-      return "Error searching documents.";
+      return "Error searching documents and course materials.";
     }
   }
 }
 
-// Tool 3: Web Search Tool
+// Tool 3: Assignments and Quizzes Tool
+class AssignmentsQuizzesTool extends Tool {
+  name = "assignments_quizzes";
+  description = "Get information about upcoming assignments, quizzes, deadlines, and submission status. Input should be a JSON string with 'courseId' and 'userId'.";
+
+  constructor() {
+    super();
+  }
+
+  async _call(input) {
+    try {
+      const { courseId, userId } = JSON.parse(input);
+
+      // Get assignments
+      const assignmentsData = await pool.query(
+        `SELECT a.id, a.title, a.description, a.due_at, a.assignment_type,
+                CASE WHEN s.id IS NOT NULL THEN true ELSE false END as is_submitted,
+                s.submitted_at, s.final_score
+         FROM assignments a
+         LEFT JOIN assignment_submissions s ON a.id = s.assignment_id AND s.student_id = $2
+         WHERE a.course_offering_id = $1 AND a.due_at > NOW()
+         ORDER BY a.due_at ASC`,
+        [courseId, userId]
+      );
+
+      // Get quizzes
+      const quizzesData = await pool.query(
+        `SELECT q.id, q.title, q.start_at, q.end_at, q.time_limit as duration_minutes,
+                CASE WHEN qa.id IS NOT NULL THEN true ELSE false END as is_attempted,
+                qa.started_at, qa.finished_at, qa.score
+         FROM quizzes q
+         LEFT JOIN quiz_attempts qa ON q.id = qa.quiz_id AND qa.student_id = $2
+         WHERE q.course_offering_id = $1 AND q.end_at > NOW()
+         ORDER BY q.start_at ASC`,
+        [courseId, userId]
+      );
+
+      let result = '';
+
+      if (assignmentsData.rows.length > 0) {
+        result += '📝 UPCOMING ASSIGNMENTS:\n';
+        assignmentsData.rows.forEach(assignment => {
+          const dueDate = new Date(assignment.due_at).toLocaleDateString('en-US', {
+            weekday: 'short',
+            month: 'short',
+            day: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit'
+          });
+          const status = assignment.is_submitted ? '✅ Submitted' : '⏰ Pending';
+          const score = assignment.final_score ? ` (Score: ${assignment.final_score})` : '';
+
+          result += `- ${assignment.title} (${assignment.assignment_type})\n`;
+          result += `  Due: ${dueDate}\n`;
+          result += `  Status: ${status}${score}\n\n`;
+        });
+      }
+
+      if (quizzesData.rows.length > 0) {
+        result += '📊 UPCOMING QUIZZES:\n';
+        quizzesData.rows.forEach(quiz => {
+          const startDate = new Date(quiz.start_at).toLocaleDateString('en-US', {
+            weekday: 'short',
+            month: 'short',
+            day: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit'
+          });
+          const endDate = new Date(quiz.end_at).toLocaleDateString('en-US', {
+            weekday: 'short',
+            day: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit'
+          });
+          const status = quiz.is_attempted ? '✅ Attempted' : '⏰ Available';
+          const score = quiz.score ? ` (Score: ${quiz.score})` : '';
+
+          result += `- ${quiz.title}\n`;
+          result += `  Available: ${startDate} - ${endDate}\n`;
+          result += `  Duration: ${quiz.duration_minutes} minutes\n`;
+          result += `  Status: ${status}${score}\n\n`;
+        });
+      }
+
+      if (result === '') {
+        return "No upcoming assignments or quizzes found for this course.";
+      }
+
+      return result.trim();
+    } catch (error) {
+      console.error("AssignmentsQuizzesTool error:", error);
+      return "Error retrieving assignments and quizzes information.";
+    }
+  }
+}
+
+// Tool 4: Web Search Tool
 class WebSearchTool extends Tool {
   name = "web_search";
   description = "Perform web search for information not available in course materials or documents. Input should be the search query.";
@@ -248,6 +411,7 @@ async function initializeChatbotAgent() {
 
   const tools = [
     new CourseInfoTool(),
+    new AssignmentsQuizzesTool(),
     new DocumentSearchTool(),
     new WebSearchTool()
   ];
@@ -265,9 +429,9 @@ async function initializeChatbotAgent() {
     agentExecutor = new AgentExecutor({
       agent,
       tools,
-      verbose: process.env.NODE_ENV === 'development',
+      verbose: true, // Always verbose for debugging
       maxIterations: 5,
-      returnIntermediateSteps: false,
+      returnIntermediateSteps: true, // Enable to see tool usage
     });
 
     return agentExecutor;

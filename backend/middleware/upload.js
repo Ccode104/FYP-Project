@@ -17,6 +17,7 @@ const cloudinaryStorage = new CloudinaryStorage({
     folder: "lms_videos",
     resource_type: "video",
     public_id: `${uuidv4()}_${Date.now()}`,
+    timeout: 600000, // 10 minutes timeout for large files
   }),
 });
 

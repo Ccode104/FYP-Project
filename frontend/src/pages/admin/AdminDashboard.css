@@ -1460,6 +1460,60 @@ label.field select.input {
   font-weight: 600;
 }
 
+/* Admin Theme Button Styles */
+.admin-theme .btn-primary {
+  background: linear-gradient(135deg, #7c3aed, #a855f7);
+  color: #ffffff;
+  border-color: transparent;
+  box-shadow: var(--shadow-sm);
+  padding: 8px 16px;
+  font-weight: 500;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  position: relative;
+  overflow: hidden;
+}
+
+.admin-theme .btn-primary:hover {
+  background: linear-gradient(135deg, #5b21b6, #7c2d12);
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-md);
+}
+
+.admin-theme .btn-success {
+  background: linear-gradient(135deg, #10b981, #059669);
+  color: #ffffff;
+  border-color: transparent;
+  box-shadow: var(--shadow-sm);
+  padding: 8px 16px;
+  font-weight: 500;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  position: relative;
+  overflow: hidden;
+}
+
+.admin-theme .btn-success:hover {
+  background: linear-gradient(135deg, #047857, #065f46);
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-md);
+}
+
+.admin-theme .btn-secondary {
+  background: var(--surface);
+  color: var(--text);
+  border: 1px solid var(--border);
+  padding: 8px 16px;
+  font-weight: 500;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.admin-theme .btn-secondary:hover {
+  background: var(--bg-secondary);
+  border-color: var(--primary);
+  color: var(--primary);
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-sm);
+}
+
 /* Danger Button */
 .btn-danger {
   background: #dc2626;
@@ -1626,6 +1680,99 @@ label.field select.input {
   margin-bottom: 24px;
 }
 
+/* Individual stat card colors */
+.stat-card:nth-child(1) .stat-value { color: #2563eb; } /* Total Users - Blue */
+.stat-card:nth-child(2) .stat-value { color: #dc2626; } /* Inactive Users - Red */
+.stat-card:nth-child(3) .stat-value { color: #16a34a; } /* Active Courses - Green */
+.stat-card:nth-child(4) .stat-value { color: #ca8a04; } /* Assignments - Yellow */
+.stat-card:nth-child(5) .stat-value { color: #9333ea; } /* Submissions - Purple */
+
+/* User cards styling */
+.admin-theme .user-card {
+  background: linear-gradient(135deg, var(--surface) 0%, var(--bg-secondary) 100%);
+  border: 2px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 20px;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  position: relative;
+  overflow: hidden;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+}
+
+.admin-theme .user-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 4px;
+  background: linear-gradient(90deg, #3b82f6, #8b5cf6);
+  transform: scaleX(0);
+  transform-origin: left;
+  transition: transform 0.3s ease;
+}
+
+.admin-theme .user-card:hover::before {
+  transform: scaleX(1);
+}
+
+.admin-theme .user-card:hover {
+  border-color: #3b82f6;
+  box-shadow: 0 8px 25px rgba(59, 130, 246, 0.15);
+  transform: translateY(-4px);
+}
+
+.admin-theme .user-card.student {
+  border-left: 4px solid #10b981;
+}
+
+.admin-theme .user-card.faculty {
+  border-left: 4px solid #f59e0b;
+}
+
+.admin-theme .user-card.ta {
+  border-left: 4px solid #8b5cf6;
+}
+
+.admin-theme .user-card.admin {
+  border-left: 4px solid #ef4444;
+}
+
+/* Department cards styling */
+.admin-theme .department-card {
+  background: linear-gradient(135deg, var(--surface) 0%, var(--bg-secondary) 100%);
+  border: 2px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 20px;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  position: relative;
+  overflow: hidden;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+}
+
+.admin-theme .department-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 4px;
+  background: linear-gradient(90deg, #06b6d4, #3b82f6);
+  transform: scaleX(0);
+  transform-origin: left;
+  transition: transform 0.3s ease;
+}
+
+.admin-theme .department-card:hover::before {
+  transform: scaleX(1);
+}
+
+.admin-theme .department-card:hover {
+  border-color: #06b6d4;
+  box-shadow: 0 8px 25px rgba(6, 182, 212, 0.15);
+  transform: translateY(-4px);
+}
+
 .stat-card {
   background: var(--surface);
   border: 1px solid var(--border);
@@ -1636,6 +1783,7 @@ label.field select.input {
   transition: all 0.3s ease;
   position: relative;
   overflow: hidden;
+  color: var(--text);
 }
 
 .stat-card::before {
@@ -1675,7 +1823,7 @@ label.field select.input {
 .stat-value {
   font-size: 36px;
   font-weight: 700;
-  color: var(--primary);
+  color: #2563eb;
   margin: 0;
   line-height: 1;
 }

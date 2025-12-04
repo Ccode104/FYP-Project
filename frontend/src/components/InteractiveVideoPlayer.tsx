@@ -47,6 +47,7 @@ export default function InteractiveVideoPlayer({ video, userRole, onComplete }: 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [lastAnswerResult, setLastAnswerResult] = useState<{ is_correct: boolean; explanation: string | null } | null>(null);
   const [answerResults, setAnswerResults] = useState<Record<number, { is_correct: boolean; explanation: string | null }>>({});
+  const [isFullscreen, setIsFullscreen] = useState(false);
   const { push } = useToast();
 
   // Load questions and attempt on mount
@@ -110,6 +111,31 @@ export default function InteractiveVideoPlayer({ video, userRole, onComplete }: 
     loadData();
   }, [video.id, userRole, push]);
 
+  // Handle fullscreen changes
+  useEffect(() => {
+    const handleFullscreenChange = () => {
+      const isCurrentlyFullscreen = !!(
+        document.fullscreenElement ||
+        (document as any).webkitFullscreenElement ||
+        (document as any).mozFullScreenElement ||
+        (document as any).msFullscreenElement
+      );
+      setIsFullscreen(isCurrentlyFullscreen);
+    };
+
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
+    document.addEventListener('webkitfullscreenchange', handleFullscreenChange);
+    document.addEventListener('mozfullscreenchange', handleFullscreenChange);
+    document.addEventListener('MSFullscreenChange', handleFullscreenChange);
+
+    return () => {
+      document.removeEventListener('fullscreenchange', handleFullscreenChange);
+      document.removeEventListener('webkitfullscreenchange', handleFullscreenChange);
+      document.removeEventListener('mozfullscreenchange', handleFullscreenChange);
+      document.removeEventListener('MSFullscreenChange', handleFullscreenChange);
+    };
+  }, []);
+
   // Track last checked time to avoid duplicate checks
   const lastCheckedTimeRef = useRef<number>(0);
   const lastQuestionIdRef = useRef<number | null>(null);
@@ -162,19 +188,9 @@ export default function InteractiveVideoPlayer({ video, userRole, onComplete }: 
         setSelectedAnswer(studentAnswers[questionAtTime.id] || '');
         setLastAnswerResult(null);
       } else {
-        // If it's an answered question and user seeks back, show it again (read-only)
-        if (currentQuestion?.id !== questionAtTime.id) {
-          setCurrentQuestion(questionAtTime);
-          setSelectedAnswer(studentAnswers[questionAtTime.id] || '');
-          // Show the stored result if available
-          const storedResult = answerResults[questionAtTime.id];
-          if (storedResult) {
-            setLastAnswerResult(storedResult);
-          } else {
-            // Fallback to question explanation if no stored result
-            setLastAnswerResult({ is_correct: true, explanation: questionAtTime.explanation });
-          }
-        }
+        // If it's an answered question and user seeks back, don't show feedback again
+        // Just continue playing without interruption
+        return;
       }
     }
   }, [questions, answeredQuestions, currentQuestion, studentAnswers, userRole, answerResults]);
@@ -313,22 +329,15 @@ export default function InteractiveVideoPlayer({ video, userRole, onComplete }: 
     }
   }, [questions, answeredQuestions, userRole, showScore, push, studentAnswers, currentQuestion]);
 
-  // Handle answer submission
-  const handleSubmitAnswer = useCallback(async () => {
+  // Handle answer submission (automatic when option selected)
+  const handleSubmitAnswer = useCallback(async (answer: string) => {
     if (!currentQuestion || isSubmitting) return;
 
-    // Validate per question type
-    if (currentQuestion.question_type === 'short_answer') {
-      if (!selectedAnswer.trim()) return;
-    } else {
-      if (selectedAnswer === '') return;
-    }
-
     // Normalize payload by question type to match backend expectations
-    let answerPayload: any = selectedAnswer;
+    let answerPayload: any = answer;
     if (currentQuestion.question_type === 'mcq') {
       // send numeric index
-      const idx = Number(selectedAnswer);
+      const idx = Number(answer);
       if (Number.isNaN(idx)) {
         push({ kind: 'error', message: 'Please select an option' });
         return;
@@ -336,7 +345,7 @@ export default function InteractiveVideoPlayer({ video, userRole, onComplete }: 
       answerPayload = idx;
     } else if (currentQuestion.question_type === 'true_false') {
       // send boolean
-      answerPayload = selectedAnswer === 'true';
+      answerPayload = answer === 'true';
     }
 
     setIsSubmitting(true);
@@ -345,15 +354,15 @@ export default function InteractiveVideoPlayer({ video, userRole, onComplete }: 
 
       // Update answered questions
       setAnsweredQuestions((prev) => new Set([...prev, currentQuestion.id]));
-      setStudentAnswers((prev) => ({ ...prev, [currentQuestion.id]: selectedAnswer }));
-      
+      setStudentAnswers((prev) => ({ ...prev, [currentQuestion.id]: answer }));
+
       // Store the answer result
       const answerResult = {
         is_correct: result.is_correct,
         explanation: (result.explanation ?? currentQuestion.explanation) || null,
       };
       setAnswerResults((prev) => ({ ...prev, [currentQuestion.id]: answerResult }));
-      
+
       // Show the result and explanation
       setLastAnswerResult(answerResult);
 
@@ -369,15 +378,15 @@ export default function InteractiveVideoPlayer({ video, userRole, onComplete }: 
         push({ kind: 'error', message: 'Incorrect. Please review the explanation.' });
       }
 
-      // Do NOT auto-close. The modal will show feedback and explanation and the
-      // student must press Continue to close and resume playback.
+      // User will manually continue using the button in the feedback
+
     } catch (error: any) {
       console.error('Error submitting answer:', error);
       push({ kind: 'error', message: error?.message || 'Failed to submit answer' });
     } finally {
       setIsSubmitting(false);
     }
-  }, [currentQuestion, selectedAnswer, video.id, isSubmitting, push]);
+  }, [currentQuestion, video.id, isSubmitting, push]);
 
   // Continue/close modal after submission and resume playback
   const handleContinueAfterSubmit = useCallback(() => {
@@ -463,49 +472,86 @@ export default function InteractiveVideoPlayer({ video, userRole, onComplete }: 
             pauseRequestedRef.current = false;
           }}
           className="video-player"
-          style={{ width: '100%', maxWidth: '800px', height: 'auto', zIndex: 1 }}
+          style={{ width: '100%', maxWidth: '1800px', height: 'auto', zIndex: 1 }}
         >
           Your browser does not support the video tag.
         </video>
-      </div>
 
-      {/* Question Display Below Video */}
-      {currentQuestion && userRole === 'student' && (
-        <div className="question-display" style={{ scrollMarginTop: '20px' }}>
-          <div className="question-header">
-            <span className="timestamp-pill">
-              {answeredQuestions.has(currentQuestion.id) ? '✓ Answered' : 'Question'} at {formatTime(currentQuestion.timestamp || 0)}
-            </span>
-          </div>
-          <h3 className="question-text">{currentQuestion.question_text}</h3>
+        {/* Question Overlay on Video */}
+        {currentQuestion && userRole === 'student' && (
+          <div className={`question-overlay ${isFullscreen ? 'fullscreen' : ''}`}>
+            <div className="question-header">
+              <span className="timestamp-pill">
+                {answeredQuestions.has(currentQuestion.id) ? '✓ Answered' : 'Question'} at {formatTime(currentQuestion.timestamp || 0)}
+              </span>
+            </div>
 
-          {currentQuestion.question_type === 'mcq' && currentQuestion.options && (
-            <div className="question-options">
-              {(() => {
-                const options = typeof currentQuestion.options === 'string'
-                  ? JSON.parse(currentQuestion.options)
-                  : currentQuestion.options || [];
+            {!lastAnswerResult ? (
+              <>
+                <h3 className="question-text">{currentQuestion.question_text}</h3>
 
-                return options.map((opt: string, i: number) => {
-                  const optText = String(opt);
-                  const optId = `${currentQuestion.id}_${i}_${encodeURIComponent(optText)}`;
-                  const isSelected = selectedAnswer === String(i);
-                  return (
-                    <label 
-                      key={optId} 
+                {currentQuestion.question_type === 'mcq' && currentQuestion.options && (
+                  <div className="question-options">
+                    {(() => {
+                      const options = typeof currentQuestion.options === 'string'
+                        ? JSON.parse(currentQuestion.options)
+                        : currentQuestion.options || [];
+
+                      return options.map((opt: string, i: number) => {
+                        const optText = String(opt);
+                        const optId = `${currentQuestion.id}_${i}_${encodeURIComponent(optText)}`;
+                        const isSelected = selectedAnswer === String(i);
+                        return (
+                          <label
+                            key={optId}
+                            className="option-label"
+                            onClick={() => {
+                              if (!isSubmitting && !lastAnswerResult) {
+                                const answerValue = String(i);
+                                setSelectedAnswer(answerValue);
+                                handleSubmitAnswer(answerValue);
+                              }
+                            }}
+                            style={{ cursor: (isSubmitting || lastAnswerResult) ? 'not-allowed' : 'pointer' }}
+                          >
+                            <input
+                              type="radio"
+                              name={`question-${currentQuestion.id}`}
+                              value={String(i)}
+                              checked={isSelected}
+                              onChange={(e) => {
+                                if (!isSubmitting && !lastAnswerResult) {
+                                  setSelectedAnswer(e.target.value);
+                                }
+                              }}
+                              disabled={isSubmitting || !!lastAnswerResult}
+                            />
+                            <span>{optText}</span>
+                          </label>
+                        );
+                      });
+                    })()}
+                  </div>
+                )}
+
+                {currentQuestion.question_type === 'true_false' && (
+                  <div className="question-options">
+                    <label
                       className="option-label"
                       onClick={() => {
                         if (!isSubmitting && !lastAnswerResult) {
-                          setSelectedAnswer(String(i));
+                          const answerValue = 'true';
+                          setSelectedAnswer(answerValue);
+                          handleSubmitAnswer(answerValue);
                         }
                       }}
                       style={{ cursor: (isSubmitting || lastAnswerResult) ? 'not-allowed' : 'pointer' }}
                     >
                       <input
                         type="radio"
-                        name={`question-${currentQuestion.id}`}
-                        value={String(i)}
-                        checked={isSelected}
+                        name={`question-${currentQuestion.id}-true-false`}
+                        value="true"
+                        checked={selectedAnswer === 'true'}
                         onChange={(e) => {
                           if (!isSubmitting && !lastAnswerResult) {
                             setSelectedAnswer(e.target.value);
@@ -513,108 +559,82 @@ export default function InteractiveVideoPlayer({ video, userRole, onComplete }: 
                         }}
                         disabled={isSubmitting || !!lastAnswerResult}
                       />
-                      <span>{optText}</span>
+                      <span>True</span>
                     </label>
-                  );
-                });
-              })()}
-            </div>
-          )}
+                    <label
+                      className="option-label"
+                      onClick={() => {
+                        if (!isSubmitting && !lastAnswerResult) {
+                          const answerValue = 'false';
+                          setSelectedAnswer(answerValue);
+                          handleSubmitAnswer(answerValue);
+                        }
+                      }}
+                      style={{ cursor: (isSubmitting || lastAnswerResult) ? 'not-allowed' : 'pointer' }}
+                    >
+                      <input
+                        type="radio"
+                        name={`question-${currentQuestion.id}-true-false`}
+                        value="false"
+                        checked={selectedAnswer === 'false'}
+                        onChange={(e) => {
+                          if (!isSubmitting && !lastAnswerResult) {
+                            setSelectedAnswer(e.target.value);
+                          }
+                        }}
+                        disabled={isSubmitting || !!lastAnswerResult}
+                      />
+                      <span>False</span>
+                    </label>
+                  </div>
+                )}
 
-          {currentQuestion.question_type === 'true_false' && (
-            <div className="question-options">
-              <label 
-                className="option-label"
-                onClick={() => {
-                  if (!isSubmitting && !lastAnswerResult) {
-                    setSelectedAnswer('true');
-                  }
-                }}
-                style={{ cursor: (isSubmitting || lastAnswerResult) ? 'not-allowed' : 'pointer' }}
-              >
-                <input
-                  type="radio"
-                  name={`question-${currentQuestion.id}-true-false`}
-                  value="true"
-                  checked={selectedAnswer === 'true'}
-                  onChange={(e) => {
-                    if (!isSubmitting && !lastAnswerResult) {
-                      setSelectedAnswer(e.target.value);
-                    }
-                  }}
-                  disabled={isSubmitting || !!lastAnswerResult}
-                />
-                <span>True</span>
-              </label>
-              <label 
-                className="option-label"
-                onClick={() => {
-                  if (!isSubmitting && !lastAnswerResult) {
-                    setSelectedAnswer('false');
-                  }
-                }}
-                style={{ cursor: (isSubmitting || lastAnswerResult) ? 'not-allowed' : 'pointer' }}
-              >
-                <input
-                  type="radio"
-                  name={`question-${currentQuestion.id}-true-false`}
-                  value="false"
-                  checked={selectedAnswer === 'false'}
-                  onChange={(e) => {
-                    if (!isSubmitting && !lastAnswerResult) {
-                      setSelectedAnswer(e.target.value);
-                    }
-                  }}
-                  disabled={isSubmitting || !!lastAnswerResult}
-                />
-                <span>False</span>
-              </label>
-            </div>
-          )}
+                {currentQuestion.question_type === 'short_answer' && (
+                  <input
+                    type="text"
+                    value={selectedAnswer}
+                    onChange={(e) => setSelectedAnswer(e.target.value)}
+                    onKeyPress={(e) => {
+                      if (e.key === 'Enter' && selectedAnswer.trim() && !isSubmitting && !lastAnswerResult) {
+                        handleSubmitAnswer(selectedAnswer.trim());
+                      }
+                    }}
+                    onBlur={() => {
+                      if (selectedAnswer.trim() && !isSubmitting && !lastAnswerResult) {
+                        handleSubmitAnswer(selectedAnswer.trim());
+                      }
+                    }}
+                    placeholder="Enter your answer and press Enter"
+                    disabled={isSubmitting || !!lastAnswerResult}
+                    className="short-answer-input"
+                  />
+                )}
+              </>
+            ) : (
+              <div className={`answer-feedback ${lastAnswerResult.is_correct ? 'correct' : 'incorrect'}`}>
+                <div className="feedback-header">
+                  {lastAnswerResult.is_correct ? '✓ Correct!' : '✗ Incorrect'}
+                </div>
+                {lastAnswerResult.explanation && (
+                  <div className="feedback-explanation">
+                    {lastAnswerResult.explanation}
+                  </div>
+                )}
+                <div className="feedback-actions">
+                  <button
+                    type="button"
+                    onClick={handleContinueAfterSubmit}
+                    className="btn-continue"
+                  >
+                    Continue Video
+                  </button>
+                </div>
+              </div>
+            )}
 
-          {currentQuestion.question_type === 'short_answer' && (
-            <input
-              type="text"
-              value={selectedAnswer}
-              onChange={(e) => setSelectedAnswer(e.target.value)}
-              placeholder="Enter your answer"
-              disabled={isSubmitting || !!lastAnswerResult}
-              className="short-answer-input"
-            />
-          )}
-
-          {lastAnswerResult && (
-            <div className={`answer-feedback ${lastAnswerResult.is_correct ? 'correct' : 'incorrect'}`}>
-              <p>
-                {lastAnswerResult.is_correct ? '✓ Correct!' : '✗ Incorrect'}
-              </p>
-              {lastAnswerResult.explanation && (
-                <p className="explanation">{lastAnswerResult.explanation}</p>
-              )}
-            </div>
-          )}
-
-          <div className="question-actions">
-            <button
-              type="button"
-              onClick={handleSubmitAnswer}
-              disabled={((currentQuestion?.question_type === 'short_answer') ? !selectedAnswer.trim() : selectedAnswer === '') || isSubmitting || !!lastAnswerResult}
-              className="btn-primary"
-            >
-              {isSubmitting ? 'Submitting...' : 'Submit Answer'}
-            </button>
-
-            <button
-              type="button"
-              onClick={handleContinueAfterSubmit}
-              disabled={!lastAnswerResult}
-              className="btn-secondary"
-            >
-              {lastAnswerResult ? 'Continue' : 'Cancel'}
-            </button>
           </div>
-        </div>
-      )}
+        )}
+      </div>
 
       {/* Score Display */}
       {showScore && score !== null && maxScore !== null && (

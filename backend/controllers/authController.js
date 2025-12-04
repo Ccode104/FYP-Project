@@ -293,6 +293,43 @@ export async function loginWithGoogle(req, res) {
   }
 }
 
+// GET CURRENT USER DETAILS
+export async function getCurrentUser(req, res) {
+  try {
+    const userId = req.user.id;
+
+    const userQuery = await pool.query(
+      `SELECT id, name, email, role, department_id, roll_number, created_at
+       FROM users WHERE id = $1`,
+      [userId]
+    );
+
+    if (userQuery.rowCount === 0) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    const user = userQuery.rows[0];
+
+    // Get enrolled courses if student
+    if (user.role === 'student') {
+      const coursesQuery = await pool.query(
+        `SELECT co.id, c.code as course_code, c.title as name
+         FROM enrollments e
+         JOIN course_offerings co ON e.course_offering_id = co.id
+         JOIN courses c ON co.course_id = c.id
+         WHERE e.student_id = $1 AND e.status = 'active'`,
+        [userId]
+      );
+      user.enrolledCourses = coursesQuery.rows;
+    }
+
+    res.json(user);
+  } catch (err) {
+    console.error('Error in getCurrentUser:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+}
+
 // GET USER DETAILS
 export async function getUserDetails(req, res) {
   try {
@@ -305,7 +342,7 @@ export async function getUserDetails(req, res) {
     }
 
     const userQuery = await pool.query(
-      `SELECT id, name, email, role, department_id, roll_number, created_at 
+      `SELECT id, name, email, role, department_id, roll_number, created_at
        FROM users WHERE id = $1`,
       [userId]
     );

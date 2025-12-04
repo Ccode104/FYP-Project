@@ -81,10 +81,18 @@ router.post(
   requireRole("faculty", "admin"),
   (req, res, next) => {
     console.log('Upload route hit, file field:', req.body);
+    console.log('Headers:', req.headers);
+    // Set timeout for large file uploads
+    req.setTimeout(600000); // 10 minutes
+    res.setTimeout(600000); // 10 minutes
+
     uploadVideo.single("video")(req, res, (err) => {
+      console.log('Multer processing completed, err:', err);
       if (err) {
+        console.error('Multer error details:', err);
         return handleMulterError(err, req, res, next);
       }
+      console.log('Multer processing successful, proceeding to controller');
       next();
     });
   },

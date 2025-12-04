@@ -34,6 +34,7 @@ import vivaRoutes from './routes/viva.js';
 import rubricsRoutes from './routes/rubrics.js';
 import supportRoutes from './routes/support.js';
 import quizPermissionsRoutes from './routes/quizPermissions.js';
+import githubRoutes from './routes/github.js';
 import swaggerSpec from './swagger.js';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret';
@@ -56,7 +57,16 @@ function authenticateSocket(socket, next) {
 
 export async function startServer(port = 4000) {
   const app = express();
-  const server = createServer(app);
+
+  // Configure server for large file uploads
+  const server = createServer({
+    maxHeaderSize: 1024 * 1024, // 1MB headers
+    keepAliveTimeout: 300000, // 5 minutes
+    headersTimeout: 300000, // 5 minutes
+    requestTimeout: 600000, // 10 minutes for large uploads
+    // Allow unlimited body size
+    allowHTTP1: true,
+  }, app);
 
 
   // Initialize Socket.IO with CORS and authentication
@@ -88,7 +98,11 @@ export async function startServer(port = 4000) {
   );
 
   app.use(bodyParser.json({ limit: '10mb' }));
-  app.use(bodyParser.urlencoded({ extended: true }));
+  app.use(bodyParser.urlencoded({ extended: true, limit: '500mb' }));
+
+  // Configure Express to handle large file uploads
+  app.use(express.json({ limit: '500mb' }));
+  app.use(express.urlencoded({ extended: true, limit: '500mb' }));
 
   // Swagger UI
   app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
@@ -118,6 +132,7 @@ export async function startServer(port = 4000) {
   app.use('/api/rubrics', rubricsRoutes);
   app.use('/api/support', supportRoutes);
   app.use('/api/quiz-permissions', quizPermissionsRoutes);
+  app.use('/api/github', githubRoutes);
   
   app.get('/health', (req, res) => res.json({ ok: true }));
   

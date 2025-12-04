@@ -62,7 +62,7 @@ export default function QuizTake() {
             // Check for active/suspended proctoring sessions
             const activeSessionResponse = await fetch(`/api/proctoring/sessions/active/${user.id}/${q.id}`, {
               headers: {
-                'Authorization': `Bearer ${localStorage.getItem('token')}`
+                'Authorization': `Bearer ${localStorage.getItem('auth:token')}`
               }
             });
             const activeSessionData = await activeSessionResponse.json();
@@ -324,7 +324,7 @@ export default function QuizTake() {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
+          'Authorization': `Bearer ${localStorage.getItem('auth:token')}`
         },
         body: JSON.stringify({ resumed_by: user?.id })
       })
@@ -424,7 +424,7 @@ export default function QuizTake() {
         await fetch(`/api/proctoring/sessions/${proctoringSession.id}/heartbeat`, {
           method: 'POST',
           headers: {
-            'Authorization': `Bearer ${localStorage.getItem('token')}`
+            'Authorization': `Bearer ${localStorage.getItem('auth:token')}`
           }
         })
       } catch (error) {
@@ -527,7 +527,7 @@ export default function QuizTake() {
             {proctoringConfig?.audio_monitoring && <li>Minimize background noise</li>}
             {quiz.time_limit && <li>Complete within {quiz.time_limit} minutes</li>}
           </ul>
-          <div style={{ background: '#fef3c7', padding: 15, borderRadius: 4, marginBottom: 20 }}>
+          <div style={{ background: '#f59e0b', padding: 15, borderRadius: 4, marginBottom: 20, color: 'white' }}>
             <strong>Advanced Monitoring:</strong>
             <ul style={{ margin: '10px 0 0 20px', fontSize: '0.9em' }}>
               {proctoringConfig?.webcam_required && <li>Face detection and tracking</li>}
@@ -539,8 +539,8 @@ export default function QuizTake() {
 
           {/* Permission Check Section */}
           {(proctoringConfig?.webcam_required || proctoringConfig?.audio_monitoring) && !permissionsGranted && (
-            <div style={{ background: '#f0f9ff', padding: 15, borderRadius: 4, marginBottom: 20, border: '1px solid #0ea5e9' }}>
-              <h3 style={{ margin: '0 0 10px 0', color: '#0ea5e9' }}>📷 Permission Required</h3>
+            <div style={{ background: '#1e40af', padding: 15, borderRadius: 4, marginBottom: 20, border: '1px solid #1e40af', color: 'white' }}>
+              <h3 style={{ margin: '0 0 10px 0', color: 'white' }}>📷 Permission Required</h3>
               <p style={{ margin: '0 0 15px 0', fontSize: '0.9em' }}>
                 This proctored quiz requires access to your camera
                 {proctoringConfig?.audio_monitoring && ' and microphone'}.
@@ -550,7 +550,7 @@ export default function QuizTake() {
                 className="btn btn-outline"
                 onClick={checkAndRequestPermissions}
                 disabled={checkingPermissions}
-                style={{ borderColor: '#0ea5e9', color: '#0ea5e9' }}
+                style={{ borderColor: 'white', color: 'white', backgroundColor: 'transparent' }}
               >
                 {checkingPermissions ? 'Checking Permissions...' : 'Grant Camera Access'}
               </button>

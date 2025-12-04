@@ -60,6 +60,7 @@ export async function getUserProfile(req, res) {
     // Get basic user info with department name
     const userQuery = `
       SELECT u.id, u.email, u.name, u.role, u.department_id, u.roll_number, u.created_at, u.updated_at, u.is_active,
+             u.github_username, u.github_connected_at,
              d.name as department_name, d.code as department_code
       FROM users u
       LEFT JOIN departments d ON u.department_id = d.id
@@ -70,6 +71,9 @@ export async function getUserProfile(req, res) {
     if (userResult.rowCount === 0) return res.status(404).json({ error: 'User not found' });
 
     const profile = { ...userResult.rows[0] };
+
+    // Add GitHub integration status
+    profile.github_connected = !!profile.github_username;
 
     // Role-specific data
     if (userRole === 'student') {

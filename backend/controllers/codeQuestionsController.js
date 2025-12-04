@@ -4,7 +4,7 @@ import { pool } from '../db/index.js';
 // Create a new code question
 export async function createCodeQuestion(req, res) {
   try {
-    const { title, description, constraints, course_offering_id, test_cases } = req.body;
+    const { title, description, constraints, template_code, driver_code, course_offering_id, test_cases } = req.body;
     const created_by = req.user?.id || null;
 
     if (!title || !description) {
@@ -12,9 +12,9 @@ export async function createCodeQuestion(req, res) {
     }
 
     // Insert the question
-    const q = `INSERT INTO code_questions (title, description, constraints, created_by)
-              VALUES ($1, $2, $3, $4) RETURNING *`;
-    const r = await pool.query(q, [title, description, constraints || null, created_by]);
+    const q = `INSERT INTO code_questions (title, description, constraints, template_code, driver_code, created_by)
+              VALUES ($1, $2, $3, $4, $5, $6) RETURNING *`;
+    const r = await pool.query(q, [title, description, constraints || null, JSON.stringify(template_code || {}), JSON.stringify(driver_code || {}), created_by]);
     const question = r.rows[0];
 
     // Insert test cases if provided
@@ -85,7 +85,7 @@ export async function getCodeQuestions(req, res) {
     if (offeringId) {
       // Get questions that might be associated with a course offering
       // For now, we'll get all questions created by faculty teaching this offering
-      q = `SELECT cq.*, 
+      q = `SELECT cq.*,
                   COALESCE(
                     json_agg(
                       json_build_object(
@@ -99,15 +99,15 @@ export async function getCodeQuestions(req, res) {
                     ) FILTER (WHERE cqt.id IS NOT NULL),
                     '[]'::json
                   ) as test_cases
-           FROM code_questions cq
-           LEFT JOIN code_question_testcases cqt ON cq.id = cqt.question_id
-           WHERE cq.created_by IN (
-             SELECT faculty_id FROM course_offerings WHERE id = $1
-             UNION
-             SELECT ta_id FROM ta_assignments WHERE course_offering_id = $1
-           )
-           GROUP BY cq.id
-           ORDER BY cq.created_at DESC`;
+            FROM code_questions cq
+            LEFT JOIN code_question_testcases cqt ON cq.id = cqt.question_id
+            WHERE cq.created_by IN (
+              SELECT faculty_id FROM course_offerings WHERE id = $1
+              UNION
+              SELECT ta_id FROM ta_assignments WHERE course_offering_id = $1
+            )
+            GROUP BY cq.id
+            ORDER BY cq.created_at DESC`;
       params = [offeringId];
     } else {
       // Get all questions (for admin or if no offering specified)
@@ -125,15 +125,25 @@ export async function getCodeQuestions(req, res) {
                     ) FILTER (WHERE cqt.id IS NOT NULL),
                     '[]'::json
                   ) as test_cases
-           FROM code_questions cq
-           LEFT JOIN code_question_testcases cqt ON cq.id = cqt.question_id
-           GROUP BY cq.id
-           ORDER BY cq.created_at DESC`;
+            FROM code_questions cq
+            LEFT JOIN code_question_testcases cqt ON cq.id = cqt.question_id
+            GROUP BY cq.id
+            ORDER BY cq.created_at DESC`;
       params = [];
     }
 
     const r = await pool.query(q, params);
-    res.json(r.rows);
+    // Parse JSONB fields for each question
+    const questions = r.rows.map(q => {
+      if (q.template_code && typeof q.template_code === 'string') {
+        q.template_code = JSON.parse(q.template_code);
+      }
+      if (q.driver_code && typeof q.driver_code === 'string') {
+        q.driver_code = JSON.parse(q.driver_code);
+      }
+      return q;
+    });
+    res.json(questions);
   } catch (err) {
     console.error('Error fetching code questions:', err);
     res.status(500).json({ error: err.message || 'Failed to fetch code questions' });
@@ -144,7 +154,7 @@ export async function getCodeQuestions(req, res) {
 export async function getCodeQuestionById(req, res) {
   try {
     const { id } = req.params;
-    
+
     const q = `SELECT cq.*,
                   COALESCE(
                     json_agg(
@@ -163,14 +173,23 @@ export async function getCodeQuestionById(req, res) {
                LEFT JOIN code_question_testcases cqt ON cq.id = cqt.question_id
                WHERE cq.id = $1
                GROUP BY cq.id`;
-    
+
     const r = await pool.query(q, [id]);
-    
+
     if (r.rows.length === 0) {
       return res.status(404).json({ error: 'Code question not found' });
     }
 
-    res.json(r.rows[0]);
+    const question = r.rows[0];
+    // Parse JSONB fields
+    if (question.template_code && typeof question.template_code === 'string') {
+      question.template_code = JSON.parse(question.template_code);
+    }
+    if (question.driver_code && typeof question.driver_code === 'string') {
+      question.driver_code = JSON.parse(question.driver_code);
+    }
+
+    res.json(question);
   } catch (err) {
     console.error('Error fetching code question:', err);
     res.status(500).json({ error: err.message || 'Failed to fetch code question' });
@@ -181,12 +200,12 @@ export async function getCodeQuestionById(req, res) {
 export async function updateCodeQuestion(req, res) {
   try {
     const { id } = req.params;
-    const { title, description, constraints, test_cases } = req.body;
+    const { title, description, constraints, template_code, driver_code, test_cases } = req.body;
 
     // Check if question exists and user has permission
     const checkQ = `SELECT created_by FROM code_questions WHERE id = $1`;
     const checkR = await pool.query(checkQ, [id]);
-    
+
     if (checkR.rows.length === 0) {
       return res.status(404).json({ error: 'Code question not found' });
     }
@@ -197,12 +216,14 @@ export async function updateCodeQuestion(req, res) {
     }
 
     // Update question
-    const updateQ = `UPDATE code_questions 
+    const updateQ = `UPDATE code_questions
                      SET title = COALESCE($1, title),
                          description = COALESCE($2, description),
-                         constraints = COALESCE($3, constraints)
-                     WHERE id = $4 RETURNING *`;
-    const updateR = await pool.query(updateQ, [title || null, description || null, constraints || null, id]);
+                         constraints = COALESCE($3, constraints),
+                         template_code = COALESCE($4, template_code),
+                         driver_code = COALESCE($5, driver_code)
+                     WHERE id = $6 RETURNING *`;
+    const updateR = await pool.query(updateQ, [title || null, description || null, constraints || null, JSON.stringify(template_code) || null, JSON.stringify(driver_code) || null, id]);
 
     // If test cases are provided, update them
     if (test_cases && Array.isArray(test_cases)) {

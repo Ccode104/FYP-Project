@@ -9,17 +9,46 @@ export async function submitFileAssignment(req, res) {
   if (!assignment_id || !student_id) return res.status(400).json({ error: 'Missing' });
 
   try {
-    const attempt = 1;
-    const q = `INSERT INTO assignment_submissions (assignment_id, student_id, attempt)
-               VALUES ($1,$2,$3) RETURNING *`;
-    const r = await pool.query(q, [assignment_id, student_id, attempt]);
-    const submission = r.rows[0];
+    // Check if assignment allows multiple submissions
+    const assignmentCheck = await pool.query(
+      `SELECT allow_multiple_submissions FROM assignments WHERE id = $1`,
+      [assignment_id]
+    );
+    if (assignmentCheck.rowCount === 0) {
+      return res.status(404).json({ error: 'Assignment not found' });
+    }
+
+    const assignment = assignmentCheck.rows[0];
+    let submission;
+
+    if (assignment.allow_multiple_submissions) {
+      // Create new submission for each attempt
+      const q = `INSERT INTO assignment_submissions (assignment_id, student_id, attempt)
+                 VALUES ($1, $2, (SELECT COALESCE(MAX(attempt), 0) + 1 FROM assignment_submissions WHERE assignment_id = $1 AND student_id = $2))
+                 RETURNING *`;
+      const r = await pool.query(q, [assignment_id, student_id]);
+      submission = r.rows[0];
+    } else {
+      // Check if submission already exists
+      const existingQ = `SELECT * FROM assignment_submissions WHERE assignment_id = $1 AND student_id = $2`;
+      const existingR = await pool.query(existingQ, [assignment_id, student_id]);
+
+      if (existingR.rowCount > 0) {
+        return res.status(400).json({ error: 'You have already submitted this assignment' });
+      } else {
+        const q = `INSERT INTO assignment_submissions (assignment_id, student_id, attempt)
+                   VALUES ($1, $2, 1) RETURNING *`;
+        const r = await pool.query(q, [assignment_id, student_id]);
+        submission = r.rows[0];
+      }
+    }
 
     const files = req.files || [];
     for (const f of files) {
-  // TODO: Implement file upload to Cloudinary or another storage provider if needed
-  // const url = await uploadBufferToS3(f.buffer, f.originalname, f.mimetype);
-  const url = null; // Placeholder, update with actual upload logic
+      // TODO: Implement file upload to Cloudinary or another storage provider if needed
+      // const url = await uploadBufferToS3(f.buffer, f.originalname, f.mimetype);
+      // For now, store a placeholder path since Cloudinary is not configured
+      const url = `local://${f.originalname}`; // Placeholder for local storage
       await pool.query(`INSERT INTO submission_files (submission_id, storage_path, filename, file_size, mime_type)
                         VALUES ($1,$2,$3,$4,$5)`, [submission.id, url, f.originalname, f.size, f.mimetype]);
     }
@@ -356,6 +385,173 @@ export async function submitLinkAssignment(req, res) {
   } catch (err) {
     console.error(err)
     res.status(500).json({ error: 'Failed to submit link' })
+  }
+}
+
+export async function submitGitHubRepoAssignment(req, res) {
+  const { assignment_id, repo_url } = req.body;
+  const student_id = Number(req.user?.id);
+
+  if (!assignment_id || !student_id || !repo_url) {
+    return res.status(400).json({ error: 'Missing required fields: assignment_id, repo_url' });
+  }
+
+  try {
+    // Validate GitHub repository URL format
+    const repoUrlRegex = /^https:\/\/github\.com\/([^\/]+)\/([^\/]+)(?:\/.*)?$/;
+    const match = repo_url.match(repoUrlRegex);
+    if (!match) {
+      return res.status(400).json({ error: 'Invalid GitHub repository URL format' });
+    }
+
+    const [, owner, repo] = match;
+
+    // Get user's GitHub access token
+    const userQuery = await pool.query(
+      'SELECT github_access_token, github_token_expires_at FROM users WHERE id = $1',
+      [student_id]
+    );
+
+    if (userQuery.rowCount === 0) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    const user = userQuery.rows[0];
+
+    if (!user.github_access_token) {
+      return res.status(400).json({ error: 'GitHub not connected. Please connect your GitHub account first.' });
+    }
+
+    // Check if token is expired
+    if (user.github_token_expires_at && new Date(user.github_token_expires_at) < new Date()) {
+      return res.status(401).json({ error: 'GitHub token expired. Please reconnect your GitHub account.' });
+    }
+
+    // Validate token
+    const { validateGitHubToken } = await import('../utils/github.js');
+    const isValid = await validateGitHubToken(user.github_access_token);
+    if (!isValid) {
+      return res.status(401).json({ error: 'Invalid GitHub token. Please reconnect your GitHub account.' });
+    }
+
+    // Fetch repository details from GitHub API
+    const { createGitHubClient } = await import('../utils/github.js');
+    const octokit = createGitHubClient(user.github_access_token);
+
+    let repoData;
+    try {
+      const response = await octokit.repos.get({
+        owner,
+        repo
+      });
+      repoData = response.data;
+    } catch (error) {
+      if (error.status === 404) {
+        return res.status(404).json({ error: 'Repository not found or you do not have access to it' });
+      }
+      if (error.status === 403) {
+        return res.status(403).json({ error: 'Access denied to repository' });
+      }
+      throw error;
+    }
+
+    // Check if assignment exists
+    const assignmentCheck = await pool.query(
+      `SELECT id, assignment_type, allow_multiple_submissions FROM assignments WHERE id = $1`,
+      [assignment_id]
+    );
+    if (assignmentCheck.rowCount === 0) {
+      return res.status(404).json({ error: 'Assignment not found' });
+    }
+
+    const assignment = assignmentCheck.rows[0];
+
+    // Get or create submission
+    let submission;
+    if (assignment.allow_multiple_submissions) {
+      // Create new submission for each attempt
+      const q = `INSERT INTO assignment_submissions (
+        assignment_id, student_id, attempt,
+        github_repo_url, github_repo_name, github_repo_description,
+        github_repo_language, github_repo_private, github_repo_stars,
+        github_repo_forks, github_repo_created_at, github_repo_updated_at,
+        github_repo_default_branch, github_repo_size_kb
+      ) VALUES ($1, $2, (SELECT COALESCE(MAX(attempt), 0) + 1 FROM assignment_submissions WHERE assignment_id = $1 AND student_id = $2),
+        $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13) RETURNING *`;
+      const r = await pool.query(q, [
+        assignment_id, student_id,
+        repoData.html_url, repoData.name, repoData.description,
+        repoData.language, repoData.private, repoData.stargazers_count,
+        repoData.forks_count, repoData.created_at, repoData.updated_at,
+        repoData.default_branch, Math.ceil(repoData.size / 1024) // Convert KB to approximate MB
+      ]);
+      submission = r.rows[0];
+    } else {
+      // Check if submission already exists
+      const existingQ = `SELECT * FROM assignment_submissions WHERE assignment_id = $1 AND student_id = $2`;
+      const existingR = await pool.query(existingQ, [assignment_id, student_id]);
+
+      if (existingR.rowCount > 0) {
+        // Update existing submission with new repository data
+        const updateQ = `UPDATE assignment_submissions SET
+          github_repo_url = $1, github_repo_name = $2, github_repo_description = $3,
+          github_repo_language = $4, github_repo_private = $5, github_repo_stars = $6,
+          github_repo_forks = $7, github_repo_created_at = $8, github_repo_updated_at = $9,
+          github_repo_default_branch = $10, github_repo_size_kb = $11, submitted_at = now()
+          WHERE id = $12 RETURNING *`;
+        const updateR = await pool.query(updateQ, [
+          repoData.html_url, repoData.name, repoData.description,
+          repoData.language, repoData.private, repoData.stargazers_count,
+          repoData.forks_count, repoData.created_at, repoData.updated_at,
+          repoData.default_branch, Math.ceil(repoData.size / 1024), existingR.rows[0].id
+        ]);
+        submission = updateR.rows[0];
+      } else {
+        // Create new submission
+        const q = `INSERT INTO assignment_submissions (
+          assignment_id, student_id, attempt,
+          github_repo_url, github_repo_name, github_repo_description,
+          github_repo_language, github_repo_private, github_repo_stars,
+          github_repo_forks, github_repo_created_at, github_repo_updated_at,
+          github_repo_default_branch, github_repo_size_kb
+        ) VALUES ($1, $2, 1, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13) RETURNING *`;
+        const r = await pool.query(q, [
+          assignment_id, student_id,
+          repoData.html_url, repoData.name, repoData.description,
+          repoData.language, repoData.private, repoData.stargazers_count,
+          repoData.forks_count, repoData.created_at, repoData.updated_at,
+          repoData.default_branch, Math.ceil(repoData.size / 1024)
+        ]);
+        submission = r.rows[0];
+      }
+    }
+
+    // Run plagiarism check asynchronously (don't block response)
+    const { runPlagiarismCheck } = await import('../utils/plagiarism.js');
+    runPlagiarismCheck(assignment_id).catch(err => {
+      console.error('GitHub repository plagiarism check failed:', err);
+    });
+
+    res.json({
+      submission,
+      repository: {
+        name: repoData.name,
+        full_name: repoData.full_name,
+        description: repoData.description,
+        html_url: repoData.html_url,
+        language: repoData.language,
+        private: repoData.private,
+        stargazers_count: repoData.stargazers_count,
+        forks_count: repoData.forks_count,
+        created_at: repoData.created_at,
+        updated_at: repoData.updated_at,
+        default_branch: repoData.default_branch,
+        size_kb: Math.ceil(repoData.size / 1024)
+      }
+    });
+  } catch (err) {
+    console.error('Error submitting GitHub repository assignment:', err);
+    res.status(500).json({ error: err.message || 'Failed to submit GitHub repository assignment' });
   }
 }
 

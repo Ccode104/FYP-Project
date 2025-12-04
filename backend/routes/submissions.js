@@ -1,7 +1,7 @@
 import express from 'express';
 import { requireAuth, requireRole } from '../middleware/auth.js';
-// import { upload } from '../middleware/upload.js';
-import { submitFileAssignment, submitCodeAssignment, gradeSubmission, submitLinkAssignment, getSubmissionById } from '../controllers/submissionsController.js';
+import { upload } from '../middleware/upload.js';
+import { submitFileAssignment, submitCodeAssignment, gradeSubmission, submitLinkAssignment, submitGitHubRepoAssignment, getSubmissionById } from '../controllers/submissionsController.js';
 
 const router = express.Router();
 
@@ -45,7 +45,7 @@ router.post(
   "/submit/files",
   requireAuth,
   requireRole("student", "ta", "faculty"),
-//   upload.array("files", 5),
+  upload.array("files", 5),
   submitFileAssignment
 );
 
@@ -162,5 +162,56 @@ router.get('/:submissionId', requireAuth, requireRole('ta','faculty','admin'), g
 //  *         description: Assignment not found
 //  */
 router.post('/submit/link', requireAuth, requireRole('student'), submitLinkAssignment);
+
+/**
+ * @swagger
+ * /api/submissions/submit/github-repo:
+ *   post:
+ *     summary: Submit a GitHub repository assignment
+ *     tags: [Submissions]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - assignmentId
+ *               - repo_url
+ *             properties:
+ *               assignmentId:
+ *                 type: string
+ *                 description: The assignment ID
+ *               repo_url:
+ *                 type: string
+ *                 format: uri
+ *                 description: GitHub repository URL (https://github.com/owner/repo)
+ *     responses:
+ *       201:
+ *         description: GitHub repository submitted successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 submission:
+ *                   $ref: '#/components/schemas/Submission'
+ *                 repository:
+ *                   type: object
+ *                   description: GitHub repository metadata
+ *       400:
+ *         description: Bad request - Missing fields or invalid repository URL
+ *       401:
+ *         description: Unauthorized - GitHub not connected or token expired
+ *       403:
+ *         description: Forbidden - No access to repository
+ *       404:
+ *         description: Assignment or repository not found
+ *       500:
+ *         description: Internal server error
+ */
+router.post('/submit/github-repo', requireAuth, requireRole('student'), submitGitHubRepoAssignment);
 
 export default router;

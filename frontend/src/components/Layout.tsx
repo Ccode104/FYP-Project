@@ -2,6 +2,8 @@ import type { ReactNode } from 'react'
 import './Layout.css'
 import { useLocation } from 'react-router-dom'
 import ThemeToggle from './ThemeToggle'
+import Chatbot from './Chatbot'
+import TAAgentChat from './TAAgentChat'
 import { useAuth, getDashboardPathForRole } from '../context/AuthContext'
 import { useNavigate } from 'react-router-dom'
 import { useState, useRef, useEffect, useCallback } from 'react'
@@ -10,6 +12,8 @@ import { useCourse } from '../context/CourseContext'
 export default function Layout({ children }: { children: ReactNode }) {
   const [showUserDropdown, setShowUserDropdown] = useState(false)
   const [headerVisible, setHeaderVisible] = useState(true)
+  const [showChatbot, setShowChatbot] = useState(false)
+  const [showTAChat, setShowTAChat] = useState(false)
   const dropdownRef = useRef<HTMLDivElement>(null)
   const { pathname } = useLocation()
   const { user, logout } = useAuth()
@@ -19,8 +23,15 @@ export default function Layout({ children }: { children: ReactNode }) {
   const isLanding = pathname === '/'
   const isLoginPage = pathname === '/login'
   const isLiveLecture = pathname.includes('/live-lectures/')
+  const isVideoPlayer = pathname.includes('/videos/')
   const isPublicPage = isLanding || isAuth
-  const isFullscreenPage = isLiveLecture
+  const isFullscreenPage = isLiveLecture || isVideoPlayer
+
+  // Get course ID from URL if on a course page
+  const getCurrentCourseId = useCallback(() => {
+    const match = pathname.match(/\/courses\/(\d+)/)
+    return match ? match[1] : undefined
+  }, [pathname])
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -188,49 +199,81 @@ export default function Layout({ children }: { children: ReactNode }) {
           <div className="site-header__right">
             <ThemeToggle />
             {user && (
-              <div className="user-dropdown-container" ref={dropdownRef}>
-                <button
-                  className="user-dropdown-trigger"
-                  onClick={() => setShowUserDropdown(!showUserDropdown)}
-                  aria-label="User menu"
-                >
-                  <span className="user-name">{user.name}</span>
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <polyline points="6 9 12 15 18 9"/>
-                  </svg>
-                </button>
-                {showUserDropdown && (
-                  <div className="user-dropdown-menu">
-                    <button
-                      className="dropdown-item"
-                      onClick={() => {
-                        setShowUserDropdown(false)
-                        navigate('/profile')
-                      }}
-                    >
-                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                        <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
-                        <circle cx="12" cy="7" r="4"/>
-                      </svg>
-                      Profile
-                    </button>
-                    <button
-                      className="dropdown-item"
-                      onClick={() => {
-                        setShowUserDropdown(false)
-                        logout()
-                      }}
-                    >
-                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                        <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
-                        <polyline points="16 17 21 12 16 7"/>
-                        <line x1="21" y1="12" x2="9" y2="12"/>
-                      </svg>
-                      Logout
-                    </button>
-                  </div>
+              <>
+                {(user.role === 'student' || user.role === 'ta') && (
+                  <button
+                    className="chatbot-toggle-btn"
+                    onClick={() => {
+                      if (user.role === 'student') {
+                        setShowChatbot(true);
+                      } else if (user.role === 'ta') {
+                        setShowTAChat(true);
+                      }
+                    }}
+                    title={`Open ${user.role === 'student' ? 'AI Assistant' : 'TA Evaluation Assistant'}`}
+                    style={{
+                      padding: '8px',
+                      backgroundColor: '#007bff',
+                      color: 'white',
+                      border: 'none',
+                      borderRadius: '50%',
+                      width: '40px',
+                      height: '40px',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      fontSize: '16px',
+                      marginRight: '12px'
+                    }}
+                  >
+                    🤖
+                  </button>
                 )}
-              </div>
+                <div className="user-dropdown-container" ref={dropdownRef}>
+                  <button
+                    className="user-dropdown-trigger"
+                    onClick={() => setShowUserDropdown(!showUserDropdown)}
+                    aria-label="User menu"
+                  >
+                    <span className="user-name">{user.name}</span>
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <polyline points="6 9 12 15 18 9"/>
+                    </svg>
+                  </button>
+                  {showUserDropdown && (
+                    <div className="user-dropdown-menu">
+                      <button
+                        className="dropdown-item"
+                        onClick={() => {
+                          setShowUserDropdown(false)
+                          navigate('/profile')
+                        }}
+                      >
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                          <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+                          <circle cx="12" cy="7" r="4"/>
+                        </svg>
+                        Profile
+                      </button>
+                      <button
+                        className="dropdown-item"
+                        onClick={() => {
+                          setShowUserDropdown(false)
+                          logout()
+                        }}
+                      >
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                          <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
+                          <polyline points="16 17 21 12 16 7"/>
+                          <line x1="21" y1="12" x2="9" y2="12"/>
+                        </svg>
+                        Logout
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </>
             )}
           </div>
         </div>
@@ -239,6 +282,19 @@ export default function Layout({ children }: { children: ReactNode }) {
       <main className="site-main">
         {children}
       </main>
+
+      {/* Chatbot Components */}
+      <Chatbot
+        courseId={getCurrentCourseId()}
+        isOpen={showChatbot}
+        onClose={() => setShowChatbot(false)}
+      />
+      {showTAChat && (
+        <TAAgentChat
+          courseId={getCurrentCourseId() ? parseInt(getCurrentCourseId()!) : undefined}
+          onClose={() => setShowTAChat(false)}
+        />
+      )}
 
       <footer className="site-footer">
         <p className="site-footer__text">

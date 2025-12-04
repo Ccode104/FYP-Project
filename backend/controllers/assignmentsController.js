@@ -337,20 +337,20 @@ export async function getAssignmentQuestions(req, res) {
     // For code assignments, get questions from assignment_questions
     if (assignment.assignment_type === 'code') {
       const questionsQ = `
-        SELECT cq.id, cq.title, cq.description, cq.constraints, aq.points, aq.position,
-               COALESCE(
-                 json_agg(
-                   json_build_object(
-                     'id', cqt.id,
-                     'is_sample', cqt.is_sample,
-                     'input_text', cqt.input_text,
-                     'expected_text', cqt.expected_text,
-                     'input_path', cqt.input_path,
-                     'expected_path', cqt.expected_path
-                   )
-                 ) FILTER (WHERE cqt.id IS NOT NULL),
-                 '[]'::json
-               ) as test_cases
+        SELECT cq.id, cq.title, cq.description, cq.constraints, cq.template_code, cq.driver_code, aq.points, aq.position,
+                COALESCE(
+                  json_agg(
+                    json_build_object(
+                      'id', cqt.id,
+                      'is_sample', cqt.is_sample,
+                      'input_text', cqt.input_text,
+                      'expected_text', cqt.expected_text,
+                      'input_path', cqt.input_path,
+                      'expected_path', cqt.expected_path
+                    )
+                  ) FILTER (WHERE cqt.id IS NOT NULL),
+                  '[]'::json
+                ) as test_cases
         FROM assignment_questions aq
         JOIN code_questions cq ON aq.question_id = cq.id
         LEFT JOIN code_question_testcases cqt ON cq.id = cqt.question_id
@@ -359,7 +359,17 @@ export async function getAssignmentQuestions(req, res) {
         ORDER BY aq.position
       `;
       const questionsR = await pool.query(questionsQ, [assignmentId]);
-      return res.json(questionsR.rows);
+      // Parse JSONB fields for each question
+      const questions = questionsR.rows.map(q => {
+        if (q.template_code && typeof q.template_code === 'string') {
+          q.template_code = JSON.parse(q.template_code);
+        }
+        if (q.driver_code && typeof q.driver_code === 'string') {
+          q.driver_code = JSON.parse(q.driver_code);
+        }
+        return q;
+      });
+      return res.json(questions);
     }
 
     return res.json([]);

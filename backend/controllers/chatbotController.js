@@ -379,16 +379,107 @@ export async function chatWithAI(req, res) {
       return res.status(500).json({ error: "Chatbot agent not initialized" });
     }
 
+    // Hybrid query classification: Keywords + AI fallback
+    let detectedTool = null;
+    let confidence = 0;
+    console.log(`Chatbot: Classifying query "${message}"`);
+
+    // Step 1: Keyword-based detection for high-confidence patterns
+    const lowerMessage = message.toLowerCase();
+
+    // Course-related keywords
+    if (lowerMessage.match(/\b(course|class|syllabus|professor|instructor|teacher|what is this course)\b/)) {
+      detectedTool = 'course_info';
+      confidence = 0.9;
+    }
+    // Assignment/quiz keywords
+    else if (lowerMessage.match(/\b(assignment|quiz|deadline|due|submit|homework|exam|test)\b/)) {
+      detectedTool = 'assignments_quizzes';
+      confidence = 0.9;
+    }
+    // Document-related keywords
+    else if (lowerMessage.match(/\b(document|file|upload|pdf|note|pyq|material|tell me about|what is this|describe|summary)\b/) ||
+             documentIds.length > 0) {
+      detectedTool = 'document_search';
+      confidence = 0.8;
+    }
+    // Programming/web search keywords
+    else if (lowerMessage.match(/\b(how to|what is|explain|code|program|algorithm|language|framework|library)\b/)) {
+      detectedTool = enableWebSearch ? 'web_search' : null;
+      confidence = 0.7;
+    }
+
+    console.log(`Chatbot: Keyword detection - Tool: ${detectedTool}, Confidence: ${confidence}`);
+
+    // Step 2: AI classification for low-confidence or ambiguous queries
+    if (!detectedTool || confidence < 0.8) {
+      try {
+        const classificationPrompt = `Classify this question into one of these categories:
+- course_info: Questions about course details, syllabus, professor, course structure
+- assignments_quizzes: Questions about assignments, quizzes, deadlines, submissions
+- document_search: Questions about uploaded documents, course materials, notes, PYQs
+- web_search: Programming questions, general knowledge, how-to guides
+- unknown: If you cannot classify with confidence
+
+Question: "${message}"
+Context: Course ID ${courseId}, ${documentIds.length} documents available, Web search ${enableWebSearch ? 'enabled' : 'disabled'}
+
+Respond with only the category name and confidence score (0-1), e.g.: "course_info:0.95"`;
+
+        const classification = await groq.chat.completions.create({
+          model: "llama-3.3-70b-versatile",
+          messages: [{ role: "user", content: classificationPrompt }],
+          max_tokens: 20,
+          temperature: 0.1
+        });
+
+        const result = classification.choices[0]?.message?.content?.trim();
+        if (result && result.includes(':')) {
+          const [tool, conf] = result.split(':');
+          const aiConfidence = parseFloat(conf);
+
+          if (aiConfidence > confidence && tool !== 'unknown') {
+            detectedTool = tool;
+            confidence = aiConfidence;
+          }
+        }
+      } catch (error) {
+        console.error('AI classification failed:', error);
+      }
+    }
+
     // Prepare input for the agent
     const agentInput = `Course ID: ${courseId || 'none'}
 Document IDs: ${documentIds.join(', ') || 'none'}
+User ID: ${userId}
 Enable Web Search: ${enableWebSearch}
+Detected Tool: ${detectedTool || 'auto'} (confidence: ${confidence})
 User Question: ${message}
+
+TOOL SELECTION GUIDANCE:
+${detectedTool ? `HIGH CONFIDENCE: Use ${detectedTool} tool for this query.` : 'AUTO-DETECT: Choose the most appropriate tool based on the question.'}
+
+TOOL PARAMETERS FORMAT:
+- course_info: Just the course ID number
+- assignments_quizzes: JSON {"courseId": "${courseId}", "userId": "${userId}"}
+- document_search: JSON {"documentIds": [${documentIds.map(id => `"${id}"`).join(', ')}], "courseId": "${courseId}", "query": "${message}"}
+- web_search: The search query string
+
+AVAILABLE TOOLS:
+- course_info: Course information and syllabus
+- assignments_quizzes: Personal assignment and quiz deadlines
+- document_search: Search uploaded documents and course materials
+- web_search: General knowledge and programming help
+
+RESPONSE FORMAT:
+First, think about which tool to use.
+Then, call that tool with the correct parameters.
+Finally, provide a helpful response.
 
 Chat History:
 ${history.map(h => `${h.role}: ${h.content}`).join('\n')}
 
-Please answer the user's question using available tools if needed.`;
+QUESTION: ${message}`;
 
     // Call the agent
     const result = await chatbotAgent.call({

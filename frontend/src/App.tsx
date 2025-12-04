@@ -16,6 +16,7 @@ const CourseDetails = lazy(() => import('./pages/student/CourseDetails'))
 const AssignmentDetails = lazy(() => import('./pages/student/AssignmentDetails'))
 const CodeEditorPage = lazy(() => import('./pages/student/CodeEditorPage'))
 const LiveLecturePage = lazy(() => import('./pages/student/LiveLecturePage'))
+const VideoPlayerPage = lazy(() => import('./components/VideoPlayerPage'))
 
 // Import the protected route wrapper for role-based access
 const ProtectedRoute = lazy(() => import('./routes/ProtectedRoute'))
@@ -134,6 +135,16 @@ function App() {
             element={
               <ProtectedRoute roles={["student", "teacher", "ta"]}>
                 <LiveLecturePage />
+              </ProtectedRoute>
+            }
+          />
+
+          {/* Video player page (accessible by student, teacher, TA) */}
+          <Route
+            path="/videos/:videoId"
+            element={
+              <ProtectedRoute roles={["student", "teacher", "ta"]}>
+                <VideoPlayerPage />
               </ProtectedRoute>
             }
           />

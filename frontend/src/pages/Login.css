@@ -27,10 +27,10 @@
 }
 
 .brand.compact {
-  display: grid;
-  grid-template-columns: 40px 1fr;
+  display: flex;
+  flex-direction: column;
   align-items: center;
-  column-gap: 14px;
+  text-align: center;
   margin-bottom: 12px;
 }
 .brand-icon {
@@ -54,14 +54,16 @@
   font-weight: 800;
   color: #0f172a;
   letter-spacing: -0.01em;
-  text-align: left;
+  text-align: center;
+  width: 100%;
 }
 .subheading {
   margin: 4px 0 6px 0;
   font-size: 14px;
   line-height: 1.5;
   color: #64748b;
-  text-align: left;
+  text-align: center;
+  width: 100%;
 }
 
 /* Role tabs */
@@ -115,10 +117,10 @@
 
 .btn-primary.full { width: 100%; }
 .btn-primary {
-  background: linear-gradient(135deg, #4f46e5, #2563eb);
-  border: none;
+  background: #2563eb !important;
+  border: none !important;
   border-radius: 12px;
-  color: #ffffff;
+  color: #ffffff !important;
   padding: 14px 18px;
   font-weight: 600;
   font-size: 15px;
@@ -126,7 +128,7 @@
   transition: all .2s ease;
   box-shadow: 0 8px 20px rgba(37,99,235,.25);
 }
-.btn-primary:hover { transform: translateY(-1px); filter: brightness(1.03); }
+.btn-primary:hover { transform: translateY(-1px); background: #2563eb !important; }
 .btn-primary:disabled { opacity: .7; cursor: not-allowed; transform: none; }
 
 .error-box { background: #fee2e2; color: #7f1d1d; border: 1px solid #fecaca; padding: 12px; border-radius: 10px; font-size: 13px; margin-top: 4px; }

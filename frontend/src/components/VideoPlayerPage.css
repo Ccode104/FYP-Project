@@ -1,0 +1,288 @@
+.video-player-page {
+  min-height: 100vh;
+  background: var(--bg-primary, #ffffff);
+  color: var(--text-primary, #1e293b);
+}
+
+.video-player-page-loading,
+.video-player-page-error {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  padding: 2rem;
+  text-align: center;
+}
+
+.loading-spinner {
+  width: 40px;
+  height: 40px;
+  border: 4px solid var(--border-color, #e2e8f0);
+  border-top: 4px solid var(--primary-color, #3b82f6);
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  margin-bottom: 1rem;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+.back-button {
+  position: fixed;
+  top: 1rem;
+  left: 1rem;
+  z-index: 1000;
+  padding: 0.75rem 1.5rem;
+  background: var(--bg-secondary, #f8fafc);
+  border: 2px solid var(--border-color, #e2e8f0);
+  border-radius: 8px;
+  color: var(--text-primary, #1e293b);
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.back-button:hover {
+  background: var(--primary-color, #3b82f6);
+  color: white;
+  border-color: var(--primary-color, #3b82f6);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+}
+
+/* Video Details Section */
+.video-details-section {
+  padding: 2rem;
+  max-width: 1200px;
+  margin: 0 auto;
+  padding-top: 4rem; /* Account for fixed back button */
+}
+
+.video-title {
+  font-size: 2.5rem;
+  font-weight: 700;
+  color: var(--text-primary, #1e293b);
+  margin-bottom: 1rem;
+  line-height: 1.2;
+}
+
+.video-description {
+  margin-bottom: 1.5rem;
+}
+
+.video-description p {
+  font-size: 1.125rem;
+  line-height: 1.6;
+  color: var(--text-secondary, #64748b);
+  margin: 0;
+}
+
+.video-meta {
+  display: flex;
+  gap: 2rem;
+  align-items: center;
+}
+
+.duration {
+  font-size: 0.875rem;
+  color: var(--text-secondary, #64748b);
+  background: var(--bg-secondary, #f8fafc);
+  padding: 0.5rem 1rem;
+  border-radius: 20px;
+  border: 1px solid var(--border-color, #e2e8f0);
+}
+
+/* Video Player Container */
+.video-player-container {
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 0 2rem;
+  margin-bottom: 3rem;
+}
+
+/* Questions Section */
+.questions-section {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 2rem;
+  background: var(--bg-secondary, #f8fafc);
+  border-radius: 12px;
+  margin-bottom: 2rem;
+}
+
+.questions-section h3 {
+  font-size: 1.5rem;
+  font-weight: 600;
+  color: var(--text-primary, #1e293b);
+  margin-bottom: 1.5rem;
+  margin-top: 0;
+}
+
+.questions-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.question-item {
+  background: var(--bg-primary, #ffffff);
+  border: 1px solid var(--border-color, #e2e8f0);
+  border-radius: 8px;
+  padding: 1.5rem;
+  transition: all 0.2s ease;
+}
+
+.question-item:hover {
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  transform: translateY(-1px);
+}
+
+.question-header {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin-bottom: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.question-number {
+  background: var(--primary-color, #3b82f6);
+  color: white;
+  padding: 0.25rem 0.75rem;
+  border-radius: 12px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.question-timestamp {
+  font-size: 0.875rem;
+  color: var(--text-secondary, #64748b);
+  background: var(--bg-secondary, #f8fafc);
+  padding: 0.25rem 0.75rem;
+  border-radius: 12px;
+  border: 1px solid var(--border-color, #e2e8f0);
+}
+
+.question-points {
+  font-size: 0.875rem;
+  color: var(--success-color, #10b981);
+  background: rgba(16, 185, 129, 0.1);
+  padding: 0.25rem 0.75rem;
+  border-radius: 12px;
+  border: 1px solid rgba(16, 185, 129, 0.2);
+  font-weight: 600;
+}
+
+.question-text {
+  font-size: 1.125rem;
+  font-weight: 500;
+  color: var(--text-primary, #1e293b);
+  margin-bottom: 0.5rem;
+  line-height: 1.5;
+}
+
+.question-type {
+  font-size: 0.875rem;
+  color: var(--text-secondary, #64748b);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-weight: 500;
+}
+
+/* Dark mode styles */
+.dark .video-player-page {
+  background: var(--bg-primary-dark, #0f172a);
+  color: var(--text-primary-dark, #f1f5f9);
+}
+
+.dark .back-button {
+  background: var(--bg-secondary-dark, #1e293b);
+  border-color: var(--border-color-dark, #334155);
+  color: var(--text-primary-dark, #f1f5f9);
+}
+
+.dark .back-button:hover {
+  background: var(--primary-color, #3b82f6);
+}
+
+.dark .video-title {
+  color: var(--text-primary-dark, #f1f5f9);
+}
+
+.dark .video-description p {
+  color: var(--text-secondary-dark, #94a3b8);
+}
+
+.dark .duration {
+  background: var(--bg-secondary-dark, #1e293b);
+  border-color: var(--border-color-dark, #334155);
+  color: var(--text-secondary-dark, #94a3b8);
+}
+
+.dark .questions-section {
+  background: var(--bg-secondary-dark, #1e293b);
+  border: 1px solid var(--border-color-dark, #334155);
+}
+
+.dark .questions-section h3 {
+  color: var(--text-primary-dark, #f1f5f9);
+}
+
+.dark .question-item {
+  background: var(--bg-primary-dark, #0f172a);
+  border-color: var(--border-color-dark, #334155);
+}
+
+.dark .question-timestamp {
+  background: var(--bg-secondary-dark, #1e293b);
+  border-color: var(--border-color-dark, #334155);
+  color: var(--text-secondary-dark, #94a3b8);
+}
+
+.dark .question-text {
+  color: var(--text-primary-dark, #f1f5f9);
+}
+
+.dark .question-type {
+  color: var(--text-secondary-dark, #94a3b8);
+}
+
+/* Responsive design */
+@media (max-width: 768px) {
+  .video-details-section {
+    padding: 1rem;
+    padding-top: 4rem;
+  }
+
+  .video-title {
+    font-size: 2rem;
+  }
+
+  .video-player-container {
+    padding: 0 1rem;
+  }
+
+  .questions-section {
+    padding: 1rem;
+  }
+
+  .back-button {
+    top: 0.75rem;
+    left: 0.75rem;
+    padding: 0.5rem 1rem;
+    font-size: 0.875rem;
+  }
+
+  .question-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.5rem;
+  }
+}

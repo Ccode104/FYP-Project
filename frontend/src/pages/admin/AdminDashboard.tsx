@@ -274,13 +274,17 @@ const advancedSearchAndSort = <T,>(
 }
 
 // Advanced user search with scoring and sorting (supports multi-select)
-const filterUsers = (users: User[], search: string, searchType: 'all' | 'name' | 'email' | 'roll_number', roleFilter: string[], deptFilter: string[]): User[] => {
+const filterUsers = (users: User[], search: string, searchType: 'all' | 'name' | 'email' | 'roll_number', roleFilter: string | string[], deptFilter: string | string[]): User[] => {
   const searchTerm = search.trim()
+
+  // Convert single values to arrays for consistent handling
+  const roleFilterArray = Array.isArray(roleFilter) ? roleFilter : (roleFilter ? [roleFilter] : [])
+  const deptFilterArray = Array.isArray(deptFilter) ? deptFilter : (deptFilter ? [deptFilter] : [])
 
   // First filter by roles and departments (multi-select support)
   let filtered = users.filter(u => {
-    const roleMatch = roleFilter.length === 0 || roleFilter.includes(u.role)
-    const deptMatch = deptFilter.length === 0 || deptFilter.includes(u.department_id?.toString() || '')
+    const roleMatch = roleFilterArray.length === 0 || roleFilterArray.includes(u.role)
+    const deptMatch = deptFilterArray.length === 0 || deptFilterArray.includes(u.department_id?.toString() || '')
     return roleMatch && deptMatch
   })
 
@@ -321,8 +325,14 @@ const filterUsers = (users: User[], search: string, searchType: 'all' | 'name' |
     .map(item => item.user)
 }
 const filteredUsers = useMemo(() =>
-  usersList ? filterUsers(usersList, userSearch, userSearchType, userRoleFilter, userDeptMultiFilter) : [],
-  [usersList, userSearch, userSearchType, userRoleFilter, userDeptMultiFilter]
+  usersList ? filterUsers(
+    usersList,
+    userSearch,
+    userSearchType,
+    showMultiSelect ? userRoleFilter : roleFilter,
+    showMultiSelect ? userDeptMultiFilter : userDeptFilter
+  ) : [],
+  [usersList, userSearch, userSearchType, userRoleFilter, userDeptMultiFilter, roleFilter, userDeptFilter, showMultiSelect]
 )
 
 // Pagination logic
@@ -1394,7 +1404,7 @@ const paginatedCourses = filteredCourses.slice((courseCurrentPage - 1) * courseI
                             <div className="muted">{u.email} ({u.role})</div>
                           </div>
                           <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                            <button className="btn btn-secondary" onClick={async () => {
+                            <button className="btn btn-primary" onClick={async () => {
                               setSelectedUser(u)
                               setSelectedOverview(null)
                               setShowUserDetailsModal(true)
@@ -1402,7 +1412,7 @@ const paginatedCourses = filteredCourses.slice((courseCurrentPage - 1) * courseI
                               const ov = await getUserOverview(u.id)
                               setSelectedOverview(ov)
                             }}>View Details</button>
-                            <button className="btn btn-secondary" onClick={() => {
+                            <button className="btn btn-success" onClick={() => {
                               setEditingUser(u)
                               setEditUserData({
                                 name: u.name || '',
@@ -1665,7 +1675,7 @@ const paginatedCourses = filteredCourses.slice((courseCurrentPage - 1) * courseI
                     </div>
                     <div style={{ marginTop: 12, display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
                       <button
-                        className="btn btn-secondary"
+                        className="btn btn-primary"
                         onClick={() => {
                           setSelectedCourse(course)
                           setShowManageOfferings(true)
@@ -1674,7 +1684,7 @@ const paginatedCourses = filteredCourses.slice((courseCurrentPage - 1) * courseI
                         Manage Offerings
                       </button>
                       <button
-                        className="btn btn-secondary"
+                        className="btn btn-success"
                         onClick={() => {
                           setSelectedCourse(course)
                           setShowManageEnrollments(true)
@@ -2000,14 +2010,14 @@ const paginatedCourses = filteredCourses.slice((courseCurrentPage - 1) * courseI
                     /* Cards View */
                     <div className="grid" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 16 }}>
                       {paginatedDepartments.map((dept: any) => (
-                        <div key={dept.id} className="card" style={{ padding: '16px' }}>
+                        <div key={dept.id} className="card department-card" style={{ padding: '16px' }}>
                           <div style={{ marginBottom: 12 }}>
                             <strong style={{ fontSize: '1.1em' }}>{dept.code}</strong>
                             <div className="muted" style={{ marginTop: '4px' }}>{dept.name}</div>
                           </div>
                           <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                             <button
-                              className="btn btn-secondary"
+                              className="btn btn-primary"
                               onClick={async () => {
                                 setSelectedDeptDetails(dept)
                                 setShowDeptDetailsModal(true)
@@ -2022,7 +2032,7 @@ const paginatedCourses = filteredCourses.slice((courseCurrentPage - 1) * courseI
                               View Details
                             </button>
                             <button
-                              className="btn btn-secondary"
+                              className="btn btn-success"
                               onClick={async () => {
                                 const newCode = prompt('Enter new code:', dept.code)
                                 const newName = prompt('Enter new name:', dept.name)
@@ -2813,8 +2823,6 @@ const paginatedCourses = filteredCourses.slice((courseCurrentPage - 1) * courseI
                       padding: '10px 20px',
                       borderRadius: '8px',
                       border: 'none',
-                      backgroundColor: 'var(--primary)',
-                      color: 'white',
                       cursor: 'pointer',
                       transition: 'all 0.2s ease',
                       boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
@@ -2845,8 +2853,6 @@ const paginatedCourses = filteredCourses.slice((courseCurrentPage - 1) * courseI
                   padding: '10px 20px',
                   borderRadius: '8px',
                   border: '1px solid var(--border)',
-                  backgroundColor: 'var(--surface)',
-                  color: 'var(--text)',
                   cursor: 'pointer',
                   transition: 'all 0.2s ease',
                   fontSize: '14px'
@@ -3254,8 +3260,6 @@ const paginatedCourses = filteredCourses.slice((courseCurrentPage - 1) * courseI
                     padding: '10px 20px',
                     borderRadius: '8px',
                     border: 'none',
-                    backgroundColor: 'var(--primary)',
-                    color: 'white',
                     cursor: 'pointer',
                     transition: 'all 0.2s ease',
                     boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
@@ -3285,8 +3289,6 @@ const paginatedCourses = filteredCourses.slice((courseCurrentPage - 1) * courseI
                   padding: '10px 20px',
                   borderRadius: '8px',
                   border: '1px solid var(--border)',
-                  backgroundColor: 'var(--surface)',
-                  color: 'var(--text)',
                   cursor: 'pointer',
                   transition: 'all 0.2s ease',
                   fontSize: '14px'

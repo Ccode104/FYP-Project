@@ -44,28 +44,52 @@ export async function executeCode(req, res) {
     // If stdin is explicitly provided (even if empty string), use it
     // Only fetch from database if stdin is undefined/null AND question_id is provided
     let finalStdin = stdin !== undefined && stdin !== null ? stdin : '';
-    
-    // If question_id is provided and stdin was not provided (undefined/null), fetch from test cases
-    if (question_id && (stdin === undefined || stdin === null)) {
+    let finalSourceCode = source_code;
+
+    // If question_id is provided, fetch driver code and test cases
+    if (question_id) {
       const { pool } = await import('../db/index.js');
-      const testCaseQuery = `
-        SELECT input_text, expected_text, input_path, expected_path
-        FROM code_question_testcases
-        WHERE question_id = $1 AND is_sample = false
-        ORDER BY id
-        LIMIT 1
-      `;
-      const testCaseResult = await pool.query(testCaseQuery, [question_id]);
-      
-      if (testCaseResult.rows.length > 0) {
-        const testCase = testCaseResult.rows[0];
-        // Use input from test case
-        if (testCase.input_text) {
-          finalStdin = testCase.input_text;
-        } else if (testCase.input_path) {
-          // If input is in a file, you'd need to fetch it from S3
-          // For now, we'll use empty stdin
-          finalStdin = '';
+
+      // Fetch driver code
+      const driverQuery = `SELECT driver_code FROM code_questions WHERE id = $1`;
+      const driverResult = await pool.query(driverQuery, [question_id]);
+      if (driverResult.rows.length > 0) {
+        const driverCode = driverResult.rows[0].driver_code;
+        if (driverCode && typeof driverCode === 'string') {
+          try {
+            const driverObj = JSON.parse(driverCode);
+            const langDriver = driverObj[language.toLowerCase()];
+            if (langDriver) {
+              finalSourceCode = langDriver + '\n' + source_code;
+            }
+          } catch (e) {
+            // If parsing fails, ignore driver code
+            console.warn('Failed to parse driver code:', e);
+          }
+        }
+      }
+
+      // If stdin was not provided (undefined/null), fetch from test cases
+      if (stdin === undefined || stdin === null) {
+        const testCaseQuery = `
+          SELECT input_text, expected_text, input_path, expected_path
+          FROM code_question_testcases
+          WHERE question_id = $1 AND is_sample = false
+          ORDER BY id
+          LIMIT 1
+        `;
+        const testCaseResult = await pool.query(testCaseQuery, [question_id]);
+
+        if (testCaseResult.rows.length > 0) {
+          const testCase = testCaseResult.rows[0];
+          // Use input from test case
+          if (testCase.input_text) {
+            finalStdin = testCase.input_text;
+          } else if (testCase.input_path) {
+            // If input is in a file, you'd need to fetch it from S3
+            // For now, we'll use empty stdin
+            finalStdin = '';
+          }
         }
       }
     }
@@ -73,7 +97,7 @@ export async function executeCode(req, res) {
     // Prepare submission payload (base64 encoded fields)
     // Always encode stdin, even if empty (empty string is valid stdin)
     const submissionPayload = {
-      source_code: Buffer.from(source_code).toString('base64'),
+      source_code: Buffer.from(finalSourceCode).toString('base64'),
       language_id: languageId,
       stdin: Buffer.from(finalStdin || '').toString('base64'), // Always encode, even if empty
       expected_output: null, // Will be set if question_id is provided
@@ -96,7 +120,7 @@ export async function executeCode(req, res) {
         LIMIT 1
       `;
       const testCaseResult = await pool.query(testCaseQuery, [question_id]);
-      
+
       if (testCaseResult.rows.length > 0) {
         const testCase = testCaseResult.rows[0];
         // Set expected output

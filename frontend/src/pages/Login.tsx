@@ -96,7 +96,7 @@ export default function Login() {
             </svg>
           </div>
           <div className="brand-text">
-            <h1 className="heading">Login to Campus</h1>
+            <h1 className="heading">Log in to Campus</h1>
             <p className="subheading">Seamless access. Choose your role and continue.</p>
           </div>
         </header>

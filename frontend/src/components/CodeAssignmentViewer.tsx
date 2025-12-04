@@ -16,6 +16,8 @@ interface CodeQuestion {
   title: string
   description: string
   constraints?: string
+  template_code?: Record<string, string>
+  driver_code?: Record<string, string>
   points?: number
   test_cases?: TestCase[]
 }
@@ -62,8 +64,9 @@ export default function CodeAssignmentViewer({ assignmentId, onComplete }: CodeA
       const initialCode: Record<number, string> = {}
       const initialLang: Record<number, string> = {}
       questionsData?.forEach(q => {
-        initialCode[q.id] = ''
         initialLang[q.id] = 'python'
+        // Set template code if available for the language
+        initialCode[q.id] = q.template_code?.[initialLang[q.id]] || ''
       })
       setCode(initialCode)
       setLanguage(initialLang)
@@ -78,6 +81,17 @@ export default function CodeAssignmentViewer({ assignmentId, onComplete }: CodeA
   const sampleTestCases = currentQuestion?.test_cases?.filter(tc => tc.is_sample) || []
   const currentCode = currentQuestion ? code[currentQuestion.id] || '' : ''
   const currentLanguage = currentQuestion ? language[currentQuestion.id] || 'python' : 'python'
+
+  // Update code when language changes to template for new language
+  useEffect(() => {
+    if (currentQuestion && currentQuestion.template_code) {
+      const newLang = language[currentQuestion.id] || 'python'
+      const template = currentQuestion.template_code[newLang]
+      if (template && (code[currentQuestion.id] === '' || code[currentQuestion.id] === undefined)) {
+        setCode(prev => ({ ...prev, [currentQuestion.id]: template }))
+      }
+    }
+  }, [language, currentQuestion])
 
   const runCode = async (questionId: number) => {
     const src = code[questionId] || ''
@@ -223,8 +237,11 @@ export default function CodeAssignmentViewer({ assignmentId, onComplete }: CodeA
                 {currentQuestion.description}
               </div>
               {currentQuestion.constraints && (
-                <div style={{ marginBottom: 12, padding: 8, backgroundColor: '#fff3cd', borderRadius: 4 }}>
-                  <strong>Constraints:</strong> {currentQuestion.constraints}
+                <div style={{ marginBottom: 12, padding: 12, backgroundColor: '#fff3cd', borderRadius: 4, border: '1px solid #ffeaa7' }}>
+                  <strong style={{ display: 'block', marginBottom: 8, color: '#856404' }}>Constraints:</strong>
+                  <div style={{ whiteSpace: 'pre-wrap' }}>
+                    {currentQuestion.constraints}
+                  </div>
                 </div>
               )}
 

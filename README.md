@@ -4,6 +4,16 @@
 
 Edu Portal is a comprehensive educational platform designed to facilitate online learning and teaching. It provides a role-based system supporting students, teachers, teaching assistants (TAs), and administrators. The platform offers a wide range of features including course management, assignments, quizzes, interactive videos, code challenges, proctoring, gamification, and AI-powered chatbot assistance.
 
+## Hackathon Submission Checklist
+
+This project meets all requirements for Hackathon submission:
+
+- [x] **Complete Source Code**: Full open-source codebase available
+- [x] **Detailed README**: Comprehensive documentation with setup instructions
+- [x] **Architecture Documentation**: Detailed system architecture and design
+- [x] **Sample Data/Test Cases**: Included seed data and test scripts
+- [x] **License Information**: MIT License included
+
 ### Key Features
 
 - **Role-Based Access Control**: Separate interfaces and permissions for students, teachers, TAs, and admins
@@ -142,6 +152,53 @@ The system uses PostgreSQL with the following core entities:
 #### Academic Integrity
 - **plagiarism_checks**: Plagiarism detection check records
 - **plagiarism_matches**: Detailed similarity matches between submissions
+
+## Sample Data and Test Cases
+
+The project includes comprehensive sample data and test cases to demonstrate functionality and facilitate development/testing.
+
+### Database Seed Data
+
+Several SQL seed files are provided in the `backend/` directory:
+
+- `comprehensive-seed-data.sql`: Full dataset with users, courses, assignments, quizzes, etc.
+- `minimal-seed-data.sql`: Basic setup with essential data
+- `simple-seed-data.sql`: Minimal data for quick testing
+- `comprehensive-test-seed.sql`: Test-specific data
+- `simple-test-seed.sql`: Simple test data
+
+To populate the database with sample data:
+
+1. Ensure PostgreSQL is running and database is created
+2. Run the appropriate seed script:
+   ```bash
+   cd backend
+   psql -U your_username -d edu_portal -f comprehensive-seed-data.sql
+   ```
+
+### Test Scripts
+
+JavaScript test scripts are available for API testing:
+
+- `test-database.js`: Database connectivity and basic operations
+- `test-new-apis.js`: Test new API endpoints
+- `test-quiz-results.js`: Quiz functionality testing
+- `test-video-lecture-functionality.js`: Video lecture features
+
+Run tests with:
+```bash
+cd backend
+node test-database.js
+```
+
+### Sample Users
+
+After seeding, you can log in with these sample accounts:
+
+- **Admin**: admin@example.com / admin123
+- **Faculty**: faculty@example.com / faculty123
+- **Student**: student@example.com / student123
+- **TA**: ta@example.com / ta123
 
 ## API Endpoints
 

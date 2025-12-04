@@ -236,6 +236,18 @@ export async function getGradedAssignment(req, res) {
     `;
     const gradesResult = await pool.query(gradesQuery, [submission.id]);
 
+    // Calculate final score from rubric grades if not already set
+    let finalScore = submission.final_score;
+    if ((finalScore === null || finalScore === undefined) && gradesResult.rows.length > 0) {
+      finalScore = gradesResult.rows.reduce((sum, grade) => sum + (grade.score || 0), 0);
+      // Update the submission with the calculated score
+      await pool.query(
+        'UPDATE assignment_submissions SET final_score = $1 WHERE id = $2',
+        [finalScore, submission.id]
+      );
+      submission.final_score = finalScore;
+    }
+
     // Get regrade requests for this submission
     const regradeQuery = `
       SELECT rr.*, rc.title as criterion_title

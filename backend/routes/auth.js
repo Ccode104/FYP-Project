@@ -1,6 +1,7 @@
 // src/routes/auth.js
 import express from 'express';
-import { registerUser, loginUser, loginWithGoogle, getUserDetails} from '../controllers/authController.js';
+import { registerUser, loginUser, loginWithGoogle, getCurrentUser, getUserDetails} from '../controllers/authController.js';
+import { initiateOAuth, handleOAuthCallback, disconnectGitHub } from '../controllers/githubController.js';
 import { requireAuth } from '../middleware/auth.js';
 
 const router = express.Router();
@@ -228,6 +229,127 @@ router.post('/login', loginUser);
  *                   example: "Invalid Google token"
  */
 router.post('/google', loginWithGoogle);
+
+/**
+ * @swagger
+ * /api/auth/github:
+ *   get:
+ *     summary: Initiate GitHub OAuth flow
+ *     tags: [Auth]
+ *     description: Start the GitHub OAuth authorization process
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: GitHub OAuth URL generated successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 authUrl:
+ *                   type: string
+ *                   example: "https://github.com/login/oauth/authorize?..."
+ *                 state:
+ *                   type: string
+ *                   description: CSRF protection state parameter
+ *       401:
+ *         description: Authentication required
+ *       500:
+ *         description: GitHub OAuth not configured
+ */
+router.get('/github', requireAuth, initiateOAuth);
+
+/**
+ * @swagger
+ * /api/auth/github/callback:
+ *   get:
+ *     summary: Handle GitHub OAuth callback
+ *     tags: [Auth]
+ *     description: Process the callback from GitHub OAuth authorization
+ *     parameters:
+ *       - in: query
+ *         name: code
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Authorization code from GitHub
+ *       - in: query
+ *         name: state
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: CSRF protection state parameter
+ *     responses:
+ *       302:
+ *         description: Redirect to frontend with success or error
+ */
+router.get('/github/callback', handleOAuthCallback);
+
+/**
+ * @swagger
+ * /api/auth/github:
+ *   delete:
+ *     summary: Disconnect GitHub integration
+ *     tags: [Auth]
+ *     description: Remove GitHub OAuth connection for the authenticated user
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: GitHub integration disconnected successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: "GitHub integration disconnected successfully"
+ *       401:
+ *         description: Authentication required
+ *       404:
+ *         description: User not found
+ */
+router.delete('/github', requireAuth, disconnectGitHub);
+
+/**
+ * @swagger
+ * /api/auth/me:
+ *   get:
+ *     summary: Get current user details
+ *     tags: [Auth]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Current user details
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 id:
+ *                   type: integer
+ *                 name:
+ *                   type: string
+ *                 email:
+ *                   type: string
+ *                 role:
+ *                   type: string
+ *                 department_id:
+ *                   type: integer
+ *                 roll_number:
+ *                   type: string
+ *                 created_at:
+ *                   type: string
+ *                   format: date-time
+ *       401:
+ *         description: Authentication required
+ *       404:
+ *         description: User not found
+ */
+router.get('/me', requireAuth, getCurrentUser);
 
 /**
  * @swagger

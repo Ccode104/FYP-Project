@@ -152,45 +152,39 @@ function Reports() {
 
       {/* User Statistics */}
       <section className="report-section">
-        <h3>👥 User Statistics</h3>
+        <h3>User Statistics</h3>
         <div className="stats-grid">
           <div className="stat-card">
-            <div className="stat-icon">👤</div>
             <div className="stat-content">
               <div className="stat-value">{stats.totalUsers}</div>
               <div className="stat-label">Total Users</div>
             </div>
           </div>
           <div className="stat-card">
-            <div className="stat-icon">✅</div>
             <div className="stat-content">
               <div className="stat-value">{stats.activeUsers}</div>
               <div className="stat-label">Active Users</div>
             </div>
           </div>
           <div className="stat-card">
-            <div className="stat-icon">🎓</div>
             <div className="stat-content">
               <div className="stat-value">{stats.totalStudents}</div>
               <div className="stat-label">Students</div>
             </div>
           </div>
           <div className="stat-card">
-            <div className="stat-icon">👨‍🏫</div>
             <div className="stat-content">
               <div className="stat-value">{stats.totalFaculty}</div>
               <div className="stat-label">Faculty</div>
             </div>
           </div>
           <div className="stat-card">
-            <div className="stat-icon">👨‍💼</div>
             <div className="stat-content">
               <div className="stat-value">{stats.totalTAs}</div>
               <div className="stat-label">Teaching Assistants</div>
             </div>
           </div>
           <div className="stat-card">
-            <div className="stat-icon">⚙️</div>
             <div className="stat-content">
               <div className="stat-value">{stats.totalAdmins}</div>
               <div className="stat-label">Administrators</div>
@@ -201,31 +195,27 @@ function Reports() {
 
       {/* Course Statistics */}
       <section className="report-section">
-        <h3>📚 Course Statistics</h3>
+        <h3>Course Statistics</h3>
         <div className="stats-grid">
           <div className="stat-card">
-            <div className="stat-icon">📖</div>
             <div className="stat-content">
               <div className="stat-value">{stats.totalCourses}</div>
               <div className="stat-label">Total Courses</div>
             </div>
           </div>
           <div className="stat-card">
-            <div className="stat-icon">🏫</div>
             <div className="stat-content">
               <div className="stat-value">{stats.totalOfferings}</div>
               <div className="stat-label">Course Offerings</div>
             </div>
           </div>
           <div className="stat-card">
-            <div className="stat-icon">📝</div>
             <div className="stat-content">
               <div className="stat-value">{stats.totalEnrollments}</div>
               <div className="stat-label">Total Enrollments</div>
             </div>
           </div>
           <div className="stat-card">
-            <div className="stat-icon">📊</div>
             <div className="stat-content">
               <div className="stat-value">{stats.totalOfferings > 0 ? Math.round((stats.totalEnrollments / stats.totalOfferings) * 10) / 10 : 0}</div>
               <div className="stat-label">Avg Students per Course</div>
@@ -236,24 +226,21 @@ function Reports() {
 
       {/* Academic Content Statistics */}
       <section className="report-section">
-        <h3>📝 Academic Content</h3>
+        <h3>Academic Content</h3>
         <div className="stats-grid">
           <div className="stat-card">
-            <div className="stat-icon">📋</div>
             <div className="stat-content">
               <div className="stat-value">{stats.totalAssignments}</div>
               <div className="stat-label">Assignments</div>
             </div>
           </div>
           <div className="stat-card">
-            <div className="stat-icon">🧠</div>
             <div className="stat-content">
               <div className="stat-value">{stats.totalQuizzes}</div>
               <div className="stat-label">Quizzes</div>
             </div>
           </div>
           <div className="stat-card">
-            <div className="stat-icon">📈</div>
             <div className="stat-content">
               <div className="stat-value">{stats.totalOfferings > 0 ? Math.round(((stats.totalAssignments + stats.totalQuizzes) / stats.totalOfferings) * 10) / 10 : 0}</div>
               <div className="stat-label">Avg Assessments per Course</div>
@@ -264,31 +251,27 @@ function Reports() {
 
       {/* Support Statistics */}
       <section className="report-section">
-        <h3>🆘 Support & Maintenance</h3>
+        <h3>Support & Maintenance</h3>
         <div className="stats-grid">
           <div className="stat-card">
-            <div className="stat-icon">🎫</div>
             <div className="stat-content">
               <div className="stat-value">{stats.totalSupportTickets}</div>
               <div className="stat-label">Total Tickets</div>
             </div>
           </div>
           <div className="stat-card">
-            <div className="stat-icon">⏳</div>
             <div className="stat-content">
               <div className="stat-value">{stats.openTickets}</div>
               <div className="stat-label">Open Tickets</div>
             </div>
           </div>
           <div className="stat-card">
-            <div className="stat-icon">✅</div>
             <div className="stat-content">
               <div className="stat-value">{stats.resolvedTickets}</div>
               <div className="stat-label">Resolved Tickets</div>
             </div>
           </div>
           <div className="stat-card">
-            <div className="stat-icon">📊</div>
             <div className="stat-content">
               <div className="stat-value">{stats.totalSupportTickets > 0 ? Math.round((stats.resolvedTickets / stats.totalSupportTickets) * 100) : 0}%</div>
               <div className="stat-label">Resolution Rate</div>
@@ -299,29 +282,29 @@ function Reports() {
 
       {/* System Health Summary */}
       <section className="report-section">
-        <h3>🏥 System Health Summary</h3>
+        <h3>System Health Summary</h3>
         <div className="health-summary">
           <div className="health-item">
             <span className="health-label">User Activity:</span>
-            <span className={`health-status ${stats.activeUsers / stats.totalUsers > 0.8 ? 'excellent' : stats.activeUsers / stats.totalUsers > 0.6 ? 'good' : 'warning'}`}>
+            <span className="health-value">
               {stats.totalUsers > 0 ? Math.round((stats.activeUsers / stats.totalUsers) * 100) : 0}% Active
             </span>
           </div>
           <div className="health-item">
             <span className="health-label">Course Utilization:</span>
-            <span className={`health-status ${stats.totalEnrollments > 0 ? 'excellent' : 'warning'}`}>
+            <span className="health-value">
               {stats.totalEnrollments > 0 ? 'Active' : 'Low Activity'}
             </span>
           </div>
           <div className="health-item">
             <span className="health-label">Support Load:</span>
-            <span className={`health-status ${stats.openTickets < 10 ? 'excellent' : stats.openTickets < 25 ? 'good' : 'warning'}`}>
+            <span className="health-value">
               {stats.openTickets < 10 ? 'Light' : stats.openTickets < 25 ? 'Moderate' : 'High'}
             </span>
           </div>
           <div className="health-item">
             <span className="health-label">Content Creation:</span>
-            <span className={`health-status ${(stats.totalAssignments + stats.totalQuizzes) > stats.totalOfferings ? 'excellent' : 'good'}`}>
+            <span className="health-value">
               {(stats.totalAssignments + stats.totalQuizzes) > stats.totalOfferings ? 'Excellent' : 'Good'}
             </span>
           </div>
