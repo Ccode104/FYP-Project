@@ -2247,22 +2247,13 @@ export default function CourseDetails() {
                           {backendVideos.map((video: any) => (
                             <tr key={video.id}>
                               <td>
-                                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                                  <button
-                                    className="btn"
-                                    style={{ textAlign: 'left', padding: 0, background: 'none', border: 'none', color: 'inherit', cursor: 'pointer', textDecoration: 'underline' }}
-                                    onClick={() => setSelectedVideo(video)}
-                                  >
-                                    {video.title}
-                                  </button>
-                                  <button
-                                    className="btn btn-sm"
-                                    style={{ fontSize: '11px', padding: '2px 6px', alignSelf: 'flex-start' }}
-                                    onClick={() => navigate(`/videos/${video.id}`)}
-                                  >
-                                    📺 Full Screen
-                                  </button>
-                                </div>
+                                <button
+                                  className="btn"
+                                  style={{ textAlign: 'left', padding: 0, background: 'none', border: 'none', color: 'inherit', cursor: 'pointer', textDecoration: 'underline' }}
+                                  onClick={() => navigate(`/videos/${video.id}`)}
+                                >
+                                  {video.title}
+                                </button>
                               </td>
                               {user?.role === 'teacher' && (
                                 <td>
