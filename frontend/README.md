@@ -1,4 +1,4 @@
-# Edu Portal React
+# Unified Academic Portal React
 
 A role-based React + TypeScript app scaffolded with Vite featuring:
 - Login and Signup pages

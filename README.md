@@ -1,8 +1,8 @@
-# Edu Portal - Comprehensive Documentation
+# Unified Academic Portal - Comprehensive Documentation
 
 ## Project Overview
 
-Edu Portal is a comprehensive educational platform designed to facilitate online learning and teaching. It provides a role-based system supporting students, teachers, teaching assistants (TAs), and administrators. The platform offers a wide range of features including course management, assignments, quizzes, interactive videos, code challenges, proctoring, gamification, and AI-powered chatbot assistance.
+Unified Academic Portal is a comprehensive educational platform designed to facilitate online learning and teaching. It provides a role-based system supporting students, teachers, teaching assistants (TAs), and administrators. The platform offers a wide range of features including course management, assignments, quizzes, interactive videos, code challenges, proctoring, gamification, and AI-powered chatbot assistance.
 
 ## Hackathon Submission Checklist
 
@@ -105,6 +105,12 @@ This project meets all requirements for Hackathon submission:
 - **Testing**: Manual test scripts available, automated testing marked for future development
 
 ## System Architecture
+
+### High-Level Architecture Overview
+
+![Unified Academic Portal Architecture Diagram](Architecture%20Diagram.png)
+
+*Figure 1: High-level system architecture showing the relationships between frontend, backend, database, and external services.*
 
 ### Backend Architecture
 
@@ -295,7 +301,7 @@ The API is fully documented with Swagger and organized by functionality:
 
 ## Plagiarism Detection System
 
-The Edu Portal includes a comprehensive plagiarism detection system that supports multiple assignment types:
+The Unified Academic Portal includes a comprehensive plagiarism detection system that supports multiple assignment types:
 
 ### Supported Assignment Types
 - **Code Assignments**: Uses Stanford Moss (Measure of Software Similarity) for detecting code plagiarism
@@ -393,9 +399,14 @@ The application uses React Context for global state:
 - Git
 
 ### 🚀 Quick Access (No Setup Required)
-**If you encounter any setup issues or prefer instant access, visit the deployed application at: [http://13.233.144.115/](http://13.233.144.115/). When you will click/copy the link, the browser will use https. Make sure to replace it with http to make it work.** 
+**If you encounter any setup issues or prefer instant access, visit the deployed application at: [http://13.233.144.115/](http://13.233.144.115/). When you will click/copy the link, the browser will use https. Make sure to replace it with http to make it work.**
 
-The live deployment includes the full Edu Portal with pre-configured database and all features ready to demonstrate.
+The live deployment includes the full Unified Academic Portal with pre-configured database and all features ready to demonstrate.
+
+### 📹 Demo Video
+**Watch the complete system demonstration:** [Unified Academic Portal Demo Video](https://www.youtube.com/watch?v=q0UeBYeHDaw)
+
+The video showcases all major features including user authentication, course management, assignments, quizzes, proctoring, AI chatbot, and mobile app functionality.
 
 ### Backend Setup
 
@@ -457,7 +468,7 @@ The live deployment includes the full Edu Portal with pre-configured database an
 
 ### Mobile Application Setup
 
-The Edu Portal includes a companion mobile application built with React Native and Expo.
+The Unified Academic Portal includes a companion mobile application built with React Native and Expo.
 
 1. **Prerequisites:**
    - Node.js 18+
@@ -603,4 +614,4 @@ For support and questions:
 
 ---
 
-This documentation provides a comprehensive overview of the Edu Portal system. For detailed API specifications, refer to the Swagger documentation available at `/api-docs` when the backend server is running.
+This documentation provides a comprehensive overview of the Unified Academic Portal system. For detailed API specifications, refer to the Swagger documentation available at `/api-docs` when the backend server is running.

@@ -1,0 +1,105 @@
+graph TB
+    subgraph "Client Layer"
+        WA["Web Application<br/>(React 19 + TypeScript + Vite)<br/>━━━━━━━━━━━━━━━━<br/>• Student Dashboard<br/>• Teacher Dashboard<br/>• Admin Panel<br/>• Quiz Interface<br/>• Proctoring Monitor"]
+        MA["Mobile Application<br/>(React Native + Expo)<br/>━━━━━━━━━━━━━━━━<br/>• Cross-platform iOS/Android<br/>• QR Code Scanner (Expo Go)<br/>• Same features as web"]
+    end
+
+    subgraph "Authentication & Security Layer"
+        AUTH["Authentication Service<br/>━━━━━━━━━━━━━━━━<br/>• JWT Token Management<br/>• Session Handling<br/>• Password Encryption"]
+        OAUTH["Google OAuth 2.0<br/>━━━━━━━━━━━━━━━━<br/>• Social Login<br/>• Profile Integration"]
+        RBAC["Role-Based Access Control<br/>━━━━━━━━━━━━━━━━<br/>• Student<br/>• Teacher<br/>• TA<br/>• Administrator"]
+    end
+
+    subgraph "Backend Layer - Node.js + Express.js"
+        API["API Server<br/>━━━━━━━━━━━━━━━━<br/>• RESTful Endpoints<br/>• Input Validation<br/>• Error Handling<br/>• CORS Configuration"]
+        SOCKET["WebSocket Server<br/>(Socket.IO)<br/>━━━━━━━━━━━━━━━━<br/>• Real-time Messaging<br/>• Live Lectures<br/>• Proctoring Stream"]
+        MIDDLEWARE["Middleware Layer<br/>━━━━━━━━━━━━━━━━<br/>• Authentication<br/>• Authorization<br/>• Request Logging<br/>• Rate Limiting"]
+        FILEHANDLER["File Upload Handler<br/>━━━━━━━━━━━━━━━━<br/>• Multipart Form Data<br/>• File Validation<br/>• Size Limits"]
+    end
+
+    subgraph "Business Logic Layer"
+        USERSERVICE["User Service<br/>• Registration<br/>• Profile Management<br/>• Role Assignment"]
+        COURSESERVICE["Course Service<br/>• Course Creation<br/>• Enrollment<br/>• Materials Management"]
+        ASSIGNSERVICE["Assignment Service<br/>• Submission Processing<br/>• Auto-grading<br/>• Manual Grading"]
+        QUIZSERVICE["Quiz Service<br/>• Quiz Creation<br/>• Attempt Tracking<br/>• Scoring Engine"]
+        GAMIFICATION["Gamification Service<br/>• Points & Badges<br/>• Leaderboards<br/>• Achievements"]
+        PROCTOR["Proctoring Service<br/>• Face Detection<br/>• Tab Monitoring<br/>• Log Recording"]
+    end
+
+    subgraph "Database Layer - PostgreSQL on Neon"
+        DB[("PostgreSQL Database<br/>━━━━━━━━━━━━━━━━<br/>Tables:<br/>• users, roles<br/>• courses, enrollments<br/>• assignments, submissions<br/>• quizzes, quiz_attempts<br/>• resources, materials<br/>• gamification_data<br/>• proctoring_logs<br/>• messages, notifications")]
+    end
+
+    subgraph "External Services"
+        GROQ["Groq AI API<br/>━━━━━━━━━━━━━━━━<br/>• AI Chatbot<br/>• Natural Language Processing<br/>• Educational Q&A"]
+        STORAGE["File Storage<br/>(AWS S3 / Cloudinary)<br/>━━━━━━━━━━━━━━━━<br/>• Documents<br/>• Images<br/>• Videos<br/>• Assignment Files"]
+        JUDGE0["Judge0 API<br/>━━━━━━━━━━━━━━━━<br/>• Code Execution<br/>• Programming Tests<br/>• Multiple Languages<br/>• Security Sandboxing"]
+    end
+
+    subgraph "Deployment Environment"
+        PROD["Production Server<br/>(AWS EC2)<br/>━━━━━━━━━━━━━━━━<br/>IP: 13.233.144.115<br/>• Load Balancing<br/>• Auto-scaling"]
+        DEV["Development Environment<br/>━━━━━━━━━━━━━━━━<br/>• Local Setup<br/>• Hot Reload<br/>• Debug Mode"]
+    end
+
+    %% Client to Backend connections
+    WA -->|HTTPS/WSS| API
+    WA -->|WebSocket| SOCKET
+    MA -->|HTTPS/WSS| API
+    MA -->|WebSocket| SOCKET
+
+    %% Authentication flow
+    WA -->|Login Request| AUTH
+    MA -->|Login Request| AUTH
+    AUTH -->|OAuth Flow| OAUTH
+    AUTH -->|JWT Token| WA
+    AUTH -->|JWT Token| MA
+    AUTH -->|Verify| RBAC
+
+    %% API to Middleware
+    API --> MIDDLEWARE
+    MIDDLEWARE --> RBAC
+    MIDDLEWARE --> FILEHANDLER
+
+    %% API to Business Logic
+    API --> USERSERVICE
+    API --> COURSESERVICE
+    API --> ASSIGNSERVICE
+    API --> QUIZSERVICE
+    API --> GAMIFICATION
+    API --> PROCTOR
+    SOCKET --> PROCTOR
+
+    %% Business Logic to Database
+    USERSERVICE --> DB
+    COURSESERVICE --> DB
+    ASSIGNSERVICE --> DB
+    QUIZSERVICE --> DB
+    GAMIFICATION --> DB
+    PROCTOR --> DB
+
+    %% External Services connections
+    FILEHANDLER -->|Upload/Download| STORAGE
+    ASSIGNSERVICE -->|Code Evaluation| JUDGE0
+    API -->|AI Requests| GROQ
+    COURSESERVICE -->|File URLs| STORAGE
+
+    %% Deployment connections
+    PROD -.->|Hosts| API
+    PROD -.->|Hosts| SOCKET
+    DEV -.->|Development| API
+    DB -.->|Cloud Hosted| PROD
+
+    %% Styling
+    classDef frontend fill:#4A90E2,stroke:#2E5C8A,stroke-width:2px,color:#fff
+    classDef backend fill:#50C878,stroke:#2D7A4A,stroke-width:2px,color:#fff
+    classDef database fill:#FF8C42,stroke:#CC6D33,stroke-width:2px,color:#fff
+    classDef external fill:#9B9B9B,stroke:#6B6B6B,stroke-width:2px,color:#fff
+    classDef security fill:#E74C3C,stroke:#A93226,stroke-width:2px,color:#fff
+    classDef deployment fill:#9B59B6,stroke:#6C3483,stroke-width:2px,color:#fff
+
+    class WA,MA frontend
+    class API,SOCKET,MIDDLEWARE,FILEHANDLER,USERSERVICE,COURSESERVICE,ASSIGNSERVICE,QUIZSERVICE,GAMIFICATION,PROCTOR backend
+    class DB database
+    class GROQ,STORAGE,JUDGE0 external
+    class AUTH,OAUTH,RBAC security
+    class PROD,DEV deployment
