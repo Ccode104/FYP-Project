@@ -13,7 +13,7 @@ import {
   getActiveSession,
   sessionHeartbeat
 } from '../controllers/proctoringController.js';
-import { requireAuth } from '../middleware/auth.js';
+import { requireAuth, requireRole } from '../middleware/auth.js';
 
 const router = express.Router();
 
@@ -33,7 +33,7 @@ router.post('/violations', recordViolation);
 router.post('/sessions/:sessionId/suspend', suspendSession);
 
 // Resume a suspended session (teacher/admin only)
-router.post('/sessions/:sessionId/resume', resumeSession);
+router.post('/sessions/:sessionId/resume', requireRole('faculty','admin'), resumeSession);
 
 // Get session analytics
 router.get('/sessions/:sessionId/analytics', getSessionAnalytics);

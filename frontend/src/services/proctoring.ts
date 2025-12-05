@@ -75,6 +75,8 @@ class ProctoringService {
   private faceDetectionInterval: number | null = null;
   private screenCheckInterval: number | null = null;
   private fullscreenCheckInterval: number | null = null;
+  private visibilityCheckInterval: number | null = null;
+  private visibilityHandler: (() => void) | null = null;
   private audioContext: AudioContext | null = null;
   private stream: MediaStream | null = null;
   private videoElement: HTMLVideoElement | null = null;
@@ -180,6 +182,9 @@ class ProctoringService {
     // Start fullscreen monitoring
     this.startFullscreenMonitoring();
 
+    // Start visibility monitoring (tab switching)
+    this.startVisibilityMonitoring();
+
     // Start webcam monitoring if required
     if (this.config.webcam_required) {
       await this.startWebcamMonitoring();
@@ -199,6 +204,7 @@ class ProctoringService {
   // Stop all monitoring
   stopMonitoring(): void {
     this.stopFullscreenMonitoring();
+    this.stopVisibilityMonitoring();
     this.stopWebcamMonitoring();
     this.stopScreenMonitoring();
     this.stopAudioMonitoring();
@@ -318,6 +324,40 @@ class ProctoringService {
     if (this.fullscreenCheckInterval) {
       clearInterval(this.fullscreenCheckInterval);
       this.fullscreenCheckInterval = null;
+    }
+  }
+
+  // Visibility monitoring (tab switching)
+  private startVisibilityMonitoring(): void {
+    this.visibilityHandler = () => {
+      if (document.hidden) {
+        // Tab is not visible - start grace period
+        if (!this.status.gracePeriodActive) {
+          this.startGracePeriod({
+            type: 'tab_switch',
+            severity: 3,
+            description: 'Switched to another tab or minimized window'
+          }, 5); // 5 second grace period
+        }
+      } else {
+        // Tab is visible again - cancel grace period if it was for tab switch
+        if (this.status.gracePeriodActive && this.status.gracePeriodViolation?.type === 'tab_switch') {
+          this.endGracePeriod(false);
+        }
+      }
+    };
+
+    // Listen for visibility changes
+    document.addEventListener('visibilitychange', this.visibilityHandler);
+
+    // Also check immediately
+    this.visibilityHandler();
+  }
+
+  private stopVisibilityMonitoring(): void {
+    if (this.visibilityHandler) {
+      document.removeEventListener('visibilitychange', this.visibilityHandler);
+      this.visibilityHandler = null;
     }
   }
 
@@ -647,9 +687,17 @@ class ProctoringService {
       } else if (element.msRequestFullscreen) {
         await element.msRequestFullscreen();
       }
+
+      console.log('Successfully entered fullscreen mode');
     } catch (error) {
-      console.error('Failed to enter fullscreen:', error);
-      throw error;
+      console.warn('Failed to enter fullscreen mode. Proctoring will continue with windowed mode:', error);
+      // Don't throw - allow quiz to continue in windowed mode
+      // Record a violation for not being able to enter fullscreen
+      this.recordViolation({
+        type: 'fullscreen_denied',
+        severity: 1,
+        description: 'Browser denied fullscreen request'
+      });
     }
   }
 }

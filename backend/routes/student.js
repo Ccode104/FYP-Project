@@ -13,6 +13,8 @@ import {
   getStudentQuizAttempts,
   getGradedAssignment,
   submitRegradeRequest,
+  submitResumeRequest,
+  getStudentResumeRequests,
 } from '../controllers/studentController.js';
 
 const router = express.Router();
@@ -339,5 +341,55 @@ router.get('/graded/:assignmentId', getGradedAssignment);
  */
 router.post('/grade-query', submitRegradeRequest);
 router.post('/enroll', enrollInCourse);
+
+/**
+ * @swagger
+ * /api/student/resume-request:
+ *   post:
+ *     summary: Submit a resume request for a suspended quiz attempt
+ *     tags: [Student]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - quizAttemptId
+ *               - reason
+ *             properties:
+ *               quizAttemptId:
+ *                 type: integer
+ *               reason:
+ *                 type: string
+ *     responses:
+ *       201:
+ *         description: Resume request submitted
+ *       400:
+ *         description: Bad request
+ *       401:
+ *         description: Unauthorized
+ *       409:
+ *         description: Request already exists
+ */
+router.post('/resume-request', submitResumeRequest);
+
+/**
+ * @swagger
+ * /api/student/resume-requests:
+ *   get:
+ *     summary: Get all resume requests for the current student
+ *     tags: [Student]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: List of resume requests
+ *       401:
+ *         description: Unauthorized
+ */
+router.get('/resume-requests', getStudentResumeRequests);
 
 export default router;

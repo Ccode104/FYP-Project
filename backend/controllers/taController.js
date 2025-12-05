@@ -271,3 +271,171 @@ export async function submitGrading(req, res) {
     res.status(500).json({ error: 'Failed to submit grading' });
   }
 }
+
+// Get active proctoring sessions for TA's courses
+export async function getActiveProctoringSessions(req, res) {
+  const taId = req.user.id;
+
+  try {
+    const query = `
+      SELECT ps.*, qa.quiz_id, q.title as quiz_title, u.name as student_name,
+             u.email as student_email, c.code as course_code, pa.total_violations,
+             pa.risk_level, pa.compliance_score
+      FROM proctoring_sessions ps
+      JOIN quiz_attempts qa ON ps.quiz_attempt_id = qa.id
+      JOIN quizzes q ON qa.quiz_id = q.id
+      JOIN course_offerings co ON q.course_offering_id = co.id
+      JOIN courses c ON co.course_id = c.id
+      JOIN ta_assignments ta ON ta.course_offering_id = co.id
+      JOIN users u ON ps.student_id = u.id
+      LEFT JOIN proctoring_analytics pa ON ps.id = pa.session_id
+      WHERE ta.ta_id = $1 AND ps.status = 'active'
+      ORDER BY ps.started_at DESC
+    `;
+
+    const result = await pool.query(query, [taId]);
+    res.json({ sessions: result.rows });
+  } catch (error) {
+    console.error('Error fetching active proctoring sessions:', error);
+    res.status(500).json({ error: 'Failed to fetch active sessions' });
+  }
+}
+
+// Get violations for a specific session (TA monitoring)
+export async function getSessionViolations(req, res) {
+  const taId = req.user.id;
+  const { sessionId } = req.params;
+
+  try {
+    // First verify TA has access to this session
+    const accessQuery = `
+      SELECT 1 FROM proctoring_sessions ps
+      JOIN quiz_attempts qa ON ps.quiz_attempt_id = qa.id
+      JOIN quizzes q ON qa.quiz_id = q.id
+      JOIN course_offerings co ON q.course_offering_id = co.id
+      JOIN ta_assignments ta ON ta.course_offering_id = co.id
+      WHERE ps.id = $1 AND ta.ta_id = $2
+    `;
+    const accessResult = await pool.query(accessQuery, [sessionId, taId]);
+    if (accessResult.rowCount === 0) {
+      return res.status(403).json({ error: 'Access denied' });
+    }
+
+    const query = `
+      SELECT pv.*, u.name as student_name, q.title as quiz_title
+      FROM proctoring_violations pv
+      JOIN proctoring_sessions ps ON pv.session_id = ps.id
+      JOIN users u ON ps.student_id = u.id
+      LEFT JOIN quiz_attempts qa ON ps.quiz_attempt_id = qa.id
+      LEFT JOIN quizzes q ON qa.quiz_id = q.id
+      WHERE pv.session_id = $1
+      ORDER BY pv.timestamp DESC
+    `;
+
+    const result = await pool.query(query, [sessionId]);
+    res.json({ violations: result.rows });
+  } catch (error) {
+    console.error('Error fetching session violations:', error);
+    res.status(500).json({ error: 'Failed to fetch violations' });
+  }
+}
+
+// TA manual suspension with comment
+export async function suspendSessionByTA(req, res) {
+  const taId = req.user.id;
+  const { sessionId } = req.params;
+  const { reason, comment } = req.body;
+
+  if (!reason) {
+    return res.status(400).json({ error: 'reason is required' });
+  }
+
+  try {
+    // Verify TA has access to this session
+    const accessQuery = `
+      SELECT ps.id FROM proctoring_sessions ps
+      JOIN quiz_attempts qa ON ps.quiz_attempt_id = qa.id
+      JOIN quizzes q ON qa.quiz_id = q.id
+      JOIN course_offerings co ON q.course_offering_id = co.id
+      JOIN ta_assignments ta ON ta.course_offering_id = co.id
+      WHERE ps.id = $1 AND ta.ta_id = $2
+    `;
+    const accessResult = await pool.query(accessQuery, [sessionId, taId]);
+    if (accessResult.rowCount === 0) {
+      return res.status(403).json({ error: 'Access denied' });
+    }
+
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+
+      // Update session status
+      await client.query(
+        'UPDATE proctoring_sessions SET status = $1, ended_at = now(), updated_at = now() WHERE id = $2',
+        ['suspended', sessionId]
+      );
+
+      // Update quiz attempt with TA suspension reason
+      await client.query(
+        'UPDATE quiz_attempts SET suspended_at = now(), suspension_reason = $1 WHERE proctoring_session_id = $2',
+        [`TA Suspension: ${reason}${comment ? ` - ${comment}` : ''}`, sessionId]
+      );
+
+      // Log the TA action as a violation for record
+      await client.query(`
+        INSERT INTO proctoring_violations (session_id, violation_type, severity, description)
+        VALUES ($1, 'manual_ta_suspension', 4, $2)
+      `, [sessionId, `TA Manual Suspension: ${reason}${comment ? ` - Comment: ${comment}` : ''}`]);
+
+      await client.query('COMMIT');
+
+      // Emit WebSocket event
+      const io = req.app.get('io');
+      if (io) {
+        io.to(`proctoring-${sessionId}`).emit('session-suspended', {
+          reason: `TA Suspension: ${reason}`,
+          comment,
+          suspendedBy: taId,
+          timestamp: new Date().toISOString()
+        });
+      }
+
+      res.json({ message: 'Session suspended successfully by TA' });
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
+  } catch (error) {
+    console.error('Error suspending session by TA:', error);
+    res.status(500).json({ error: 'Failed to suspend session' });
+  }
+}
+
+// Get resume requests for TA's courses
+export async function getResumeRequests(req, res) {
+  const taId = req.user.id;
+
+  try {
+    const query = `
+      SELECT rr.*, u.name as student_name, u.email as student_email,
+             q.title as quiz_title, c.code as course_code
+      FROM resume_requests rr
+      JOIN users u ON rr.student_id = u.id
+      JOIN quiz_attempts qa ON rr.quiz_attempt_id = qa.id
+      JOIN quizzes q ON qa.quiz_id = q.id
+      JOIN course_offerings co ON q.course_offering_id = co.id
+      JOIN courses c ON co.course_id = c.id
+      JOIN ta_assignments ta ON ta.course_offering_id = co.id
+      WHERE ta.ta_id = $1 AND rr.status = 'pending'
+      ORDER BY rr.requested_at DESC
+    `;
+
+    const result = await pool.query(query, [taId]);
+    res.json({ requests: result.rows });
+  } catch (error) {
+    console.error('Error fetching resume requests:', error);
+    res.status(500).json({ error: 'Failed to fetch resume requests' });
+  }
+}

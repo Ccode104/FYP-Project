@@ -329,3 +329,128 @@ export async function getStudentProctoringHistory(req, res) {
     res.status(500).json({ error: error.message || 'Failed to fetch student history' });
   }
 }
+
+// Get resume requests for teacher's courses
+export async function getResumeRequests(req, res) {
+  try {
+    const teacherId = req.user?.id;
+
+    if (!teacherId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const query = `
+      SELECT rr.*, u.name as student_name, u.email as student_email,
+             q.title as quiz_title, c.code as course_code, co.term
+      FROM resume_requests rr
+      JOIN users u ON rr.student_id = u.id
+      JOIN quiz_attempts qa ON rr.quiz_attempt_id = qa.id
+      JOIN quizzes q ON qa.quiz_id = q.id
+      JOIN course_offerings co ON q.course_offering_id = co.id
+      JOIN courses c ON co.course_id = c.id
+      JOIN faculty_course_offerings fco ON co.id = fco.course_offering_id
+      WHERE fco.faculty_id = $1
+      ORDER BY rr.requested_at DESC
+    `;
+
+    const result = await pool.query(query, [teacherId]);
+    res.json({ requests: result.rows });
+  } catch (error) {
+    console.error('Error fetching resume requests:', error);
+    res.status(500).json({ error: error.message || 'Failed to fetch resume requests' });
+  }
+}
+
+// Approve or reject a resume request
+export async function respondToResumeRequest(req, res) {
+  try {
+    const { requestId } = req.params;
+    const { action, responseMessage } = req.body; // action: 'approve' or 'reject'
+    const teacherId = req.user?.id;
+
+    if (!teacherId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    if (!['approve', 'reject'].includes(action)) {
+      return res.status(400).json({ error: 'Invalid action. Must be approve or reject' });
+    }
+
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+
+      // Get the resume request and verify teacher access
+      const requestQuery = `
+        SELECT rr.*, qa.proctoring_session_id
+        FROM resume_requests rr
+        JOIN quiz_attempts qa ON rr.quiz_attempt_id = qa.id
+        JOIN quizzes q ON qa.quiz_id = q.id
+        JOIN course_offerings co ON q.course_offering_id = co.id
+        JOIN faculty_course_offerings fco ON co.id = fco.course_offering_id
+        WHERE rr.id = $1 AND fco.faculty_id = $2
+      `;
+      const requestResult = await client.query(requestQuery, [requestId, teacherId]);
+
+      if (requestResult.rows.length === 0) {
+        await client.query('ROLLBACK');
+        return res.status(403).json({ error: 'Access denied or request not found' });
+      }
+
+      const request = requestResult.rows[0];
+
+      if (request.status !== 'pending') {
+        await client.query('ROLLBACK');
+        return res.status(400).json({ error: 'Request has already been processed' });
+      }
+
+      // Update the resume request
+      const status = action === 'approve' ? 'approved' : 'rejected';
+      await client.query(`
+        UPDATE resume_requests
+        SET status = $1, reviewed_by = $2, reviewed_at = NOW(), response_message = $3, updated_at = NOW()
+        WHERE id = $4
+      `, [status, teacherId, responseMessage || null, requestId]);
+
+      // If approved, resume the quiz attempt
+      if (action === 'approve' && request.proctoring_session_id) {
+        await client.query(
+          'UPDATE proctoring_sessions SET status = $1, updated_at = now() WHERE id = $2',
+          ['active', request.proctoring_session_id]
+        );
+
+        await client.query(
+          'UPDATE quiz_attempts SET resumed_at = now(), resumed_by = $1 WHERE proctoring_session_id = $2',
+          [teacherId, request.proctoring_session_id]
+        );
+
+        // Emit WebSocket event
+        const io = req.app.get('io');
+        if (io) {
+          io.to(`proctoring-${request.proctoring_session_id}`).emit('session-resumed', {
+            resumedBy: teacherId,
+            reason: 'Resume request approved',
+            timestamp: new Date().toISOString()
+          });
+        }
+      }
+
+      await client.query('COMMIT');
+
+      res.json({
+        message: `Resume request ${action}d successfully`,
+        request_id: requestId,
+        action,
+        session_resumed: action === 'approve' && !!request.proctoring_session_id
+      });
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
+  } catch (error) {
+    console.error('Error responding to resume request:', error);
+    res.status(500).json({ error: error.message || 'Failed to process resume request' });
+  }
+}

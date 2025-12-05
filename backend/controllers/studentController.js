@@ -311,3 +311,85 @@ export async function submitRegradeRequest(req, res) {
     res.status(500).json({ error: 'Internal server error' });
   }
 }
+
+// Submit a resume request for a suspended quiz attempt
+export async function submitResumeRequest(req, res) {
+  try {
+    const studentId = req.user.id;
+    const { quizAttemptId, reason } = req.body;
+
+    if (!quizAttemptId || !reason) {
+      return res.status(400).json({ error: 'quizAttemptId and reason are required' });
+    }
+
+    // Verify the quiz attempt belongs to the student and is suspended
+    const verifyQuery = `
+      SELECT qa.id, qa.suspended_at, rr.id as existing_request
+      FROM quiz_attempts qa
+      LEFT JOIN resume_requests rr ON qa.id = rr.quiz_attempt_id AND rr.student_id = $2
+      WHERE qa.id = $1 AND qa.student_id = $2
+    `;
+    const verifyResult = await pool.query(verifyQuery, [quizAttemptId, studentId]);
+
+    if (verifyResult.rowCount === 0) {
+      return res.status(404).json({ error: 'Quiz attempt not found' });
+    }
+
+    const attempt = verifyResult.rows[0];
+
+    if (!attempt.suspended_at) {
+      return res.status(400).json({ error: 'Quiz attempt is not suspended' });
+    }
+
+    if (attempt.existing_request) {
+      return res.status(409).json({ error: 'Resume request already exists for this attempt' });
+    }
+
+    // Insert resume request
+    const insertQuery = `
+      INSERT INTO resume_requests (student_id, quiz_attempt_id, reason, status, requested_at)
+      VALUES ($1, $2, $3, 'pending', NOW())
+      RETURNING *
+    `;
+    const insertResult = await pool.query(insertQuery, [
+      studentId,
+      quizAttemptId,
+      reason
+    ]);
+
+    res.status(201).json({
+      message: 'Resume request submitted successfully',
+      request: insertResult.rows[0]
+    });
+  } catch (err) {
+    console.error('submitResumeRequest error:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+}
+
+// Get student's resume requests
+export async function getStudentResumeRequests(req, res) {
+  try {
+    const studentId = req.user.id;
+
+    const query = `
+      SELECT rr.*, qa.quiz_id, q.title as quiz_title, c.code as course_code
+      FROM resume_requests rr
+      JOIN quiz_attempts qa ON rr.quiz_attempt_id = qa.id
+      JOIN quizzes q ON qa.quiz_id = q.id
+      JOIN course_offerings co ON q.course_offering_id = co.id
+      JOIN courses c ON co.course_id = c.id
+      WHERE rr.student_id = $1
+      ORDER BY rr.requested_at DESC
+    `;
+
+    const result = await pool.query(query, [studentId]);
+
+    res.json({
+      requests: result.rows
+    });
+  } catch (err) {
+    console.error('getStudentResumeRequests error:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+}

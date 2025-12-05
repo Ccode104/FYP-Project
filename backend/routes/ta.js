@@ -1,6 +1,6 @@
 import express from 'express';
 import { requireAuth, requireRole } from '../middleware/auth.js';
-import { assignTA, removeTA, getTADashboardData } from '../controllers/taController.js';
+import { assignTA, removeTA, getTADashboardData, getActiveProctoringSessions, getSessionViolations, suspendSessionByTA, getResumeRequests } from '../controllers/taController.js';
 import { getTAAssignments, getGradingSubmissions, submitGrading } from '../controllers/taController.js';
 import { chatWithTAAgent, getTAAgentSuggestions, generateVivaQuestions, generateDebugQuestions } from '../controllers/taAgentController.js';
 
@@ -306,5 +306,104 @@ router.get('/grading/:assignmentId/submissions', requireAuth, requireRole('ta'),
  *         description: Forbidden - Not assigned to grade this submission
  */
 router.post('/grading/submit', requireAuth, requireRole('ta'), submitGrading);
+
+/**
+ * @swagger
+ * /api/ta/proctoring/sessions:
+ *   get:
+ *     summary: Get active proctoring sessions for TA's courses
+ *     tags: [TA Proctoring]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: List of active proctoring sessions
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Forbidden - Requires TA role
+ */
+router.get('/proctoring/sessions', requireAuth, requireRole('ta'), getActiveProctoringSessions);
+
+/**
+ * @swagger
+ * /api/ta/proctoring/sessions/{sessionId}/violations:
+ *   get:
+ *     summary: Get violations for a specific proctoring session
+ *     tags: [TA Proctoring]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: sessionId
+ *         required: true
+ *         schema:
+ *           type: integer
+ *     responses:
+ *       200:
+ *         description: List of violations
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Forbidden - No access to this session
+ */
+router.get('/proctoring/sessions/:sessionId/violations', requireAuth, requireRole('ta'), getSessionViolations);
+
+/**
+ * @swagger
+ * /api/ta/proctoring/sessions/{sessionId}/suspend:
+ *   post:
+ *     summary: Manually suspend a proctoring session (TA action)
+ *     tags: [TA Proctoring]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: sessionId
+ *         required: true
+ *         schema:
+ *           type: integer
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - reason
+ *             properties:
+ *               reason:
+ *                 type: string
+ *               comment:
+ *                 type: string
+ *     responses:
+ *       200:
+ *         description: Session suspended successfully
+ *       400:
+ *         description: Bad request
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Forbidden - No access to this session
+ */
+router.post('/proctoring/sessions/:sessionId/suspend', requireAuth, requireRole('ta'), suspendSessionByTA);
+
+/**
+ * @swagger
+ * /api/ta/proctoring/resume-requests:
+ *   get:
+ *     summary: Get pending resume requests for TA's courses
+ *     tags: [TA Proctoring]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: List of pending resume requests
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Forbidden - Requires TA role
+ */
+router.get('/proctoring/resume-requests', requireAuth, requireRole('ta'), getResumeRequests);
 
 export default router;

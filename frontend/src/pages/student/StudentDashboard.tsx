@@ -61,7 +61,7 @@ function MenuButton({ onDelete, label }: { onDelete: () => void; label: string }
 }
 
 export default function StudentDashboard() {
-  const { user } = useAuth()
+  const { user, logout } = useAuth()
   const navigate = useNavigate()
 
   const [loading, setLoading] = useState(true)
@@ -144,8 +144,12 @@ export default function StudentDashboard() {
           cached: false
         })
 
-      } catch (e) {
+      } catch (e: unknown) {
         console.error('Failed to fetch course card data:', e)
+        if (e instanceof Error && e.message === 'Invalid token') {
+          logout()
+          return
+        }
         // Fallback to empty counts
         setCourseCounts({})
       }

@@ -96,7 +96,7 @@ router.post('/attempts/:attemptId/grade-overall', requireAuth, requireRole('facu
 router.post('/attempts/:attemptId/suspend', requireAuth, requireRole('faculty','ta','admin'), suspendQuizAttempt);
 
 // Resume a suspended quiz attempt (teacher-controlled)
-router.post('/attempts/:attemptId/resume', requireAuth, requireRole('faculty','ta','admin'), resumeQuizAttempt);
+router.post('/attempts/:attemptId/resume', requireAuth, requireRole('faculty','admin'), resumeQuizAttempt);
 
 // Delete a quiz attempt (for resetting violated attempts)
 router.delete('/attempts/:attemptId', requireAuth, requireRole('faculty','ta','admin'), deleteQuizAttempt);

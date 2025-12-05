@@ -369,7 +369,7 @@ export default function QuizTake() {
     }
   }, [showResumePrompt, resumeCountdown, push])
 
-  // Navigation protection - prevent accidental navigation during quiz
+  // Navigation protection and cheating prevention - prevent accidental navigation and common cheating methods during quiz
   useEffect(() => {
     if (!quizStarted || result) return
 
@@ -402,9 +402,78 @@ export default function QuizTake() {
       window.history.pushState(null, '', window.location.href)
     }
 
+    const handleContextMenu = (e: MouseEvent) => {
+      // Prevent right-click context menu
+      e.preventDefault()
+      proctoringService.recordViolation({
+        type: 'right_click_attempt',
+        severity: 2,
+        description: 'Attempted to open context menu (right-click)'
+      })
+    }
+
+    const handleCopy = (e: ClipboardEvent) => {
+      // Prevent copy
+      e.preventDefault()
+      proctoringService.recordViolation({
+        type: 'copy_attempt',
+        severity: 2,
+        description: 'Attempted to copy content'
+      })
+    }
+
+    const handlePaste = (e: ClipboardEvent) => {
+      // Prevent paste
+      e.preventDefault()
+      proctoringService.recordViolation({
+        type: 'paste_attempt',
+        severity: 2,
+        description: 'Attempted to paste content'
+      })
+    }
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Prevent common cheating shortcuts
+      if (e.ctrlKey || e.metaKey) {
+        const key = e.key.toLowerCase()
+        if (['c', 'v', 'x', 'a', 'u', 'i', 'j', 'p', 's', 't', 'w', 'r', 'f', 'n', 'g', 'h', 'l'].includes(key)) {
+          e.preventDefault()
+          proctoringService.recordViolation({
+            type: 'keyboard_shortcut',
+            severity: 2,
+            description: `Attempted keyboard shortcut: Ctrl+${key.toUpperCase()}`
+          })
+        }
+      }
+
+      // Prevent F12 (dev tools)
+      if (e.key === 'F12') {
+        e.preventDefault()
+        proctoringService.recordViolation({
+          type: 'dev_tools_attempt',
+          severity: 3,
+          description: 'Attempted to open developer tools (F12)'
+        })
+      }
+
+      // Prevent F11 (fullscreen toggle)
+      if (e.key === 'F11') {
+        e.preventDefault()
+        proctoringService.recordViolation({
+          type: 'fullscreen_toggle_attempt',
+          severity: 2,
+          description: 'Attempted to toggle fullscreen with F11'
+        })
+      }
+    }
+
     // Add event listeners
     window.addEventListener('beforeunload', handleBeforeUnload)
     window.addEventListener('popstate', handlePopState)
+    document.addEventListener('contextmenu', handleContextMenu)
+    document.addEventListener('copy', handleCopy)
+    document.addEventListener('paste', handlePaste)
+    document.addEventListener('keydown', handleKeyDown)
 
     // Prevent back button by pushing current state
     window.history.pushState(null, '', window.location.href)
@@ -412,6 +481,10 @@ export default function QuizTake() {
     return () => {
       window.removeEventListener('beforeunload', handleBeforeUnload)
       window.removeEventListener('popstate', handlePopState)
+      document.removeEventListener('contextmenu', handleContextMenu)
+      document.removeEventListener('copy', handleCopy)
+      document.removeEventListener('paste', handlePaste)
+      document.removeEventListener('keydown', handleKeyDown)
     }
   }, [quizStarted, result, proctoringStatus?.gracePeriodActive])
 

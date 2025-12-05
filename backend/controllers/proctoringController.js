@@ -172,16 +172,21 @@ export async function recordViolation(req, res) {
       await updateSessionAnalytics(client, session_id);
 
       // Check if auto-suspension is needed
-      const configQuery = `
-        SELECT pc.* FROM proctoring_configs pc
-        JOIN proctoring_sessions ps ON pc.quiz_id = (
-          SELECT qa.quiz_id FROM quiz_attempts qa WHERE qa.id = ps.quiz_attempt_id
-        )
+      // First get the quiz_id from the session
+      const quizIdQuery = `
+        SELECT qa.quiz_id FROM proctoring_sessions ps
+        LEFT JOIN quiz_attempts qa ON ps.quiz_attempt_id = qa.id
         WHERE ps.id = $1
       `;
+      const quizIdResult = await client.query(quizIdQuery, [session_id]);
+      const quizId = quizIdResult.rows[0]?.quiz_id;
 
-      const configResult = await client.query(configQuery, [session_id]);
-      const config = configResult.rows[0];
+      let config = null;
+      if (quizId) {
+        const configQuery = 'SELECT * FROM proctoring_configs WHERE quiz_id = $1';
+        const configResult = await client.query(configQuery, [quizId]);
+        config = configResult.rows[0];
+      }
 
       let shouldSuspend = false;
       if (config && severity >= config.auto_suspend_severity) {
