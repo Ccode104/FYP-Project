@@ -6,9 +6,6 @@ export default defineConfig({
   plugins: [react()],
   define: {
     global: 'globalThis',
-    'process.nextTick': '((fn) => setTimeout(fn, 0))',
-    'util.debuglog': '(() => () => {})',
-    'util.inspect': '((obj) => JSON.stringify(obj))',
   },
   optimizeDeps: {
     include: ['simple-peer', 'buffer', 'events', 'util', 'stream-browserify', 'readable-stream'],
