@@ -224,15 +224,53 @@ export async function startServer(port = 4000) {
       });
     });
 
-    socket.on('proctoring-suspend', (data) => {
+    socket.on('proctoring-suspend', async (data) => {
       const { sessionToken, reason, suspendedBy } = data;
 
-      // Notify student of suspension
-      socket.to(`proctoring-${sessionToken}`).emit('session-suspended', {
-        reason,
-        suspendedBy,
-        timestamp: new Date().toISOString()
-      });
+      try {
+        console.log('DEBUG: WebSocket proctoring-suspend received:', { sessionToken, reason, suspendedBy });
+
+        // Find session by token
+        const sessionResult = await pool.query(
+          'SELECT id, student_id FROM proctoring_sessions WHERE session_token = $1',
+          [sessionToken]
+        );
+
+        if (sessionResult.rows.length === 0) {
+          console.error('DEBUG: Session not found for token:', sessionToken);
+          return;
+        }
+
+        const session = sessionResult.rows[0];
+        console.log('DEBUG: Found session:', session);
+
+        // Call suspendSession API
+        const suspendResult = await pool.query(
+          'UPDATE proctoring_sessions SET status = $1, ended_at = now(), updated_at = now() WHERE id = $2 RETURNING *',
+          ['suspended', session.id]
+        );
+
+        console.log('DEBUG: Session suspended in DB:', suspendResult.rows[0]);
+
+        // Update quiz attempt if exists
+        await pool.query(
+          'UPDATE quiz_attempts SET suspended_at = now(), suspension_reason = $1 WHERE proctoring_session_id = $2',
+          [reason, session.id]
+        );
+
+        console.log('DEBUG: Quiz attempt updated');
+
+        // Notify student of suspension
+        socket.to(`proctoring-${sessionToken}`).emit('session-suspended', {
+          reason,
+          suspendedBy,
+          timestamp: new Date().toISOString()
+        });
+
+        console.log('DEBUG: Suspension notification sent to student');
+      } catch (error) {
+        console.error('DEBUG: Error in proctoring-suspend:', error);
+      }
     });
 
     socket.on('proctoring-resume', (data) => {

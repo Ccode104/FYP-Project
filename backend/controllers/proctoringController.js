@@ -6,7 +6,7 @@ import crypto from 'crypto';
  */
 export async function createProctoringSession(req, res) {
   try {
-    const { quiz_attempt_id, student_id, device_info, browser_info, webcam_enabled, screen_monitoring_enabled, audio_monitoring_enabled } = req.body;
+    const { quiz_attempt_id, quiz_id, student_id, device_info, browser_info, webcam_enabled, screen_monitoring_enabled, audio_monitoring_enabled } = req.body;
 
     if (!student_id) {
       return res.status(400).json({ error: 'student_id is required' });
@@ -33,13 +33,14 @@ export async function createProctoringSession(req, res) {
       // Create proctoring session
       const sessionQuery = `
         INSERT INTO proctoring_sessions
-        (quiz_attempt_id, student_id, device_info, browser_info, session_token, webcam_enabled, screen_monitoring_enabled, audio_monitoring_enabled)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+        (quiz_attempt_id, quiz_id, student_id, device_info, browser_info, session_token, webcam_enabled, screen_monitoring_enabled, audio_monitoring_enabled)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
         RETURNING *
       `;
 
       const sessionResult = await client.query(sessionQuery, [
         quiz_attempt_id || null,
+        quiz_id,
         student_id,
         JSON.stringify(device_info || {}),
         JSON.stringify(browser_info || {}),
@@ -234,6 +235,8 @@ export async function suspendSession(req, res) {
     const { sessionId } = req.params;
     const { reason, suspended_by } = req.body;
 
+    console.log('DEBUG: Suspending session', sessionId, 'reason:', reason, 'by:', suspended_by);
+
     if (!reason || !suspended_by) {
       return res.status(400).json({ error: 'reason and suspended_by are required' });
     }
@@ -243,16 +246,20 @@ export async function suspendSession(req, res) {
       await client.query('BEGIN');
 
       // Update session status
-      await client.query(
-        'UPDATE proctoring_sessions SET status = $1, ended_at = now(), updated_at = now() WHERE id = $2',
+      const updateResult = await client.query(
+        'UPDATE proctoring_sessions SET status = $1, ended_at = now(), updated_at = now() WHERE id = $2 RETURNING *',
         ['suspended', sessionId]
       );
 
+      console.log('DEBUG: Updated session status to suspended:', updateResult.rows[0]);
+
       // Update quiz attempt
-      await client.query(
-        'UPDATE quiz_attempts SET suspended_at = now(), suspension_reason = $1 WHERE proctoring_session_id = $2',
+      const attemptResult = await client.query(
+        'UPDATE quiz_attempts SET suspended_at = now(), suspension_reason = $1 WHERE proctoring_session_id = $2 RETURNING *',
         [reason, sessionId]
       );
+
+      console.log('DEBUG: Updated quiz attempt:', attemptResult.rows[0]);
 
       await client.query('COMMIT');
 

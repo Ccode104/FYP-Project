@@ -1,16 +1,18 @@
 import { useEffect, useMemo, useState, useRef, useCallback } from 'react'
-import { useParams } from 'react-router-dom'
+import { useParams, useNavigate } from 'react-router-dom'
 import { useAuth } from '../../context/AuthContext'
 import { getQuiz, submitQuizAttempt, Quiz } from '../../services/quizzes'
 import { useToast } from '../../components/ToastProvider'
 import { proctoringService } from '../../services/proctoring'
 import type { ProctoringConfig, ProctoringStatus } from '../../services/proctoring'
 import { createProctoringSession, getProctoringConfig } from '../../services/proctoringApi'
+import FullscreenInstructions from '../../components/FullscreenInstructions'
 
 export default function QuizTake() {
-  const { quizId } = useParams()
-  const { user } = useAuth()
-  const { push } = useToast()
+   const { quizId } = useParams()
+   const navigate = useNavigate()
+   const { user } = useAuth()
+   const { push } = useToast()
 
   const [quiz, setQuiz] = useState<Quiz | null>(null)
   const [loading, setLoading] = useState(true)
@@ -33,17 +35,21 @@ export default function QuizTake() {
   const [gradedAnswers, setGradedAnswers] = useState<Record<number, { student_answer: any; is_correct: boolean | null; correct_answer: any }>>({})
 
   // Proctoring state
-  const [timeRemaining, setTimeRemaining] = useState<number | null>(null)
-  const [quizStarted, setQuizStarted] = useState(false)
-  const [proctoringConfig, setProctoringConfig] = useState<ProctoringConfig | null>(null)
-  const [proctoringStatus, setProctoringStatus] = useState<ProctoringStatus | null>(null)
-  const [proctoringSession, setProctoringSession] = useState<any>(null)
+   const [timeRemaining, setTimeRemaining] = useState<number | null>(null)
+   const [quizStarted, setQuizStarted] = useState(false)
+   const [proctoringConfig, setProctoringConfig] = useState<ProctoringConfig | null>(null)
+   const [proctoringStatus, setProctoringStatus] = useState<ProctoringStatus | null>(proctoringService.getStatus())
+   const [proctoringSession, setProctoringSession] = useState<any>(null)
   const [isInitializingProctoring, setIsInitializingProctoring] = useState(false)
   const [checkingPermissions, setCheckingPermissions] = useState(false)
   const [permissionsGranted, setPermissionsGranted] = useState(false)
+  const [showFullscreenInstructions, setShowFullscreenInstructions] = useState(false)
+  const [fullscreenError, setFullscreenError] = useState<string>('')
+  const [fullscreenRetryCount, setFullscreenRetryCount] = useState(0)
+  const [timeExpiredCount, setTimeExpiredCount] = useState(0)
   const [isSuspended, setIsSuspended] = useState(false)
   const [showResumePrompt, setShowResumePrompt] = useState(false)
-  const [resumeCountdown, setResumeCountdown] = useState(10)
+  const [resumeCountdown, setResumeCountdown] = useState(0)
   const submittedAttemptedRef = useRef(false)
   const sessionCheckInterval = useRef<number | null>(null)
   const resumeTimeout = useRef<number | null>(null)
@@ -53,12 +59,29 @@ export default function QuizTake() {
       if (!quizId) return
       try {
         const q = await getQuiz(Number(quizId))
-        console.log('Loaded quiz:', { id: q.id, title: q.title, is_proctored: q.is_proctored, time_limit: q.time_limit })
+        console.log('DEBUG: Loaded quiz:', { id: q.id, title: q.title, is_proctored: q.is_proctored, time_limit: q.time_limit })
         setQuiz(q)
 
         // Check if there's a suspended quiz attempt
         if (q.is_proctored && user) {
+          console.log('DEBUG: Quiz is proctored, checking for suspended attempts and active sessions')
           try {
+            // First check if student has any suspended quiz attempts for this quiz
+            const suspendedAttemptsResponse = await fetch(`/api/quizzes/${q.id}/attempts/suspended/${user.id}`, {
+              headers: {
+                'Authorization': `Bearer ${localStorage.getItem('auth:token')}`
+              }
+            });
+            const suspendedAttemptsData = await suspendedAttemptsResponse.json();
+            console.log('DEBUG: Suspended attempts check result:', suspendedAttemptsData)
+
+            if (suspendedAttemptsData.hasSuspendedAttempt) {
+              console.log('DEBUG: Student has suspended quiz attempt, preventing new attempt')
+              setIsSuspended(true);
+              setErr('This quiz attempt was suspended due to proctoring violations. Please contact your instructor for assistance.');
+              return; // Prevent further loading
+            }
+
             // Check for active/suspended proctoring sessions
             const activeSessionResponse = await fetch(`/api/proctoring/sessions/active/${user.id}/${q.id}`, {
               headers: {
@@ -66,10 +89,14 @@ export default function QuizTake() {
               }
             });
             const activeSessionData = await activeSessionResponse.json();
+            console.log('DEBUG: Active session check result:', activeSessionData)
 
             if (activeSessionData.session) {
               const session = activeSessionData.session;
+              console.log('DEBUG: Found existing session:', { id: session.id, status: session.status })
+
               if (session.status === 'suspended') {
+                console.log('DEBUG: Session is suspended, showing resume prompt')
                 setIsSuspended(true);
                 setShowResumePrompt(true);
                 // Start 10-second countdown for auto-suspension
@@ -81,6 +108,7 @@ export default function QuizTake() {
                   push({ kind: 'error', message: 'Quiz automatically suspended due to timeout.' });
                 }, 10000);
               } else if (session.status === 'active') {
+                console.log('DEBUG: Session is active, resuming quiz')
                 // Resume existing active session
                 setProctoringSession(session);
                 setQuizStarted(true);
@@ -93,22 +121,28 @@ export default function QuizTake() {
                   const totalLimit = q.time_limit * 60; // Convert to seconds
                   const remaining = Math.max(0, totalLimit - elapsed);
                   setTimeRemaining(remaining);
+                  console.log('DEBUG: Resumed with remaining time:', remaining)
                 }
               }
+            } else {
+              console.log('DEBUG: No existing session found, will show proctoring start screen')
             }
           } catch (error) {
-            console.warn('Could not check suspended status:', error)
+            console.warn('DEBUG: Could not check suspended status:', error)
           }
+        } else {
+          console.log('DEBUG: Quiz is not proctored or no user logged in')
         }
 
         // Load proctoring configuration if quiz is proctored
         if (q.is_proctored) {
+          console.log('DEBUG: Loading proctoring configuration')
           try {
             const configResponse = await getProctoringConfig(Number(quizId))
             setProctoringConfig(configResponse.config)
-            console.log('Loaded proctoring config:', configResponse.config)
+            console.log('DEBUG: Loaded proctoring config:', configResponse.config)
           } catch (configError) {
-            console.warn('Failed to load proctoring config, using defaults:', configError)
+            console.warn('DEBUG: Failed to load proctoring config, using defaults:', configError)
             // Use default config
             setProctoringConfig({
               webcam_required: true,
@@ -198,82 +232,143 @@ export default function QuizTake() {
   }, [proctoringConfig, push]);
 
   // Proctoring functions - using advanced proctoring service
-  const initializeAdvancedProctoring = useCallback(async () => {
-    if (!quiz || !user || !proctoringConfig) return
+   const initializeAdvancedProctoring = useCallback(async () => {
+     if (!quiz || !user || !proctoringConfig) {
+       console.log('DEBUG: Cannot initialize proctoring - missing requirements:', { quiz: !!quiz, user: !!user, proctoringConfig: !!proctoringConfig })
+       return
+     }
 
-    try {
-      setIsInitializingProctoring(true)
+     console.log('DEBUG: Starting proctoring initialization')
+     let session = null
+     let sessionToken = null
 
-      // Create proctoring session on backend
-      const session = await createProctoringSession({
-        student_id: Number(user.id),
-        device_info: {
-          userAgent: navigator.userAgent,
-          platform: navigator.platform,
-          language: navigator.language,
-          screenResolution: `${screen.width}x${screen.height}`,
-          timezone: Intl.DateTimeFormat().resolvedOptions().timeZone
-        },
-        browser_info: {
-          cookiesEnabled: navigator.cookieEnabled,
-          online: navigator.onLine,
-          hardwareConcurrency: navigator.hardwareConcurrency
-        },
-        webcam_enabled: proctoringConfig.webcam_required,
-        screen_monitoring_enabled: proctoringConfig.screen_monitoring,
-        audio_monitoring_enabled: proctoringConfig.audio_monitoring
-      })
+     try {
+       setIsInitializingProctoring(true)
 
-      setProctoringSession(session)
+       // Create proctoring session on backend
+       console.log('DEBUG: Creating proctoring session on backend')
+       session = await createProctoringSession({
+         quiz_id: Number(quiz.id),
+         student_id: Number(user.id),
+         device_info: {
+           userAgent: navigator.userAgent,
+           platform: navigator.platform,
+           language: navigator.language,
+           screenResolution: `${screen.width}x${screen.height}`,
+           timezone: Intl.DateTimeFormat().resolvedOptions().timeZone
+         },
+         browser_info: {
+           cookiesEnabled: navigator.cookieEnabled,
+           online: navigator.onLine,
+           hardwareConcurrency: navigator.hardwareConcurrency
+         },
+         webcam_enabled: proctoringConfig.webcam_required,
+         screen_monitoring_enabled: proctoringConfig.screen_monitoring,
+         audio_monitoring_enabled: proctoringConfig.audio_monitoring
+       })
+       console.log('DEBUG: Created proctoring session:', session)
 
-      // Generate session token for WebSocket connection
-      const sessionToken = session.session_token
+       setProctoringSession(session)
 
-      // Initialize proctoring service
-      await proctoringService.initializeSession(sessionToken, proctoringConfig, 'student')
+       // Generate session token for WebSocket connection
+       sessionToken = session.session_token
+       console.log('DEBUG: Session token:', sessionToken)
 
-      // Set up status change listener
-      proctoringService.onStatusChange((status) => {
-        setProctoringStatus(status)
+       // Initialize proctoring service
+       console.log('DEBUG: Initializing proctoring service')
+       await proctoringService.initializeSession(sessionToken, proctoringConfig, 'student', session.id)
+       console.log('DEBUG: Proctoring service initialized')
 
-        // Handle suspension
-        if (status.isSuspended && !submittedAttemptedRef.current) {
-          submittedAttemptedRef.current = true
-          push({ kind: 'error', message: 'Quiz suspended due to proctoring violations. Contact your instructor.' })
+     } catch (error) {
+       console.error('DEBUG: Failed to initialize proctoring service:', error)
+       // Continue with local monitoring even if WebSocket fails
+       console.log('DEBUG: Continuing with local monitoring despite WebSocket failure')
+     }
 
-          // Auto-submit with violation flag
-          setTimeout(() => {
-            handleSubmit(true)
-          }, 1000)
-        }
-      })
+     // Always set up listeners and monitoring, even if WebSocket failed
+     try {
+       // Set up status change listener
+       proctoringService.onStatusChange((status) => {
+         console.log('DEBUG: Proctoring status changed:', status)
+         setProctoringStatus(status)
 
-      // Set up violation listener
-      proctoringService.onViolation((violation) => {
-        if (violation.severity >= 3) {
-          push({ kind: 'error', message: `Critical violation: ${violation.description}` })
-        } else if (violation.severity === 2) {
-          push({ kind: 'info', message: `Warning: ${violation.description}` })
-        }
-      })
+         // Handle suspension
+         if (status.isSuspended && !submittedAttemptedRef.current) {
+           submittedAttemptedRef.current = true
+           console.log('DEBUG: Quiz suspended, showing suspended UI')
+           setIsSuspended(true)
+           push({ kind: 'error', message: 'Quiz suspended due to proctoring violations. Contact your instructor.' })
+         }
+       })
 
-      console.log('Advanced proctoring initialized successfully')
-    } catch (error) {
-      console.error('Failed to initialize advanced proctoring:', error)
-      push({ kind: 'error', message: 'Failed to initialize proctoring system. Please refresh and try again.' })
-    } finally {
-      setIsInitializingProctoring(false)
+       // Set up violation listener
+       proctoringService.onViolation((violation) => {
+         console.log('DEBUG: Violation detected:', violation)
+         if (violation.severity >= 3) {
+           push({ kind: 'error', message: `Critical violation: ${violation.description}` })
+         } else if (violation.severity === 2) {
+           push({ kind: 'info', message: `Warning: ${violation.description}` })
+         }
+       })
+
+       console.log('DEBUG: Proctoring listeners set up')
+     } catch (listenerError) {
+       console.error('DEBUG: Failed to set up proctoring listeners:', listenerError)
+     } finally {
+       setIsInitializingProctoring(false)
+     }
+   }, [quiz, user, proctoringConfig, push])
+
+  const retryFullscreen = useCallback(async () => {
+    setFullscreenRetryCount(prev => prev + 1)
+    setShowFullscreenInstructions(false)
+    await startAdvancedProctoring()
+  }, [])
+
+  const confirmManualFullscreen = useCallback(async () => {
+    // Check if user has manually enabled fullscreen
+    const isFullscreen = !!(
+      document.fullscreenElement ||
+      (document as Document & { webkitFullscreenElement?: Element }).webkitFullscreenElement ||
+      (document as Document & { mozFullScreenElement?: Element }).mozFullScreenElement ||
+      (document as Document & { msFullscreenElement?: Element }).msFullscreenElement
+    )
+
+    if (isFullscreen) {
+      setShowFullscreenInstructions(false)
+      // Continue with quiz start
+      await continueQuizStart()
+    } else {
+      push({ kind: 'error', message: 'Fullscreen is still not detected. Please enable fullscreen and try again.' })
     }
-  }, [quiz, user, proctoringConfig, push])
+  }, [push])
 
-  const startAdvancedProctoring = useCallback(async () => {
-    if (!quiz?.is_proctored || !proctoringConfig) return
-
+  const continueQuizStart = useCallback(async () => {
     try {
-      setQuizStarted(true)
+      // Check fullscreen status before starting
+      const isCurrentlyFullscreen = !!(
+        document.fullscreenElement ||
+        (document as Document & { webkitFullscreenElement?: Element }).webkitFullscreenElement ||
+        (document as Document & { mozFullScreenElement?: Element }).mozFullScreenElement ||
+        (document as Document & { msFullscreenElement?: Element }).msFullscreenElement
+      )
+
+      console.log('DEBUG: continueQuizStart called')
+      console.log('DEBUG: Fullscreen status at quiz start:', {
+        isCurrentlyFullscreen,
+        fullscreenElement: !!document.fullscreenElement,
+        webkitFullscreenElement: !!(document as any).webkitFullscreenElement,
+        mozFullScreenElement: !!(document as any).mozFullScreenElement,
+        msFullscreenElement: !!(document as any).msFullscreenElement
+      })
+
+      if (!isCurrentlyFullscreen) {
+        console.warn('DEBUG: WARNING - Quiz starting without fullscreen!')
+        push({ kind: 'info', message: 'Quiz started without fullscreen. This may result in proctoring violations.' })
+      }
 
       // Initialize timer if time limit exists
-      if (quiz.time_limit) {
+      if (quiz?.time_limit) {
         setTimeRemaining(quiz.time_limit * 60) // Convert minutes to seconds
       }
 
@@ -283,91 +378,278 @@ export default function QuizTake() {
       // Start monitoring
       await proctoringService.startMonitoring()
 
-      console.log('Advanced proctoring started successfully')
+      setQuizStarted(true)
+      console.log('DEBUG: Quiz started successfully')
     } catch (error) {
-      console.error('Failed to start advanced proctoring:', error)
-      push({ kind: 'error', message: 'Failed to start proctoring system. Please try again.' })
+      console.error('DEBUG: Failed to continue quiz start:', error)
+      push({ kind: 'error', message: 'Failed to start quiz. Please try again.' })
       setQuizStarted(false)
     }
-  }, [quiz, proctoringConfig, initializeAdvancedProctoring, push])
+  }, [quiz?.time_limit, initializeAdvancedProctoring, push])
 
-  // Timer effect - simplified since proctoring service handles violations
+
+  const startAdvancedProctoring = useCallback(async () => {
+    console.log('DEBUG: startAdvancedProctoring called')
+    if (!quiz?.is_proctored || !proctoringConfig) {
+      console.log('DEBUG: Cannot start proctoring - requirements not met:', { is_proctored: quiz?.is_proctored, proctoringConfig: !!proctoringConfig })
+      return
+    }
+
+    console.log('DEBUG: Starting advanced proctoring with enhanced fullscreen')
+    console.log('DEBUG: Browser user agent:', navigator.userAgent)
+    console.log('DEBUG: Current fullscreen state before request:', {
+      fullscreenElement: !!document.fullscreenElement,
+      webkitFullscreenElement: !!(document as any).webkitFullscreenElement,
+      mozFullScreenElement: !!(document as any).mozFullScreenElement,
+      msFullscreenElement: !!(document as any).msFullscreenElement
+    })
+
+    try {
+      // Request fullscreen synchronously in response to user gesture
+      const element = document.documentElement as HTMLElement & {
+        webkitRequestFullscreen?: () => Promise<void>;
+        mozRequestFullScreen?: () => Promise<void>;
+        msRequestFullscreen?: () => Promise<void>;
+      };
+
+      console.log('DEBUG: Attempting to request fullscreen')
+      console.log('DEBUG: Available fullscreen methods:', {
+        requestFullscreen: !!element.requestFullscreen,
+        webkitRequestFullscreen: !!element.webkitRequestFullscreen,
+        mozRequestFullScreen: !!element.mozRequestFullScreen,
+        msRequestFullscreen: !!element.msRequestFullscreen
+      })
+
+      let fullscreenPromise: Promise<void>;
+      if (element.requestFullscreen) {
+        console.log('DEBUG: Using standard requestFullscreen')
+        fullscreenPromise = element.requestFullscreen();
+      } else if (element.webkitRequestFullscreen) {
+        console.log('DEBUG: Using webkitRequestFullscreen')
+        fullscreenPromise = element.webkitRequestFullscreen();
+      } else if (element.mozRequestFullScreen) {
+        console.log('DEBUG: Using mozRequestFullScreen')
+        fullscreenPromise = element.mozRequestFullScreen();
+      } else if (element.msRequestFullscreen) {
+        console.log('DEBUG: Using msRequestFullscreen')
+        fullscreenPromise = element.msRequestFullscreen();
+      } else {
+        throw new Error('Fullscreen API not supported');
+      }
+
+      console.log('DEBUG: Awaiting fullscreen promise')
+      await fullscreenPromise;
+      console.log('DEBUG: Fullscreen promise resolved')
+
+      // Wait for fullscreen state to be confirmed
+      console.log('DEBUG: Waiting for fullscreen state confirmation')
+      let attempts = 0;
+      const maxAttempts = 50; // 5 seconds
+      while (attempts < maxAttempts) {
+        const isFullscreen = !!(
+          document.fullscreenElement ||
+          (document as Document & { webkitFullscreenElement?: Element }).webkitFullscreenElement ||
+          (document as Document & { mozFullScreenElement?: Element }).mozFullScreenElement ||
+          (document as Document & { msFullscreenElement?: Element }).msFullscreenElement
+        );
+
+        console.log(`DEBUG: Fullscreen check attempt ${attempts + 1}/${maxAttempts}:`, {
+          isFullscreen,
+          fullscreenElement: !!document.fullscreenElement,
+          webkitFullscreenElement: !!(document as any).webkitFullscreenElement,
+          mozFullScreenElement: !!(document as any).mozFullScreenElement,
+          msFullscreenElement: !!(document as any).msFullscreenElement
+        })
+
+        if (isFullscreen) {
+          console.log('DEBUG: Fullscreen confirmed successfully')
+          break;
+        }
+
+        await new Promise(resolve => setTimeout(resolve, 100));
+        attempts++;
+      }
+
+      if (attempts >= maxAttempts) {
+        console.error('DEBUG: Fullscreen confirmation timeout after', maxAttempts * 100, 'ms')
+        throw new Error('Fullscreen state not confirmed within timeout');
+      }
+
+      console.log('DEBUG: Fullscreen confirmed, proceeding with quiz start')
+      // If fullscreen succeeded, continue with quiz
+      await continueQuizStart()
+
+    } catch (error) {
+      console.error('DEBUG: Automatic fullscreen failed:', error)
+      console.error('DEBUG: Error details:', {
+        name: error instanceof Error ? error.name : 'Unknown',
+        message: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : 'No stack'
+      })
+
+      // Show instructions for manual fullscreen setup
+      if (error instanceof Error) {
+        setFullscreenError(error.message)
+      } else {
+        setFullscreenError('Failed to enter fullscreen mode')
+      }
+      setShowFullscreenInstructions(true)
+    }
+  }, [quiz?.is_proctored, proctoringConfig, continueQuizStart])
+
+  // Function to force fullscreen during quiz
+  const forceFullscreenDuringQuiz = useCallback(async () => {
+    console.log('DEBUG: Attempting to force fullscreen during quiz')
+    try {
+      const element = document.documentElement as HTMLElement & {
+        webkitRequestFullscreen?: () => Promise<void>;
+        mozRequestFullScreen?: () => Promise<void>;
+        msRequestFullscreen?: () => Promise<void>;
+      };
+
+      let fullscreenPromise: Promise<void>;
+      if (element.requestFullscreen) {
+        fullscreenPromise = element.requestFullscreen();
+      } else if (element.webkitRequestFullscreen) {
+        fullscreenPromise = element.webkitRequestFullscreen();
+      } else if (element.mozRequestFullScreen) {
+        fullscreenPromise = element.mozRequestFullScreen();
+      } else if (element.msRequestFullscreen) {
+        fullscreenPromise = element.msRequestFullscreen();
+      } else {
+        throw new Error('Fullscreen API not supported');
+      }
+
+      await fullscreenPromise;
+
+      // Wait for fullscreen state to be confirmed
+      let attempts = 0;
+      const maxAttempts = 50;
+      while (attempts < maxAttempts) {
+        const isFullscreen = !!(
+          document.fullscreenElement ||
+          (document as Document & { webkitFullscreenElement?: Element }).webkitFullscreenElement ||
+          (document as Document & { mozFullScreenElement?: Element }).mozFullScreenElement ||
+          (document as Document & { msFullscreenElement?: Element }).msFullscreenElement
+        );
+
+        if (isFullscreen) {
+          console.log('DEBUG: Successfully forced fullscreen during quiz')
+          push({ kind: 'success', message: 'Quiz returned to fullscreen mode' })
+          return true;
+        }
+
+        await new Promise(resolve => setTimeout(resolve, 100));
+        attempts++;
+      }
+
+      console.log('DEBUG: Failed to confirm fullscreen during quiz')
+      return false;
+    } catch (error) {
+      console.error('DEBUG: Failed to force fullscreen during quiz:', error)
+      return false;
+    }
+  }, [push])
+
+  // Timer effect - with enhanced time expiration handling
   useEffect(() => {
     if (timeRemaining !== null && timeRemaining > 0 && quizStarted && !result) {
       const timer = window.setTimeout(() => {
         setTimeRemaining(prev => {
           if (prev !== null && prev <= 1) {
-            // Time expired - suspend the session
-            proctoringService.suspendSession('Quiz time expired')
-            return 0
+            // Time expired - handle with grace period and fullscreen enforcement
+            setTimeExpiredCount(current => {
+              const newCount = current + 1;
+              console.log(`DEBUG: Time expired ${newCount} time(s)`)
+
+              if (newCount >= 2) {
+                // Second time - suspend the session and show suspended UI
+                console.log('DEBUG: Second time expired - suspending quiz')
+
+                const suspendViaAPI = async () => {
+                  if (proctoringSession?.id) {
+                    try {
+                      const { suspendSession: apiSuspend } = await import('../../services/proctoringApi')
+                      await apiSuspend(proctoringSession.id, 'Quiz time expired (2 attempts)')
+                      console.log('DEBUG: Session suspended via API')
+                      return true
+                    } catch (error) {
+                      console.error('DEBUG: Failed to suspend via API:', error)
+                      return false
+                    }
+                  }
+                  return false
+                }
+
+                suspendViaAPI().then((apiSuccess) => {
+                  if (apiSuccess) {
+                    setIsSuspended(true)
+                    push({ kind: 'error', message: 'Quiz suspended due to time expiration. Contact your instructor.' })
+                  } else {
+                    proctoringService.suspendSession('Quiz time expired (2 attempts)').then(() => {
+                      setIsSuspended(true)
+                      push({ kind: 'error', message: 'Quiz suspended due to time expiration. Contact your instructor.' })
+                    }).catch((error) => {
+                      console.error('DEBUG: Failed to suspend via service:', error)
+                      setIsSuspended(true)
+                      push({ kind: 'error', message: 'Quiz suspended due to time expiration. Contact your instructor.' })
+                    })
+                  }
+                })
+                return newCount;
+              } else {
+                // First time - try to force fullscreen
+                console.log('DEBUG: First time expired - attempting to force fullscreen')
+                forceFullscreenDuringQuiz().then(success => {
+                  if (success) {
+                    push({ kind: 'info', message: 'Time expired! Quiz returned to fullscreen mode.' })
+                  } else {
+                    // Failed to force fullscreen - suspend immediately and show suspended UI
+                    const suspendViaAPI = async () => {
+                      if (proctoringSession?.id) {
+                        try {
+                          const { suspendSession: apiSuspend } = await import('../../services/proctoringApi')
+                          await apiSuspend(proctoringSession.id, 'Quiz time expired and fullscreen could not be restored')
+                          console.log('DEBUG: Session suspended via API')
+                          return true
+                        } catch (error) {
+                          console.error('DEBUG: Failed to suspend via API:', error)
+                          return false
+                        }
+                      }
+                      return false
+                    }
+ 
+                    suspendViaAPI().then((apiSuccess) => {
+                      if (apiSuccess) {
+                        setIsSuspended(true)
+                        push({ kind: 'error', message: 'Quiz suspended - could not restore fullscreen mode. Contact your instructor.' })
+                      } else {
+                        proctoringService.suspendSession('Quiz time expired and fullscreen could not be restored').then(() => {
+                          setIsSuspended(true)
+                          push({ kind: 'error', message: 'Quiz suspended - could not restore fullscreen mode. Contact your instructor.' })
+                        }).catch((error) => {
+                          console.error('DEBUG: Failed to suspend via service, setting suspended anyway:', error)
+                          setIsSuspended(true)
+                          push({ kind: 'error', message: 'Quiz suspended - could not restore fullscreen mode. Contact your instructor.' })
+                        })
+                      }
+                    })
+                  }
+                });
+                return newCount;
+              }
+            });
+            return 0;
           }
           return prev ? prev - 1 : null
         })
       }, 1000)
       return () => clearTimeout(timer)
     }
-  }, [timeRemaining, quizStarted, result])
+  }, [timeRemaining, quizStarted, result, forceFullscreenDuringQuiz, push])
 
-  // Resume quiz function
-  const resumeQuiz = useCallback(async () => {
-    if (!proctoringSession) return
 
-    try {
-      // Clear resume timeout
-      if (resumeTimeout.current) {
-        clearTimeout(resumeTimeout.current)
-        resumeTimeout.current = null
-      }
-
-      // Resume the session
-      const resumeResponse = await fetch(`/api/proctoring/sessions/${proctoringSession.id}/resume`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('auth:token')}`
-        },
-        body: JSON.stringify({ resumed_by: user?.id })
-      })
-
-      if (resumeResponse.ok) {
-        setShowResumePrompt(false)
-        setIsSuspended(false)
-        setQuizStarted(true)
-
-        // Reconnect to proctoring service
-        await proctoringService.connect(proctoringSession.session_token, user?.id || 0, 'student')
-
-        // Start monitoring
-        await proctoringService.startMonitoring()
-
-        push({ kind: 'success', message: 'Quiz resumed successfully!' })
-      } else {
-        throw new Error('Failed to resume quiz')
-      }
-    } catch (error) {
-      console.error('Error resuming quiz:', error)
-      push({ kind: 'error', message: 'Failed to resume quiz. Please try again.' })
-    }
-  }, [proctoringSession, user, push])
-
-  // Countdown effect for resume prompt
-  useEffect(() => {
-    if (showResumePrompt && resumeCountdown > 0) {
-      const countdownInterval = setInterval(() => {
-        setResumeCountdown(prev => {
-          if (prev <= 1) {
-            setShowResumePrompt(false)
-            setIsSuspended(true)
-            push({ kind: 'error', message: 'Quiz automatically suspended due to timeout.' })
-            return 0
-          }
-          return prev - 1
-        })
-      }, 1000)
-
-      return () => clearInterval(countdownInterval)
-    }
-  }, [showResumePrompt, resumeCountdown, push])
 
   // Navigation protection and cheating prevention - prevent accidental navigation and common cheating methods during quiz
   useEffect(() => {
@@ -390,13 +672,44 @@ export default function QuizTake() {
     }
 
     const handlePopState = (e: PopStateEvent) => {
-      // Prevent back button during quiz
-      if (!proctoringStatus?.gracePeriodActive) {
-        proctoringService.startGracePeriod({
-          type: 'back_button_pressed',
-          severity: 3,
-          description: 'Pressed back button during quiz'
-        }, 5)
+      // Suspend quiz immediately on back button press
+      if (!submittedAttemptedRef.current) {
+        submittedAttemptedRef.current = true
+        console.log('DEBUG: Back button pressed - suspending quiz immediately')
+
+        // Always try API first using sessionId from component state
+        const suspendViaAPI = async () => {
+          if (proctoringSession?.id) {
+            try {
+              const { suspendSession: apiSuspend } = await import('../../services/proctoringApi')
+              await apiSuspend(proctoringSession.id, 'Back button pressed during quiz')
+              console.log('DEBUG: Session suspended via API')
+              return true
+            } catch (error) {
+              console.error('DEBUG: Failed to suspend via API:', error)
+              return false
+            }
+          }
+          return false
+        }
+
+        // Try API first, then service as backup
+        suspendViaAPI().then((apiSuccess) => {
+          if (apiSuccess) {
+            setIsSuspended(true)
+            push({ kind: 'error', message: 'Quiz suspended due to navigation attempt. Contact your instructor.' })
+          } else {
+            // Fallback to service
+            proctoringService.suspendSession('Back button pressed during quiz').then(() => {
+              setIsSuspended(true)
+              push({ kind: 'error', message: 'Quiz suspended due to navigation attempt. Contact your instructor.' })
+            }).catch((error) => {
+              console.error('DEBUG: Failed to suspend via service:', error)
+              setIsSuspended(true)
+              push({ kind: 'error', message: 'Quiz suspended due to navigation attempt. Contact your instructor.' })
+            })
+          }
+        })
       }
       // Prevent the navigation
       window.history.pushState(null, '', window.location.href)
@@ -532,6 +845,7 @@ export default function QuizTake() {
     }
   }, [])
 
+
   const canSubmit = useMemo(() => {
     if (!quiz) return false
     // require an answer for each question
@@ -584,6 +898,39 @@ export default function QuizTake() {
   if (loading) return <div className="container"><p className="muted">Loading…</p></div>
   if (err) return <div className="container"><div className="card" style={{ borderColor: '#ef4444', borderWidth: 1 }}>{err}</div></div>
   if (!quiz) return <div className="container"><p className="muted">Quiz not found</p></div>
+
+  // Show suspended UI if quiz is suspended
+  if (isSuspended) {
+    return (
+      <div className="container" style={{ maxWidth: 600, textAlign: 'center', padding: '40px 20px' }}>
+        <div className="card" style={{ borderColor: '#ef4444', borderWidth: 2 }}>
+          <div style={{ fontSize: '4em', marginBottom: '20px' }}>🚫</div>
+          <h2 style={{ color: '#ef4444', marginBottom: '16px' }}>Quiz Suspended</h2>
+          <p style={{ fontSize: '1.1em', marginBottom: '20px', color: '#6b7280' }}>
+            This quiz has been suspended due to proctoring violations or other issues.
+          </p>
+          <div style={{ background: '#fee2e2', padding: '16px', borderRadius: '8px', marginBottom: '20px', textAlign: 'left', border: '1px solid #fca5a5' }}>
+            <strong style={{ color: '#991b1b' }}>What happened:</strong>
+            <ul style={{ margin: '8px 0 0 20px', color: '#7f1d1d' }}>
+              <li>The quiz was suspended due to a violation of proctoring rules</li>
+              <li>All progress has been saved</li>
+              <li>You cannot continue or resubmit this quiz</li>
+            </ul>
+          </div>
+          <p style={{ fontSize: '1em', marginBottom: '24px' }}>
+            <strong>Please contact your instructor for assistance.</strong>
+          </p>
+          <button
+            className="btn btn-primary"
+            onClick={() => navigate('/student/dashboard')}
+            style={{ fontSize: '1.1em', padding: '12px 24px' }}
+          >
+            Return to Dashboard
+          </button>
+        </div>
+      </div>
+    )
+  }
 
   // Show proctoring start screen for proctored quizzes
   if (quiz.is_proctored && !quizStarted) {
@@ -639,15 +986,6 @@ export default function QuizTake() {
             </div>
           )}
 
-          {isSuspended && (
-            <div style={{ background: '#fef2f2', padding: 15, borderRadius: 4, marginBottom: 20, border: '1px solid #fecaca' }}>
-              <h3 style={{ margin: '0 0 10px 0', color: '#dc2626' }}>⚠️ Suspended Quiz</h3>
-              <p style={{ margin: 0, color: '#dc2626' }}>
-                Your previous quiz attempt was suspended due to proctoring violations.
-                You may resume it now, but be aware that further violations will result in permanent suspension.
-              </p>
-            </div>
-          )}
 
           <p style={{ color: '#ef4444', fontWeight: 'bold' }}>
             Critical violations will immediately suspend the quiz. Teacher intervention may be required to resume.
@@ -661,9 +999,7 @@ export default function QuizTake() {
           >
             {isInitializingProctoring
               ? 'Initializing Proctoring...'
-              : isSuspended
-                ? 'Resume Suspended Quiz'
-                : 'Start Advanced Proctored Quiz'
+              : 'Enter Fullscreen & Start Quiz'
             }
           </button>
         </div>
@@ -681,58 +1017,17 @@ export default function QuizTake() {
 
   return (
     <div className="container" style={{ maxWidth: 900 }}>
-      {/* Resume Quiz Prompt */}
-      {showResumePrompt && (
-        <div style={{
-          position: 'fixed',
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
-          background: 'rgba(239, 68, 68, 0.95)',
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
-          justifyContent: 'center',
-          zIndex: 9999,
-          color: 'white',
-          fontSize: '1.2em',
-          textAlign: 'center',
-          padding: '20px'
-        }}>
-          <div style={{ fontSize: '3em', marginBottom: '20px' }}>⏰</div>
-          <h2 style={{ margin: '0 0 10px 0', color: 'white' }}>Resume Your Quiz</h2>
-          <p style={{ margin: '0 0 20px 0', fontSize: '1.1em' }}>
-            You have an active suspended quiz session. Would you like to resume it?
-          </p>
-          <div style={{
-            fontSize: '4em',
-            fontWeight: 'bold',
-            margin: '20px 0',
-            color: resumeCountdown <= 3 ? '#ff6b6b' : 'white'
-          }}>
-            {resumeCountdown}
-          </div>
-          <p style={{ margin: '0 0 30px 0' }}>
-            Quiz will be permanently suspended in {resumeCountdown} second{resumeCountdown !== 1 ? 's' : ''} if not resumed.
-          </p>
-          <button
-            className="btn btn-primary"
-            onClick={resumeQuiz}
-            style={{
-              fontSize: '1.2em',
-              padding: '15px 30px',
-              background: 'white',
-              color: '#dc2626',
-              border: 'none',
-              borderRadius: '8px',
-              cursor: 'pointer'
-            }}
-          >
-            Resume Quiz
-          </button>
-        </div>
+      {/* Fullscreen Instructions Overlay */}
+      {showFullscreenInstructions && (
+        <FullscreenInstructions
+          onRetry={retryFullscreen}
+          onManual={confirmManualFullscreen}
+          errorMessage={fullscreenError}
+          attemptNumber={fullscreenRetryCount + 1}
+          maxAttempts={3}
+        />
       )}
+
 
       {/* Grace Period Warning Overlay */}
       {proctoringStatus?.gracePeriodActive && (
@@ -769,21 +1064,71 @@ export default function QuizTake() {
           <p style={{ margin: '0 0 30px 0' }}>
             Quiz will be suspended in {proctoringStatus.gracePeriodTimeLeft} second{proctoringStatus.gracePeriodTimeLeft !== 1 ? 's' : ''} if not corrected.
           </p>
-          <button
-            className="btn btn-primary"
-            onClick={() => proctoringService.returnToFullscreen()}
-            style={{
-              fontSize: '1.2em',
-              padding: '15px 30px',
-              background: 'white',
-              color: '#dc2626',
-              border: 'none',
-              borderRadius: '8px',
-              cursor: 'pointer'
-            }}
-          >
-            Return to Fullscreen
-          </button>
+          {proctoringStatus.gracePeriodViolation?.type === 'fullscreen_exit' && (
+            <button
+              className="btn btn-primary"
+              onClick={() => proctoringService.returnToFullscreen()}
+              style={{
+                fontSize: '1.2em',
+                padding: '15px 30px',
+                background: 'white',
+                color: '#dc2626',
+                border: 'none',
+                borderRadius: '8px',
+                cursor: 'pointer'
+              }}
+            >
+              Return to Fullscreen
+            </button>
+          )}
+          {proctoringStatus.gracePeriodViolation?.type === 'face_not_detected' && (
+            <div style={{ textAlign: 'center' }}>
+              <p style={{ margin: '0 0 20px 0', fontSize: '1.1em' }}>
+                Please ensure your face is clearly visible to the camera.
+              </p>
+              <button
+                className="btn btn-primary"
+                onClick={() => {
+                  // For webcam violations, we just wait for the face detection to recover automatically
+                  // The grace period will be cancelled when face is detected again
+                  console.log('DEBUG: Student acknowledged webcam violation warning')
+                }}
+                style={{
+                  fontSize: '1.2em',
+                  padding: '15px 30px',
+                  background: 'white',
+                  color: '#dc2626',
+                  border: 'none',
+                  borderRadius: '8px',
+                  cursor: 'pointer'
+                }}
+              >
+                I Understand - Keep Face Visible
+              </button>
+            </div>
+          )}
+          {(proctoringStatus.gracePeriodViolation?.type === 'tab_switch' ||
+            proctoringStatus.gracePeriodViolation?.type === 'navigation_attempt' ||
+            proctoringStatus.gracePeriodViolation?.type === 'back_button_pressed') && (
+            <button
+              className="btn btn-primary"
+              onClick={() => {
+                // For tab/window violations, just acknowledge and return focus
+                console.log('DEBUG: Student returned focus to quiz window')
+              }}
+              style={{
+                fontSize: '1.2em',
+                padding: '15px 30px',
+                background: 'white',
+                color: '#dc2626',
+                border: 'none',
+                borderRadius: '8px',
+                cursor: 'pointer'
+              }}
+            >
+              Return to Quiz Window
+            </button>
+          )}
         </div>
       )}
 

@@ -53,6 +53,7 @@ export interface ProctoringStatus {
 class ProctoringService {
   private socket: Socket | null = null;
   private sessionToken: string | null = null;
+  private sessionId: number | null = null;
   private config: ProctoringConfig | null = null;
   private status: ProctoringStatus = {
     isConnected: false,
@@ -89,8 +90,13 @@ class ProctoringService {
   // Face detection models loaded
   private modelsLoaded = false;
 
+  // User gesture tracking
+  private lastUserInteraction = 0;
+  private userGestureEventsBound = false;
+
   constructor() {
     this.initializeFaceDetection();
+    this.initializeUserGestureTracking();
   }
 
   private async initializeFaceDetection() {
@@ -107,9 +113,27 @@ class ProctoringService {
     }
   }
 
+  private initializeUserGestureTracking(): void {
+    if (this.userGestureEventsBound) return;
+
+    const events = ['click', 'touchstart', 'keydown', 'mousedown', 'pointerdown'];
+    const updateInteraction = () => {
+      this.lastUserInteraction = Date.now();
+    };
+
+    events.forEach(event => {
+      document.addEventListener(event, updateInteraction, { passive: true });
+    });
+
+    this.userGestureEventsBound = true;
+    console.log('User gesture tracking initialized');
+  }
+
   // Initialize proctoring session
-  async initializeSession(sessionToken: string, config: ProctoringConfig, userType: 'student' | 'teacher' | 'admin' = 'student'): Promise<void> {
+  async initializeSession(sessionToken: string, config: ProctoringConfig, userType: 'student' | 'teacher' | 'admin' = 'student', sessionId?: number): Promise<void> {
+    console.log('DEBUG: ProctoringService.initializeSession called with token:', sessionToken.substring(0, 10) + '...', 'sessionId:', sessionId);
     this.sessionToken = sessionToken;
+    this.sessionId = sessionId || null;
     this.config = config;
 
     // Connect to WebSocket
@@ -117,6 +141,7 @@ class ProctoringService {
       ? window.location.origin
       : 'http://localhost:4000';
 
+    console.log('DEBUG: Connecting to WebSocket at:', socketUrl);
     this.socket = io(socketUrl, {
       transports: ['websocket', 'polling'],
       auth: { token: localStorage.getItem('auth:token') }
@@ -126,7 +151,7 @@ class ProctoringService {
       if (!this.socket) return reject(new Error('Socket not initialized'));
 
       this.socket.on('connect', () => {
-        console.log('Connected to proctoring server');
+        console.log('DEBUG: Connected to proctoring server');
 
         // Join proctoring session
         this.socket?.emit('join-proctoring-session', {
@@ -141,32 +166,34 @@ class ProctoringService {
       });
 
       this.socket.on('disconnect', () => {
-        console.log('Disconnected from proctoring server');
+        console.log('DEBUG: Disconnected from proctoring server');
         this.status.isConnected = false;
         this.notifyStatusChange();
       });
 
       this.socket.on('proctoring-joined', (data) => {
-        console.log('Joined proctoring session:', data);
+        console.log('DEBUG: Joined proctoring session:', data);
       });
 
       // Listen for suspension/resume commands
       this.socket.on('session-suspended', (data) => {
-        console.log('Session suspended:', data);
+        console.log('DEBUG: Session suspended:', data);
         this.status.isSuspended = true;
         this.notifyStatusChange();
         // Handle suspension UI
       });
 
       this.socket.on('session-resumed', (data) => {
-        console.log('Session resumed:', data);
+        console.log('DEBUG: Session resumed:', data);
         this.status.isSuspended = false;
         this.notifyStatusChange();
         // Handle resume UI
       });
 
       this.socket.on('connect_error', (error) => {
-        console.error('Proctoring connection error:', error);
+        console.error('DEBUG: Proctoring connection error:', error);
+        this.status.isConnected = false;
+        this.notifyStatusChange();
         reject(error);
       });
     });
@@ -176,7 +203,7 @@ class ProctoringService {
   async startMonitoring(): Promise<void> {
     if (!this.config) throw new Error('Proctoring config not set');
 
-    // Enter fullscreen mode first
+    // Ensure fullscreen mode is active
     await this.enterFullscreen();
 
     // Start fullscreen monitoring
@@ -248,9 +275,14 @@ class ProctoringService {
   private endGracePeriod(forceSuspend: boolean = false): void {
     this.clearGracePeriod();
 
-    if (forceSuspend && this.status.gracePeriodViolation) {
-      // Record the violation and suspend
-      this.recordViolation(this.status.gracePeriodViolation);
+    if (this.status.gracePeriodViolation) {
+      if (forceSuspend) {
+        // Student did NOT fix the issue - suspend immediately without counting as warning
+        this.suspendSession(`Auto-suspended due to unrecovered ${this.status.gracePeriodViolation.type} violation`);
+      } else {
+        // Student DID fix the issue - count as warning (recovered violation)
+        this.recordViolation(this.status.gracePeriodViolation);
+      }
     }
 
     this.status.gracePeriodActive = false;
@@ -402,11 +434,19 @@ class ProctoringService {
               this.notifyStatusChange();
 
               if (!hasFace) {
-                this.recordViolation({
-                  type: 'face_not_detected',
-                  severity: 2,
-                  description: 'No face detected in webcam'
-                });
+                // Start grace period for face detection violation
+                if (!this.status.gracePeriodActive) {
+                  this.startGracePeriod({
+                    type: 'face_not_detected',
+                    severity: 3,
+                    description: 'No face detected in webcam'
+                  }, 5);
+                }
+              } else {
+                // Face detected again - cancel grace period if it was for face detection
+                if (this.status.gracePeriodActive && this.status.gracePeriodViolation?.type === 'face_not_detected') {
+                  this.endGracePeriod(false);
+                }
               }
             }
 
@@ -579,14 +619,15 @@ class ProctoringService {
   }
 
   // Record violation
-  private recordViolation(violation: ViolationData): void {
+   recordViolation(violation: ViolationData): void {
     this.status.violations.push({
       ...violation,
       timestamp: new Date().toISOString()
     });
 
-    // Increment warning count for severity 1-2
-    if (violation.severity <= 2) {
+    // Increment warning count for violations that were recovered (severity 3)
+    // These represent corrected violations (warning overlays that were resolved by student)
+    if (violation.severity >= 3) {
       this.status.warningCount++;
     }
 
@@ -605,23 +646,37 @@ class ProctoringService {
       });
     }
 
-    // Check if should suspend
-    if (this.config && violation.severity >= this.config.auto_suspend_severity && !this.config.suspension_requires_teacher) {
-      this.suspendSession(`Auto-suspended due to ${violation.type} violation`);
+    // Check if should suspend based on warning count (accumulated recovered violations)
+    if (this.config && this.status.warningCount >= this.config.max_warnings && !this.config.suspension_requires_teacher) {
+      this.suspendSession(`Auto-suspended due to ${this.status.warningCount} accumulated recovered violations`);
     }
   }
 
   // Suspend session
-  suspendSession(reason: string): void {
+  async suspendSession(reason: string): Promise<void> {
+    console.log('DEBUG: ProctoringService.suspendSession called with reason:', reason);
     this.status.isSuspended = true;
     this.notifyStatusChange();
 
     if (this.socket && this.sessionToken) {
+      console.log('DEBUG: Emitting proctoring-suspend event');
       this.socket.emit('proctoring-suspend', {
         sessionToken: this.sessionToken,
         reason,
         suspendedBy: 'system'
       });
+    } else if (this.sessionId) {
+      console.log('DEBUG: Cannot emit suspend via WebSocket - calling API directly with sessionId:', this.sessionId);
+      // Fallback: call API directly if WebSocket not available but we have sessionId
+      try {
+        const { suspendSession: apiSuspend } = await import('./proctoringApi');
+        await apiSuspend(this.sessionId, reason);
+        console.log('DEBUG: Session suspended via API');
+      } catch (error) {
+        console.error('DEBUG: Failed to suspend via API:', error);
+      }
+    } else {
+      console.log('DEBUG: Cannot suspend - no socket/sessionToken or sessionId available');
     }
   }
 
@@ -664,40 +719,164 @@ class ProctoringService {
 
   // Utility methods
   private getCurrentUserId(): number {
-    // This should be implemented to get current user ID from auth context
-    // For now, return a placeholder
-    return 1;
-  }
-
-  // Enter fullscreen
-  async enterFullscreen(): Promise<void> {
+    // Try to get user ID from various sources
     try {
-      const element = document.documentElement as HTMLElement & {
-        webkitRequestFullscreen?: () => Promise<void>;
-        mozRequestFullScreen?: () => Promise<void>;
-        msRequestFullscreen?: () => Promise<void>;
-      };
-
-      if (element.requestFullscreen) {
-        await element.requestFullscreen();
-      } else if (element.webkitRequestFullscreen) {
-        await element.webkitRequestFullscreen();
-      } else if (element.mozRequestFullScreen) {
-        await element.mozRequestFullScreen();
-      } else if (element.msRequestFullscreen) {
-        await element.msRequestFullscreen();
+      // Check if we have a user object stored
+      const userStr = localStorage.getItem('auth:user');
+      if (userStr) {
+        const user = JSON.parse(userStr);
+        return user.id || 1;
       }
 
-      console.log('Successfully entered fullscreen mode');
+      // Fallback to token parsing (basic JWT decode)
+      const token = localStorage.getItem('auth:token');
+      if (token) {
+        const payload = JSON.parse(atob(token.split('.')[1]));
+        return payload.id || 1;
+      }
     } catch (error) {
-      console.warn('Failed to enter fullscreen mode. Proctoring will continue with windowed mode:', error);
-      // Don't throw - allow quiz to continue in windowed mode
-      // Record a violation for not being able to enter fullscreen
+      console.warn('Could not get current user ID:', error);
+    }
+
+    return 1; // Fallback
+  }
+
+  // Check if user has recent gesture for fullscreen API
+  private hasRecentUserGesture(): boolean {
+    const now = Date.now();
+    const recentThreshold = 30000; // 30 seconds - extended for maximum reliability
+    return (now - this.lastUserInteraction) < recentThreshold;
+  }
+
+  // Check if currently in fullscreen
+  private isCurrentlyFullscreen(): boolean {
+    return !!(
+      document.fullscreenElement ||
+      (document as Document & { webkitFullscreenElement?: Element }).webkitFullscreenElement ||
+      (document as Document & { mozFullScreenElement?: Element }).mozFullScreenElement ||
+      (document as Document & { msFullscreenElement?: Element }).msFullscreenElement
+    );
+  }
+
+  // Wait for fullscreen to be confirmed
+  private async waitForFullscreen(timeout: number = 5000): Promise<void> {
+    const startTime = Date.now();
+
+    while (Date.now() - startTime < timeout) {
+      if (this.isCurrentlyFullscreen()) {
+        return;
+      }
+      await new Promise(resolve => setTimeout(resolve, 100));
+    }
+
+    throw new Error('Fullscreen state not confirmed within timeout');
+  }
+
+  // Request fullscreen with browser-specific methods
+  private async requestFullscreen(): Promise<void> {
+    const element = document.documentElement as HTMLElement & {
+      webkitRequestFullscreen?: () => Promise<void>;
+      mozRequestFullScreen?: () => Promise<void>;
+      msRequestFullscreen?: () => Promise<void>;
+    };
+
+    if (element.requestFullscreen) {
+      await element.requestFullscreen();
+    } else if (element.webkitRequestFullscreen) {
+      await element.webkitRequestFullscreen();
+    } else if (element.mozRequestFullScreen) {
+      await element.mozRequestFullScreen();
+    } else if (element.msRequestFullscreen) {
+      await element.msRequestFullscreen();
+    } else {
+      throw new Error('Fullscreen API not supported');
+    }
+  }
+
+  // Check if error is recoverable
+  private isRecoverableError(error: unknown): boolean {
+    if (!(error instanceof Error)) return false;
+
+    const message = error.message.toLowerCase();
+    return message.includes('timeout') ||
+           message.includes('network') ||
+           message.includes('temporarily') ||
+           message.includes('busy');
+  }
+
+  // Get user-friendly error message
+  private getFullscreenErrorMessage(error: unknown): string {
+    if (!(error instanceof Error)) return 'Unknown fullscreen error';
+
+    const message = error.message.toLowerCase();
+
+    if (message.includes('not allowed') || message.includes('denied')) {
+      return 'Browser blocked fullscreen. Please check your browser settings and allow fullscreen for this site.';
+    } else if (message.includes('not supported')) {
+      return 'Your browser does not support fullscreen mode.';
+    } else if (message.includes('timeout')) {
+      return 'Fullscreen request timed out. Please try again.';
+    } else {
+      return 'Failed to enter fullscreen mode. Please try again or contact support.';
+    }
+  }
+
+  // Enhanced enter fullscreen with retry logic
+  async enterFullscreen(options: {
+    retryCount?: number;
+    timeout?: number;
+  } = {}): Promise<void> {
+    const { retryCount = 0, timeout = 5000 } = options;
+    const maxRetries = 3;
+
+    console.log(`Attempting to enter fullscreen (attempt ${retryCount + 1}/${maxRetries + 1})`);
+
+    // Check if already in fullscreen
+    if (this.isCurrentlyFullscreen()) {
+      console.log('Already in fullscreen mode');
+      return;
+    }
+
+    // Validate user gesture
+    if (!this.hasRecentUserGesture()) {
+      throw new Error('User gesture required for fullscreen. Please interact with the page first.');
+    }
+
+    try {
+      // Create timeout promise
+      const fullscreenPromise = this.requestFullscreen();
+      const timeoutPromise = new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error('Fullscreen request timeout')), timeout)
+      );
+
+      // Race between fullscreen request and timeout
+      await Promise.race([fullscreenPromise, timeoutPromise]);
+
+      // Wait for fullscreen state to be confirmed
+      await this.waitForFullscreen(5000);
+
+      console.log('Successfully entered fullscreen mode');
+
+    } catch (error) {
+      console.warn('Fullscreen request failed:', error);
+
+      // Retry logic for recoverable errors
+      if (retryCount < maxRetries && this.isRecoverableError(error)) {
+        console.log(`Retrying fullscreen (attempt ${retryCount + 2}/${maxRetries + 1})`);
+        await new Promise(resolve => setTimeout(resolve, 1000 * (retryCount + 1))); // Exponential backoff
+        return this.enterFullscreen({ ...options, retryCount: retryCount + 1 });
+      }
+
+      // Record violation for fullscreen failure
       this.recordViolation({
         type: 'fullscreen_denied',
-        severity: 1,
-        description: 'Browser denied fullscreen request'
+        severity: 2,
+        description: 'Browser denied fullscreen request - proctoring compromised'
       });
+
+      // Throw user-friendly error
+      const errorMessage = this.getFullscreenErrorMessage(error);
+      throw new Error(`Fullscreen is required for proctored quizzes. ${errorMessage}`);
     }
   }
 }

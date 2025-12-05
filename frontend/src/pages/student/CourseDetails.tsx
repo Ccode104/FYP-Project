@@ -99,6 +99,8 @@ export default function CourseDetails() {
   const [backendQuizzes, setBackendQuizzes] = useState<any[]>([])
   const [myQuizAttempts, setMyQuizAttempts] = useState<any[]>([])
   const [mySubmissions, setMySubmissions] = useState<any[] | null>(null) // Track student's submissions - null means not loaded yet
+  const [suspendedQuizIds, setSuspendedQuizIds] = useState<Set<string>>(new Set())
+  const [activeQuizIds, setActiveQuizIds] = useState<Set<string>>(new Set())
   const [discussionMessages, setDiscussionMessages] = useState<DiscussionMessage[]>([])
   const [discussionLoading, setDiscussionLoading] = useState(false)
   const [newPostContent, setNewPostContent] = useState('')
@@ -250,7 +252,9 @@ export default function CourseDetails() {
           is_proctored: q.is_proctored,
           time_limit: q.time_limit,
           isSubmitted: attemptedQuizIds.has(String(q.id)),
-          isViolated: hasViolatedAttempt
+          isViolated: hasViolatedAttempt,
+          isSuspended: suspendedQuizIds.has(String(q.id)),
+          isActive: activeQuizIds.has(String(q.id))
         }
       })
 
@@ -670,6 +674,43 @@ export default function CourseDetails() {
         })
     }
   }, [tab, isBackend, courseId])
+
+  // Load suspended and active quiz IDs for students
+  useEffect(() => {
+    if (user?.role === 'student' && user?.id && isBackend && courseId) {
+      (async () => {
+        try {
+          const suspendedSessionsResponse = await fetch(`/api/proctoring/sessions/suspended/${user.id}`, {
+            headers: {
+              'Authorization': `Bearer ${localStorage.getItem('auth:token')}`
+            }
+          });
+          if (suspendedSessionsResponse.ok) {
+            const suspendedData = await suspendedSessionsResponse.json();
+            const suspendedIds = new Set((suspendedData.sessions?.map((s: any) => String(s.quiz_id)) || []) as string[]);
+            setSuspendedQuizIds(suspendedIds);
+          }
+        } catch (error) {
+          console.warn('Failed to check suspended quiz sessions:', error);
+        }
+
+        try {
+          const activeSessionsResponse = await fetch(`/api/proctoring/sessions/active/${user.id}`, {
+            headers: {
+              'Authorization': `Bearer ${localStorage.getItem('auth:token')}`
+            }
+          });
+          if (activeSessionsResponse.ok) {
+            const activeData = await activeSessionsResponse.json();
+            const activeIds = new Set((activeData.sessions?.map((s: any) => String(s.quiz_id)) || []) as string[]);
+            setActiveQuizIds(activeIds);
+          }
+        } catch (error) {
+          console.warn('Failed to check active quiz sessions:', error);
+        }
+      })()
+    }
+  }, [user?.role, user?.id, isBackend, courseId])
 
   // Mark all current discussion messages as read when viewing the discussion tab
   useEffect(() => {
@@ -1296,12 +1337,30 @@ export default function CourseDetails() {
                               🚫 SUSPENDED
                             </span>
                           )}
-                          {!quiz.isSubmitted && !quiz.isViolated && (
+                          {!quiz.isSubmitted && !quiz.isViolated && !quiz.isSuspended && !quiz.isActive && (
                             <button
                               className="btn btn-primary"
                               onClick={() => location.assign(`/quizzes/${quiz.quiz_id}`)}
                             >
                               Start Quiz
+                            </button>
+                          )}
+                          {quiz.isActive && !quiz.isSuspended && (
+                            <button
+                              className="btn btn-warning"
+                              onClick={() => location.assign(`/quizzes/${quiz.quiz_id}`)}
+                              title="Resume your in-progress quiz"
+                            >
+                              Resume Quiz
+                            </button>
+                          )}
+                          {quiz.isSuspended && (
+                            <button
+                              className="btn"
+                              disabled
+                              title="Quiz is suspended. Contact your instructor to resume."
+                            >
+                              Resume Quiz (Suspended)
                             </button>
                           )}
                           {quiz.isSubmitted && (

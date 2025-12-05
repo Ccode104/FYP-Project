@@ -50,6 +50,7 @@ export interface ProctoringAnalytics {
 // Create a new proctoring session
 export async function createProctoringSession(data: {
   quiz_attempt_id?: number;
+  quiz_id: number;
   student_id: number;
   device_info?: Record<string, unknown>;
   browser_info?: Record<string, unknown>;

@@ -103,6 +103,13 @@ export async function resumeQuizAttempt(attemptId: number, resumedBy: number) {
   })
 }
 
+export async function markAttemptAsViolated(attemptId: number, markedBy: number) {
+  return apiFetch(`/api/quizzes/attempts/${attemptId}/mark-violated`, {
+    method: 'POST',
+    body: { markedBy }
+  })
+}
+
 export async function getSuspendedAttempts() {
   return apiFetch('/api/quizzes/suspended-attempts')
 }

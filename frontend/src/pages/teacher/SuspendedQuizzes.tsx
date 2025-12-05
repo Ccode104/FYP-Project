@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useAuth } from '../../context/AuthContext'
-import { getSuspendedAttempts, suspendQuizAttempt, resumeQuizAttempt } from '../../services/quizzes'
+import { getSuspendedAttempts, suspendQuizAttempt, resumeQuizAttempt, markAttemptAsViolated } from '../../services/quizzes'
 import { useToast } from '../../components/ToastProvider'
 
 interface SuspendedAttempt {
@@ -58,6 +58,26 @@ export default function SuspendedQuizzes() {
     } catch (error) {
       console.error('Failed to resume attempt:', error)
       push({ kind: 'error', message: 'Failed to resume quiz attempt' })
+    } finally {
+      setActionLoading(null)
+    }
+  }
+
+  const handleMarkViolated = async (attemptId: number) => {
+    if (!user) return
+
+    if (!confirm('Are you sure you want to mark this attempt as violated? This will set the score to -1 and prevent the student from retaking the quiz.')) {
+      return
+    }
+
+    setActionLoading(attemptId)
+    try {
+      await markAttemptAsViolated(attemptId, Number(user.id))
+      push({ kind: 'success', message: 'Quiz attempt marked as violated successfully' })
+      await loadSuspendedAttempts() // Refresh the list
+    } catch (error) {
+      console.error('Failed to mark attempt as violated:', error)
+      push({ kind: 'error', message: 'Failed to mark quiz attempt as violated' })
     } finally {
       setActionLoading(null)
     }
@@ -149,6 +169,13 @@ export default function SuspendedQuizzes() {
                     disabled={actionLoading === attempt.id}
                   >
                     {actionLoading === attempt.id ? 'Resuming...' : 'Resume Quiz'}
+                  </button>
+                  <button
+                    className="btn btn-danger"
+                    onClick={() => handleMarkViolated(attempt.id)}
+                    disabled={actionLoading === attempt.id}
+                  >
+                    {actionLoading === attempt.id ? 'Marking...' : 'Mark as Violated'}
                   </button>
                 </div>
               </div>

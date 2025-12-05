@@ -506,8 +506,7 @@ async function updateProctoringAnalytics(client, sessionId) {
       violations_by_severity = EXCLUDED.violations_by_severity,
       session_duration_seconds = EXCLUDED.session_duration_seconds,
       compliance_score = EXCLUDED.compliance_score,
-      risk_level = EXCLUDED.risk_level,
-      updated_at = now()
+      risk_level = EXCLUDED.risk_level
   `, [
     sessionId,
     totalViolations,
@@ -537,18 +536,34 @@ export async function suspendQuizAttempt(req, res) {
     try {
       await client.query('BEGIN');
 
-      // Update quiz attempt with suspension
-      const updateQuery = `
-        UPDATE quiz_attempts
-        SET suspension_reason = $1, suspended_at = NOW(), resumed_at = NULL
-        WHERE id = $2
-        RETURNING *
-      `;
-      const attemptResult = await client.query(updateQuery, [reason, attemptId]);
-
-      if (attemptResult.rowCount === 0) {
+      // Check if attempt exists
+      const attemptCheck = await client.query('SELECT * FROM quiz_attempts WHERE id = $1', [attemptId]);
+      if (attemptCheck.rowCount === 0) {
         await client.query('ROLLBACK');
         return res.status(404).json({ error: 'Quiz attempt not found' });
+      }
+
+      const attempt = attemptCheck.rows[0];
+
+      // If attempt is not finished (student was in the middle of taking it), mark it as suspended
+      if (!attempt.finished_at) {
+        // Create a suspended attempt record
+        const suspendQuery = `
+          UPDATE quiz_attempts
+          SET suspension_reason = $1, suspended_at = NOW(), resumed_at = NULL, finished_at = NOW(), score = -1, violated = true
+          WHERE id = $2
+          RETURNING *
+        `;
+        const attemptResult = await client.query(suspendQuery, [reason, attemptId]);
+      } else {
+        // If already finished, just update suspension reason
+        const updateQuery = `
+          UPDATE quiz_attempts
+          SET suspension_reason = $1, suspended_at = NOW(), resumed_at = NULL
+          WHERE id = $2
+          RETURNING *
+        `;
+        const attemptResult = await client.query(updateQuery, [reason, attemptId]);
       }
 
       // Update proctoring session status if exists
@@ -679,7 +694,7 @@ export async function getSuspendedAttempts(req, res) {
 
     const courseOfferingIds = coursesResult.rows.map(row => row.course_offering_id);
 
-    // Get suspended quiz attempts for these courses
+    // Get suspended quiz attempts for these courses (including resumed ones)
     const attemptsQuery = `
       SELECT
         qa.*,
@@ -698,7 +713,7 @@ export async function getSuspendedAttempts(req, res) {
       LEFT JOIN proctoring_sessions ps ON qa.proctoring_session_id = ps.id
       WHERE co.id = ANY($1)
         AND qa.suspended_at IS NOT NULL
-        AND qa.resumed_at IS NULL
+        AND qa.finished_at IS NULL
       ORDER BY qa.suspended_at DESC
     `;
 
@@ -726,6 +741,60 @@ export async function getSuspendedAttempts(req, res) {
   } catch (error) {
     console.error('Error fetching suspended attempts:', error);
     res.status(500).json({ error: error.message || 'Failed to fetch suspended attempts' });
+  }
+}
+
+// Mark a suspended quiz attempt as violated with score -1
+export async function markAttemptAsViolated(req, res) {
+  try {
+    const { attemptId } = req.params;
+    const { markedBy } = req.body;
+
+    if (!markedBy) {
+      return res.status(400).json({ error: 'markedBy is required' });
+    }
+
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+
+      // Update quiz attempt as violated with score -1
+      const updateQuery = `
+        UPDATE quiz_attempts
+        SET violated = true, score = -1, finished_at = NOW(), suspension_reason = 'Marked as violated by teacher'
+        WHERE id = $1 AND suspended_at IS NOT NULL
+        RETURNING *
+      `;
+      const attemptResult = await client.query(updateQuery, [attemptId]);
+
+      if (attemptResult.rowCount === 0) {
+        await client.query('ROLLBACK');
+        return res.status(404).json({ error: 'Suspended quiz attempt not found' });
+      }
+
+      // Update proctoring session status if exists
+      const sessionQuery = `
+        UPDATE proctoring_sessions
+        SET status = 'completed'
+        WHERE quiz_attempt_id = $1
+      `;
+      await client.query(sessionQuery, [attemptId]);
+
+      await client.query('COMMIT');
+
+      res.json({
+        message: 'Quiz attempt marked as violated successfully',
+        attempt: attemptResult.rows[0]
+      });
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
+  } catch (error) {
+    console.error('Error marking attempt as violated:', error);
+    res.status(500).json({ error: error.message || 'Failed to mark attempt as violated' });
   }
 }
 
