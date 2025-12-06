@@ -82,6 +82,75 @@ router.get('/sessions/suspended/:studentId', async (req, res) => {
   }
 });
 
+// Get suspended proctoring sessions with full details (for teachers)
+router.get('/sessions/suspended-sessions', requireRole('faculty','ta','admin'), async (req, res) => {
+  try {
+    const teacherId = req.user.id;
+
+    // Get courses taught by this teacher
+    const coursesQuery = `
+      SELECT DISTINCT co.id as course_offering_id
+      FROM course_offerings co
+      WHERE co.faculty_id = $1
+    `;
+    const coursesResult = await pool.query(coursesQuery, [teacherId]);
+
+    if (coursesResult.rows.length === 0) {
+      return res.json({ sessions: [] });
+    }
+
+    const courseOfferingIds = coursesResult.rows.map(row => row.course_offering_id);
+
+    // Get suspended proctoring sessions with full details
+    const sessionsQuery = `
+      SELECT
+        ps.*,
+        u.name as student_name,
+        u.email as student_email,
+        q.title as quiz_title,
+        q.id as quiz_id,
+        c.code as course_code,
+        c.title as course_title,
+        co.id as course_offering_id,
+        qa.suspended_at,
+        qa.suspension_reason
+      FROM proctoring_sessions ps
+      JOIN users u ON ps.student_id = u.id
+      JOIN quiz_attempts qa ON ps.quiz_attempt_id = qa.id
+      JOIN quizzes q ON qa.quiz_id = q.id
+      JOIN course_offerings co ON q.course_offering_id = co.id
+      JOIN courses c ON co.course_id = c.id
+      WHERE co.id = ANY($1)
+        AND ps.status = 'suspended'
+        AND qa.finished_at IS NULL
+      ORDER BY ps.updated_at DESC
+    `;
+
+    const sessionsResult = await pool.query(sessionsQuery, [courseOfferingIds]);
+
+    // Get violation details for each session
+    const suspendedSessions = await Promise.all(
+      sessionsResult.rows.map(async (session) => {
+        const violationsQuery = `
+          SELECT violation_type, severity, description, timestamp
+          FROM proctoring_violations
+          WHERE session_id = $1
+          ORDER BY timestamp DESC
+          LIMIT 10
+        `;
+        const violationsResult = await pool.query(violationsQuery, [session.id]);
+        session.violations = violationsResult.rows;
+        return session;
+      })
+    );
+
+    res.json({ sessions: suspendedSessions });
+  } catch (error) {
+    console.error('Error getting suspended proctoring sessions:', error);
+    res.status(500).json({ error: error.message || 'Failed to get suspended sessions' });
+  }
+});
+
 // Get active quiz IDs for a student
 router.get('/sessions/active/:studentId', async (req, res) => {
   try {

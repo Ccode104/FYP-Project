@@ -84,7 +84,7 @@ export interface QuizDetails {
 
 // Get quizzes for a course offering
 export const getCourseQuizzes = async (courseOfferingId: number): Promise<{ quizzes: QuizAccess[] }> => {
-  return apiFetch(`/quiz-permissions/course/${courseOfferingId}`);
+  return apiFetch(`/api/quiz-permissions/course/${courseOfferingId}`);
 };
 
 // Request access to a quiz
@@ -93,7 +93,7 @@ export const requestQuizAccess = async (
   requestType: 'view' | 'edit' | 'create',
   message?: string
 ): Promise<{ message: string; requestId: number }> => {
-  return apiFetch(`/quiz-permissions/request/${quizId}`, {
+  return apiFetch(`/api/quiz-permissions/request/${quizId}`, {
     method: 'POST',
     body: { requestType, message }
   });
@@ -101,7 +101,7 @@ export const requestQuizAccess = async (
 
 // Get pending requests for teacher
 export const getPendingRequests = async (): Promise<{ requests: AccessRequest[] }> => {
-  return apiFetch('/quiz-permissions/requests/pending');
+  return apiFetch('/api/quiz-permissions/requests/pending');
 };
 
 // Respond to access request
@@ -110,7 +110,7 @@ export const respondToRequest = async (
   action: 'approve' | 'reject',
   message?: string
 ): Promise<{ message: string; quizTitle: string }> => {
-  return apiFetch(`/quiz-permissions/requests/${requestId}/respond`, {
+  return apiFetch(`/api/quiz-permissions/requests/${requestId}/respond`, {
     method: 'POST',
     body: { action, message }
   });
@@ -118,12 +118,12 @@ export const respondToRequest = async (
 
 // Get quizzes TA has access to
 export const getMyQuizAccess = async (): Promise<{ quizzes: QuizWithPermissions[] }> => {
-  return apiFetch('/quiz-permissions/my-access');
+  return apiFetch('/api/quiz-permissions/my-access');
 };
 
 // Get quiz details for editing
 export const getQuizDetails = async (quizId: number): Promise<QuizDetails> => {
-  return apiFetch(`/quiz-permissions/${quizId}/details`);
+  return apiFetch(`/api/quiz-permissions/${quizId}/details`);
 };
 
 // Update quiz
@@ -139,7 +139,7 @@ export const updateQuiz = async (
     questions?: QuizQuestion[];
   }
 ): Promise<{ message: string }> => {
-  return apiFetch(`/quiz-permissions/${quizId}`, {
+  return apiFetch(`/api/quiz-permissions/${quizId}`, {
     method: 'PUT',
     body: quizData
   });

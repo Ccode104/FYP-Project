@@ -133,21 +133,12 @@ export async function startServer(port = 4000) {
   app.use('/api/support', supportRoutes);
   app.use('/api/quiz-permissions', quizPermissionsRoutes);
   app.use('/api/github', githubRoutes);
-  
-  app.get('/health', (req, res) => res.json({ ok: true }));
-  
-  // Serve static files from the React app build directory
-  app.use(express.static(path.join(process.cwd(), 'dist')));
 
-  // Catch all handler: send back React's index.html file for any non-API routes
-  app.get('*', (req, res) => {
-    // Only serve index.html for non-API routes
-    if (!req.path.startsWith('/api/')) {
-      res.sendFile(path.join(process.cwd(), 'dist', 'index.html'));
-    } else {
-      // For unmatched API routes, return 404
-      res.status(404).json({ error: 'API endpoint not found' });
-    }
+  app.get('/health', (req, res) => res.json({ ok: true }));
+
+  // API-only server - return 404 for unmatched routes
+  app.use('*', (req, res) => {
+    res.status(404).json({ error: 'API endpoint not found' });
   });
 
   // Global error handler - catch any unhandled errors and return JSON

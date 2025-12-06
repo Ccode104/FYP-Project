@@ -545,26 +545,14 @@ export async function suspendQuizAttempt(req, res) {
 
       const attempt = attemptCheck.rows[0];
 
-      // If attempt is not finished (student was in the middle of taking it), mark it as suspended
-      if (!attempt.finished_at) {
-        // Create a suspended attempt record
-        const suspendQuery = `
-          UPDATE quiz_attempts
-          SET suspension_reason = $1, suspended_at = NOW(), resumed_at = NULL, finished_at = NOW(), score = -1, violated = true
-          WHERE id = $2
-          RETURNING *
-        `;
-        const attemptResult = await client.query(suspendQuery, [reason, attemptId]);
-      } else {
-        // If already finished, just update suspension reason
-        const updateQuery = `
-          UPDATE quiz_attempts
-          SET suspension_reason = $1, suspended_at = NOW(), resumed_at = NULL
-          WHERE id = $2
-          RETURNING *
-        `;
-        const attemptResult = await client.query(updateQuery, [reason, attemptId]);
-      }
+      // Mark attempt as suspended (don't set finished_at so it can be resumed)
+      const suspendQuery = `
+        UPDATE quiz_attempts
+        SET suspension_reason = $1, suspended_at = NOW(), resumed_at = NULL, violated = true
+        WHERE id = $2
+        RETURNING *
+      `;
+      const attemptResult = await client.query(suspendQuery, [reason, attemptId]);
 
       // Update proctoring session status if exists
       const sessionQuery = `
@@ -683,8 +671,7 @@ export async function getSuspendedAttempts(req, res) {
     const coursesQuery = `
       SELECT DISTINCT co.id as course_offering_id
       FROM course_offerings co
-      JOIN faculty_course_offerings fco ON co.id = fco.course_offering_id
-      WHERE fco.faculty_id = $1
+      WHERE co.faculty_id = $1
     `;
     const coursesResult = await pool.query(coursesQuery, [teacherId]);
 
@@ -712,9 +699,12 @@ export async function getSuspendedAttempts(req, res) {
       JOIN courses c ON co.course_id = c.id
       LEFT JOIN proctoring_sessions ps ON qa.proctoring_session_id = ps.id
       WHERE co.id = ANY($1)
-        AND qa.suspended_at IS NOT NULL
+        AND (
+          qa.suspended_at IS NOT NULL
+          OR ps.status = 'suspended'
+        )
         AND qa.finished_at IS NULL
-      ORDER BY qa.suspended_at DESC
+      ORDER BY COALESCE(qa.suspended_at, ps.updated_at) DESC
     `;
 
     const attemptsResult = await pool.query(attemptsQuery, [courseOfferingIds]);
@@ -762,7 +752,7 @@ export async function markAttemptAsViolated(req, res) {
       const updateQuery = `
         UPDATE quiz_attempts
         SET violated = true, score = -1, finished_at = NOW(), suspension_reason = 'Marked as violated by teacher'
-        WHERE id = $1 AND suspended_at IS NOT NULL
+        WHERE id = $1
         RETURNING *
       `;
       const attemptResult = await client.query(updateQuery, [attemptId]);

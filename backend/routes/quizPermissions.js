@@ -108,7 +108,7 @@ router.post('/request/:quizId', requireAuth, async (req, res) => {
 });
 
 // Get pending requests for a teacher
-router.get('/requests/pending', requireAuth, requireRole(['faculty', 'admin']), async (req, res) => {
+router.get('/requests/pending', requireAuth, requireRole(['faculty', 'teacher', 'admin']), async (req, res) => {
   try {
     const teacherId = req.user.id;
 
@@ -141,7 +141,7 @@ router.get('/requests/pending', requireAuth, requireRole(['faculty', 'admin']), 
 });
 
 // Respond to access request (approve/reject)
-router.post('/requests/:requestId/respond', requireAuth, requireRole(['faculty', 'admin']), async (req, res) => {
+router.post('/requests/:requestId/respond', requireAuth, requireRole(['faculty', 'teacher', 'admin']), async (req, res) => {
   try {
     const { requestId } = req.params;
     const { action, message } = req.body;

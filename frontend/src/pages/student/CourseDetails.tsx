@@ -32,6 +32,8 @@ import CourseSidebar, { type TabItem } from '../../components/course/CourseSideb
 import LiveLectureViewer from '../../components/LiveLectureViewer'
 import LiveLectureBroadcaster from '../../components/LiveLectureBroadcaster'
 import { getLiveLecturesByCourse } from '../../services/liveLectures'
+import SuspendedQuizzes from '../../components/SuspendedQuizzes'
+import ProctoringAnalytics from '../../components/ProctoringAnalytics'
 
 // Add CodeQuestion type for frontend usage
 interface CodeQuestion {
@@ -304,7 +306,8 @@ export default function CourseDetails() {
       { id: 'manage', label: 'Create Assignment and Quiz', icon: '➕', tooltip: 'Create new assignments and quizzes' },
       { id: 'resources', label: 'Upload Resources', icon: '📚', tooltip: 'Upload course resources' },
       { id: 'submissions', label: 'Submissions', icon: '📥', tooltip: 'View student submissions' },
-      //{ id: 'progress', label: 'Progress', icon: '📊', tooltip: 'Student progress overview' },
+      { id: 'suspended-quizzes', label: 'Suspended Quizzes', icon: '🚫', tooltip: 'Manage suspended quiz attempts' },
+      { id: 'proctoring-analytics', label: 'Proctoring Analytics', icon: '📊', tooltip: 'View proctoring analytics' },
       { id: 'videos', label: 'Videos', icon: '🎥', tooltip: 'Manage video lectures' },
       { id: 'live-lectures', label: 'Live Lectures', icon: '📺', tooltip: 'Manage live lectures' },
       { id: 'discussion', label: 'Discussion', icon: '💬', tooltip: 'Discussion forum', badge: discussionCount },
@@ -2013,6 +2016,14 @@ export default function CourseDetails() {
                 <p className="muted">Grading view available in backend mode only.</p>
               )}
             </section>
+          )}
+
+          {(user?.role === 'teacher' || user?.role === 'ta') && tab === 'suspended-quizzes' && (
+            <SuspendedQuizzes courseId={courseId || ''} />
+          )}
+
+          {(user?.role === 'teacher' || user?.role === 'ta') && tab === 'proctoring-analytics' && (
+            <ProctoringAnalytics courseId={courseId || ''} />
           )}
 
 

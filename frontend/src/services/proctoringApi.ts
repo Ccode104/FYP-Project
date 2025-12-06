@@ -121,3 +121,8 @@ export async function getProctoringConfig(quizId: number): Promise<ProctoringCon
 export async function listProctoringConfigs(): Promise<{ configs: ProctoringConfig[] }> {
   return await apiFetch<{ configs: ProctoringConfig[] }>('/api/proctoring/configs');
 }
+
+// Get suspended proctoring sessions (for teachers/admins)
+export async function getSuspendedProctoringSessions(): Promise<{ sessions: any[] }> {
+  return await apiFetch<{ sessions: any[] }>('/api/proctoring/sessions/suspended-sessions');
+}
