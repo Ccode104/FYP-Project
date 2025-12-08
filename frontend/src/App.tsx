@@ -101,7 +101,7 @@ function App() {
 
           {/* Course details (accessible by student, teacher, TA) */}
           <Route
-            path="/courses/:courseId"
+            path="/courses/:courseId/:tab?"
             element={
               <ProtectedRoute roles={["student", "teacher", "ta"]}>
                 <CourseDetails />

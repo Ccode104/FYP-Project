@@ -922,10 +922,10 @@ export default function QuizTake() {
           </p>
           <button
             className="btn btn-primary"
-            onClick={() => navigate('/student/dashboard')}
+            onClick={() => navigate(`/courses/${quiz.course_offering_id}/quizzes`)}
             style={{ fontSize: '1.1em', padding: '12px 24px' }}
           >
-            Return to Dashboard
+            Return to Course Quizzes
           </button>
         </div>
       </div>

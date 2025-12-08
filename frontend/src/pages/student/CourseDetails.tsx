@@ -66,11 +66,13 @@ function saveLocalCodeQuestions(courseId: string, items: CodeQuestion[]) {
 }
 
 export default function CourseDetails() {
-  const { courseId } = useParams()
+  const { courseId, tab: urlTab } = useParams()
   const { user } = useAuth()
   const navigate = useNavigate()
   const { setCourseTitle } = useCourse()
-  const [tab, setTab] = useState<'assignment' | 'present' | 'past' | 'pyq' | 'notes' | 'quizzes' | 'quizzes_submitted' | 'manage' | 'submissions' | 'grading' | 'progress' | 'discussion' | 'pdfchat' | 'videos' | 'live-lectures'>('present')
+  const [tab, setTab] = useState<'assignment' | 'present' | 'past' | 'pyq' | 'notes' | 'quizzes' | 'quizzes_submitted' | 'manage' | 'submissions' | 'grading' | 'progress' | 'discussion' | 'pdfchat' | 'videos' | 'live-lectures'>(
+    (urlTab as any) || 'present'
+  )
   const [backendVideos, setBackendVideos] = useState<any[]>([])
   const [selectedVideo, setSelectedVideo] = useState<any | null>(null)
   const [videoQuestions, setVideoQuestions] = useState<any[]>([])
