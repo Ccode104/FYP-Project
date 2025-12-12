@@ -158,7 +158,7 @@ export async function getContestByOffering(req, res) {
 }
 
 export async function listContests(req, res) {
-  const offeringId = Number(req.params.offeringId);
+  const offeringId = Number(req.params.courseOfferingId);
   if (!offeringId) return res.status(400).json({ error: 'Missing course offering id' });
 
   // Check if user has access to this course offering

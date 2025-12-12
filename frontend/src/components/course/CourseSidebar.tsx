@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import './CourseSidebar.css'
 
 export interface TabItem {
@@ -90,6 +90,7 @@ function CourseSidebarInner({ tabs, activeTab, onTabChange, userRole, isOpen, on
 export default function CourseSidebar(props: CourseSidebarProps) {
   const [isOpen, setIsOpen] = useState(true)
   const [openedByHamburger, setOpenedByHamburger] = useState(false)
+  const timeoutRef = useRef<NodeJS.Timeout | null>(null)
 
   // Handle global click to close sidebar when opened by hover
   useEffect(() => {
@@ -118,15 +119,21 @@ export default function CourseSidebar(props: CourseSidebarProps) {
   }
 
   const handleSidebarEnter = () => {
-    if (!openedByHamburger) { // Only open on hover if not opened by hamburger
-      setIsOpen(true)
-      if (props.onSidebarToggle) {
-        props.onSidebarToggle(true)
+      if (!openedByHamburger) { // Only open on hover if not opened by hamburger
+        timeoutRef.current = setTimeout(() => {
+          setIsOpen(true)
+          if (props.onSidebarToggle) {
+            props.onSidebarToggle(true)
+          }
+        }, 500)
       }
     }
-  }
 
   const handleSidebarLeave = () => {
+    if (timeoutRef.current) {
+      clearTimeout(timeoutRef.current)
+      timeoutRef.current = null
+    }
     if (!openedByHamburger) { // Only close on leave if not opened by hamburger
       setIsOpen(false)
       if (props.onSidebarToggle) {
