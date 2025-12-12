@@ -43,11 +43,14 @@ export default function GitHubRepositorySelector({
 
   // Check GitHub connection status
   const checkGitHubConnection = useCallback(async () => {
+    console.log('DEBUG: Checking GitHub connection...');
     try {
       // Try to fetch repositories to check if GitHub is connected
       await apiFetch<RepositoriesResponse>('/api/github/repositories?page=1&per_page=1');
+      console.log('DEBUG: GitHub connected');
       setIsGitHubConnected(true);
     } catch (err: any) {
+      console.log('DEBUG: GitHub connection check failed:', err.message);
       if (err.message?.includes('GitHub not connected')) {
         setIsGitHubConnected(false);
       } else {
@@ -64,11 +67,13 @@ export default function GitHubRepositorySelector({
     setError(null);
 
     try {
+      console.log('DEBUG: Fetching repositories...');
       const response = await apiFetch<RepositoriesResponse>(
         `/api/github/repositories?page=1&per_page=100&sort=updated&direction=desc`
       );
 
       const newRepos = response.repositories;
+      console.log('DEBUG: Fetched repositories:', newRepos.length);
       setRepositories(newRepos);
       setFilteredRepositories([]);
     } catch (err: any) {
@@ -81,6 +86,7 @@ export default function GitHubRepositorySelector({
 
   // Filter repositories based on search query
   const filterRepositories = useCallback((query: string) => {
+    console.log('DEBUG: Filtering repos with query:', query, 'repos length:', repositories.length);
     if (!query.trim()) {
       setFilteredRepositories([]);
       setShowDropdown(false);
@@ -92,6 +98,7 @@ export default function GitHubRepositorySelector({
       repo.description?.toLowerCase().includes(query.toLowerCase()) ||
       repo.language?.toLowerCase().includes(query.toLowerCase())
     ).slice(0, 3); // Limit to 3 results
+    console.log('DEBUG: Filtered repos:', filtered.length);
     setFilteredRepositories(filtered);
     setShowDropdown(filtered.length > 0);
   }, [repositories]);
@@ -104,6 +111,7 @@ export default function GitHubRepositorySelector({
 
   // Handle repository selection
   const handleRepositorySelect = (repository: GitHubRepository) => {
+    console.log('DEBUG: Repository selected:', repository.name);
     onRepositorySelect(repository);
     setShowDropdown(false);
     setSearchQuery(repository.name); // Show selected repo name in input
@@ -184,7 +192,7 @@ export default function GitHubRepositorySelector({
             {filteredRepositories.map((repo) => (
               <div
                 key={repo.id}
-                onClick={() => handleRepositorySelect(repo)}
+                onMouseDown={() => handleRepositorySelect(repo)}
                 style={{
                   padding: '12px',
                   borderBottom: '1px solid #f8f9fa',
@@ -254,32 +262,16 @@ export default function GitHubRepositorySelector({
           {error}
         </div>
       )}
+
+      {!loading && !error && repositories.length === 0 && (
+        <div style={{ textAlign: 'center', padding: '12px', color: '#666' }}>
+          No repositories found. Make sure your GitHub account is connected and has public repositories.
+        </div>
+      )}
     </div>
   );
 }
 
-// Helper function to get language color
-function getLanguageColor(language: string): string {
-  const colors: { [key: string]: string } = {
-    JavaScript: '#f1e05a',
-    TypeScript: '#2b7489',
-    Python: '#3572A5',
-    Java: '#b07219',
-    'C++': '#f34b7d',
-    'C#': '#178600',
-    PHP: '#4F5D95',
-    Ruby: '#701516',
-    Go: '#00ADD8',
-    Rust: '#dea584',
-    Swift: '#ffac45',
-    Kotlin: '#F18E33',
-    Dart: '#00B4AB',
-    HTML: '#e34c26',
-    CSS: '#563d7c',
-    Shell: '#89e051',
-  };
-  return colors[language] || '#586069';
-}
 
 // Helper function to format date
 function formatDate(dateString: string): string {

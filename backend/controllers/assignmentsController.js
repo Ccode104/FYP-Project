@@ -15,6 +15,8 @@ export async function createAssignment(req, res) {
     total_points, // New field for component-based assignments
     allow_multiple_submissions,
     is_graded,
+    file_size_limit_mb, // New field for global file size limit
+    allow_github_repo, // New field for GitHub repository submissions
     question_ids // Legacy field for backward compatibility
   } = req.body;
 
@@ -132,8 +134,8 @@ export async function createAssignment(req, res) {
       INSERT INTO assignments (
         course_offering_id, title, description, assignment_config,
         submission_requirements, grading_config, total_points,
-        allow_multiple_submissions, is_graded, release_at, due_at, created_by
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+        allow_multiple_submissions, is_graded, release_at, due_at, created_by, file_size_limit_mb, allow_github_repo
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
       RETURNING *
     `;
 
@@ -149,7 +151,9 @@ export async function createAssignment(req, res) {
       final_is_graded,
       release_at,
       due_at,
-      created_by
+      created_by,
+      file_size_limit_mb || null,
+      allow_github_repo || false
     ];
 
     const r = await client.query(insertQ, insertValues);
@@ -277,12 +281,8 @@ export async function getAssignment(req, res) {
     assignment.grading_config = JSON.parse(assignment.grading_config);
   }
 
-  // Extract assignment_type from assignment_config for backward compatibility
-  if (assignment.assignment_config && assignment.assignment_config.components && assignment.assignment_config.components.length > 0) {
-    assignment.assignment_type = assignment.assignment_config.components[0].subtype || 'file';
-  } else {
-    assignment.assignment_type = 'file'; // Default fallback
-  }
+  // For backward compatibility, derive assignment_type from allow_github_repo
+  assignment.assignment_type = assignment.allow_github_repo ? 'mixed' : 'file';
 
   // Check if user has access to this assignment (enrolled in the course or faculty/admin)
   if (req.user.role === 'student') {
@@ -335,7 +335,10 @@ export async function getAssignmentQuestions(req, res) {
     const assignment = checkR.rows[0];
 
     // For code assignments, get questions from assignment_questions
-    if (assignment.assignment_type === 'code') {
+    // Note: Since we removed assignment_type, this check will need to be updated
+    // For now, assume assignments with questions are code assignments
+    const hasQuestions = await pool.query('SELECT 1 FROM assignment_questions WHERE assignment_id = $1 LIMIT 1', [assignmentId]);
+    if (hasQuestions.rowCount > 0) {
       const questionsQ = `
         SELECT cq.id, cq.title, cq.description, cq.constraints, cq.template_code, cq.driver_code, aq.points, aq.position,
                 COALESCE(

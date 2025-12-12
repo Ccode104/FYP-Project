@@ -27,6 +27,7 @@ import NotesList from '../../components/course/NotesList'
 import DiscussionForum from '../../components/course/DiscussionForum'
 import PresentAssignmentsSection from '../../components/course/PresentAssignmentsSection'
 import TeacherAssignments from '../../components/course/TeacherAssignments'
+import ContestCards from '../../components/course/ContestCards'
 import { listDiscussionMessages, postDiscussionMessage, type DiscussionMessage } from '../../services/discussion'
 import CourseSidebar, { type TabItem } from '../../components/course/CourseSidebar'
 import LiveLectureViewer from '../../components/LiveLectureViewer'
@@ -293,6 +294,7 @@ export default function CourseDetails() {
 
     const studentTabs: TabItem[] = [
       { id: 'present', label: 'Assignments', icon: '📋', tooltip: 'View assignments and results', badge: assignmentCount },
+      { id: 'contests', label: 'Coding Contests', icon: '🏆', tooltip: 'Coding contests and challenges' },
       { id: 'quizzes', label: 'Quizzes', icon: '❓', tooltip: 'Available quizzes and results', badge: quizCount },
       { id: 'notes', label: 'Notes', icon: '📝', tooltip: 'Course notes and materials' },
       { id: 'pyq', label: 'Previous Papers', icon: '📚', tooltip: 'Previous year questions' },
@@ -392,7 +394,7 @@ export default function CourseDetails() {
           course_offering_id: Number(courseId),
           title,
           description: newAssnDesc,
-          assignment_type: newAssnType,
+          allow_github_repo: newAssnType === 'mixed', // Enable GitHub repo for mixed assignments
           release_at: newAssnRelease || null,
           due_at: newAssnDue || null,
           max_score: Number(newAssnMax) || 100,
@@ -441,7 +443,7 @@ export default function CourseDetails() {
             course_offering_id: Number(courseId),
             title,
             description: newAssnDesc || null,
-            assignment_type: 'code',
+            allow_github_repo: true, // Code assignments allow GitHub repos
             question_ids: questionIds,
             release_at: newAssnRelease || null,
             due_at: newAssnDue || null,
@@ -610,6 +612,19 @@ export default function CourseDetails() {
   }
 
 
+  // Function to refresh student submissions
+  const refreshSubmissions = async () => {
+    if (user?.role === 'student' && user?.id && isBackend && courseId) {
+      try {
+        const submissions = await apiFetch<any[]>(`/api/student/courses/${courseId}/submissions`)
+        setMySubmissions(submissions || [])
+      } catch (err) {
+        console.error('Failed to refresh student submissions:', err)
+        setMySubmissions([])
+      }
+    }
+  }
+
   // Load backend data once per offering id
   useEffect(() => {
     let cancelled = false
@@ -639,15 +654,7 @@ export default function CourseDetails() {
           }
         } catch { }
         // Load student's submissions to track which assignments have been submitted
-        if (user?.role === 'student' && user?.id) {
-          try {
-            const submissions = await apiFetch<any[]>(`/api/student/courses/${courseId}/submissions`)
-            if (!cancelled) setMySubmissions(submissions || [])
-          } catch (err) {
-            console.error('Failed to load student submissions:', err)
-            if (!cancelled) setMySubmissions([])
-          }
-        }
+        await refreshSubmissions()
         // Load discussion messages
         if (isBackend && courseId) {
           try {
@@ -1053,6 +1060,7 @@ export default function CourseDetails() {
                 }}
                 onAttemptQuiz={(quizId: any) => { location.assign(`/quizzes/${quizId}`) }}
                 onStartCodeAttempt={(assignment: any) => { void startCodeAttempt(assignment) }}
+                onSubmitSuccess={refreshSubmissions}
               />
 
               {/* Past Assignments */}
@@ -1162,6 +1170,10 @@ export default function CourseDetails() {
                 </section>
               )}
             </div>
+          )}
+
+          {tab === 'contests' && isBackend && (
+            <ContestCards courseId={courseId} userRole={user?.role} />
           )}
 
           {tab === 'quizzes' && (

@@ -84,7 +84,7 @@ export default function CodeAssignmentCreator({ courseOfferingId, onComplete }: 
           course_offering_id: Number(courseOfferingId),
           title,
           description: description || null,
-          assignment_type: 'code',
+          allow_github_repo: true, // Code assignments typically allow GitHub repos
           release_at: startAt || null,
           due_at: endAt || null,
           max_score: Number(maxScore) || 100,

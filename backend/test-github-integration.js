@@ -28,31 +28,57 @@ async function testGitHubIntegration() {
       console.log('   ✅ All GitHub user columns present');
     }
 
-    // Test 2: Check if GitHub fields were added to assignment_submissions table
-    console.log('\n2. Checking assignment_submissions table schema...');
-    const submissionColumns = await pool.query(`
-      SELECT column_name
-      FROM information_schema.columns
-      WHERE table_name = 'assignment_submissions' AND column_name LIKE 'github_%'
-      ORDER BY column_name
+    // Test 2: Check if GitHub submissions table exists
+    console.log('\n2. Checking github_submissions table...');
+    const githubTableExists = await pool.query(`
+      SELECT EXISTS (
+        SELECT 1 FROM information_schema.tables
+        WHERE table_name = 'github_submissions'
+      )
     `);
 
-    const expectedSubmissionColumns = [
-      'github_repo_url', 'github_repo_name', 'github_repo_description',
-      'github_repo_language', 'github_repo_private', 'github_repo_stars',
-      'github_repo_forks', 'github_repo_created_at', 'github_repo_updated_at',
-      'github_repo_default_branch', 'github_repo_size_kb'
-    ];
-    const actualSubmissionColumns = submissionColumns.rows.map(row => row.column_name);
+    if (githubTableExists.rows[0].exists) {
+      console.log('   ✅ github_submissions table exists');
 
-    console.log('   Expected GitHub submission columns:', expectedSubmissionColumns.length);
-    console.log('   Actual GitHub submission columns:', actualSubmissionColumns.length);
+      // Check columns
+      const githubColumns = await pool.query(`
+        SELECT column_name
+        FROM information_schema.columns
+        WHERE table_name = 'github_submissions'
+        ORDER BY column_name
+      `);
 
-    const missingSubmissionColumns = expectedSubmissionColumns.filter(col => !actualSubmissionColumns.includes(col));
-    if (missingSubmissionColumns.length > 0) {
-      console.log('   ❌ Missing submission columns:', missingSubmissionColumns);
+      const expectedGithubColumns = [
+        'id', 'submission_id', 'repo_url', 'repo_name', 'repo_description',
+        'repo_language', 'repo_private', 'repo_stars', 'repo_forks',
+        'repo_created_at', 'repo_updated_at', 'repo_default_branch', 'repo_size_kb', 'created_at'
+      ];
+
+      const actualGithubColumns = githubColumns.rows.map(row => row.column_name);
+      const missingGithubColumns = expectedGithubColumns.filter(col => !actualGithubColumns.includes(col));
+
+      if (missingGithubColumns.length > 0) {
+        console.log('   ❌ Missing github_submissions columns:', missingGithubColumns);
+      } else {
+        console.log('   ✅ All github_submissions columns present');
+      }
     } else {
-      console.log('   ✅ All GitHub submission columns present');
+      console.log('   ❌ github_submissions table does not exist');
+    }
+
+    // Test 2b: Check if mixed_submissions table exists
+    console.log('\n2b. Checking mixed_submissions table...');
+    const mixedTableExists = await pool.query(`
+      SELECT EXISTS (
+        SELECT 1 FROM information_schema.tables
+        WHERE table_name = 'mixed_submissions'
+      )
+    `);
+
+    if (mixedTableExists.rows[0].exists) {
+      console.log('   ✅ mixed_submissions table exists');
+    } else {
+      console.log('   ❌ mixed_submissions table does not exist');
     }
 
     // Test 3: Check if we can query the new fields

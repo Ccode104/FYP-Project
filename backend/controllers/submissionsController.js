@@ -1,7 +1,73 @@
 import { pool } from '../db/index.js';
 import { calculateGamifiedScore, updateUserGamificationStats, checkAndUnlockAchievements, updateLeaderboards } from '../utils/gamification.js';
 import { runPlagiarismCheck } from '../utils/plagiarism.js';
+import archiver from 'archiver';
+import { v2 as cloudinary } from 'cloudinary';
+import { v4 as uuidv4 } from 'uuid';
 
+/**
+ * Create a zip file from uploaded files and upload to Cloudinary
+ * @param {Array} files - Array of multer file objects
+ * @param {string} assignmentId - Assignment ID for naming
+ * @param {string} studentId - Student ID for naming
+ * @returns {Promise<string>} - Cloudinary URL of the uploaded zip
+ */
+async function createZipFromFiles(files, assignmentId, studentId) {
+  return new Promise((resolve, reject) => {
+    // Create a zip archive
+    const archive = archiver('zip', {
+      zlib: { level: 9 } // Maximum compression
+    });
+
+    // Create a buffer to store the zip
+    const buffers = [];
+    archive.on('data', (chunk) => {
+      buffers.push(chunk);
+    });
+
+    archive.on('end', async () => {
+      const zipBuffer = Buffer.concat(buffers);
+
+      try {
+        // Upload to Cloudinary
+        const uploadResult = await new Promise((resolveUpload, rejectUpload) => {
+          const stream = cloudinary.uploader.upload_stream(
+            {
+              resource_type: 'raw',
+              public_id: `assignment_${assignmentId}_student_${studentId}_${uuidv4()}`,
+              folder: 'assignment_submissions',
+              format: 'zip'
+            },
+            (error, result) => {
+              if (error) {
+                rejectUpload(error);
+              } else {
+                resolveUpload(result);
+              }
+            }
+          );
+          stream.end(zipBuffer);
+        });
+
+        resolve(uploadResult.secure_url);
+      } catch (error) {
+        reject(error);
+      }
+    });
+
+    archive.on('error', (err) => {
+      reject(err);
+    });
+
+    // Add files to the archive
+    for (const file of files) {
+      archive.append(file.buffer, { name: file.originalname });
+    }
+
+    // Finalize the archive
+    archive.finalize();
+  });
+}
 
 export async function submitFileAssignment(req, res) {
   const assignment_id = Number(req.body.assignment_id);
@@ -9,9 +75,9 @@ export async function submitFileAssignment(req, res) {
   if (!assignment_id || !student_id) return res.status(400).json({ error: 'Missing' });
 
   try {
-    // Check if assignment allows multiple submissions
+    // Check if assignment allows multiple submissions and get GitHub repo option and file size limit
     const assignmentCheck = await pool.query(
-      `SELECT allow_multiple_submissions FROM assignments WHERE id = $1`,
+      `SELECT allow_multiple_submissions, allow_github_repo, file_size_limit_mb FROM assignments WHERE id = $1`,
       [assignment_id]
     );
     if (assignmentCheck.rowCount === 0) {
@@ -19,13 +85,27 @@ export async function submitFileAssignment(req, res) {
     }
 
     const assignment = assignmentCheck.rows[0];
+    console.log(`[DEBUG] submitFileAssignment: allow_github_repo=${assignment.allow_github_repo}, allow_multiple=${assignment.allow_multiple_submissions}`);
+
+    // Check file size limit
+    const uploadedFiles = req.files || [];
+    if (assignment.file_size_limit_mb && uploadedFiles.length > 0) {
+      for (const file of uploadedFiles) {
+        const fileSizeMB = file.size / (1024 * 1024);
+        if (fileSizeMB > assignment.file_size_limit_mb) {
+          return res.status(400).json({
+            error: `File "${file.originalname}" size (${fileSizeMB.toFixed(2)} MB) exceeds the limit of ${assignment.file_size_limit_mb} MB`
+          });
+        }
+      }
+    }
     let submission;
 
     if (assignment.allow_multiple_submissions) {
       // Create new submission for each attempt
       const q = `INSERT INTO assignment_submissions (assignment_id, student_id, attempt)
-                 VALUES ($1, $2, (SELECT COALESCE(MAX(attempt), 0) + 1 FROM assignment_submissions WHERE assignment_id = $1 AND student_id = $2))
-                 RETURNING *`;
+                  VALUES ($1, $2, (SELECT COALESCE(MAX(attempt), 0) + 1 FROM assignment_submissions WHERE assignment_id = $1 AND student_id = $2))
+                  RETURNING *`;
       const r = await pool.query(q, [assignment_id, student_id]);
       submission = r.rows[0];
     } else {
@@ -34,23 +114,47 @@ export async function submitFileAssignment(req, res) {
       const existingR = await pool.query(existingQ, [assignment_id, student_id]);
 
       if (existingR.rowCount > 0) {
-        return res.status(400).json({ error: 'You have already submitted this assignment' });
+        // For assignments allowing GitHub repo, allow updating existing submission with additional files
+        if (assignment.allow_github_repo) {
+          submission = existingR.rows[0];
+          console.log(`[DEBUG] submitFileAssignment: Updating existing submission with GitHub repo option id=${submission.id}`);
+        } else {
+          return res.status(400).json({ error: 'You have already submitted this assignment' });
+        }
       } else {
         const q = `INSERT INTO assignment_submissions (assignment_id, student_id, attempt)
-                   VALUES ($1, $2, 1) RETURNING *`;
+                    VALUES ($1, $2, 1) RETURNING *`;
         const r = await pool.query(q, [assignment_id, student_id]);
         submission = r.rows[0];
       }
     }
 
     const files = req.files || [];
+
+    // For all assignments, create a zip file if multiple files are uploaded
+    if (files.length > 1) {
+      try {
+        const zipUrl = await createZipFromFiles(files, assignment_id, student_id);
+        await pool.query(
+          `INSERT INTO file_submissions (submission_id, zip_file_url, submission_type) VALUES ($1, $2, $3)
+           ON CONFLICT (submission_id) DO UPDATE SET zip_file_url = EXCLUDED.zip_file_url`,
+          [submission.id, zipUrl, 'file']
+        );
+        console.log(`[DEBUG] submitFileAssignment: Created zip for multiple files, url=${zipUrl}`);
+      } catch (zipError) {
+        console.error('Error creating zip for multiple files:', zipError);
+        // Continue without zip, but still store individual files
+      }
+    }
+
+    // Store individual files (for non-mixed assignments or as fallback)
     for (const f of files) {
       // TODO: Implement file upload to Cloudinary or another storage provider if needed
       // const url = await uploadBufferToS3(f.buffer, f.originalname, f.mimetype);
       // For now, store a placeholder path since Cloudinary is not configured
       const url = `local://${f.originalname}`; // Placeholder for local storage
       await pool.query(`INSERT INTO submission_files (submission_id, storage_path, filename, file_size, mime_type)
-                        VALUES ($1,$2,$3,$4,$5)`, [submission.id, url, f.originalname, f.size, f.mimetype]);
+                         VALUES ($1,$2,$3,$4,$5)`, [submission.id, url, f.originalname, f.size, f.mimetype]);
     }
 
     // Run plagiarism check asynchronously (don't block response)
@@ -381,6 +485,13 @@ export async function submitLinkAssignment(req, res) {
     const submission = r.rows[0]
     const filename = url.split('/').pop() || url
     await pool.query(`INSERT INTO submission_files (submission_id, storage_path, filename) VALUES ($1,$2,$3)`, [submission.id, url, filename])
+
+    // Also insert into file_submissions for consistency
+    await pool.query(
+      `INSERT INTO file_submissions (submission_id, submission_type) VALUES ($1, $2)`,
+      [submission.id, 'link']
+    );
+
     res.json({ submission })
   } catch (err) {
     console.error(err)
@@ -457,7 +568,7 @@ export async function submitGitHubRepoAssignment(req, res) {
 
     // Check if assignment exists
     const assignmentCheck = await pool.query(
-      `SELECT id, assignment_type, allow_multiple_submissions FROM assignments WHERE id = $1`,
+      `SELECT id, allow_github_repo, allow_multiple_submissions FROM assignments WHERE id = $1`,
       [assignment_id]
     );
     if (assignmentCheck.rowCount === 0) {
@@ -465,26 +576,16 @@ export async function submitGitHubRepoAssignment(req, res) {
     }
 
     const assignment = assignmentCheck.rows[0];
+    console.log(`[DEBUG] submitGitHubRepoAssignment: allow_github_repo=${assignment.allow_github_repo}, allow_multiple=${assignment.allow_multiple_submissions}`);
 
     // Get or create submission
     let submission;
     if (assignment.allow_multiple_submissions) {
       // Create new submission for each attempt
-      const q = `INSERT INTO assignment_submissions (
-        assignment_id, student_id, attempt,
-        github_repo_url, github_repo_name, github_repo_description,
-        github_repo_language, github_repo_private, github_repo_stars,
-        github_repo_forks, github_repo_created_at, github_repo_updated_at,
-        github_repo_default_branch, github_repo_size_kb
-      ) VALUES ($1, $2, (SELECT COALESCE(MAX(attempt), 0) + 1 FROM assignment_submissions WHERE assignment_id = $1 AND student_id = $2),
-        $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13) RETURNING *`;
-      const r = await pool.query(q, [
-        assignment_id, student_id,
-        repoData.html_url, repoData.name, repoData.description,
-        repoData.language, repoData.private, repoData.stargazers_count,
-        repoData.forks_count, repoData.created_at, repoData.updated_at,
-        repoData.default_branch, Math.ceil(repoData.size / 1024) // Convert KB to approximate MB
-      ]);
+      const q = `INSERT INTO assignment_submissions (assignment_id, student_id, attempt)
+                 VALUES ($1, $2, (SELECT COALESCE(MAX(attempt), 0) + 1 FROM assignment_submissions WHERE assignment_id = $1 AND student_id = $2))
+                 RETURNING *`;
+      const r = await pool.query(q, [assignment_id, student_id]);
       submission = r.rows[0];
     } else {
       // Check if submission already exists
@@ -492,39 +593,43 @@ export async function submitGitHubRepoAssignment(req, res) {
       const existingR = await pool.query(existingQ, [assignment_id, student_id]);
 
       if (existingR.rowCount > 0) {
-        // Update existing submission with new repository data
-        const updateQ = `UPDATE assignment_submissions SET
-          github_repo_url = $1, github_repo_name = $2, github_repo_description = $3,
-          github_repo_language = $4, github_repo_private = $5, github_repo_stars = $6,
-          github_repo_forks = $7, github_repo_created_at = $8, github_repo_updated_at = $9,
-          github_repo_default_branch = $10, github_repo_size_kb = $11, submitted_at = now()
-          WHERE id = $12 RETURNING *`;
-        const updateR = await pool.query(updateQ, [
-          repoData.html_url, repoData.name, repoData.description,
-          repoData.language, repoData.private, repoData.stargazers_count,
-          repoData.forks_count, repoData.created_at, repoData.updated_at,
-          repoData.default_branch, Math.ceil(repoData.size / 1024), existingR.rows[0].id
-        ]);
-        submission = updateR.rows[0];
+        submission = existingR.rows[0];
+        console.log(`[DEBUG] submitGitHubRepoAssignment: Using existing submission id=${submission.id}`);
       } else {
         // Create new submission
-        const q = `INSERT INTO assignment_submissions (
-          assignment_id, student_id, attempt,
-          github_repo_url, github_repo_name, github_repo_description,
-          github_repo_language, github_repo_private, github_repo_stars,
-          github_repo_forks, github_repo_created_at, github_repo_updated_at,
-          github_repo_default_branch, github_repo_size_kb
-        ) VALUES ($1, $2, 1, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13) RETURNING *`;
-        const r = await pool.query(q, [
-          assignment_id, student_id,
-          repoData.html_url, repoData.name, repoData.description,
-          repoData.language, repoData.private, repoData.stargazers_count,
-          repoData.forks_count, repoData.created_at, repoData.updated_at,
-          repoData.default_branch, Math.ceil(repoData.size / 1024)
-        ]);
+        const q = `INSERT INTO assignment_submissions (assignment_id, student_id, attempt) VALUES ($1, $2, 1) RETURNING *`;
+        const r = await pool.query(q, [assignment_id, student_id]);
         submission = r.rows[0];
       }
     }
+
+    // Insert GitHub submission data
+    // Since we now have a single assignment type, always use github_submissions table
+    await pool.query(
+      `INSERT INTO github_submissions (
+        submission_id, repo_url, repo_name, repo_description, repo_language,
+        repo_private, repo_stars, repo_forks, repo_created_at, repo_updated_at,
+        repo_default_branch, repo_size_kb
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+      ON CONFLICT (submission_id) DO UPDATE SET
+        repo_url = EXCLUDED.repo_url,
+        repo_name = EXCLUDED.repo_name,
+        repo_description = EXCLUDED.repo_description,
+        repo_language = EXCLUDED.repo_language,
+        repo_private = EXCLUDED.repo_private,
+        repo_stars = EXCLUDED.repo_stars,
+        repo_forks = EXCLUDED.repo_forks,
+        repo_created_at = EXCLUDED.repo_created_at,
+        repo_updated_at = EXCLUDED.repo_updated_at,
+        repo_default_branch = EXCLUDED.repo_default_branch,
+        repo_size_kb = EXCLUDED.repo_size_kb`,
+      [
+        submission.id, repoData.html_url, repoData.name, repoData.description,
+        repoData.language, repoData.private, repoData.stargazers_count,
+        repoData.forks_count, repoData.created_at, repoData.updated_at,
+        repoData.default_branch, Math.ceil(repoData.size / 1024)
+      ]
+    );
 
     // Run plagiarism check asynchronously (don't block response)
     const { runPlagiarismCheck } = await import('../utils/plagiarism.js');
@@ -585,6 +690,7 @@ export async function getSubmissionById(req, res) {
     if (r.rowCount === 0) return res.status(404).json({ error: 'Submission not found' });
 
     const submission = r.rows[0];
+    console.log(`[DEBUG] getSubmissionById: submission id=${submission.id}, assignment_type=${submission.assignment_type}`);
 
     // Authorization: faculty can only view submissions for their own offerings
     if (req.user?.role === 'faculty' && req.user.id !== submission.faculty_id) {
@@ -607,12 +713,29 @@ export async function getSubmissionById(req, res) {
     const gradesQ = `SELECT * FROM submission_grades WHERE submission_id = $1 ORDER BY created_at DESC`;
     const gradesR = await pool.query(gradesQ, [submissionId]);
 
+    // Fetch type-specific data - now always check for GitHub submissions if assignment allows it
+    let typeSpecificData = {};
+
+    // Always check for GitHub submissions (since all assignments can optionally have them)
+    const githubQ = `SELECT * FROM github_submissions WHERE submission_id = $1`;
+    const githubR = await pool.query(githubQ, [submissionId]);
+    if (githubR.rows.length > 0) {
+      typeSpecificData.github = githubR.rows[0];
+    }
+
+    // Check for file submissions
+    const fileQ = `SELECT * FROM file_submissions WHERE submission_id = $1`;
+    const fileR = await pool.query(fileQ, [submissionId]);
+    if (fileR.rows.length > 0) {
+      typeSpecificData.file = fileR.rows[0];
+    }
+
     // Fetch test case results for each code submission
     const codeWithTestResults = await Promise.all(
       (codeR.rows || []).map(async (codeSub) => {
         // Get test case results for this code submission
         const testResultsQ = `
-          SELECT 
+          SELECT
             csr.*,
             cqt.input_text,
             cqt.expected_text,
@@ -623,7 +746,7 @@ export async function getSubmissionById(req, res) {
           ORDER BY csr.created_at ASC
         `;
         const testResultsR = await pool.query(testResultsQ, [codeSub.id]);
-        
+
         return {
           ...codeSub,
           test_case_results: testResultsR.rows || [],
@@ -636,8 +759,11 @@ export async function getSubmissionById(req, res) {
     const result = Object.assign({}, submission, {
       files: filesR.rows || [],
       code: codeWithTestResults,
-      grades: gradesR.rows || []
+      grades: gradesR.rows || [],
+      ...typeSpecificData
     });
+
+    console.log(`[DEBUG] getSubmissionById: returning submission with ${filesR.rows?.length || 0} files`);
 
     return res.json({ submission: result });
   } catch (err) {

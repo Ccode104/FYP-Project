@@ -10,6 +10,7 @@ export default function PresentAssignmentsSection({
   onTeacherDelete,
   onAttemptQuiz,
   onStartCodeAttempt,
+  onSubmitSuccess,
 }: {
   userRole?: string;
   presentAssignments: any[];
@@ -17,6 +18,7 @@ export default function PresentAssignmentsSection({
   onTeacherDelete: (assignmentId: number) => Promise<void>;
   onAttemptQuiz: (quizId: any) => void;
   onStartCodeAttempt: (assignment: any) => void;
+  onSubmitSuccess?: () => void;
 }) {
   const navigate = useNavigate();
   const [submissionModalOpen, setSubmissionModalOpen] = useState(false);
@@ -45,16 +47,10 @@ export default function PresentAssignmentsSection({
           <div
             key={a.id}
             className={`assignment-card ${
-              userRole === "student" &&
-              (a.assignment_type === "file" || a.assignment_type === "pdf" || a.assignment_type === "ppt" || a.assignment_type === "mixed")
-                ? "clickable"
-                : ""
+              userRole === "student" && !a.is_quiz ? "clickable" : ""
             }`}
             onClick={() => {
-              if (
-                userRole === "student" &&
-                (a.assignment_type === "pdf" || a.assignment_type === "ppt" || a.assignment_type === "mixed")
-              ) {
+              if (userRole === "student" && !a.is_quiz) {
                 setSelectedAssignment(a);
                 setSubmissionModalOpen(true);
               }
@@ -62,28 +58,12 @@ export default function PresentAssignmentsSection({
           >
             <div className="assignment-header">
               <div className="assignment-type">
-                {a.assignment_type === "code" && "💻"}
-                {a.assignment_type === "quiz" && "📝"}
-                {a.assignment_type === "file" && "📄"}
-                {a.assignment_type === "pdf" && "📄"}
-                {a.assignment_type === "ppt" && "📊"}
-                {a.assignment_type === "mixed" && "🔗"}
-                {!a.assignment_type && a.is_quiz && "📝"}
+                {a.is_quiz ? "📝" : a.allow_github_repo ? "🔗" : "📄"}
                 <span>
-                  {a.assignment_type === "code"
-                    ? "Code"
-                    : a.assignment_type === "quiz"
+                  {a.is_quiz
                     ? "Quiz"
-                    : a.assignment_type === "file"
-                    ? "PDF"
-                    : a.assignment_type === "pdf"
-                    ? "PDF"
-                    : a.assignment_type === "ppt"
-                    ? "PPT"
-                    : a.assignment_type === "mixed"
-                    ? "Mixed"
-                    : a.is_quiz
-                    ? "Quiz"
+                    : a.allow_github_repo
+                    ? "Assignment (GitHub)"
                     : "Assignment"}
                 </span>
               </div>
@@ -144,36 +124,16 @@ export default function PresentAssignmentsSection({
                       <polyline points="9,18 15,12 9,6" />
                     </svg>
                   </button>
-                ) : a.assignment_type === "code" ? (
+                ) : (
                   <button
-                    className="btn-assignment attempt-code"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onStartCodeAttempt(a);
-                    }}
-                  >
-                    <span>{a.isSubmitted ? "View Submission" : "Code Editor"}</span>
-                    <svg
-                      width="16"
-                      height="16"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                    >
-                      <polyline points="9,18 15,12 9,6" />
-                    </svg>
-                  </button>
-                ) : a.assignment_type === "pdf" ? (
-                  <button
-                    className="btn-assignment submit-pdf"
+                    className="btn-assignment submit-assignment"
                     onClick={(e) => {
                       e.stopPropagation();
                       setSelectedAssignment(a);
                       setSubmissionModalOpen(true);
                     }}
                   >
-                    <span>Submit PDF</span>
+                    <span>{a.isSubmitted ? "View Submission" : "Submit Assignment"}</span>
                     <svg
                       width="16"
                       height="16"
@@ -187,53 +147,7 @@ export default function PresentAssignmentsSection({
                       <line x1="12" y1="15" x2="12" y2="3" />
                     </svg>
                   </button>
-                ) : a.assignment_type === "ppt" ? (
-                  <button
-                    className="btn-assignment submit-ppt"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setSelectedAssignment(a);
-                      setSubmissionModalOpen(true);
-                    }}
-                  >
-                    <span>Submit PPT</span>
-                    <svg
-                      width="16"
-                      height="16"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                    >
-                      <path d="M21,15v4a2,2 0 0 1-2,2H5a2,2 0 0 1-2-2v-4" />
-                      <polyline points="7,10 12,15 17,10" />
-                      <line x1="12" y1="15" x2="12" y2="3" />
-                    </svg>
-                  </button>
-                ) : a.assignment_type === "mixed" ? (
-                  <button
-                    className="btn-assignment submit-mixed"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setSelectedAssignment(a);
-                      setSubmissionModalOpen(true);
-                    }}
-                  >
-                    <span>Submit</span>
-                    <svg
-                      width="16"
-                      height="16"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                    >
-                      <path d="M21,15v4a2,2 0 0 1-2,2H5a2,2 0 0 1-2-2v-4" />
-                      <polyline points="7,10 12,15 17,10" />
-                      <line x1="12" y1="15" x2="12" y2="3" />
-                    </svg>
-                  </button>
-                ) : null}
+                )}
 
                 {/* View Details Button */}
                 <button
@@ -272,6 +186,7 @@ export default function PresentAssignmentsSection({
             setSelectedAssignment(null);
           }}
           assignment={selectedAssignment}
+          onSubmitSuccess={onSubmitSuccess}
         />
       )}
     </section>

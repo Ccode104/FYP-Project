@@ -11,27 +11,48 @@ interface AssignmentSubmissionModalProps {
   assignment: {
     id: number;
     title: string;
-    assignment_type: string;
+    allow_github_repo?: boolean;
+    file_size_limit_mb?: number;
   };
+  onSubmitSuccess?: () => void;
 }
 
 export default function AssignmentSubmissionModal({
   isOpen,
   onClose,
-  assignment
+  assignment,
+  onSubmitSuccess
 }: AssignmentSubmissionModalProps) {
-  const [uploadedFile, setUploadedFile] = useState<File | null>(null);
+  const [uploadedFiles, setUploadedFiles] = useState<File[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [isGitHubConnected, setIsGitHubConnected] = useState<boolean | null>(null);
   const [selectedRepository, setSelectedRepository] = useState<any>(null);
+  const [fullAssignment, setFullAssignment] = useState<any>(null);
+  const [loadingAssignment, setLoadingAssignment] = useState(false);
   const toast = useToast();
 
-  // Check GitHub connection status when modal opens
+  // Fetch full assignment details and check GitHub connection when modal opens
   useEffect(() => {
-    if (isOpen && assignment?.assignment_type === 'mixed') {
-      checkGitHubConnection();
+    if (isOpen && assignment?.id) {
+      fetchFullAssignment();
+      if (assignment?.allow_github_repo) {
+        checkGitHubConnection();
+      }
     }
   }, [isOpen, assignment]);
+
+  // Fetch full assignment details
+  const fetchFullAssignment = async () => {
+    try {
+      setLoadingAssignment(true);
+      const response = await apiFetch(`/api/assignments/${assignment.id}`);
+      setFullAssignment(response);
+    } catch (error) {
+      console.error('Failed to fetch assignment details:', error);
+    } finally {
+      setLoadingAssignment(false);
+    }
+  };
 
   // Check GitHub connection status
   const checkGitHubConnection = async () => {
@@ -52,88 +73,71 @@ export default function AssignmentSubmissionModal({
 
   // Handle repository selection
   const handleRepositorySelect = (repository: any) => {
+    console.log('DEBUG: Modal received repository selection:', repository.name);
     setSelectedRepository(repository);
   };
 
-  const getSubmissionInstructions = (type: string) => {
-    switch (type) {
-      case 'pdf':
-        return 'Upload your PDF document file. The file will be stored securely on our servers.';
-      case 'ppt':
-        return 'Upload your PowerPoint presentation file (.ppt or .pptx). The file will be stored securely on our servers.';
-      case 'mixed':
-        return 'Submit your project deliverables: optionally connect GitHub for code repository, and upload a ZIP file containing project materials (reports, presentations, documentation, etc.).';
-      default:
-        return 'Submit your assignment according to the instructions provided.';
+  const getSubmissionInstructions = () => {
+    const limitText = fullAssignment?.file_size_limit_mb
+      ? ` Maximum file size: ${fullAssignment.file_size_limit_mb} MB per file.`
+      : '';
+
+    if (assignment.allow_github_repo) {
+      return `Submit your assignment: optionally connect a GitHub repository, and upload multiple files containing your work.${limitText}`;
+    } else {
+      return `Upload one or more files for your assignment. All files will be stored securely on our servers.${limitText}`;
     }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (assignment.assignment_type === 'mixed') {
-      // Mixed assignments: Support both GitHub repository AND file upload
-      if (!selectedRepository && !uploadedFile) {
-        toast?.push({ kind: 'error', message: 'Please select a GitHub repository or upload project materials (ZIP file)' });
-        return;
-      }
-
-      setSubmitting(true);
-      try {
-        // Submit GitHub repository if selected
-        if (selectedRepository) {
-          await apiFetch('/api/submissions/submit/github-repo', {
-            method: 'POST',
-            body: { assignment_id: assignment.id, repo_url: selectedRepository.html_url }
+    // Check file size limit for all uploaded files
+    if (uploadedFiles.length > 0 && fullAssignment?.file_size_limit_mb) {
+      for (const file of uploadedFiles) {
+        const fileSizeMB = file.size / (1024 * 1024);
+        if (fileSizeMB > fullAssignment.file_size_limit_mb) {
+          toast?.push({
+            kind: 'error',
+            message: `File "${file.name}" size (${fileSizeMB.toFixed(2)} MB) exceeds the limit of ${fullAssignment.file_size_limit_mb} MB`
           });
+          return;
         }
-
-        // Submit project materials file if uploaded
-        if (uploadedFile) {
-          const formData = new FormData();
-          formData.append('assignment_id', assignment.id.toString());
-          formData.append('files', uploadedFile);
-
-          // Use fetch directly for file upload since apiFetch doesn't handle FormData
-          const token = localStorage.getItem('auth:token');
-          const response = await fetch('/api/submissions/submit/files', {
-            method: 'POST',
-            headers: {
-              'Authorization': `Bearer ${token}`
-            },
-            body: formData
-          });
-
-          if (!response.ok) {
-            const errorData = await response.json();
-            throw new Error(errorData.error || 'File upload failed');
-          }
-        }
-
-        toast?.push({ kind: 'success', message: 'Project submitted successfully!' });
-        setSelectedRepository(null);
-        setUploadedFile(null);
-        onClose();
-      } catch (err: any) {
-        console.error('Submission failed:', err);
-        toast?.push({ kind: 'error', message: err?.message || 'Submission failed. Please try again.' });
-      } finally {
-        setSubmitting(false);
       }
-    } else {
-      // Non-mixed assignments: File upload for PDF/PPT
-      if (!uploadedFile) {
-        toast?.push({ kind: 'error', message: 'Please select a file to upload' });
-        return;
+    }
+
+    // All assignments now support multiple files and optionally GitHub repo
+    const hasGitHubOption = assignment.allow_github_repo;
+    const hasFiles = uploadedFiles.length > 0;
+    const hasRepository = !!selectedRepository;
+
+    if (!hasRepository && !hasFiles) {
+      const message = hasGitHubOption
+        ? 'Please select a GitHub repository or upload files'
+        : 'Please upload at least one file';
+      toast?.push({ kind: 'error', message });
+      return;
+    }
+
+    setSubmitting(true);
+    try {
+      // Submit GitHub repository if selected and allowed
+      if (hasRepository && hasGitHubOption) {
+        await apiFetch('/api/submissions/submit/github-repo', {
+          method: 'POST',
+          body: { assignment_id: assignment.id, repo_url: selectedRepository.html_url }
+        });
       }
 
-      setSubmitting(true);
-      try {
+      // Submit files if uploaded
+      if (hasFiles) {
         const formData = new FormData();
         formData.append('assignment_id', assignment.id.toString());
-        formData.append('files', uploadedFile);
+        uploadedFiles.forEach((file, index) => {
+          formData.append('files', file);
+        });
 
-        // Use fetch directly for file upload
+        // Use fetch directly for file upload since apiFetch doesn't handle FormData
         const token = localStorage.getItem('auth:token');
         const response = await fetch('/api/submissions/submit/files', {
           method: 'POST',
@@ -147,21 +151,23 @@ export default function AssignmentSubmissionModal({
           const errorData = await response.json();
           throw new Error(errorData.error || 'File upload failed');
         }
-
-        toast?.push({ kind: 'success', message: 'Assignment submitted successfully!' });
-        setUploadedFile(null);
-        onClose();
-      } catch (err: any) {
-        console.error('Submission failed:', err);
-        toast?.push({ kind: 'error', message: err?.message || 'Submission failed. Please try again.' });
-      } finally {
-        setSubmitting(false);
       }
+
+      toast?.push({ kind: 'success', message: 'Assignment submitted successfully!' });
+      setSelectedRepository(null);
+      setUploadedFiles([]);
+      onSubmitSuccess?.();
+      onClose();
+    } catch (err: any) {
+      console.error('Submission failed:', err);
+      toast?.push({ kind: 'error', message: err?.message || 'Submission failed. Please try again.' });
+    } finally {
+      setSubmitting(false);
     }
   };
 
   const handleClose = () => {
-    setUploadedFile(null);
+    setUploadedFiles([]);
     setSelectedRepository(null);
     onClose();
   };
@@ -189,15 +195,15 @@ export default function AssignmentSubmissionModal({
         type="button"
         onClick={handleSubmit}
         disabled={
-          assignment.assignment_type === 'mixed'
-            ? !( (selectedRepository || uploadedFile) && !submitting )
-            : !uploadedFile || submitting
+          assignment.allow_github_repo
+            ? !( (selectedRepository || uploadedFiles.length > 0) && !submitting )
+            : !(uploadedFiles.length > 0 && !submitting)
         }
         style={{
           background: (
-            assignment.assignment_type === 'mixed'
-              ? ( (selectedRepository || uploadedFile) && !submitting )
-              : (uploadedFile && !submitting)
+            assignment.allow_github_repo
+              ? ( (selectedRepository || uploadedFiles.length > 0) && !submitting )
+              : (uploadedFiles.length > 0 && !submitting)
           )
             ? '#ff6b35'
             : '#6c757d',
@@ -206,20 +212,20 @@ export default function AssignmentSubmissionModal({
           padding: '10px 20px',
           borderRadius: '4px',
           cursor: (
-            assignment.assignment_type === 'mixed'
-              ? ( (selectedRepository || uploadedFile) && !submitting )
-              : (uploadedFile && !submitting)
+            assignment.allow_github_repo
+              ? ( (selectedRepository || uploadedFiles.length > 0) && !submitting )
+              : (uploadedFiles.length > 0 && !submitting)
           ) ? 'pointer' : 'not-allowed',
           fontSize: '14px',
           fontWeight: '500',
           opacity: (
-            assignment.assignment_type === 'mixed'
-              ? ( (selectedRepository || uploadedFile) && !submitting )
-              : (uploadedFile && !submitting)
+            assignment.allow_github_repo
+              ? ( (selectedRepository || uploadedFiles.length > 0) && !submitting )
+              : (uploadedFiles.length > 0 && !submitting)
           ) ? 1 : 0.6
         }}
       >
-        {submitting ? 'Submitting...' : `Submit ${assignment.assignment_type === 'mixed' ? 'Repository' : assignment.assignment_type.toUpperCase()}`}
+        {submitting ? 'Submitting...' : 'Submit Assignment'}
       </button>
     </div>
   );
@@ -257,150 +263,108 @@ export default function AssignmentSubmissionModal({
             lineHeight: '1.5',
             fontSize: '14px'
           }}>
-            {getSubmissionInstructions(assignment.assignment_type)}
+            {getSubmissionInstructions()}
           </p>
         </div>
 
-        {assignment.assignment_type === 'mixed' ? (
-          <>
-            {/* GitHub Integration Section for Mixed Assignments */}
-            <div style={{ marginBottom: '20px' }}>
-              <label style={{
-                display: 'block',
-                marginBottom: '8px',
-                fontWeight: '500',
-                color: '#ffffff',
-                fontSize: '14px'
-              }}>
-                GitHub Repository Submission
-              </label>
-
-              {isGitHubConnected === null ? (
-                <div style={{
-                  padding: '16px',
-                  background: 'rgba(30, 41, 59, 0.8)',
-                  borderRadius: '8px',
-                  textAlign: 'center'
-                }}>
-                  <div className="spinner-border spinner-border-sm text-primary" role="status">
-                    <span className="visually-hidden">Loading...</span>
-                  </div>
-                  <p style={{ margin: '8px 0 0 0', color: '#cbd5e1', fontSize: '14px' }}>
-                    Checking GitHub connection...
-                  </p>
-                </div>
-              ) : isGitHubConnected ? (
-                <GitHubRepositorySelector
-                  onRepositorySelect={handleRepositorySelect}
-                  selectedRepository={selectedRepository}
-                />
-              ) : (
-                <div style={{
-                  padding: '16px',
-                  background: 'rgba(30, 41, 59, 0.8)',
-                  borderRadius: '8px',
-                  marginBottom: '16px'
-                }}>
-                  <p style={{ margin: '0 0 12px 0', color: '#cbd5e1', fontSize: '14px' }}>
-                    Connect your GitHub account to optionally submit a repository as part of your project.
-                  </p>
-                  <GitHubConnectButton
-                    onConnectionChange={handleGitHubConnectionChange}
-                  />
-                </div>
-              )}
-            </div>
-
-            {/* File Upload for Mixed Assignments (ZIP files) */}
-            <div style={{ marginBottom: '20px' }}>
-              <label
-                htmlFor="file-upload"
-                style={{
-                  display: 'block',
-                  marginBottom: '8px',
-                  fontWeight: '500',
-                  color: '#ffffff',
-                  fontSize: '14px'
-                }}
-              >
-                Project Materials (ZIP file)
-              </label>
-              <input
-                id="file-upload"
-                type="file"
-                accept=".zip"
-                onChange={(e) => setUploadedFile(e.target.files?.[0] || null)}
-                disabled={submitting}
-                style={{
-                  width: '100%',
-                  padding: '12px',
-                  border: '1px solid rgba(71, 85, 105, 0.5)',
-                  borderRadius: '4px',
-                  fontSize: '14px',
-                  boxSizing: 'border-box',
-                  background: 'rgba(30, 41, 59, 0.8)',
-                  color: '#ffffff',
-                  outline: 'none'
-                }}
-              />
-              <p style={{ margin: '8px 0 0 0', color: '#cbd5e1', fontSize: '12px' }}>
-                Upload a ZIP file containing your project materials (reports, presentations, documentation, code, etc.)
-              </p>
-              {uploadedFile && (
-                <p style={{ margin: '4px 0 0 0', color: '#10b981', fontSize: '12px' }}>
-                  Selected: {uploadedFile.name}
-                </p>
-              )}
-            </div>
-          </>
-        ) : (
-          /* File Upload for non-mixed assignments (PDF, PPT, etc.) */
+        {/* GitHub Repository Section (if enabled) */}
+        {assignment.allow_github_repo && (
           <div style={{ marginBottom: '20px' }}>
-            <label
-              htmlFor="file-upload"
-              style={{
-                display: 'block',
-                marginBottom: '8px',
-                fontWeight: '500',
-                color: '#ffffff',
-                fontSize: '14px'
-              }}
-            >
-              {assignment.assignment_type === 'pdf' ? 'PDF File' : assignment.assignment_type === 'ppt' ? 'PowerPoint File' : 'File Upload'}
+            <label style={{
+              display: 'block',
+              marginBottom: '8px',
+              fontWeight: '500',
+              color: '#ffffff',
+              fontSize: '14px'
+            }}>
+              GitHub Repository (Optional)
             </label>
-            <input
-              id="file-upload"
-              type="file"
-              accept={assignment.assignment_type === 'pdf' ? '.pdf' : assignment.assignment_type === 'ppt' ? '.ppt,.pptx' : '*'}
-              onChange={(e) => setUploadedFile(e.target.files?.[0] || null)}
-              disabled={submitting}
-              style={{
-                width: '100%',
-                padding: '12px',
-                border: '1px solid rgba(71, 85, 105, 0.5)',
-                borderRadius: '4px',
-                fontSize: '14px',
-                boxSizing: 'border-box',
+
+            {isGitHubConnected === null ? (
+              <div style={{
+                padding: '16px',
                 background: 'rgba(30, 41, 59, 0.8)',
-                color: '#ffffff',
-                outline: 'none'
-              }}
-            />
-            <p style={{ margin: '8px 0 0 0', color: '#cbd5e1', fontSize: '12px' }}>
-              {assignment.assignment_type === 'pdf'
-                ? 'Upload your PDF document'
-                : assignment.assignment_type === 'ppt'
-                ? 'Upload your PowerPoint presentation (.ppt or .pptx)'
-                : 'Upload your assignment file'
-              }
-            </p>
-            {uploadedFile && (
-              <p style={{ margin: '4px 0 0 0', color: '#10b981', fontSize: '12px' }}>
-                Selected: {uploadedFile.name}
-              </p>
+                borderRadius: '8px',
+                textAlign: 'center'
+              }}>
+                <div className="spinner-border spinner-border-sm text-primary" role="status">
+                  <span className="visually-hidden">Loading...</span>
+                </div>
+                <p style={{ margin: '8px 0 0 0', color: '#cbd5e1', fontSize: '14px' }}>
+                  Checking GitHub connection...
+                </p>
+              </div>
+            ) : isGitHubConnected ? (
+              <GitHubRepositorySelector
+                onRepositorySelect={handleRepositorySelect}
+                selectedRepository={selectedRepository}
+              />
+            ) : (
+              <div style={{
+                padding: '16px',
+                background: 'rgba(30, 41, 59, 0.8)',
+                borderRadius: '8px',
+                marginBottom: '16px'
+              }}>
+                <p style={{ margin: '0 0 12px 0', color: '#cbd5e1', fontSize: '14px' }}>
+                  Connect your GitHub account to optionally submit a repository.
+                </p>
+                <GitHubConnectButton
+                  onConnectionChange={handleGitHubConnectionChange}
+                />
+              </div>
             )}
           </div>
         )}
+
+        {/* File Upload Section */}
+        <div style={{ marginBottom: '20px' }}>
+          <label
+            htmlFor="file-upload"
+            style={{
+              display: 'block',
+              marginBottom: '8px',
+              fontWeight: '500',
+              color: '#ffffff',
+              fontSize: '14px'
+            }}
+          >
+            Files
+          </label>
+          <input
+            id="file-upload"
+            type="file"
+            multiple
+            onChange={(e) => setUploadedFiles(Array.from(e.target.files || []))}
+            disabled={submitting}
+            style={{
+              width: '100%',
+              padding: '12px',
+              border: '1px solid rgba(71, 85, 105, 0.5)',
+              borderRadius: '4px',
+              fontSize: '14px',
+              boxSizing: 'border-box',
+              background: 'rgba(30, 41, 59, 0.8)',
+              color: '#ffffff',
+              outline: 'none'
+            }}
+          />
+          <p style={{ margin: '8px 0 0 0', color: '#cbd5e1', fontSize: '12px' }}>
+            Upload one or more files for your assignment
+          </p>
+          {uploadedFiles.length > 0 && (
+            <div style={{ margin: '4px 0 0 0' }}>
+              <p style={{ color: '#10b981', fontSize: '12px', margin: '0 0 4px 0' }}>
+                Selected files:
+              </p>
+              {uploadedFiles.map((file, index) => (
+                <p key={index} style={{ color: '#10b981', fontSize: '12px', margin: '2px 0' }}>
+                  • {file.name}
+                </p>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
     </Modal>
   );

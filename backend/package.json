@@ -12,6 +12,7 @@
     "@langchain/core": "^0.3.0",
     "@langchain/groq": "^0.1.0",
     "@octokit/rest": "^22.0.1",
+    "archiver": "^7.0.1",
     "aws-sdk": "^2.1334.0",
     "axios": "^1.13.2",
     "bcrypt": "^5.1.1",

@@ -501,11 +501,12 @@ const paginatedCourses = filteredCourses.slice((courseCurrentPage - 1) * courseI
     course_offering_id: '',
     title: '',
     description: '',
-    assignment_type: 'homework',
+    allow_github_repo: false,
     release_at: '',
     due_at: '',
     max_score: '100',
-    allow_multiple_submissions: false
+    allow_multiple_submissions: false,
+    file_size_limit_mb: ''
   })
   const [creatingAssignment, setCreatingAssignment] = useState(false)
 
@@ -2608,14 +2609,16 @@ const paginatedCourses = filteredCourses.slice((courseCurrentPage - 1) * courseI
               </select>
               <input className="input" value={newAssignment.title} onChange={(e) => setNewAssignment({ ...newAssignment, title: e.target.value })} placeholder="Assignment Title" />
               <textarea className="input" value={newAssignment.description} onChange={(e) => setNewAssignment({ ...newAssignment, description: e.target.value })} placeholder="Assignment Description" rows={3} />
-              <select className="input" value={newAssignment.assignment_type} onChange={(e) => setNewAssignment({ ...newAssignment, assignment_type: e.target.value })}>
-                <option value="homework">Homework</option>
-                <option value="project">Project</option>
-                <option value="exam">Exam</option>
-                <option value="quiz">Quiz</option>
-                <option value="other">Other</option>
-              </select>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <input
+                  type="checkbox"
+                  checked={newAssignment.allow_github_repo}
+                  onChange={(e) => setNewAssignment({ ...newAssignment, allow_github_repo: e.target.checked })}
+                />
+                Allow GitHub Repository Submissions
+              </label>
               <input className="input" type="number" value={newAssignment.max_score} onChange={(e) => setNewAssignment({ ...newAssignment, max_score: e.target.value })} placeholder="Max Score" />
+              <input className="input" type="number" value={newAssignment.file_size_limit_mb} onChange={(e) => setNewAssignment({ ...newAssignment, file_size_limit_mb: e.target.value })} placeholder="File Size Limit (MB) - Optional" min="1" />
               <div className="grid" style={{ gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                 <input className="input" type="datetime-local" value={newAssignment.release_at} onChange={(e) => setNewAssignment({ ...newAssignment, release_at: e.target.value })} placeholder="Release Date" />
                 <input className="input" type="datetime-local" value={newAssignment.due_at} onChange={(e) => setNewAssignment({ ...newAssignment, due_at: e.target.value })} placeholder="Due Date" />
@@ -2641,22 +2644,24 @@ const paginatedCourses = filteredCourses.slice((courseCurrentPage - 1) * courseI
                       course_offering_id: Number(newAssignment.course_offering_id),
                       title: newAssignment.title,
                       description: newAssignment.description || undefined,
-                      assignment_type: newAssignment.assignment_type,
+                      allow_github_repo: newAssignment.allow_github_repo,
                       release_at: newAssignment.release_at || undefined,
                       due_at: newAssignment.due_at || undefined,
                       max_score: Number(newAssignment.max_score),
                       allow_multiple_submissions: newAssignment.allow_multiple_submissions,
+                      file_size_limit_mb: newAssignment.file_size_limit_mb ? Number(newAssignment.file_size_limit_mb) : undefined,
                     })
                     setShowCreateAssignment(false)
                     setNewAssignment({
                       course_offering_id: '',
                       title: '',
                       description: '',
-                      assignment_type: 'homework',
+                      allow_github_repo: false,
                       release_at: '',
                       due_at: '',
                       max_score: '100',
-                      allow_multiple_submissions: false
+                      allow_multiple_submissions: false,
+                      file_size_limit_mb: ''
                     })
                     push({ kind: 'success', message: 'Assignment created successfully' })
                     loadAssignments()

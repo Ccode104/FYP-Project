@@ -15,6 +15,7 @@ const AdminDashboard = lazy(() => import('./pages/admin/AdminDashboard'))
 const CourseDetails = lazy(() => import('./pages/student/CourseDetails'))
 const AssignmentDetails = lazy(() => import('./pages/student/AssignmentDetails'))
 const CodeEditorPage = lazy(() => import('./pages/student/CodeEditorPage'))
+const ContestEditorPage = lazy(() => import('./pages/student/ContestEditorPage'))
 const LiveLecturePage = lazy(() => import('./pages/student/LiveLecturePage'))
 const VideoPlayerPage = lazy(() => import('./components/VideoPlayerPage'))
 
@@ -125,6 +126,16 @@ function App() {
             element={
               <ProtectedRoute roles={["student", "teacher", "ta"]}>
                 <CodeEditorPage />
+              </ProtectedRoute>
+            }
+          />
+
+          {/* Contest editor page (accessible by student, teacher, TA) */}
+          <Route
+            path="/courses/:courseId/contests/:contestId/editor"
+            element={
+              <ProtectedRoute roles={["student", "teacher", "ta"]}>
+                <ContestEditorPage />
               </ProtectedRoute>
             }
           />
