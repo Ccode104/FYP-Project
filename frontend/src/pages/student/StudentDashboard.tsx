@@ -70,10 +70,16 @@ export default function StudentDashboard() {
   const [err, setErr] = useState<string | null>(null)
   const [courseCounts, setCourseCounts] = useState<Record<number, { pendingAssignments: number; pendingQuizzes: number; unreadNotifications: number }>>({})
   const [lectures, setLectures] = useState<any[]>([])
+  const [assignments, setAssignments] = useState<any[]>([])
+  const [events, setEvents] = useState<any[]>([])
 
   // Cache for course data to prevent unnecessary API calls
   const [lastFetchTime, setLastFetchTime] = useState<number>(0)
   const CACHE_DURATION = 30000 // 30 seconds cache
+
+  // Cache for assignments
+  const [lastAssignmentFetchTime, setLastAssignmentFetchTime] = useState<number>(0)
+  const ASSIGNMENT_CACHE_DURATION = 60000 // 1 minute cache for assignments
 
   // Function to refresh counts using optimized API with caching
   const refreshCourseCounts = async (forceRefresh = false) => {
@@ -121,11 +127,12 @@ export default function StudentDashboard() {
 
         // Fetch live lectures for all enrolled courses
         const courseIds = response.courses.map((course: any) => course.id)
+        let lecturesWithTitles: any[] = []
         if (courseIds.length > 0) {
           try {
             const allLectures = await getLiveLecturesForCourses(courseIds)
             // Add course title to each lecture
-            const lecturesWithTitles = allLectures.map((lecture: any) => ({
+            lecturesWithTitles = allLectures.map((lecture: any) => ({
               ...lecture,
               course_title: response.courses.find((c: any) => c.id === lecture.course_offering_id)?.course_title
             }))
@@ -137,6 +144,81 @@ export default function StudentDashboard() {
         } else {
           setLectures([])
         }
+
+        // Fetch assignments and contests for calendar deadlines
+        const now2 = Date.now()
+        let currentAssignments = assignments
+        if (!forceRefresh && (now2 - lastAssignmentFetchTime) < ASSIGNMENT_CACHE_DURATION && assignments.length > 0) {
+          console.log('Using cached assignments and contests')
+        } else {
+          try {
+            const allAssignments: any[] = []
+            console.log('Fetching assignments and contests for courseIds:', courseIds)
+            for (const courseId of courseIds) {
+              try {
+                console.log(`Fetching assignments for course ${courseId}`)
+                const courseAssignments = await apiFetch<any[]>(`/api/student/courses/${courseId}/assignments`)
+                console.log(`Received assignments for course ${courseId}:`, courseAssignments)
+                // Transform assignments to calendar events
+                const assignmentDeadlineEvents = courseAssignments
+                  .filter((assignment: any) => assignment.due_at) // Only assignments with due dates
+                  .map((assignment: any) => ({
+                    id: `assignment_${assignment.id}`,
+                    title: `Assignment Due: ${assignment.title}`,
+                    scheduled_at: assignment.due_at,
+                    course_offering_id: courseId,
+                    course_title: response.courses.find((c: any) => c.id === courseId)?.course_title,
+                    type: 'deadline' as const
+                  }))
+                console.log(`Created assignment deadline events for course ${courseId}:`, assignmentDeadlineEvents)
+                allAssignments.push(...assignmentDeadlineEvents)
+
+                // Fetch contests for this course
+                console.log(`Fetching contests for course ${courseId}`)
+                const courseContests = await apiFetch<any[]>(`/api/course-offerings/${courseId}/contests`)
+                console.log(`Received contests for course ${courseId}:`, courseContests)
+                // Transform contests to calendar events (end_at as deadline)
+                const contestDeadlineEvents = courseContests
+                  .filter((contest: any) => contest.end_at) // Only contests with end dates
+                  .map((contest: any) => ({
+                    id: `contest_${contest.id}`,
+                    title: `Contest Deadline: ${contest.title}`,
+                    scheduled_at: contest.end_at,
+                    course_offering_id: courseId,
+                    course_title: response.courses.find((c: any) => c.id === courseId)?.course_title,
+                    type: 'deadline' as const
+                  }))
+                console.log(`Created contest deadline events for course ${courseId}:`, contestDeadlineEvents)
+                allAssignments.push(...contestDeadlineEvents)
+              } catch (err) {
+                console.warn(`Failed to fetch assignments/contests for course ${courseId}:`, err)
+              }
+            }
+            console.log('Final allAssignments (including contests):', allAssignments)
+            currentAssignments = allAssignments
+            setAssignments(allAssignments)
+            setLastAssignmentFetchTime(now2)
+          } catch (error) {
+            console.error('Failed to fetch assignments and contests:', error)
+            currentAssignments = []
+            setAssignments([])
+          }
+        }
+
+        // Merge lectures and assignments into events
+        const lectureEvents = lecturesWithTitles.map((lecture: any) => ({ ...lecture, type: 'lecture' as const }))
+        const allEvents = [
+          ...lectureEvents,
+          ...currentAssignments
+        ]
+        console.log('Merging events:', {
+          lectureEvents: lectureEvents.length,
+          assignmentEvents: currentAssignments.length,
+          totalEvents: allEvents.length,
+          assignments: currentAssignments,
+          allEvents
+        })
+        setEvents(allEvents)
 
         console.log('Course card data loaded:', {
           totalCourses: response.courses.length,
@@ -227,7 +309,7 @@ export default function StudentDashboard() {
           <div className="section-header">
             <h3 className="section-title h3">Schedule</h3>
           </div>
-          <Calendar lectures={lectures} />
+          <Calendar events={events} />
         </div>
 
         <div className="courses-section">

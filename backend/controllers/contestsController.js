@@ -158,14 +158,14 @@ export async function getContestByOffering(req, res) {
 }
 
 export async function listContests(req, res) {
-  const courseOfferingId = Number(req.params.courseOfferingId);
-  if (!courseOfferingId) return res.status(400).json({ error: 'Missing course offering id' });
+  const offeringId = Number(req.params.offeringId);
+  if (!offeringId) return res.status(400).json({ error: 'Missing course offering id' });
 
   // Check if user has access to this course offering
   if (req.user.role === 'student') {
     const enrollCheck = await pool.query(
       'SELECT 1 FROM enrollments WHERE course_offering_id = $1 AND student_id = $2',
-      [courseOfferingId, req.user.id]
+      [offeringId, req.user.id]
     );
     if (enrollCheck.rowCount === 0) {
       return res.status(403).json({ error: 'Not enrolled in this course' });
@@ -173,7 +173,7 @@ export async function listContests(req, res) {
   } else if (req.user.role === 'faculty') {
     const facultyCheck = await pool.query(
       'SELECT 1 FROM course_offerings WHERE id = $1 AND faculty_id = $2',
-      [courseOfferingId, req.user.id]
+      [offeringId, req.user.id]
     );
     if (facultyCheck.rowCount === 0) {
       return res.status(403).json({ error: 'Not authorized to view contests for this course' });
@@ -181,7 +181,7 @@ export async function listContests(req, res) {
   }
 
   const q = `SELECT * FROM contests WHERE course_offering_id = $1 ORDER BY start_at DESC`;
-  const r = await pool.query(q, [courseOfferingId]);
+  const r = await pool.query(q, [offeringId]);
   res.json(r.rows);
 }
 

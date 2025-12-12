@@ -38,8 +38,9 @@ export async function getLiveLecturesForCourses(courseIds: number[]): Promise<an
   const lectures = []
   for (const courseId of courseIds) {
     try {
-      const courseLectures = await apiFetch<any[]>(`/api/live-lectures/course/${courseId}`)
-      lectures.push(...courseLectures)
+      const courseLectures = await apiFetch<any>(`/api/live-lectures/course/${courseId}`)
+      const lecturesArray = Array.isArray(courseLectures) ? courseLectures : (courseLectures as any)?.lectures || []
+      lectures.push(...lecturesArray)
     } catch (error) {
       console.error(`Failed to fetch lectures for course ${courseId}:`, error)
     }
