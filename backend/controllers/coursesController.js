@@ -172,20 +172,18 @@ export async function getCourseCardData(req, res) {
 
     const offeringIds = enrolledOfferings.rows.map(row => row.id);
 
-    // Get all assignments for these offerings in one query (excluding code assignments which are now contests)
+    // Get all assignments for these offerings in one query (code assignments are now contests)
     const assignmentsQuery = `
       SELECT
         a.id,
         a.course_offering_id,
         a.title,
-        a.assignment_type,
         a.due_at,
         a.release_at,
-        a.total_points
+        a.max_score
       FROM assignments a
       WHERE a.course_offering_id = ANY($1)
         AND (a.release_at IS NULL OR a.release_at <= NOW())
-        AND a.assignment_type != 'code'
       ORDER BY a.due_at ASC NULLS LAST
     `;
 
@@ -265,7 +263,7 @@ export async function getCourseCardData(req, res) {
       const pendingAssignments = offeringAssignments.filter(a => {
         const assignmentId = String(a.id);
         const notSubmitted = !submittedAssignmentIds.has(assignmentId);
-        const isValidType = ['file', 'pdf', 'ppt', 'mixed'].includes(a.assignment_type); // Removed 'code' to exclude from main assignments
+        const isValidType = true; // All assignments are now valid since code assignments are contests
         return notSubmitted && isValidType;
       }).length;
 

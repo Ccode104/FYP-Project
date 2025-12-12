@@ -96,13 +96,48 @@ export async function getContest(req, res) {
 
   // Get contest with course offering details
   const q = `
-    SELECT c.*, o.faculty_id, o.term, o.code as course_code, o.title as course_name
+    SELECT c.*, o.faculty_id, o.term, co.code as course_code, co.title as course_name
     FROM contests c
     JOIN course_offerings o ON c.course_offering_id = o.id
+    JOIN courses co ON o.course_id = co.id
     WHERE c.id = $1
   `;
   const r = await pool.query(q, [id]);
   if (r.rowCount === 0) return res.status(404).json({ error: 'Contest not found' });
+
+  const contest = r.rows[0];
+
+  // Check if user has access to this contest (enrolled in the course or faculty/admin)
+  if (req.user.role === 'student') {
+    const enrollCheck = await pool.query(
+      'SELECT 1 FROM enrollments WHERE course_offering_id = $1 AND student_id = $2',
+      [contest.course_offering_id, req.user.id]
+    );
+    if (enrollCheck.rowCount === 0) {
+      return res.status(403).json({ error: 'Not enrolled in this course' });
+    }
+  } else if (req.user.role === 'faculty' && req.user.id !== contest.faculty_id) {
+    return res.status(403).json({ error: 'Not authorized to view this contest' });
+  }
+
+  res.json(contest);
+}
+
+export async function getContestByOffering(req, res) {
+  const offeringId = Number(req.params.offeringId);
+  const contestId = Number(req.params.contestId);
+  if (!offeringId || !contestId) return res.status(400).json({ error: 'Missing offering or contest id' });
+
+  // Get contest with course offering details
+  const q = `
+    SELECT c.*, o.faculty_id, o.term, co.code as course_code, co.title as course_name
+    FROM contests c
+    JOIN course_offerings o ON c.course_offering_id = o.id
+    JOIN courses co ON o.course_id = co.id
+    WHERE c.id = $1 AND c.course_offering_id = $2
+  `;
+  const r = await pool.query(q, [contestId, offeringId]);
+  if (r.rowCount === 0) return res.status(404).json({ error: 'Contest not found for this course offering' });
 
   const contest = r.rows[0];
 
@@ -196,14 +231,16 @@ export async function getContestQuestions(req, res) {
     const questionsMap = new Map();
 
     for (const row of questionsR.rows) {
+      console.log(`Row ID: ${row.id}, template_code type: ${typeof row.template_code}, value:`, row.template_code);
+      console.log(`Row ID: ${row.id}, driver_code type: ${typeof row.driver_code}, value:`, row.driver_code);
       if (!questionsMap.has(row.id)) {
         questionsMap.set(row.id, {
           id: row.id,
           title: row.title,
           description: row.description,
           constraints: row.constraints,
-          template_code: row.template_code ? JSON.parse(row.template_code) : null,
-          driver_code: row.driver_code ? JSON.parse(row.driver_code) : null,
+          template_code: row.template_code && typeof row.template_code === 'string' ? JSON.parse(row.template_code) : row.template_code,
+          driver_code: row.driver_code && typeof row.driver_code === 'string' ? JSON.parse(row.driver_code) : row.driver_code,
           points: row.points,
           position: row.position,
           test_cases: []

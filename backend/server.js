@@ -36,6 +36,7 @@ import supportRoutes from './routes/support.js';
 import quizPermissionsRoutes from './routes/quizPermissions.js';
 import githubRoutes from './routes/github.js';
 import contestsRoutes from './routes/contests.js';
+import courseOfferingsRoutes from './routes/courseOfferings.js';
 import swaggerSpec from './swagger.js';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret';
@@ -135,6 +136,7 @@ export async function startServer(port = 4000) {
   app.use('/api/quiz-permissions', quizPermissionsRoutes);
   app.use('/api/github', githubRoutes);
   app.use('/api/contests', contestsRoutes);
+  app.use('/api/course-offerings', courseOfferingsRoutes);
 
   app.get('/health', (req, res) => res.json({ ok: true }));
 
