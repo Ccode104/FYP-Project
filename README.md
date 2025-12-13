@@ -33,13 +33,13 @@ This project meets all requirements for Hackathon submission:
 - Live lectures with participant management
 - Admin dashboard and analytics
 - Mobile app (React Native)
+- **CI/CD Pipeline**: GitHub Actions with automated linting, type checking, and testing
 
 ### ⚠️ Partially Implemented
 - **Database Layer**: Uses direct PostgreSQL queries instead of Prisma ORM
 - **Testing**: Manual test scripts available, automated testing framework pending
 
 ### ❌ Future Development
-- Automated unit and integration testing
 - Advanced analytics and reporting (Currently basic version)
 - Additional AI features
 
@@ -103,6 +103,58 @@ This project meets all requirements for Hackathon submission:
 - **Linting**: ESLint
 - **Type Checking**: TypeScript
 - **Testing**: Manual test scripts available, automated testing marked for future development
+- **CI/CD**: GitHub Actions with automated pipeline
+
+## CI/CD Pipeline
+
+The Unified Academic Portal includes a comprehensive GitHub Actions CI/CD pipeline that automatically validates code quality and test coverage on every push and pull request.
+
+### Pipeline Features
+
+#### Automated Checks
+- **Code Linting**: ESLint runs on both backend and frontend code to enforce code quality standards
+- **Type Checking**: TypeScript compilation ensures type safety
+- **Dependency Installation**: Automated npm install for both backend and frontend
+- **Testing**: Automated test execution for both applications
+
+#### Trigger Events
+- **Branches**: Runs on `main`, `develop`, and pull requests to `main`
+- **Timing**: Executes on every push to monitored branches
+- **Pull Request Checks**: Provides feedback on code quality before merge
+
+#### Workflow Steps
+
+**Backend Quality Checks:**
+1. Checkout code from repository
+2. Setup Node.js 18 environment
+3. Install backend dependencies
+4. Run ESLint code style validation
+5. Execute backend test suite
+
+**Frontend Quality Checks:**
+1. Install frontend dependencies
+2. Run ESLint code style validation
+3. Execute frontend test suite
+
+#### Configuration
+The pipeline is configured in `.github/workflows/ci.yml` and includes:
+- Runs on `ubuntu-latest` environment
+- Node.js version: 18 (LTS)
+- Parallel execution for backend and frontend checks
+- Fail-fast on any check failure to catch issues early
+
+### Benefits
+- **Code Quality Assurance**: Catches style violations and code issues before merge
+- **Regression Prevention**: Automated testing prevents unintended breakages
+- **Team Consistency**: Ensures all code meets project standards
+- **Integration Confidence**: Validates both backend and frontend compatibility
+- **Documentation**: All checks are visible in PR reviews
+
+### Local Pre-commit Hooks
+The project includes Husky pre-commit hooks that run:
+- **ESLint**: Validates code style before commit
+- **Test Suite**: Runs automated tests before commit
+This ensures code quality at the source before pushing to the repository.
 
 ## System Architecture
 
