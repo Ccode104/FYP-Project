@@ -229,7 +229,7 @@ export async function updateTicketStatus(req, res) {
       paramIndex++;
     }
 
-    updateFields.push(`updated_at = now()`);
+    updateFields.push('updated_at = now()');
 
     const query = `
       UPDATE support_tickets

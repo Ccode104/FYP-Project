@@ -15,7 +15,7 @@ export async function uploadVideo(req, res) {
     // Check if file was uploaded
     if (!req.file) {
       logger.error('No file in req.file');
-      return res.status(400).json({ error: "No video file provided" });
+      return res.status(400).json({ error: 'No video file provided' });
     }
 
     // Validate file type and size
@@ -25,7 +25,7 @@ export async function uploadVideo(req, res) {
     if (req.file.mimetype && !allowedMimeTypes.includes(req.file.mimetype)) {
       logger.warn(`Invalid file type uploaded: ${req.file.mimetype}`);
       return res.status(400).json({
-        error: "Invalid file type",
+        error: 'Invalid file type',
         details: `Allowed types: ${allowedMimeTypes.join(', ')}`
       });
     }
@@ -33,7 +33,7 @@ export async function uploadVideo(req, res) {
     if (req.file.size && req.file.size > maxFileSize) {
       logger.warn(`File too large: ${req.file.size} bytes`);
       return res.status(400).json({
-        error: "File too large",
+        error: 'File too large',
         details: `Maximum size: ${maxFileSize / (1024 * 1024)}MB`
       });
     }
@@ -46,15 +46,15 @@ export async function uploadVideo(req, res) {
 
     // Validate required fields
     if (!title) {
-      return res.status(400).json({ error: "Title is required" });
+      return res.status(400).json({ error: 'Title is required' });
     }
     if (!course_offering_id) {
-      return res.status(400).json({ error: "course_offering_id is required" });
+      return res.status(400).json({ error: 'course_offering_id is required' });
     }
 
     const courseOfferingId = parseInt(course_offering_id);
     if (isNaN(courseOfferingId)) {
-      return res.status(400).json({ error: "Invalid course_offering_id" });
+      return res.status(400).json({ error: 'Invalid course_offering_id' });
     }
 
     // Get Cloudinary upload result from multer-storage-cloudinary
@@ -111,7 +111,7 @@ export async function uploadVideo(req, res) {
     try {
       // Fetch video resource details from Cloudinary to get duration
       const videoResource = await cloudinary.api.resource(publicId, {
-        resource_type: "video",
+        resource_type: 'video',
       });
       duration = videoResource.duration || null; // Duration in seconds
 
@@ -144,27 +144,27 @@ export async function uploadVideo(req, res) {
 
     res.status(201).json({
       success: true,
-      message: "Video uploaded successfully",
+      message: 'Video uploaded successfully',
       video: result.rows[0],
     });
   } catch (error) {
-    logger.error("Error uploading video:", error);
-    console.error("Error uploading video - full error:", error);
-    console.error("Error stack:", error.stack);
+    logger.error('Error uploading video:', error);
+    console.error('Error uploading video - full error:', error);
+    console.error('Error stack:', error.stack);
 
     // Handle specific error types
-    if (error.message && error.message.includes("foreign key constraint")) {
+    if (error.message && error.message.includes('foreign key constraint')) {
       return res
         .status(400)
-        .json({ error: "Invalid user ID or course_offering_id" });
+        .json({ error: 'Invalid user ID or course_offering_id' });
     }
 
     // Ensure we always return JSON, not HTML
-    const errorMessage = error.message || "Failed to upload video";
+    const errorMessage = error.message || 'Failed to upload video';
     res
       .status(500)
       .json({ 
-        error: "Failed to upload video", 
+        error: 'Failed to upload video', 
         message: errorMessage,
         details: process.env.NODE_ENV === 'development' ? error.stack : undefined
       });
@@ -477,7 +477,7 @@ export async function getVideoQuizQuestions(req, res) {
 export async function updateVideoQuizQuestion(req, res) {
   try {
     const questionId = parseInt(req.params.questionId);
-    const { question_text, question_type, options, correct_answer, points, explanation } = req.body;
+    const { question_text, question_type, options, correct_answer, points, explanation, timestamp } = req.body;
 
     if (isNaN(questionId)) {
       return res.status(400).json({ error: 'Invalid question ID' });
@@ -521,7 +521,7 @@ export async function updateVideoQuizQuestion(req, res) {
       return res.status(400).json({ error: 'No fields to update' });
     }
 
-    updates.push(`updated_at = NOW()`);
+    updates.push('updated_at = NOW()');
     values.push(questionId);
 
     const updateQuery = `
@@ -685,7 +685,7 @@ export async function submitVideoQuizAnswer(req, res) {
     const pointsEarned = isCorrect ? points : 0;
 
     // Get or create attempt
-    let attemptResult = await pool.query(
+    const attemptResult = await pool.query(
       'SELECT * FROM video_quiz_attempts WHERE video_id = $1 AND student_id = $2',
       [videoId, studentId]
     );

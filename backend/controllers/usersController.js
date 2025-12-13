@@ -16,10 +16,10 @@ export async function getUserByEmail(req, res) {
   try {
     // Accept either query param or path param
     const email = (req.query.email || req.params.email || '').toString().trim();
-    if (!email) return res.status(400).json({ error: 'Missing email parameter' });
+    if (!email) {return res.status(400).json({ error: 'Missing email parameter' });}
 
     // Authorization: require authenticated user
-    if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
+    if (!req.user) {return res.status(401).json({ error: 'Unauthorized' });}
 
     // Allow if admin or requesting own record
     const requesterRole = req.user.role;
@@ -36,7 +36,7 @@ export async function getUserByEmail(req, res) {
     `;
     const r = await pool.query(q, [email]);
 
-    if (r.rowCount === 0) return res.status(404).json({ error: 'User not found' });
+    if (r.rowCount === 0) {return res.status(404).json({ error: 'User not found' });}
 
     return res.json({ user: r.rows[0] });
   } catch (err) {
@@ -52,7 +52,7 @@ export async function getUserByEmail(req, res) {
  */
 export async function getUserProfile(req, res) {
   try {
-    if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
+    if (!req.user) {return res.status(401).json({ error: 'Unauthorized' });}
 
     const userId = req.user.id;
     const userRole = req.user.role;
@@ -68,7 +68,7 @@ export async function getUserProfile(req, res) {
     `;
     const userResult = await pool.query(userQuery, [userId]);
 
-    if (userResult.rowCount === 0) return res.status(404).json({ error: 'User not found' });
+    if (userResult.rowCount === 0) {return res.status(404).json({ error: 'User not found' });}
 
     const profile = { ...userResult.rows[0] };
 
@@ -196,7 +196,7 @@ export async function getUserProfile(req, res) {
  */
 export async function updateUserProfile(req, res) {
   try {
-    if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
+    if (!req.user) {return res.status(401).json({ error: 'Unauthorized' });}
 
     const userId = req.user.id;
     const { name, email, roll_number } = req.body;
@@ -242,7 +242,7 @@ export async function updateUserProfile(req, res) {
       return res.status(400).json({ error: 'No valid fields to update' });
     }
 
-    updateFields.push(`updated_at = now()`);
+    updateFields.push('updated_at = now()');
     updateValues.push(userId);
 
     const updateQuery = `

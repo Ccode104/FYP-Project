@@ -33,7 +33,7 @@ export async function initiateOAuth(req, res) {
     try {
       decoded = jwt.verify(token, JWT_SECRET);
       console.log('GitHub OAuth: User authenticated, ID:', decoded.id);
-    } catch (err) {
+    } catch {
       console.log('GitHub OAuth: Invalid token');
       return res.status(401).json({ error: 'Invalid token' });
     }
@@ -83,7 +83,7 @@ export async function handleOAuthCallback(req, res) {
     try {
       stateData = jwt.verify(state, JWT_SECRET);
       console.log('GitHub OAuth: State verified for user:', stateData.userId);
-    } catch (err) {
+    } catch {
       console.log('GitHub OAuth: Invalid state');
       return res.status(400).json({ error: 'Invalid or expired state parameter' });
     }
@@ -100,7 +100,7 @@ export async function handleOAuthCallback(req, res) {
       }
     });
 
-    const { access_token, token_type, scope } = tokenResponse.data;
+    const { access_token } = tokenResponse.data;
 
     if (!access_token) {
       return res.status(400).json({ error: 'Failed to obtain access token from GitHub' });

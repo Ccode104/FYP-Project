@@ -11,9 +11,9 @@ if (!connectionString) {
 // For local development, SSL is usually not required
 const sslConfig = connectionString.includes('sslmode=require') || connectionString.includes('ssl=true')
   ? {
-      rejectUnauthorized: false, // Set to true in production with proper certificates
-      require: true
-    }
+    rejectUnauthorized: false, // Set to true in production with proper certificates
+    require: true
+  }
   : false;
 
 export const pool = new Pool({

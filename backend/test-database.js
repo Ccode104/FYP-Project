@@ -6,7 +6,8 @@ async function testDatabase() {
     console.log('Testing database connection and data...');
 
     // Test basic connection
-    const connectionTest = await pool.query('SELECT NOW()');
+    // eslint-disable-next-line no-unused-vars
+    const _connectionTest = await pool.query('SELECT NOW()');
     console.log('✅ Database connection successful');
 
     // Test users

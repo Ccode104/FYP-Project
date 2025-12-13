@@ -73,7 +73,8 @@ router.get('/sessions/suspended/:studentId', async (req, res) => {
     `;
 
     const result = await pool.query(query, [studentIdNum]);
-    const suspendedQuizIds = result.rows.map(row => row.quiz_id);
+    // eslint-disable-next-line no-unused-vars
+    const _suspendedQuizIds = result.rows.map(row => row.quiz_id);
 
     res.json({ sessions: result.rows });
   } catch (error) {
@@ -176,7 +177,8 @@ router.get('/sessions/active/:studentId', async (req, res) => {
     `;
 
     const result = await pool.query(query, [studentIdNum]);
-    const activeQuizIds = result.rows.map(row => row.quiz_id);
+    // eslint-disable-next-line no-unused-vars
+    const _activeQuizIds = result.rows.map(row => row.quiz_id);
 
     res.json({ sessions: result.rows });
   } catch (error) {

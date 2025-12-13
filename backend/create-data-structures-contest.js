@@ -7,7 +7,7 @@ async function createDataStructuresContest() {
 
     // Find CSE304 course offering
     const courseResult = await pool.query(
-      "SELECT co.id FROM course_offerings co JOIN courses c ON co.course_id = c.id WHERE c.code = 'CSE304' LIMIT 1"
+      'SELECT co.id FROM course_offerings co JOIN courses c ON co.course_id = c.id WHERE c.code = \'CSE304\' LIMIT 1'
     );
 
     if (courseResult.rows.length === 0) {
@@ -20,7 +20,7 @@ async function createDataStructuresContest() {
 
     // Find the assignment
     const assignmentResult = await pool.query(
-      "SELECT id FROM assignments WHERE title = 'Data Structures Implementation' AND course_offering_id = $1",
+      'SELECT id FROM assignments WHERE title = \'Data Structures Implementation\' AND course_offering_id = $1',
       [courseOfferingId]
     );
 

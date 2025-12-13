@@ -1,27 +1,25 @@
-import { pool } from "../db/index.js";
-import Groq from "groq-sdk";
-import fs from "fs";
-import { v4 as uuidv4 } from "uuid";
-import * as pdfjsLib from "pdfjs-dist/legacy/build/pdf.mjs";
-import mammoth from "mammoth";
+import { pool } from '../db/index.js';
+import Groq from 'groq-sdk';
+import { v4 as uuidv4 } from 'uuid';
+import * as pdfjsLib from 'pdfjs-dist/legacy/build/pdf.mjs';
+import mammoth from 'mammoth';
 import { createWorker } from 'tesseract.js';
-import axios from 'axios';
-import { initializeChatbotAgent, updatePdfTextStore } from "../agents/chatbotAgents.js";
-import { logger } from "../utils/logger.js";
+import { initializeChatbotAgent, updatePdfTextStore } from '../agents/chatbotAgents.js';
+import { logger } from '../utils/logger.js';
 
 // In-memory PDF text store (avoid DB writes)
 const pdfTextStore = new Map();
 
 // Initialize Groq client (still needed for some functions)
 const groqApiKey = process.env.GROQ_API_KEY;
-if (!groqApiKey || groqApiKey === "gsk_your_api_key_here") {
+if (!groqApiKey || groqApiKey === 'gsk_your_api_key_here') {
   console.warn(
-    "⚠️  WARNING: GROQ_API_KEY not set in .env file. Chatbot features will not work."
+    '⚠️  WARNING: GROQ_API_KEY not set in .env file. Chatbot features will not work.'
   );
 }
 
 const groq = new Groq({
-  apiKey: groqApiKey || "gsk_your_api_key_here", // Add to .env file
+  apiKey: groqApiKey || 'gsk_your_api_key_here', // Add to .env file
 });
 
 // Initialize the agent
@@ -30,7 +28,7 @@ let chatbotAgent = null;
   try {
     chatbotAgent = await initializeChatbotAgent();
   } catch (error) {
-    console.error("Failed to initialize chatbot agent:", error);
+    console.error('Failed to initialize chatbot agent:', error);
   }
 })();
 
@@ -45,11 +43,11 @@ export async function chatAboutCourse(req, res) {
     const { message, history = [] } = req.body;
 
     if (!message) {
-      return res.status(400).json({ error: "Message is required" });
+      return res.status(400).json({ error: 'Message is required' });
     }
 
     if (!chatbotAgent) {
-      return res.status(500).json({ error: "Chatbot agent not initialized" });
+      return res.status(500).json({ error: 'Chatbot agent not initialized' });
     }
 
     // Prepare input for the agent
@@ -68,14 +66,14 @@ Please answer the user's question about this specific course using available too
       input: agentInput,
     });
 
-    const reply = result.output || "Sorry, I could not generate a response.";
+    const reply = result.output || 'Sorry, I could not generate a response.';
 
     res.json({ reply, timestamp: new Date().toISOString() });
   } catch (err) {
-    console.error("chatAboutCourse error:", err);
+    console.error('chatAboutCourse error:', err);
     res
       .status(500)
-      .json({ error: "Failed to process chat", details: err.message });
+      .json({ error: 'Failed to process chat', details: err.message });
   }
 }
 
@@ -98,13 +96,13 @@ async function extractTextWithPdfJs(buffer) {
     isOffscreenCanvasSupported: false,
   }).promise;
 
-  let fullText = "";
+  let fullText = '';
   const numPages = doc.numPages || 0;
   for (let p = 1; p <= numPages; p++) {
     const page = await doc.getPage(p);
     const content = await page.getTextContent();
-    const pageText = content.items.map((it) => it.str).join(" ");
-    fullText += pageText + "\n";
+    const pageText = content.items.map((it) => it.str).join(' ');
+    fullText += pageText + '\n';
   }
   return fullText;
 }
@@ -112,15 +110,15 @@ async function extractTextWithPdfJs(buffer) {
 async function extractPdfText(buffer) {
   try {
     const text = await extractTextWithPdfJs(buffer);
-    if (text && text.trim().length > 0) return text;
+    if (text && text.trim().length > 0) {return text;}
     // If no text found, PDF might be scanned but OCR for PDFs is complex
     // For now, we'll skip OCR for PDFs and return empty text
-    console.log("No text found in PDF - may be scanned image");
-    return "";
+    console.log('No text found in PDF - may be scanned image');
+    return '';
   } catch (err) {
-    console.error("PDF text extraction failed:", err);
+    console.error('PDF text extraction failed:', err);
     throw new Error(
-      "Could not extract text from PDF (possibly scanned or encrypted)"
+      'Could not extract text from PDF (possibly scanned or encrypted)'
     );
   }
 }
@@ -129,100 +127,12 @@ async function performOCR(buffer) {
   const worker = await createWorker('eng');
   try {
     const { data: { text } } = await worker.recognize(buffer);
-    return text || "";
+    return text || '';
   } finally {
     await worker.terminate();
   }
 }
 
-async function performWebSearch(query) {
-  try {
-    // Try multiple search approaches for better results
-
-    // First, try DuckDuckGo instant answer API
-    try {
-      const instantResponse = await axios.get(`https://api.duckduckgo.com/?q=${encodeURIComponent(query)}&format=json&no_html=1&skip_disambig=1&t=ai_assistant`, {
-        timeout: 5000
-      });
-      const data = instantResponse.data;
-
-      // Check for instant answer
-      if (data.AbstractText && data.AbstractText.trim()) {
-        return {
-          title: data.Heading || query,
-          snippet: data.AbstractText,
-          source: data.AbstractURL || 'DuckDuckGo'
-        };
-      }
-
-      // Check for answer box
-      if (data.Answer && data.Answer.trim()) {
-        return {
-          title: data.AnswerType || query,
-          snippet: data.Answer,
-          source: 'DuckDuckGo'
-        };
-      }
-    } catch (instantError) {
-      console.log('Instant answer API failed, trying alternatives...');
-    }
-
-    // Fallback: Use a simple web search simulation with known facts
-    // For common queries, provide direct answers
-    const lowerQuery = query.toLowerCase();
-
-    // Handle common programming/version queries
-    if (lowerQuery.includes('latest version') && lowerQuery.includes('java')) {
-      return {
-        title: 'Latest Java Version',
-        snippet: 'As of 2024, the latest LTS (Long Term Support) version of Java is Java 21, released in September 2023. The current latest version is Java 22, but Java 21 is recommended for production use due to LTS support until at least 2031.',
-        source: 'Oracle Java Documentation'
-      };
-    }
-
-    if (lowerQuery.includes('python') && lowerQuery.includes('version')) {
-      return {
-        title: 'Latest Python Version',
-        snippet: 'As of 2024, Python 3.12 is the latest stable version, released in October 2023. Python 3.11 is also widely used and has long-term support.',
-        source: 'Python.org'
-      };
-    }
-
-    // For general queries, try to provide helpful information
-    if (lowerQuery.includes('what is') || lowerQuery.includes('explain') || lowerQuery.includes('how')) {
-      // These are conceptual queries that might benefit from general knowledge
-      return {
-        title: query,
-        snippet: `For detailed information about "${query}", I recommend checking official documentation, educational resources, or reputable websites. While I don't have real-time web access, I can help explain concepts based on general knowledge.`,
-        source: 'General Knowledge'
-      };
-    }
-
-    // For current events or real-time data
-    if (lowerQuery.includes('weather') || lowerQuery.includes('news') || lowerQuery.includes('today') || lowerQuery.includes('current')) {
-      return {
-        title: query,
-        snippet: `For real-time information like "${query}", please check directly from official sources or specialized websites/apps that provide current data.`,
-        source: 'Real-time Data Notice'
-      };
-    }
-
-    // Default fallback
-    return {
-      title: query,
-      snippet: `I searched for information about "${query}". For the most accurate and up-to-date information, I recommend checking official documentation, educational resources, or specialized websites directly.`,
-      source: 'Search Recommendation'
-    };
-
-  } catch (error) {
-    console.error('Web search error:', error);
-    return {
-      title: query,
-      snippet: 'Web search is currently unavailable. Please try again later.',
-      source: 'Error'
-    };
-  }
-}
 
 /* ------------------------------------------------------------------
  * 📤 UPLOAD DOCUMENT (PDF/DOCX/TXT/IMAGES)
@@ -231,38 +141,38 @@ async function performWebSearch(query) {
 export async function uploadDocument(req, res) {
   try {
     if (!req.file) {
-      return res.status(400).json({ error: "No file uploaded" });
+      return res.status(400).json({ error: 'No file uploaded' });
     }
 
     const buffer = req.file.buffer;
     if (!buffer || !(buffer instanceof Buffer)) {
-      return res.status(400).json({ error: "Invalid upload payload" });
+      return res.status(400).json({ error: 'Invalid upload payload' });
     }
 
-    const mime = req.file.mimetype || "";
-    const filename = req.file.originalname || "document";
-    let text = "";
+    const mime = req.file.mimetype || '';
+    const filename = req.file.originalname || 'document';
+    let text = '';
     let usedOCR = false;
 
-    if (mime === "application/pdf" || filename.toLowerCase().endsWith(".pdf")) {
+    if (mime === 'application/pdf' || filename.toLowerCase().endsWith('.pdf')) {
       text = await extractPdfText(buffer);
       if (text.trim().length === 0) {
         usedOCR = true;
       }
     } else if (
       mime ===
-        "application/vnd.openxmlformats-officedocument.wordprocessingml.document" ||
-      filename.toLowerCase().endsWith(".docx")
+        'application/vnd.openxmlformats-officedocument.wordprocessingml.document' ||
+      filename.toLowerCase().endsWith('.docx')
     ) {
       const result = await mammoth.extractRawText({ buffer });
-      text = result.value || "";
+      text = result.value || '';
     } else if (
-      mime === "text/plain" ||
-      filename.toLowerCase().endsWith(".txt")
+      mime === 'text/plain' ||
+      filename.toLowerCase().endsWith('.txt')
     ) {
-      text = buffer.toString("utf8");
+      text = buffer.toString('utf8');
     } else if (
-      mime.startsWith("image/") ||
+      mime.startsWith('image/') ||
       filename.toLowerCase().match(/\.(png|jpg|jpeg|gif|bmp|tiff)$/i)
     ) {
       // Image files - use OCR
@@ -270,14 +180,14 @@ export async function uploadDocument(req, res) {
       usedOCR = true;
     } else {
       return res.status(400).json({
-        error: "Unsupported file type. Please upload PDF, DOCX, TXT, or image files (PNG, JPG, JPEG, etc.).",
+        error: 'Unsupported file type. Please upload PDF, DOCX, TXT, or image files (PNG, JPG, JPEG, etc.).',
       });
     }
 
     if (!text.trim()) {
       return res
         .status(400)
-        .json({ error: "No extractable text found in the file." });
+        .json({ error: 'No extractable text found in the file.' });
     }
 
     const id = uuidv4();
@@ -300,9 +210,9 @@ export async function uploadDocument(req, res) {
       usedOCR,
     });
   } catch (err) {
-    console.error("uploadDocument error:", err && (err.stack || err));
+    console.error('uploadDocument error:', err && (err.stack || err));
     res.status(500).json({
-      error: "Failed to process file",
+      error: 'Failed to process file',
       details: String(err?.message || err),
     });
   }
@@ -318,11 +228,11 @@ export async function chatWithDocument(req, res) {
     const { message, history = [] } = req.body;
 
     if (!message) {
-      return res.status(400).json({ error: "Message is required" });
+      return res.status(400).json({ error: 'Message is required' });
     }
 
     if (!chatbotAgent) {
-      return res.status(500).json({ error: "Chatbot agent not initialized" });
+      return res.status(500).json({ error: 'Chatbot agent not initialized' });
     }
 
     // Prepare input for the agent
@@ -341,14 +251,14 @@ Please answer the user's question about the uploaded document using available to
       input: agentInput,
     });
 
-    const reply = result.output || "Sorry, I could not generate a response.";
+    const reply = result.output || 'Sorry, I could not generate a response.';
 
     res.json({ reply, timestamp: new Date().toISOString() });
   } catch (err) {
-    console.error("chatWithDocument error:", err);
+    console.error('chatWithDocument error:', err);
     res
       .status(500)
-      .json({ error: "Failed to process chat", details: err.message });
+      .json({ error: 'Failed to process chat', details: err.message });
   }
 }
 
@@ -371,12 +281,12 @@ export async function chatWithAI(req, res) {
 
     if (!message) {
       logger.warn('Chatbot request missing message', { userId });
-      return res.status(400).json({ error: "Message is required" });
+      return res.status(400).json({ error: 'Message is required' });
     }
 
     if (!chatbotAgent) {
       logger.error('Chatbot agent not initialized');
-      return res.status(500).json({ error: "Chatbot agent not initialized" });
+      return res.status(500).json({ error: 'Chatbot agent not initialized' });
     }
 
     // Hybrid query classification: Keywords + AI fallback
@@ -427,8 +337,8 @@ Context: Course ID ${courseId}, ${documentIds.length} documents available, Web s
 Respond with only the category name and confidence score (0-1), e.g.: "course_info:0.95"`;
 
         const classification = await groq.chat.completions.create({
-          model: "llama-3.3-70b-versatile",
-          messages: [{ role: "user", content: classificationPrompt }],
+          model: 'llama-3.3-70b-versatile',
+          messages: [{ role: 'user', content: classificationPrompt }],
           max_tokens: 20,
           temperature: 0.1
         });
@@ -486,7 +396,7 @@ QUESTION: ${message}`;
       input: agentInput,
     });
 
-    const reply = result.output || "Sorry, I could not generate a response.";
+    const reply = result.output || 'Sorry, I could not generate a response.';
 
     // Check if web search was used (from agent's intermediate steps if available)
     let usedWebSearch = false;
@@ -515,10 +425,10 @@ QUESTION: ${message}`;
       webSearchResult
     });
   } catch (err) {
-    logger.error("chatWithAI error:", err, { userId: req.user?.id });
+    logger.error('chatWithAI error:', err, { userId: req.user?.id });
     res
       .status(500)
-      .json({ error: "Failed to process chat", details: err.message });
+      .json({ error: 'Failed to process chat', details: err.message });
   }
 }
 
@@ -543,8 +453,8 @@ export async function listUserDocuments(req, res) {
     items.sort((a, b) => new Date(b.uploaded_at) - new Date(a.uploaded_at));
     res.json({ documents: items.slice(0, 50) });
   } catch (err) {
-    console.error("listUserDocuments error:", err);
-    res.status(500).json({ error: "Failed to fetch documents" });
+    console.error('listUserDocuments error:', err);
+    res.status(500).json({ error: 'Failed to fetch documents' });
   }
 }
 
@@ -558,11 +468,11 @@ export async function saveChatSession(req, res) {
     const userId = req.user?.id;
 
     if (!userId) {
-      return res.status(401).json({ error: "Authentication required" });
+      return res.status(401).json({ error: 'Authentication required' });
     }
 
     if (!title || !messages || !Array.isArray(messages)) {
-      return res.status(400).json({ error: "Invalid chat data" });
+      return res.status(400).json({ error: 'Invalid chat data' });
     }
 
     // Insert chat session
@@ -597,8 +507,8 @@ export async function saveChatSession(req, res) {
 
     res.json({ success: true, sessionId });
   } catch (err) {
-    console.error("saveChatSession error:", err);
-    res.status(500).json({ error: "Failed to save chat session" });
+    console.error('saveChatSession error:', err);
+    res.status(500).json({ error: 'Failed to save chat session' });
   }
 }
 
@@ -611,7 +521,7 @@ export async function loadUserChatSessions(req, res) {
     const userId = req.user?.id;
 
     if (!userId) {
-      return res.status(401).json({ error: "Authentication required" });
+      return res.status(401).json({ error: 'Authentication required' });
     }
 
     // Get chat sessions with message count
@@ -642,8 +552,8 @@ export async function loadUserChatSessions(req, res) {
 
     res.json({ sessions });
   } catch (err) {
-    console.error("loadUserChatSessions error:", err);
-    res.status(500).json({ error: "Failed to load chat sessions" });
+    console.error('loadUserChatSessions error:', err);
+    res.status(500).json({ error: 'Failed to load chat sessions' });
   }
 }
 
@@ -657,7 +567,7 @@ export async function loadChatSession(req, res) {
     const userId = req.user?.id;
 
     if (!userId) {
-      return res.status(401).json({ error: "Authentication required" });
+      return res.status(401).json({ error: 'Authentication required' });
     }
 
     // Verify ownership and get session info
@@ -669,7 +579,7 @@ export async function loadChatSession(req, res) {
     );
 
     if (sessionResult.rowCount === 0) {
-      return res.status(404).json({ error: "Chat session not found" });
+      return res.status(404).json({ error: 'Chat session not found' });
     }
 
     const session = sessionResult.rows[0];
@@ -704,8 +614,8 @@ export async function loadChatSession(req, res) {
 
     res.json({ session: chatData });
   } catch (err) {
-    console.error("loadChatSession error:", err);
-    res.status(500).json({ error: "Failed to load chat session" });
+    console.error('loadChatSession error:', err);
+    res.status(500).json({ error: 'Failed to load chat session' });
   }
 }
 
@@ -719,7 +629,7 @@ export async function deleteChatSession(req, res) {
     const userId = req.user?.id;
 
     if (!userId) {
-      return res.status(401).json({ error: "Authentication required" });
+      return res.status(401).json({ error: 'Authentication required' });
     }
 
     // Delete session (cascade will handle messages and documents)
@@ -730,12 +640,12 @@ export async function deleteChatSession(req, res) {
     );
 
     if (result.rowCount === 0) {
-      return res.status(404).json({ error: "Chat session not found" });
+      return res.status(404).json({ error: 'Chat session not found' });
     }
 
     res.json({ success: true });
   } catch (err) {
-    console.error("deleteChatSession error:", err);
-    res.status(500).json({ error: "Failed to delete chat session" });
+    console.error('deleteChatSession error:', err);
+    res.status(500).json({ error: 'Failed to delete chat session' });
   }
 }

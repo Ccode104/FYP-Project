@@ -1,8 +1,8 @@
-import { Tool } from "@langchain/core/tools";
-import { ChatGroq } from "@langchain/groq";
-import { AgentExecutor, createReactAgent } from "langchain/agents";
-import { pull } from "langchain/hub";
-import { pool } from "../db/index.js";
+import { Tool } from '@langchain/core/tools';
+import { ChatGroq } from '@langchain/groq';
+import { AgentExecutor, createReactAgent } from 'langchain/agents';
+import { pull } from 'langchain/hub';
+import { pool } from '../db/index.js';
 import axios from 'axios';
 
 // In-memory PDF text store (shared with controller)
@@ -10,21 +10,21 @@ const pdfTextStore = new Map();
 
 // Initialize Groq client
 const groqApiKey = process.env.GROQ_API_KEY;
-if (!groqApiKey || groqApiKey === "gsk_your_api_key_here") {
-  console.warn("⚠️  WARNING: GROQ_API_KEY not set. Chatbot agents will not work.");
+if (!groqApiKey || groqApiKey === 'gsk_your_api_key_here') {
+  console.warn('⚠️  WARNING: GROQ_API_KEY not set. Chatbot agents will not work.');
 }
 
 const llm = new ChatGroq({
-  apiKey: groqApiKey || "gsk_your_api_key_here",
-  modelName: "llama-3.3-70b-versatile",
+  apiKey: groqApiKey || 'gsk_your_api_key_here',
+  modelName: 'llama-3.3-70b-versatile',
   temperature: 0.7,
   maxTokens: 1024,
 });
 
 // Tool 1: Course Information Tool
 class CourseInfoTool extends Tool {
-  name = "course_info";
-  description = "Get detailed information about a specific course including title, description, faculty, notes, and previous year questions. Input should be the course offering ID.";
+  name = 'course_info';
+  description = 'Get detailed information about a specific course including title, description, faculty, notes, and previous year questions. Input should be the course offering ID.';
 
   constructor() {
     super();
@@ -45,57 +45,57 @@ class CourseInfoTool extends Tool {
       );
 
       if (courseData.rowCount === 0) {
-        return "Course not found.";
+        return 'Course not found.';
       }
 
       const course = courseData.rows[0];
       let result = `Course: ${course.code} - ${course.title}
-Description: ${course.description || "No description available"}
+Description: ${course.description || 'No description available'}
 Term: ${course.term}, Section: ${course.section}
-Professor: ${course.faculty_name || "Not assigned"}`;
+Professor: ${course.faculty_name || 'Not assigned'}`;
 
       // Add course notes
       try {
         const notesData = await pool.query(
-          `SELECT title, description FROM resources WHERE course_offering_id = $1 AND resource_type = 'lecture_note' LIMIT 5`,
+          'SELECT title, description FROM resources WHERE course_offering_id = $1 AND resource_type = \'lecture_note\' LIMIT 5',
           [courseId]
         );
         if (notesData.rows.length > 0) {
-          result += "\n\nCourse Notes:\n" + notesData.rows.map(note =>
+          result += '\n\nCourse Notes:\n' + notesData.rows.map(note =>
             `- ${note.title}: ${note.description || 'No description'}`
           ).join('\n');
         }
       } catch (notesErr) {
-        console.error("Error fetching course notes:", notesErr);
+        console.error('Error fetching course notes:', notesErr);
       }
 
       // Add PYQs
       try {
         const pyqData = await pool.query(
-          `SELECT title, description FROM resources WHERE course_offering_id = $1 AND resource_type = 'pyq' LIMIT 5`,
+          'SELECT title, description FROM resources WHERE course_offering_id = $1 AND resource_type = \'pyq\' LIMIT 5',
           [courseId]
         );
         if (pyqData.rows.length > 0) {
-          result += "\n\nPrevious Year Questions (PYQs):\n" + pyqData.rows.map(pyq =>
+          result += '\n\nPrevious Year Questions (PYQs):\n' + pyqData.rows.map(pyq =>
             `- ${pyq.title}: ${pyq.description || 'No description'}`
           ).join('\n');
         }
       } catch (pyqErr) {
-        console.error("Error fetching PYQs:", pyqErr);
+        console.error('Error fetching PYQs:', pyqErr);
       }
 
       return result;
     } catch (error) {
-      console.error("CourseInfoTool error:", error);
-      return "Error retrieving course information.";
+      console.error('CourseInfoTool error:', error);
+      return 'Error retrieving course information.';
     }
   }
 }
 
 // Tool 2: Document Search Tool (Enhanced RAG for PYQs and Notes)
 class DocumentSearchTool extends Tool {
-  name = "document_search";
-  description = "Search through uploaded documents, course notes, and PYQs for relevant information. Input should be a JSON string with 'documentIds' array, 'courseId' for course resources, and 'query' string.";
+  name = 'document_search';
+  description = 'Search through uploaded documents, course notes, and PYQs for relevant information. Input should be a JSON string with \'documentIds\' array, \'courseId\' for course resources, and \'query\' string.';
 
   constructor() {
     super();
@@ -104,7 +104,7 @@ class DocumentSearchTool extends Tool {
   async _call(input) {
     try {
       const { documentIds = [], courseId, query } = JSON.parse(input);
-      let results = [];
+      const results = [];
 
       // Check if this is a document summary request
       const summaryKeywords = ['tell me about', 'what is this', 'what is the', 'describe', 'summary', 'overview', 'about this doc'];
@@ -189,7 +189,7 @@ class DocumentSearchTool extends Tool {
           });
 
         } catch (dbError) {
-          console.error("Error searching course resources:", dbError);
+          console.error('Error searching course resources:', dbError);
         }
       }
 
@@ -199,21 +199,21 @@ class DocumentSearchTool extends Tool {
 
       return results.map(r => {
         const sourceLabel = r.source === 'uploaded_document' ? 'Document' :
-                           r.source === 'course_notes' ? 'Course Notes' :
-                           r.source === 'pyq' ? 'Previous Year Question' : 'Resource';
+          r.source === 'course_notes' ? 'Course Notes' :
+            r.source === 'pyq' ? 'Previous Year Question' : 'Resource';
         return `${sourceLabel}: ${r.filename}${r.usedOCR ? ' (OCR processed)' : ''}\nRelevant content:\n${r.snippets.join('\n')}`;
       }).join('\n\n');
     } catch (error) {
-      console.error("DocumentSearchTool error:", error);
-      return "Error searching documents and course materials.";
+      console.error('DocumentSearchTool error:', error);
+      return 'Error searching documents and course materials.';
     }
   }
 }
 
 // Tool 3: Assignments and Quizzes Tool
 class AssignmentsQuizzesTool extends Tool {
-  name = "assignments_quizzes";
-  description = "Get information about upcoming assignments, quizzes, deadlines, and submission status. Input should be a JSON string with 'courseId' and 'userId'.";
+  name = 'assignments_quizzes';
+  description = 'Get information about upcoming assignments, quizzes, deadlines, and submission status. Input should be a JSON string with \'courseId\' and \'userId\'.';
 
   constructor() {
     super();
@@ -295,21 +295,21 @@ class AssignmentsQuizzesTool extends Tool {
       }
 
       if (result === '') {
-        return "No upcoming assignments or quizzes found for this course.";
+        return 'No upcoming assignments or quizzes found for this course.';
       }
 
       return result.trim();
     } catch (error) {
-      console.error("AssignmentsQuizzesTool error:", error);
-      return "Error retrieving assignments and quizzes information.";
+      console.error('AssignmentsQuizzesTool error:', error);
+      return 'Error retrieving assignments and quizzes information.';
     }
   }
 }
 
 // Tool 4: Web Search Tool
 class WebSearchTool extends Tool {
-  name = "web_search";
-  description = "Perform web search for information not available in course materials or documents. Input should be the search query.";
+  name = 'web_search';
+  description = 'Perform web search for information not available in course materials or documents. Input should be the search query.';
 
   constructor() {
     super();
@@ -343,7 +343,7 @@ class WebSearchTool extends Tool {
             source: 'DuckDuckGo'
           };
         }
-      } catch (instantError) {
+      } catch {
         console.log('Instant answer API failed, trying alternatives...');
       }
 
@@ -407,7 +407,7 @@ class WebSearchTool extends Tool {
 let agentExecutor = null;
 
 async function initializeChatbotAgent() {
-  if (agentExecutor) return agentExecutor;
+  if (agentExecutor) {return agentExecutor;}
 
   const tools = [
     new CourseInfoTool(),
@@ -418,7 +418,7 @@ async function initializeChatbotAgent() {
 
   try {
     // Get the react prompt from LangChain hub
-    const prompt = await pull("hwchase17/react");
+    const prompt = await pull('hwchase17/react');
 
     const agent = await createReactAgent({
       llm,
@@ -436,7 +436,7 @@ async function initializeChatbotAgent() {
 
     return agentExecutor;
   } catch (error) {
-    console.error("Failed to initialize chatbot agent:", error);
+    console.error('Failed to initialize chatbot agent:', error);
     throw error;
   }
 }

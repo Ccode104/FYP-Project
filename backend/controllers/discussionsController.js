@@ -1,24 +1,24 @@
 import { pool } from '../db/index.js';
 
 async function hasAccess(offeringId, user) {
-  if (!user) return false;
-  if (user.role === 'admin') return true;
+  if (!user) {return false;}
+  if (user.role === 'admin') {return true;}
   const id = Number(offeringId);
-  if (!id) return false;
+  if (!id) {return false;}
 
   if (user.role === 'faculty') {
     const r = await pool.query('SELECT 1 FROM course_offerings WHERE id=$1 AND faculty_id=$2', [id, user.id]);
-    if (r.rowCount > 0) return true;
+    if (r.rowCount > 0) {return true;}
   }
 
   if (user.role === 'ta') {
     const r = await pool.query('SELECT 1 FROM ta_assignments WHERE course_offering_id=$1 AND ta_id=$2', [id, user.id]);
-    if (r.rowCount > 0) return true;
+    if (r.rowCount > 0) {return true;}
   }
 
   if (user.role === 'student') {
     const r = await pool.query('SELECT 1 FROM enrollments WHERE course_offering_id=$1 AND student_id=$2', [id, user.id]);
-    if (r.rowCount > 0) return true;
+    if (r.rowCount > 0) {return true;}
   }
 
   return false;
@@ -27,8 +27,8 @@ async function hasAccess(offeringId, user) {
 export async function listMessages(req, res) {
   try {
     const offeringId = Number(req.params.offeringId);
-    if (!offeringId) return res.status(400).json({ error: 'Invalid offeringId' });
-    if (!(await hasAccess(offeringId, req.user))) return res.status(403).json({ error: 'Forbidden' });
+    if (!offeringId) {return res.status(400).json({ error: 'Invalid offeringId' });}
+    if (!(await hasAccess(offeringId, req.user))) {return res.status(403).json({ error: 'Forbidden' });}
 
     const after = req.query.after ? new Date(String(req.query.after)) : null;
     const limit = Math.min(Number(req.query.limit || 200), 500);
@@ -63,20 +63,20 @@ export async function postMessage(req, res) {
     const user = req.user;
     const { content, parent_id } = req.body || {};
 
-    if (!offeringId) return res.status(400).json({ error: 'Invalid offeringId' });
-    if (!(await hasAccess(offeringId, user))) return res.status(403).json({ error: 'Forbidden' });
+    if (!offeringId) {return res.status(400).json({ error: 'Invalid offeringId' });}
+    if (!(await hasAccess(offeringId, user))) {return res.status(403).json({ error: 'Forbidden' });}
 
     const text = (content || '').toString().trim();
-    if (!text) return res.status(400).json({ error: 'Content required' });
+    if (!text) {return res.status(400).json({ error: 'Content required' });}
 
     let parentId = parent_id ? Number(parent_id) : null;
-    if (Number.isNaN(parentId)) parentId = null;
+    if (Number.isNaN(parentId)) {parentId = null;}
 
     // Anyone with access can create a top-level message or reply
     if (parentId) {
       // Validate parent exists and belongs to same offering
       const p = await pool.query('SELECT id FROM discussion_messages WHERE id=$1 AND course_offering_id=$2', [parentId, offeringId]);
-      if (p.rowCount === 0) return res.status(400).json({ error: 'Invalid parent_id' });
+      if (p.rowCount === 0) {return res.status(400).json({ error: 'Invalid parent_id' });}
     }
 
     const r = await pool.query(

@@ -1,26 +1,26 @@
-import { Tool } from "@langchain/core/tools";
-import { ChatGroq } from "@langchain/groq";
-import { AgentExecutor, createReactAgent } from "langchain/agents";
-import { pull } from "langchain/hub";
-import { pool } from "../db/index.js";
+import { Tool } from '@langchain/core/tools';
+import { ChatGroq } from '@langchain/groq';
+import { AgentExecutor, createReactAgent } from 'langchain/agents';
+import { pull } from 'langchain/hub';
+import { pool } from '../db/index.js';
 
 // Initialize Groq client
 const groqApiKey = process.env.GROQ_API_KEY;
-if (!groqApiKey || groqApiKey === "gsk_your_api_key_here") {
-  console.warn("⚠️  WARNING: GROQ_API_KEY not set. TA agents will not work.");
+if (!groqApiKey || groqApiKey === 'gsk_your_api_key_here') {
+  console.warn('⚠️  WARNING: GROQ_API_KEY not set. TA agents will not work.');
 }
 
 const llm = new ChatGroq({
-  apiKey: groqApiKey || "gsk_your_api_key_here",
-  modelName: "llama-3.3-70b-versatile",
+  apiKey: groqApiKey || 'gsk_your_api_key_here',
+  modelName: 'llama-3.3-70b-versatile',
   temperature: 0.7,
   maxTokens: 1024,
 });
 
 // Tool 1: Assignment Submission Analyzer
 class AssignmentAnalyzerTool extends Tool {
-  name = "assignment_analyzer";
-  description = "Analyze a specific assignment submission to understand student work, identify strengths/weaknesses, and provide grading insights. Input should be a JSON string with 'submissionId'.";
+  name = 'assignment_analyzer';
+  description = 'Analyze a specific assignment submission to understand student work, identify strengths/weaknesses, and provide grading insights. Input should be a JSON string with \'submissionId\'.';
 
   async _call(input) {
     try {
@@ -56,7 +56,7 @@ class AssignmentAnalyzerTool extends Tool {
 
       const submissionResult = await pool.query(submissionQuery, [submissionId]);
       if (submissionResult.rowCount === 0) {
-        return "Submission not found.";
+        return 'Submission not found.';
       }
 
       const submission = submissionResult.rows[0];
@@ -99,16 +99,16 @@ Grader Comments: ${submission.comments || 'No comments'}
 
       return analysis;
     } catch (error) {
-      console.error("AssignmentAnalyzerTool error:", error);
-      return "Error analyzing assignment submission.";
+      console.error('AssignmentAnalyzerTool error:', error);
+      return 'Error analyzing assignment submission.';
     }
   }
 }
 
 // Tool 2: Viva Question Generator
 class VivaQuestionGeneratorTool extends Tool {
-  name = "viva_question_generator";
-  description = "Generate viva (oral examination) questions based on assignment content, course material, or specific topics. Input should be a JSON string with 'assignmentId', 'difficulty' (easy/medium/hard), and 'count' (number of questions).";
+  name = 'viva_question_generator';
+  description = 'Generate viva (oral examination) questions based on assignment content, course material, or specific topics. Input should be a JSON string with \'assignmentId\', \'difficulty\' (easy/medium/hard), and \'count\' (number of questions).';
 
   async _call(input) {
     try {
@@ -137,7 +137,7 @@ class VivaQuestionGeneratorTool extends Tool {
       const assignment = assignmentResult.rows[0];
 
       if (!assignment) {
-        return "Assignment not found.";
+        return 'Assignment not found.';
       }
 
       const context = `
@@ -151,9 +151,9 @@ Language: ${assignment.language || 'Not specified'}
 
       // Generate questions based on difficulty and context
       const difficultyPrompts = {
-        easy: "basic concepts, fundamental understanding, simple explanations",
-        medium: "intermediate concepts, practical applications, problem-solving approaches",
-        hard: "advanced concepts, optimization, edge cases, complex scenarios"
+        easy: 'basic concepts, fundamental understanding, simple explanations',
+        medium: 'intermediate concepts, practical applications, problem-solving approaches',
+        hard: 'advanced concepts, optimization, edge cases, complex scenarios'
       };
 
       const prompt = `Based on this assignment context, generate ${count} viva (oral examination) questions at ${difficulty} level focusing on ${difficultyPrompts[difficulty]}.
@@ -173,18 +173,18 @@ Questions:`;
 
       // Use LLM to generate questions
       const response = await llm.invoke(prompt);
-      return response.content || "Failed to generate viva questions.";
+      return response.content || 'Failed to generate viva questions.';
     } catch (error) {
-      console.error("VivaQuestionGeneratorTool error:", error);
-      return "Error generating viva questions.";
+      console.error('VivaQuestionGeneratorTool error:', error);
+      return 'Error generating viva questions.';
     }
   }
 }
 
 // Tool 3: Code Debugging Question Generator
 class CodeDebugQuestionGeneratorTool extends Tool {
-  name = "code_debug_generator";
-  description = "Generate debugging questions and scenarios based on code submissions. Input should be a JSON string with 'submissionId' and 'questionType' (bug_identification/fix_explanation/optimization/improvement).";
+  name = 'code_debug_generator';
+  description = 'Generate debugging questions and scenarios based on code submissions. Input should be a JSON string with \'submissionId\' and \'questionType\' (bug_identification/fix_explanation/optimization/improvement).';
 
   async _call(input) {
     try {
@@ -209,16 +209,16 @@ class CodeDebugQuestionGeneratorTool extends Tool {
 
       const codeResult = await pool.query(codeQuery, [submissionId]);
       if (codeResult.rowCount === 0) {
-        return "Code submission not found.";
+        return 'Code submission not found.';
       }
 
       const submission = codeResult.rows[0];
 
       const questionTypes = {
-        bug_identification: "Identify bugs, errors, or logical issues in the code",
-        fix_explanation: "Explain how to fix identified problems and why the fix works",
-        optimization: "Suggest performance improvements and code optimizations",
-        improvement: "Recommend best practices, code quality improvements, and alternative approaches"
+        bug_identification: 'Identify bugs, errors, or logical issues in the code',
+        fix_explanation: 'Explain how to fix identified problems and why the fix works',
+        optimization: 'Suggest performance improvements and code optimizations',
+        improvement: 'Recommend best practices, code quality improvements, and alternative approaches'
       };
 
       const prompt = `Analyze this student's code submission and generate debugging questions focused on ${questionTypes[questionType]}.
@@ -245,18 +245,18 @@ Format as:
 Questions:`;
 
       const response = await llm.invoke(prompt);
-      return response.content || "Failed to generate debugging questions.";
+      return response.content || 'Failed to generate debugging questions.';
     } catch (error) {
-      console.error("CodeDebugQuestionGeneratorTool error:", error);
-      return "Error generating code debugging questions.";
+      console.error('CodeDebugQuestionGeneratorTool error:', error);
+      return 'Error generating code debugging questions.';
     }
   }
 }
 
 // Tool 4: Grading Suggestion Tool
 class GradingSuggestionTool extends Tool {
-  name = "grading_suggester";
-  description = "Provide grading suggestions and rubrics based on assignment requirements and student performance. Input should be a JSON string with 'submissionId' and 'rubricType' (detailed/brief/conceptual).";
+  name = 'grading_suggester';
+  description = 'Provide grading suggestions and rubrics based on assignment requirements and student performance. Input should be a JSON string with \'submissionId\' and \'rubricType\' (detailed/brief/conceptual).';
 
   async _call(input) {
     try {
@@ -287,15 +287,15 @@ class GradingSuggestionTool extends Tool {
 
       const detailsResult = await pool.query(detailsQuery, [submissionId]);
       if (detailsResult.rowCount === 0) {
-        return "Submission not found.";
+        return 'Submission not found.';
       }
 
       const submission = detailsResult.rows[0];
 
       const rubricLevels = {
-        detailed: "comprehensive rubric with specific criteria and point breakdowns",
-        brief: "concise rubric with main categories",
-        conceptual: "concept-focused rubric emphasizing understanding over mechanics"
+        detailed: 'comprehensive rubric with specific criteria and point breakdowns',
+        brief: 'concise rubric with main categories',
+        conceptual: 'concept-focused rubric emphasizing understanding over mechanics'
       };
 
       const prompt = `Create a ${rubricLevels[rubricType]} grading rubric for this assignment submission.
@@ -320,18 +320,18 @@ Based on the assignment requirements and student work, provide:
 Rubric:`;
 
       const response = await llm.invoke(prompt);
-      return response.content || "Failed to generate grading suggestions.";
+      return response.content || 'Failed to generate grading suggestions.';
     } catch (error) {
-      console.error("GradingSuggestionTool error:", error);
-      return "Error generating grading suggestions.";
+      console.error('GradingSuggestionTool error:', error);
+      return 'Error generating grading suggestions.';
     }
   }
 }
 
 // Tool 5: Code Quality Analyzer
 class CodeQualityAnalyzerTool extends Tool {
-  name = "code_quality_analyzer";
-  description = "Analyze code quality, style, best practices, and provide improvement suggestions. Input should be a JSON string with 'submissionId'.";
+  name = 'code_quality_analyzer';
+  description = 'Analyze code quality, style, best practices, and provide improvement suggestions. Input should be a JSON string with \'submissionId\'.';
 
   async _call(input) {
     try {
@@ -354,7 +354,7 @@ class CodeQualityAnalyzerTool extends Tool {
 
       const codeResult = await pool.query(codeQuery, [submissionId]);
       if (codeResult.rowCount === 0) {
-        return "Code submission not found.";
+        return 'Code submission not found.';
       }
 
       const submission = codeResult.rows[0];
@@ -383,10 +383,10 @@ Provide a comprehensive code quality analysis covering:
 Analysis:`;
 
       const response = await llm.invoke(prompt);
-      return response.content || "Failed to analyze code quality.";
+      return response.content || 'Failed to analyze code quality.';
     } catch (error) {
-      console.error("CodeQualityAnalyzerTool error:", error);
-      return "Error analyzing code quality.";
+      console.error('CodeQualityAnalyzerTool error:', error);
+      return 'Error analyzing code quality.';
     }
   }
 }
@@ -395,7 +395,7 @@ Analysis:`;
 let taAgentExecutor = null;
 
 async function initializeTAAgent() {
-  if (taAgentExecutor) return taAgentExecutor;
+  if (taAgentExecutor) {return taAgentExecutor;}
 
   const tools = [
     new AssignmentAnalyzerTool(),
@@ -406,7 +406,7 @@ async function initializeTAAgent() {
   ];
 
   try {
-    const prompt = await pull("hwchase17/react");
+    const prompt = await pull('hwchase17/react');
 
     const agent = await createReactAgent({
       llm,
@@ -424,7 +424,7 @@ async function initializeTAAgent() {
 
     return taAgentExecutor;
   } catch (error) {
-    console.error("Failed to initialize TA agent:", error);
+    console.error('Failed to initialize TA agent:', error);
     throw error;
   }
 }

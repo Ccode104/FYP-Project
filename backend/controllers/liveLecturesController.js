@@ -14,20 +14,20 @@ export async function createLiveLecture(req, res) {
 
     // Validate required fields
     if (!title || !course_offering_id) {
-      return res.status(400).json({ error: "Title and course_offering_id are required" });
+      return res.status(400).json({ error: 'Title and course_offering_id are required' });
     }
 
     // Validate scheduled_at format if provided
     if (scheduled_at) {
       const scheduledDate = new Date(scheduled_at);
       if (isNaN(scheduledDate.getTime())) {
-        return res.status(400).json({ error: "Invalid scheduled_at format. Use ISO 8601 date-time string." });
+        return res.status(400).json({ error: 'Invalid scheduled_at format. Use ISO 8601 date-time string.' });
       }
 
       // Check if scheduled time is not in the past
       const now = new Date();
       if (scheduledDate <= now) {
-        return res.status(400).json({ error: "scheduled_at must be in the future" });
+        return res.status(400).json({ error: 'scheduled_at must be in the future' });
       }
     }
 
@@ -61,7 +61,7 @@ export async function createLiveLecture(req, res) {
 
     res.status(201).json({
       success: true,
-      message: "Live lecture created successfully",
+      message: 'Live lecture created successfully',
       lecture: result.rows[0]
     });
   } catch (error) {
@@ -110,7 +110,7 @@ export async function getLiveLecturesByCourse(req, res) {
     }
 
     // Build query based on user role
-    let whereClause = 'll.course_offering_id = $1';
+    const whereClause = 'll.course_offering_id = $1';
 
     // All users can see all lectures (live, scheduled, ended, cancelled)
     // No status filtering needed
@@ -352,7 +352,7 @@ export async function joinLiveLecture(req, res) {
       [lectureId]
     );
 
-    console.log(`Lecture check result:`, lectureCheck.rows);
+    console.log('Lecture check result:', lectureCheck.rows);
 
     if (lectureCheck.rows.length === 0) {
       console.log(`Lecture ${lectureId} not found`);
@@ -438,7 +438,7 @@ export async function joinLiveLecture(req, res) {
       false  // is_screen_sharing
     ]);
 
-    console.log(`Participant record inserted/updated successfully:`, result.rows[0]);
+    console.log('Participant record inserted/updated successfully:', result.rows[0]);
 
     // Emit socket event
     const io = req.app.get('io');

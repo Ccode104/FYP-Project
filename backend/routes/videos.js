@@ -77,8 +77,8 @@ const handleMulterError = (err, req, res, next) => {
 };
 
 router.post(
-  "/",
-  requireRole("faculty", "admin"),
+  '/',
+  requireRole('faculty', 'admin'),
   (req, res, next) => {
     console.log('Upload route hit, file field:', req.body);
     console.log('Headers:', req.headers);
@@ -86,7 +86,7 @@ router.post(
     req.setTimeout(600000); // 10 minutes
     res.setTimeout(600000); // 10 minutes
 
-    uploadVideo.single("video")(req, res, (err) => {
+    uploadVideo.single('video')(req, res, (err) => {
       console.log('Multer processing completed, err:', err);
       if (err) {
         console.error('Multer error details:', err);

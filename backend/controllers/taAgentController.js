@@ -1,5 +1,5 @@
-import { initializeTAAgent } from "../agents/taAgents.js";
-import { logger } from "../utils/logger.js";
+import { initializeTAAgent } from '../agents/taAgents.js';
+import { logger } from '../utils/logger.js';
 
 // Initialize the TA agent
 let taAgent = null;
@@ -7,7 +7,7 @@ let taAgent = null;
   try {
     taAgent = await initializeTAAgent();
   } catch (error) {
-    console.error("Failed to initialize TA agent:", error);
+    console.error('Failed to initialize TA agent:', error);
   }
 })();
 
@@ -29,16 +29,16 @@ export async function chatWithTAAgent(req, res) {
 
     if (!message) {
       logger.warn('TA Agent request missing message', { userId });
-      return res.status(400).json({ error: "Message is required" });
+      return res.status(400).json({ error: 'Message is required' });
     }
 
     if (!taAgent) {
       logger.error('TA agent not initialized');
-      return res.status(500).json({ error: "TA agent not initialized" });
+      return res.status(500).json({ error: 'TA agent not initialized' });
     }
 
     // Build context-aware prompt
-    let contextInfo = "";
+    let contextInfo = '';
     if (context.submissionId) {
       contextInfo += `Submission ID: ${context.submissionId}\n`;
     }
@@ -74,7 +74,7 @@ Please use the available tools to provide comprehensive assistance for assignmen
       input: agentInput,
     });
 
-    const reply = result.output || "Sorry, I could not generate a response.";
+    const reply = result.output || 'Sorry, I could not generate a response.';
 
     logger.info('TA Agent response generated', {
       userId,
@@ -87,10 +87,10 @@ Please use the available tools to provide comprehensive assistance for assignmen
       context: context
     });
   } catch (err) {
-    logger.error("chatWithTAAgent error:", err, { userId: req.user?.id });
+    logger.error('chatWithTAAgent error:', err, { userId: req.user?.id });
     res
       .status(500)
-      .json({ error: "Failed to process TA agent request", details: err.message });
+      .json({ error: 'Failed to process TA agent request', details: err.message });
   }
 }
 
@@ -104,25 +104,25 @@ export async function getTAAgentSuggestions(req, res) {
     const { type = 'comprehensive' } = req.query; // comprehensive, grading, viva, debug
 
     if (!taAgent) {
-      return res.status(500).json({ error: "TA agent not initialized" });
+      return res.status(500).json({ error: 'TA agent not initialized' });
     }
 
-    let prompt = "";
+    let prompt = '';
     switch (type) {
-      case 'grading':
-        prompt = `Analyze submission ${submissionId} and provide detailed grading suggestions with rubric and feedback points.`;
-        break;
-      case 'viva':
-        prompt = `Based on submission ${submissionId}, generate 5 viva questions at different difficulty levels.`;
-        break;
-      case 'debug':
-        prompt = `Create debugging questions and scenarios based on submission ${submissionId}.`;
-        break;
-      case 'quality':
-        prompt = `Analyze code quality and provide improvement suggestions for submission ${submissionId}.`;
-        break;
-      default:
-        prompt = `Provide comprehensive evaluation assistance for submission ${submissionId}, including grading suggestions, viva questions, and code analysis.`;
+    case 'grading':
+      prompt = `Analyze submission ${submissionId} and provide detailed grading suggestions with rubric and feedback points.`;
+      break;
+    case 'viva':
+      prompt = `Based on submission ${submissionId}, generate 5 viva questions at different difficulty levels.`;
+      break;
+    case 'debug':
+      prompt = `Create debugging questions and scenarios based on submission ${submissionId}.`;
+      break;
+    case 'quality':
+      prompt = `Analyze code quality and provide improvement suggestions for submission ${submissionId}.`;
+      break;
+    default:
+      prompt = `Provide comprehensive evaluation assistance for submission ${submissionId}, including grading suggestions, viva questions, and code analysis.`;
     }
 
     const agentInput = `Submission ID: ${submissionId}
@@ -136,7 +136,7 @@ Please use the appropriate tools to provide detailed, actionable suggestions for
       input: agentInput,
     });
 
-    const suggestions = result.output || "Unable to generate suggestions.";
+    const suggestions = result.output || 'Unable to generate suggestions.';
 
     res.json({
       submissionId,
@@ -145,8 +145,8 @@ Please use the appropriate tools to provide detailed, actionable suggestions for
       timestamp: new Date().toISOString()
     });
   } catch (err) {
-    console.error("getTAAgentSuggestions error:", err);
-    res.status(500).json({ error: "Failed to get suggestions", details: err.message });
+    console.error('getTAAgentSuggestions error:', err);
+    res.status(500).json({ error: 'Failed to get suggestions', details: err.message });
   }
 }
 
@@ -160,7 +160,7 @@ export async function generateVivaQuestions(req, res) {
     const { assignmentId, difficulty = 'medium', count = 5 } = req.body;
 
     if (!taAgent) {
-      return res.status(500).json({ error: "TA agent not initialized" });
+      return res.status(500).json({ error: 'TA agent not initialized' });
     }
 
     const agentInput = `Assignment ID: ${assignmentId}
@@ -172,7 +172,7 @@ Use the viva_question_generator tool to create appropriate questions for this as
       input: agentInput,
     });
 
-    const questions = result.output || "Failed to generate viva questions.";
+    const questions = result.output || 'Failed to generate viva questions.';
 
     res.json({
       assignmentId,
@@ -182,8 +182,8 @@ Use the viva_question_generator tool to create appropriate questions for this as
       timestamp: new Date().toISOString()
     });
   } catch (err) {
-    console.error("generateVivaQuestions error:", err);
-    res.status(500).json({ error: "Failed to generate viva questions", details: err.message });
+    console.error('generateVivaQuestions error:', err);
+    res.status(500).json({ error: 'Failed to generate viva questions', details: err.message });
   }
 }
 
@@ -197,7 +197,7 @@ export async function generateDebugQuestions(req, res) {
     const { submissionId, questionType = 'bug_identification' } = req.body;
 
     if (!taAgent) {
-      return res.status(500).json({ error: "TA agent not initialized" });
+      return res.status(500).json({ error: 'TA agent not initialized' });
     }
 
     const agentInput = `Submission ID: ${submissionId}
@@ -209,7 +209,7 @@ Use the code_debug_generator tool to create appropriate debugging questions for 
       input: agentInput,
     });
 
-    const questions = result.output || "Failed to generate debugging questions.";
+    const questions = result.output || 'Failed to generate debugging questions.';
 
     res.json({
       submissionId,
@@ -218,7 +218,7 @@ Use the code_debug_generator tool to create appropriate debugging questions for 
       timestamp: new Date().toISOString()
     });
   } catch (err) {
-    console.error("generateDebugQuestions error:", err);
-    res.status(500).json({ error: "Failed to generate debugging questions", details: err.message });
+    console.error('generateDebugQuestions error:', err);
+    res.status(500).json({ error: 'Failed to generate debugging questions', details: err.message });
   }
 }

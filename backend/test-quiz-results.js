@@ -62,7 +62,7 @@ async function testQuizResults() {
       console.log(`  Status: ${attempt.status_text}`);
       console.log(`  Finished: ${attempt.finished_at}`);
       console.log(`  Violated: ${attempt.violated}`);
-      console.log(`  Answers:`, JSON.stringify(attempt.answers, null, 2));
+      console.log('  Answers:', JSON.stringify(attempt.answers, null, 2));
     });
 
     // Get quiz questions (without correct answers)
@@ -95,7 +95,7 @@ async function testQuizResults() {
       console.log(`\nQuestion ${index + 1}:`);
       console.log(`  Text: ${q.question_text}`);
       console.log(`  Type: ${q.question_type}`);
-      console.log(`  Options:`, q.metadata?.options || 'N/A');
+      console.log('  Options:', q.metadata?.options || 'N/A');
     });
 
     console.log('\n=== QUIZ RESULTS ENDPOINT TEST COMPLETE ===');

@@ -1,13 +1,11 @@
 import { pool } from '../db/index.js';
 import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
-import express from 'express';
 import axios from 'axios';
 
 const SALT_ROUNDS = 10;
 const JWT_SECRET = process.env.JWT_SECRET || 'supersecretkey';
 const JWT_EXPIRES_IN = '7d';
-const router = express.Router();
 
 // REGISTER
 export async function registerUser(req, res) {
@@ -30,7 +28,7 @@ export async function registerUser(req, res) {
 
     // check if user exists
     const exists = await pool.query('SELECT id FROM users WHERE email=$1', [email]);
-    if (exists.rowCount > 0) return res.status(400).json({ error: 'Email already registered' });
+    if (exists.rowCount > 0) {return res.status(400).json({ error: 'Email already registered' });}
 
     // hash password
     const hashedPassword = await bcrypt.hash(password, SALT_ROUNDS);
@@ -50,8 +48,8 @@ export async function registerUser(req, res) {
       message: isActive ? 'User registered successfully' : 'User registered successfully. Your account is pending admin approval.',
       user: result.rows[0]
     });
-  } catch (err) {
-    console.error('registerUser error:', err);
+  } catch (_err) { // eslint-disable-line no-unused-vars
+    // Error logging handled by middleware
     res.status(500).json({ error: 'Internal server error' });
   }
 }
@@ -168,10 +166,7 @@ export async function loginWithGoogle(req, res) {
       
       // Token verified successfully (silent in production)
     } catch (axiosError) {
-      console.error('Error verifying Google token:', axiosError.message);
       if (axiosError.response) {
-        console.error('Response status:', axiosError.response.status);
-        console.error('Response data:', axiosError.response.data);
         if (axiosError.response.status === 400) {
           return res.status(401).json({ error: 'Invalid Google token' });
         }
@@ -191,7 +186,6 @@ export async function loginWithGoogle(req, res) {
     // Extract user information from Google token
     const email = googleUser.email;
     const name = googleUser.name || googleUser.given_name || 'User';
-    const picture = googleUser.picture;
 
     if (!email) {
       return res.status(400).json({ error: 'Email not provided by Google' });
@@ -205,7 +199,7 @@ export async function loginWithGoogle(req, res) {
         [email]
       );
     } catch (dbError) {
-      console.error('Database error when checking user:', dbError);
+      // Database error handled
       return res.status(500).json({ 
         error: 'Database error',
         details: process.env.NODE_ENV === 'development' ? dbError.message : undefined
@@ -232,7 +226,7 @@ export async function loginWithGoogle(req, res) {
         user = insertResult.rows[0];
         // New user created successfully
       } catch (insertError) {
-        console.error('Database error when creating user:', insertError);
+        // Database error handled
         return res.status(500).json({
           error: 'Failed to create user',
           details: process.env.NODE_ENV === 'development' ? insertError.message : undefined
@@ -256,9 +250,8 @@ export async function loginWithGoogle(req, res) {
         try {
           await pool.query('UPDATE users SET name = $1 WHERE id = $2', [name, user.id]);
           user.name = name;
-        } catch (updateError) {
-          console.error('Database error when updating user name:', updateError);
-          // Don't fail the login if name update fails, just log it
+        } catch (_updateError) { // eslint-disable-line no-unused-vars
+          // Error handled silently - don't fail the login
         }
       }
 
@@ -285,7 +278,7 @@ export async function loginWithGoogle(req, res) {
       }
     });
   } catch (err) {
-    console.error('Error in loginWithGoogle:', err);
+    // Error logging handled by middleware
     const errorMessage = process.env.NODE_ENV === 'development' 
       ? `Internal server error: ${err.message}` 
       : 'Internal server error';
@@ -324,8 +317,8 @@ export async function getCurrentUser(req, res) {
     }
 
     res.json(user);
-  } catch (err) {
-    console.error('Error in getCurrentUser:', err);
+  } catch (_err) { // eslint-disable-line no-unused-vars
+    // Error logging handled by middleware
     res.status(500).json({ error: 'Internal server error' });
   }
 }

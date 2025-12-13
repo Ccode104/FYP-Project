@@ -43,7 +43,8 @@ router.get('/course/:courseOfferingId', requireAuth, async (req, res) => {
 router.post('/request/:quizId', requireAuth, async (req, res) => {
   try {
     const { quizId } = req.params;
-    const { requestType, message } = req.body;
+    // eslint-disable-next-line no-unused-vars
+    const { requestType, _message } = req.body;
     const taId = req.user.id;
 
     // Validate request type

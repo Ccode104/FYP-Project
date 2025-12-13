@@ -6,7 +6,7 @@ import { pool } from '../db/index.js';
  */
 export async function getMyProgress(req, res) {
   try {
-    if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
+    if (!req.user) {return res.status(401).json({ error: 'Unauthorized' });}
     const studentId = req.user.id;
 
     const q = `
@@ -32,7 +32,7 @@ export async function getMyProgress(req, res) {
 export async function getByCourseOffering(req, res) {
   try {
     const offeringId = parseInt(req.params.offeringId, 10);
-    if (Number.isNaN(offeringId)) return res.status(400).json({ error: 'Invalid offering id' });
+    if (Number.isNaN(offeringId)) {return res.status(400).json({ error: 'Invalid offering id' });}
 
     const q = `
       SELECT *
@@ -57,7 +57,7 @@ export async function getByCourseOffering(req, res) {
 export async function getByStudent(req, res) {
   try {
     const studentId = parseInt(req.params.studentId, 10);
-    if (Number.isNaN(studentId)) return res.status(400).json({ error: 'Invalid student id' });
+    if (Number.isNaN(studentId)) {return res.status(400).json({ error: 'Invalid student id' });}
 
     const courseOfferingId = req.query.course_offering_id ? parseInt(req.query.course_offering_id, 10) : null;
     const params = [studentId];

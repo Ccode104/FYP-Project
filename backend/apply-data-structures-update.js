@@ -23,14 +23,14 @@ async function applyDataStructuresUpdate() {
 
     // Check code questions
     const codeQuestions = await pool.query(
-      "SELECT id, title FROM code_questions WHERE title LIKE '%Implementation%' ORDER BY title"
+      'SELECT id, title FROM code_questions WHERE title LIKE \'%Implementation%\' ORDER BY title'
     );
     console.log(`\nCreated ${codeQuestions.rows.length} code questions:`);
     codeQuestions.rows.forEach(q => console.log(`- ${q.title} (ID: ${q.id})`));
 
     // Check assignment
     const assignment = await pool.query(
-      "SELECT title, assignment_config FROM assignments WHERE title = 'Data Structures Implementation'"
+      'SELECT title, assignment_config FROM assignments WHERE title = \'Data Structures Implementation\''
     );
     if (assignment.rows.length > 0) {
       const config = JSON.parse(assignment.rows[0].assignment_config);

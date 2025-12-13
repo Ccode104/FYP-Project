@@ -14,9 +14,9 @@ export async function createContest(req, res) {
 
   // Check if user has permission to create contests for this offering
   if (req.user.role !== 'admin') {
-    const checkQ = `SELECT faculty_id FROM course_offerings WHERE id = $1`;
+    const checkQ = 'SELECT faculty_id FROM course_offerings WHERE id = $1';
     const checkR = await pool.query(checkQ, [course_offering_id]);
-    if (checkR.rowCount === 0) return res.status(404).json({ error: 'Course offering not found' });
+    if (checkR.rowCount === 0) {return res.status(404).json({ error: 'Course offering not found' });}
 
     const offering = checkR.rows[0];
     if (req.user.role === 'faculty' && req.user.id !== offering.faculty_id) {
@@ -92,7 +92,7 @@ export async function createContest(req, res) {
 
 export async function getContest(req, res) {
   const id = Number(req.params.id);
-  if (!id) return res.status(400).json({ error: 'Missing contest id' });
+  if (!id) {return res.status(400).json({ error: 'Missing contest id' });}
 
   // Get contest with course offering details
   const q = `
@@ -103,7 +103,7 @@ export async function getContest(req, res) {
     WHERE c.id = $1
   `;
   const r = await pool.query(q, [id]);
-  if (r.rowCount === 0) return res.status(404).json({ error: 'Contest not found' });
+  if (r.rowCount === 0) {return res.status(404).json({ error: 'Contest not found' });}
 
   const contest = r.rows[0];
 
@@ -126,7 +126,7 @@ export async function getContest(req, res) {
 export async function getContestByOffering(req, res) {
   const offeringId = Number(req.params.offeringId);
   const contestId = Number(req.params.contestId);
-  if (!offeringId || !contestId) return res.status(400).json({ error: 'Missing offering or contest id' });
+  if (!offeringId || !contestId) {return res.status(400).json({ error: 'Missing offering or contest id' });}
 
   // Get contest with course offering details
   const q = `
@@ -137,7 +137,7 @@ export async function getContestByOffering(req, res) {
     WHERE c.id = $1 AND c.course_offering_id = $2
   `;
   const r = await pool.query(q, [contestId, offeringId]);
-  if (r.rowCount === 0) return res.status(404).json({ error: 'Contest not found for this course offering' });
+  if (r.rowCount === 0) {return res.status(404).json({ error: 'Contest not found for this course offering' });}
 
   const contest = r.rows[0];
 
@@ -159,7 +159,7 @@ export async function getContestByOffering(req, res) {
 
 export async function listContests(req, res) {
   const offeringId = Number(req.params.courseOfferingId);
-  if (!offeringId) return res.status(400).json({ error: 'Missing course offering id' });
+  if (!offeringId) {return res.status(400).json({ error: 'Missing course offering id' });}
 
   // Check if user has access to this course offering
   if (req.user.role === 'student') {
@@ -180,7 +180,7 @@ export async function listContests(req, res) {
     }
   }
 
-  const q = `SELECT * FROM contests WHERE course_offering_id = $1 ORDER BY start_at DESC`;
+  const q = 'SELECT * FROM contests WHERE course_offering_id = $1 ORDER BY start_at DESC';
   const r = await pool.query(q, [offeringId]);
   res.json(r.rows);
 }
@@ -188,7 +188,7 @@ export async function listContests(req, res) {
 export async function getContestQuestions(req, res) {
   try {
     const contestId = Number(req.params.id);
-    if (!contestId) return res.status(400).json({ error: 'Missing contest id' });
+    if (!contestId) {return res.status(400).json({ error: 'Missing contest id' });}
 
     // Verify contest exists and user has access
     const checkQ = `
@@ -198,7 +198,7 @@ export async function getContestQuestions(req, res) {
       WHERE c.id = $1
     `;
     const checkR = await pool.query(checkQ, [contestId]);
-    if (checkR.rowCount === 0) return res.status(404).json({ error: 'Contest not found' });
+    if (checkR.rowCount === 0) {return res.status(404).json({ error: 'Contest not found' });}
 
     const contest = checkR.rows[0];
 
@@ -318,7 +318,7 @@ export async function submitContest(req, res) {
       await client.query('BEGIN');
 
       // Create or update contest submission
-      let submissionResult = await client.query(`
+      const submissionResult = await client.query(`
         SELECT id FROM contest_submissions
         WHERE contest_id = $1 AND student_id = $2
       `, [contestId, req.user.id]);
@@ -376,7 +376,7 @@ export async function submitContest(req, res) {
 
 export async function getContestSubmissions(req, res) {
   const contestId = Number(req.params.id);
-  if (!contestId) return res.status(400).json({ error: 'Missing contest id' });
+  if (!contestId) {return res.status(400).json({ error: 'Missing contest id' });}
 
   // Check permissions
   const contestCheck = await pool.query(`
@@ -386,7 +386,7 @@ export async function getContestSubmissions(req, res) {
     WHERE c.id = $1
   `, [contestId]);
 
-  if (contestCheck.rowCount === 0) return res.status(404).json({ error: 'Contest not found' });
+  if (contestCheck.rowCount === 0) {return res.status(404).json({ error: 'Contest not found' });}
 
   const contest = contestCheck.rows[0];
 
@@ -410,7 +410,7 @@ export async function gradeContestSubmission(req, res) {
     const submissionId = Number(req.params.id);
     const { questionGrades, overallFeedback } = req.body;
 
-    if (!submissionId) return res.status(400).json({ error: 'Missing submission id' });
+    if (!submissionId) {return res.status(400).json({ error: 'Missing submission id' });}
 
     // Verify the user has permission to grade this submission
     const checkQ = `
@@ -421,7 +421,7 @@ export async function gradeContestSubmission(req, res) {
       WHERE cs.id = $1
     `;
     const checkR = await pool.query(checkQ, [submissionId]);
-    if (checkR.rowCount === 0) return res.status(404).json({ error: 'Submission not found' });
+    if (checkR.rowCount === 0) {return res.status(404).json({ error: 'Submission not found' });}
 
     const submission = checkR.rows[0];
 
@@ -476,19 +476,19 @@ export async function gradeContestSubmission(req, res) {
 
 export async function deleteContest(req, res) {
   const id = Number(req.params.id);
-  if (!id) return res.status(400).json({ error: 'Missing contest id' });
+  if (!id) {return res.status(400).json({ error: 'Missing contest id' });}
 
   // Verify ownership
-  const checkQ = `SELECT c.id, c.created_by, o.faculty_id FROM contests c JOIN course_offerings o ON c.course_offering_id = o.id WHERE c.id = $1`;
+  const checkQ = 'SELECT c.id, c.created_by, o.faculty_id FROM contests c JOIN course_offerings o ON c.course_offering_id = o.id WHERE c.id = $1';
   const r = await pool.query(checkQ, [id]);
-  if (r.rowCount === 0) return res.status(404).json({ error: 'Contest not found' });
+  if (r.rowCount === 0) {return res.status(404).json({ error: 'Contest not found' });}
 
   const row = r.rows[0];
   const uid = req.user?.id;
   const role = req.user?.role;
   const isOwner = uid && (uid === row.created_by || uid === row.faculty_id);
-  if (!(isOwner || role === 'admin')) return res.status(403).json({ error: 'Forbidden' });
+  if (!(isOwner || role === 'admin')) {return res.status(403).json({ error: 'Forbidden' });}
 
-  await pool.query(`DELETE FROM contests WHERE id = $1`, [id]);
+  await pool.query('DELETE FROM contests WHERE id = $1', [id]);
   res.json({ success: true });
 }

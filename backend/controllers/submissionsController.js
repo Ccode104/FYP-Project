@@ -72,12 +72,12 @@ async function createZipFromFiles(files, assignmentId, studentId) {
 export async function submitFileAssignment(req, res) {
   const assignment_id = Number(req.body.assignment_id);
   const student_id = Number(req.user?.id || req.body.student_id);
-  if (!assignment_id || !student_id) return res.status(400).json({ error: 'Missing' });
+  if (!assignment_id || !student_id) {return res.status(400).json({ error: 'Missing' });}
 
   try {
     // Check if assignment allows multiple submissions and get GitHub repo option and file size limit
     const assignmentCheck = await pool.query(
-      `SELECT allow_multiple_submissions, allow_github_repo, file_size_limit_mb FROM assignments WHERE id = $1`,
+      'SELECT allow_multiple_submissions, allow_github_repo, file_size_limit_mb FROM assignments WHERE id = $1',
       [assignment_id]
     );
     if (assignmentCheck.rowCount === 0) {
@@ -110,7 +110,7 @@ export async function submitFileAssignment(req, res) {
       submission = r.rows[0];
     } else {
       // Check if submission already exists
-      const existingQ = `SELECT * FROM assignment_submissions WHERE assignment_id = $1 AND student_id = $2`;
+      const existingQ = 'SELECT * FROM assignment_submissions WHERE assignment_id = $1 AND student_id = $2';
       const existingR = await pool.query(existingQ, [assignment_id, student_id]);
 
       if (existingR.rowCount > 0) {
@@ -179,7 +179,7 @@ export async function submitCodeAssignment(req, res) {
 
     // Check if assignment exists and get its type
     const assignmentCheck = await pool.query(
-      `SELECT id, assignment_type, allow_multiple_submissions, course_offering_id FROM assignments WHERE id = $1`,
+      'SELECT id, assignment_type, allow_multiple_submissions, course_offering_id FROM assignments WHERE id = $1',
       [assignment_id]
     );
     if (assignmentCheck.rowCount === 0) {
@@ -199,7 +199,7 @@ export async function submitCodeAssignment(req, res) {
       submission = r.rows[0];
     } else {
       // Check if submission already exists
-      const existingQ = `SELECT * FROM assignment_submissions WHERE assignment_id = $1 AND student_id = $2`;
+      const existingQ = 'SELECT * FROM assignment_submissions WHERE assignment_id = $1 AND student_id = $2';
       const existingR = await pool.query(existingQ, [assignment_id, student_id]);
       
       if (existingR.rowCount > 0) {
@@ -215,7 +215,7 @@ export async function submitCodeAssignment(req, res) {
     // Get assignment_question_id if question_id is provided
     let assignment_question_id = null;
     if (question_id) {
-      const aqQ = `SELECT id FROM assignment_questions WHERE assignment_id = $1 AND question_id = $2`;
+      const aqQ = 'SELECT id FROM assignment_questions WHERE assignment_id = $1 AND question_id = $2';
       const aqR = await pool.query(aqQ, [assignment_id, question_id]);
       if (aqR.rowCount > 0) {
         assignment_question_id = aqR.rows[0].id;
@@ -224,17 +224,17 @@ export async function submitCodeAssignment(req, res) {
 
     // Check if code submission already exists for this submission and question
     let codeSubmission;
-    const existingCodeQ = `SELECT * FROM code_submissions WHERE submission_id = $1 AND (assignment_question_id = $2 OR ($2 IS NULL AND assignment_question_id IS NULL))`;
+    const existingCodeQ = 'SELECT * FROM code_submissions WHERE submission_id = $1 AND (assignment_question_id = $2 OR ($2 IS NULL AND assignment_question_id IS NULL))';
     const existingCodeR = await pool.query(existingCodeQ, [submission.id, assignment_question_id]);
     
     if (existingCodeR.rowCount > 0) {
       // Update existing code submission
-      const updateQ = `UPDATE code_submissions SET language = $1, code = $2, created_at = now() WHERE id = $3 RETURNING *`;
+      const updateQ = 'UPDATE code_submissions SET language = $1, code = $2, created_at = now() WHERE id = $3 RETURNING *';
       const updateR = await pool.query(updateQ, [language, code, existingCodeR.rows[0].id]);
       codeSubmission = updateR.rows[0];
     } else {
       // Insert new code submission
-      const codeSubQ = `INSERT INTO code_submissions (submission_id, language, code, assignment_question_id) VALUES ($1, $2, $3, $4) RETURNING *`;
+      const codeSubQ = 'INSERT INTO code_submissions (submission_id, language, code, assignment_question_id) VALUES ($1, $2, $3, $4) RETURNING *';
       const codeSubR = await pool.query(codeSubQ, [submission.id, language, code, assignment_question_id]);
       codeSubmission = codeSubR.rows[0];
     }
@@ -269,7 +269,6 @@ export async function submitCodeAssignment(req, res) {
         const testCaseR = await pool.query(testCaseQ, [question_id]);
 
         // Run test cases and collect results
-        const testCaseResults = [];
         let passedTests = 0;
 
         for (const testCase of testCaseR.rows) {
@@ -300,7 +299,8 @@ export async function submitCodeAssignment(req, res) {
             json: (data) => {
               testResults = data;
             },
-            status: (code) => ({
+            // eslint-disable-next-line no-unused-vars
+            status: (_code) => ({
               json: (data) => {
                 testResults = { error: data.error || 'Test execution failed' };
               }
@@ -315,14 +315,14 @@ export async function submitCodeAssignment(req, res) {
           // Update code_submission with test results
           if (testResults && !testResults.error) {
             const passed = testResults.passed !== null ? testResults.passed :
-                          (testResults.stdout && expectedOutput &&
+              (testResults.stdout && expectedOutput &&
                            testResults.stdout.trim() === expectedOutput.trim());
 
-            if (passed) passedTests++;
+            if (passed) {passedTests++;}
 
             // Accumulate execution metrics
-            if (testResults.time) totalExecutionTime += testResults.time;
-            if (testResults.memory) totalMemoryUsed = Math.max(totalMemoryUsed, testResults.memory);
+            if (testResults.time) {totalExecutionTime += testResults.time;}
+            if (testResults.memory) {totalMemoryUsed = Math.max(totalMemoryUsed, testResults.memory);}
 
             // Store summary in code_submissions
             await pool.query(
@@ -476,26 +476,26 @@ export async function submitCodeAssignment(req, res) {
 }
 
 export async function submitLinkAssignment(req, res) {
-  const assignment_id = Number(req.body.assignment_id)
-  const url = String(req.body.url || '')
-  const student_id = Number(req.user?.id)
-  if (!assignment_id || !student_id || !url) return res.status(400).json({ error: 'Missing' })
+  const assignment_id = Number(req.body.assignment_id);
+  const url = String(req.body.url || '');
+  const student_id = Number(req.user?.id);
+  if (!assignment_id || !student_id || !url) {return res.status(400).json({ error: 'Missing' });}
   try {
-    const r = await pool.query(`INSERT INTO assignment_submissions (assignment_id, student_id, attempt) VALUES ($1,$2,$3) RETURNING *`, [assignment_id, student_id, 1])
-    const submission = r.rows[0]
-    const filename = url.split('/').pop() || url
-    await pool.query(`INSERT INTO submission_files (submission_id, storage_path, filename) VALUES ($1,$2,$3)`, [submission.id, url, filename])
+    const r = await pool.query('INSERT INTO assignment_submissions (assignment_id, student_id, attempt) VALUES ($1,$2,$3) RETURNING *', [assignment_id, student_id, 1]);
+    const submission = r.rows[0];
+    const filename = url.split('/').pop() || url;
+    await pool.query('INSERT INTO submission_files (submission_id, storage_path, filename) VALUES ($1,$2,$3)', [submission.id, url, filename]);
 
     // Also insert into file_submissions for consistency
     await pool.query(
-      `INSERT INTO file_submissions (submission_id, submission_type) VALUES ($1, $2)`,
+      'INSERT INTO file_submissions (submission_id, submission_type) VALUES ($1, $2)',
       [submission.id, 'link']
     );
 
-    res.json({ submission })
+    res.json({ submission });
   } catch (err) {
-    console.error(err)
-    res.status(500).json({ error: 'Failed to submit link' })
+    console.error(err);
+    res.status(500).json({ error: 'Failed to submit link' });
   }
 }
 
@@ -568,7 +568,7 @@ export async function submitGitHubRepoAssignment(req, res) {
 
     // Check if assignment exists
     const assignmentCheck = await pool.query(
-      `SELECT id, allow_github_repo, allow_multiple_submissions FROM assignments WHERE id = $1`,
+      'SELECT id, allow_github_repo, allow_multiple_submissions FROM assignments WHERE id = $1',
       [assignment_id]
     );
     if (assignmentCheck.rowCount === 0) {
@@ -589,7 +589,7 @@ export async function submitGitHubRepoAssignment(req, res) {
       submission = r.rows[0];
     } else {
       // Check if submission already exists
-      const existingQ = `SELECT * FROM assignment_submissions WHERE assignment_id = $1 AND student_id = $2`;
+      const existingQ = 'SELECT * FROM assignment_submissions WHERE assignment_id = $1 AND student_id = $2';
       const existingR = await pool.query(existingQ, [assignment_id, student_id]);
 
       if (existingR.rowCount > 0) {
@@ -597,7 +597,7 @@ export async function submitGitHubRepoAssignment(req, res) {
         console.log(`[DEBUG] submitGitHubRepoAssignment: Using existing submission id=${submission.id}`);
       } else {
         // Create new submission
-        const q = `INSERT INTO assignment_submissions (assignment_id, student_id, attempt) VALUES ($1, $2, 1) RETURNING *`;
+        const q = 'INSERT INTO assignment_submissions (assignment_id, student_id, attempt) VALUES ($1, $2, 1) RETURNING *';
         const r = await pool.query(q, [assignment_id, student_id]);
         submission = r.rows[0];
       }
@@ -663,10 +663,10 @@ export async function submitGitHubRepoAssignment(req, res) {
 export async function gradeSubmission(req, res) {
   const { submission_id, score, feedback } = req.body;
   const grader_id = req.user?.id;
-  if (!submission_id || score === undefined) return res.status(400).json({ error: 'Missing' });
+  if (!submission_id || score === undefined) {return res.status(400).json({ error: 'Missing' });}
 
-  await pool.query(`INSERT INTO submission_grades (submission_id, grader_id, score, feedback) VALUES ($1,$2,$3,$4)`, [submission_id, grader_id, score, feedback || null]);
-  await pool.query(`UPDATE assignment_submissions SET final_score=$1, grader_id=$2, graded_at=now(), status='graded' WHERE id=$3`, [score, grader_id, submission_id]);
+  await pool.query('INSERT INTO submission_grades (submission_id, grader_id, score, feedback) VALUES ($1,$2,$3,$4)', [submission_id, grader_id, score, feedback || null]);
+  await pool.query('UPDATE assignment_submissions SET final_score=$1, grader_id=$2, graded_at=now(), status=\'graded\' WHERE id=$3', [score, grader_id, submission_id]);
 
   res.json({ success: true });
 }
@@ -674,7 +674,7 @@ export async function gradeSubmission(req, res) {
 export async function getSubmissionById(req, res) {
   try {
     const submissionId = Number(req.params.submissionId || req.params.id);
-    if (!submissionId) return res.status(400).json({ error: 'Missing submission id' });
+    if (!submissionId) {return res.status(400).json({ error: 'Missing submission id' });}
 
     // Fetch submission with assignment and offering info
     const q = `
@@ -687,7 +687,7 @@ export async function getSubmissionById(req, res) {
       LIMIT 1
     `;
     const r = await pool.query(q, [submissionId]);
-    if (r.rowCount === 0) return res.status(404).json({ error: 'Submission not found' });
+    if (r.rowCount === 0) {return res.status(404).json({ error: 'Submission not found' });}
 
     const submission = r.rows[0];
     console.log(`[DEBUG] getSubmissionById: submission id=${submission.id}, assignment_type=${submission.assignment_type}`);
@@ -698,7 +698,7 @@ export async function getSubmissionById(req, res) {
     }
 
     // Fetch files, code and grades
-    const filesQ = `SELECT id, storage_path, filename, mime_type FROM submission_files WHERE submission_id = $1`;
+    const filesQ = 'SELECT id, storage_path, filename, mime_type FROM submission_files WHERE submission_id = $1';
     const filesR = await pool.query(filesQ, [submissionId]);
 
     // Fetch code submissions with question_id from assignment_questions
@@ -710,21 +710,21 @@ export async function getSubmissionById(req, res) {
     `;
     const codeR = await pool.query(codeQ, [submissionId]);
 
-    const gradesQ = `SELECT * FROM submission_grades WHERE submission_id = $1 ORDER BY created_at DESC`;
+    const gradesQ = 'SELECT * FROM submission_grades WHERE submission_id = $1 ORDER BY created_at DESC';
     const gradesR = await pool.query(gradesQ, [submissionId]);
 
     // Fetch type-specific data - now always check for GitHub submissions if assignment allows it
-    let typeSpecificData = {};
+    const typeSpecificData = {};
 
     // Always check for GitHub submissions (since all assignments can optionally have them)
-    const githubQ = `SELECT * FROM github_submissions WHERE submission_id = $1`;
+    const githubQ = 'SELECT * FROM github_submissions WHERE submission_id = $1';
     const githubR = await pool.query(githubQ, [submissionId]);
     if (githubR.rows.length > 0) {
       typeSpecificData.github = githubR.rows[0];
     }
 
     // Check for file submissions
-    const fileQ = `SELECT * FROM file_submissions WHERE submission_id = $1`;
+    const fileQ = 'SELECT * FROM file_submissions WHERE submission_id = $1';
     const fileR = await pool.query(fileQ, [submissionId]);
     if (fileR.rows.length > 0) {
       typeSpecificData.file = fileR.rows[0];

@@ -133,7 +133,7 @@ export async function runFilePlagiarismCheck(assignmentId) {
     console.error('Error running file plagiarism check:', error);
 
     await pool.query(
-      `INSERT INTO plagiarism_checks (assignment_id, status) VALUES ($1, 'failed')`,
+      'INSERT INTO plagiarism_checks (assignment_id, status) VALUES ($1, \'failed\')',
       [assignmentId]
     );
 
@@ -148,7 +148,7 @@ export async function runFilePlagiarismCheck(assignmentId) {
  */
 export async function runPlagiarismCheck(assignmentId) {
   // Get assignment type
-  const assignmentQuery = `SELECT assignment_type FROM assignments WHERE id = $1`;
+  const assignmentQuery = 'SELECT assignment_type FROM assignments WHERE id = $1';
   const assignmentResult = await pool.query(assignmentQuery, [assignmentId]);
   if (assignmentResult.rowCount === 0) {
     throw new Error('Assignment not found');
@@ -209,7 +209,8 @@ async function runCodePlagiarismCheck(assignmentId) {
 
     console.log('Running Moss command:', command);
 
-    const { stdout, stderr } = await execAsync(command, { cwd: process.cwd() });
+    // eslint-disable-next-line no-unused-vars
+    const { stdout, _stderr } = await execAsync(command, { cwd: process.cwd() });
 
     // Parse the output to get the report URL
     const urlMatch = stdout.match(/http:\/\/moss\.stanford\.edu\/results\/\d+\/\d+/);
@@ -247,7 +248,7 @@ async function runCodePlagiarismCheck(assignmentId) {
 
     // Save failed check
     await pool.query(
-      `INSERT INTO plagiarism_checks (assignment_id, status) VALUES ($1, 'failed')`,
+      'INSERT INTO plagiarism_checks (assignment_id, status) VALUES ($1, \'failed\')',
       [assignmentId]
     );
 

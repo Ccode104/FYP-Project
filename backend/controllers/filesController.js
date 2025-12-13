@@ -10,7 +10,7 @@ const s3 = new AWS.S3({
 
 export async function createSignedUpload(req, res) {
   const { filename, mimeType } = req.body;
-  if (!filename || !mimeType) return res.status(400).json({ error: 'Missing' });
+  if (!filename || !mimeType) {return res.status(400).json({ error: 'Missing' });}
   const key = `${uuidv4()}_${filename}`;
   const params = {
     Bucket: process.env.S3_BUCKET,
@@ -24,7 +24,7 @@ export async function createSignedUpload(req, res) {
 
 export async function createSignedDownload(req, res) {
   const { key } = req.query;
-  if (!key) return res.status(400).json({ error: 'Missing key' });
+  if (!key) {return res.status(400).json({ error: 'Missing key' });}
   const params = { Bucket: process.env.S3_BUCKET, Key: String(key), Expires: 60 };
   const url = await s3.getSignedUrlPromise('getObject', params);
   res.json({ url });
@@ -32,7 +32,7 @@ export async function createSignedDownload(req, res) {
 
 export async function createCloudinarySignedUrl(req, res) {
   const { publicId, resourceType = 'raw' } = req.query;
-  if (!publicId) return res.status(400).json({ error: 'Missing publicId' });
+  if (!publicId) {return res.status(400).json({ error: 'Missing publicId' });}
 
   try {
     // Generate signed URL for Cloudinary resource

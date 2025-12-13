@@ -3,8 +3,8 @@ import { pool } from '../db/index.js';
 
 export async function getEnrolledCourses(req, res) {
   try {
-    const studentId = Number(req.user?.id)
-    if (!studentId) return res.status(401).json({ error: 'Unauthorized' })
+    const studentId = Number(req.user?.id);
+    if (!studentId) {return res.status(401).json({ error: 'Unauthorized' });}
     const q = `
       SELECT o.id, c.code AS course_code, c.title AS course_title, o.term, o.section
       FROM enrollments e
@@ -12,12 +12,12 @@ export async function getEnrolledCourses(req, res) {
       JOIN courses c ON o.course_id = c.id
       WHERE e.student_id = $1
       ORDER BY o.id DESC
-    `
-    const r = await pool.query(q, [studentId])
-    res.json(r.rows)
+    `;
+    const r = await pool.query(q, [studentId]);
+    res.json(r.rows);
   } catch (err) {
-    console.error('getEnrolledCourses error:', err)
-    res.status(500).json({ error: 'Internal server error' })
+    console.error('getEnrolledCourses error:', err);
+    res.status(500).json({ error: 'Internal server error' });
   }
 }
 
@@ -32,7 +32,7 @@ export async function getCourseDetails(req, res) {
       LEFT JOIN users u ON co.faculty_id = u.id
       WHERE co.id = $1
     `, [offeringId]);
-    if (result.rowCount === 0) return res.status(404).json({ error: 'Course offering not found' });
+    if (result.rowCount === 0) {return res.status(404).json({ error: 'Course offering not found' });}
     res.json(result.rows[0]);
   } catch (err) {
     console.error('getCourseDetails error:', err);
@@ -44,7 +44,7 @@ export async function getCourseAssignments(req, res) {
   try {
     const { offeringId } = req.params;
     const result = await pool.query(
-      `SELECT * FROM assignments WHERE course_offering_id = $1 ORDER BY due_at ASC`,
+      'SELECT * FROM assignments WHERE course_offering_id = $1 ORDER BY due_at ASC',
       [offeringId]
     );
     res.json(result.rows);
@@ -116,7 +116,7 @@ export async function getCourseQuizzes(req, res) {
   try {
     const { offeringId } = req.params;
     const result = await pool.query(
-      `SELECT * FROM quizzes WHERE course_offering_id = $1 ORDER BY start_at ASC`,
+      'SELECT * FROM quizzes WHERE course_offering_id = $1 ORDER BY start_at ASC',
       [offeringId]
     );
     res.json(result.rows);
@@ -148,7 +148,7 @@ export async function enrollInCourse(req, res) {
   try {
     const studentId = req.user.id;
     const { offeringId } = req.body;
-    if (!offeringId) return res.status(400).json({ error: 'offeringId is required' });
+    if (!offeringId) {return res.status(400).json({ error: 'offeringId is required' });}
     // Check if already enrolled
     const exists = await pool.query(
       'SELECT id FROM enrollments WHERE course_offering_id = $1 AND student_id = $2',
@@ -159,7 +159,7 @@ export async function enrollInCourse(req, res) {
     }
     // Enroll
     const result = await pool.query(
-      `INSERT INTO enrollments (course_offering_id, student_id) VALUES ($1, $2) RETURNING *`,
+      'INSERT INTO enrollments (course_offering_id, student_id) VALUES ($1, $2) RETURNING *',
       [offeringId, studentId]
     );
     res.status(201).json({ message: 'Enrolled successfully', enrollment: result.rows[0] });
@@ -172,36 +172,36 @@ export async function enrollInCourse(req, res) {
 // List quiz attempts for the logged-in student (optionally filtered by quizId)
 export async function getStudentQuizAttempts(req, res) {
   try {
-    const authId = Number(req.user?.id)
-    const { studentId } = req.params
-    const { quizId } = req.query
+    const authId = Number(req.user?.id);
+    const { studentId } = req.params;
+    const { quizId } = req.query;
 
     if (!authId || Number(studentId) !== authId) {
-      return res.status(403).json({ error: 'Forbidden' })
+      return res.status(403).json({ error: 'Forbidden' });
     }
 
-    const params = [authId]
+    const params = [authId];
     let q = `
       SELECT qa.*, q.title AS quiz_title
       FROM quiz_attempts qa
       JOIN quizzes q ON qa.quiz_id = q.id
       WHERE qa.student_id = $1
-    `
+    `;
     if (quizId) {
-      params.push(Number(quizId))
-      q += ' AND qa.quiz_id = $2'
+      params.push(Number(quizId));
+      q += ' AND qa.quiz_id = $2';
     }
-    q += ' ORDER BY qa.finished_at DESC NULLS LAST, qa.started_at DESC NULLS LAST, qa.id DESC'
+    q += ' ORDER BY qa.finished_at DESC NULLS LAST, qa.started_at DESC NULLS LAST, qa.id DESC';
 
-    const r = await pool.query(q, params)
+    const r = await pool.query(q, params);
     const attempts = r.rows.map(row => ({
       ...row,
       answers: typeof row.answers === 'string' ? JSON.parse(row.answers) : row.answers
-    }))
-    res.json(attempts)
+    }));
+    res.json(attempts);
   } catch (err) {
-    console.error('getStudentQuizAttempts error:', err)
-    res.status(500).json({ error: 'Internal server error' })
+    console.error('getStudentQuizAttempts error:', err);
+    res.status(500).json({ error: 'Internal server error' });
   }
 }
 

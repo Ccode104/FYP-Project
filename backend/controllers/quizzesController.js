@@ -72,7 +72,7 @@ export async function getQuizForGrading(req, res) {
   try {
     const { quizId } = req.params;
     
-    const quizQuery = `SELECT * FROM quizzes WHERE id = $1`;
+    const quizQuery = 'SELECT * FROM quizzes WHERE id = $1';
     const quizResult = await pool.query(quizQuery, [quizId]);
     
     if (quizResult.rows.length === 0) {
@@ -171,12 +171,12 @@ export async function submitQuizAttempt(req, res) {
       }));
 
       // Get quiz max score
-      const quizQuery = `SELECT max_score FROM quizzes WHERE id = $1`;
+      const quizQuery = 'SELECT max_score FROM quizzes WHERE id = $1';
       const quizResult = await client.query(quizQuery, [quiz_id]);
       const maxScore = quizResult.rows[0]?.max_score || 100;
 
       // Auto-grade answers
-      let totalQuestions = questions.length;
+      const totalQuestions = questions.length;
       let correctAnswers = 0;
 
       const gradedAnswers = {};
@@ -188,7 +188,7 @@ export async function submitQuizAttempt(req, res) {
         if (question.question_type === 'mcq' || question.question_type === 'true_false') {
           // Auto-grade MCQ and True/False
           const isCorrect = String(studentAnswer) === String(correctAnswer);
-          if (isCorrect) correctAnswers++;
+          if (isCorrect) {correctAnswers++;}
 
           gradedAnswers[question.id] = {
             student_answer: studentAnswer,
@@ -210,7 +210,7 @@ export async function submitQuizAttempt(req, res) {
         q.question_type === 'mcq' || q.question_type === 'true_false'
       ).length;
 
-      let baseScore = autoGradedCount > 0
+      const baseScore = autoGradedCount > 0
         ? (correctAnswers / autoGradedCount) * maxScore
         : null; // null if all questions need manual grading
 
@@ -285,7 +285,8 @@ export async function submitQuizAttempt(req, res) {
 
 export async function createQuiz(req, res) {
   try {
-    const { course_offering_id, title, description, start_at, end_at, max_score, questions, is_proctored, time_limit } = req.body;
+    // eslint-disable-next-line no-unused-vars
+    const { course_offering_id, title, _description, start_at, end_at, max_score, questions, is_proctored, time_limit } = req.body;
 
     console.log('Creating quiz with data:', {
       course_offering_id,
@@ -302,9 +303,9 @@ export async function createQuiz(req, res) {
 
     // Check if user has permission to create quizzes for this offering
     if (req.user.role !== 'admin') {
-      const checkQ = `SELECT faculty_id FROM course_offerings WHERE id = $1`;
+      const checkQ = 'SELECT faculty_id FROM course_offerings WHERE id = $1';
       const checkR = await pool.query(checkQ, [course_offering_id]);
-      if (checkR.rowCount === 0) return res.status(404).json({ error: 'Course offering not found' });
+      if (checkR.rowCount === 0) {return res.status(404).json({ error: 'Course offering not found' });}
 
       const offering = checkR.rows[0];
       if (req.user.role === 'faculty' && req.user.id !== offering.faculty_id) {
@@ -324,7 +325,7 @@ export async function createQuiz(req, res) {
       await client.query('BEGIN');
 
       // Create quiz
-      const quizQuery = `INSERT INTO quizzes (course_offering_id, title, start_at, end_at, max_score, is_proctored, time_limit) VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING *`;
+      const quizQuery = 'INSERT INTO quizzes (course_offering_id, title, start_at, end_at, max_score, is_proctored, time_limit) VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING *';
       const quizResult = await client.query(quizQuery, [
         course_offering_id,
         title,
@@ -336,19 +337,19 @@ export async function createQuiz(req, res) {
       ]);
       const quiz = quizResult.rows[0];
     
-    // Insert questions if provided
-    if (questions && Array.isArray(questions) && questions.length > 0) {
-      const questionQuery = `INSERT INTO quiz_questions (quiz_id, question_text, question_type, metadata) VALUES ($1, $2, $3, $4) RETURNING *`;
+      // Insert questions if provided
+      if (questions && Array.isArray(questions) && questions.length > 0) {
+        const questionQuery = 'INSERT INTO quiz_questions (quiz_id, question_text, question_type, metadata) VALUES ($1, $2, $3, $4) RETURNING *';
       
-      for (const q of questions) {
-        await client.query(questionQuery, [
-          quiz.id,
-          q.question_text,
-          q.question_type || 'mcq',
-          JSON.stringify(q.metadata || {})
-        ]);
+        for (const q of questions) {
+          await client.query(questionQuery, [
+            quiz.id,
+            q.question_text,
+            q.question_type || 'mcq',
+            JSON.stringify(q.metadata || {})
+          ]);
+        }
       }
-    }
       
       await client.query('COMMIT');
       res.status(201).json({ message: 'Quiz created successfully', quiz });
@@ -421,7 +422,7 @@ export async function gradeQuizAttempt(req, res) {
       const answers = typeof attempt.answers === 'string' ? JSON.parse(attempt.answers) : attempt.answers || {};
       for (const [qidRaw, val] of Object.entries(decisions)) {
         const qid = Number(qidRaw);
-        if (!answers[qid]) answers[qid] = { student_answer: null, is_correct: null, correct_answer: null };
+        if (!answers[qid]) {answers[qid] = { student_answer: null, is_correct: null, correct_answer: null };}
         const v = (val === true || val === 'true');
         answers[qid].is_correct = v;
       }
@@ -433,7 +434,7 @@ export async function gradeQuizAttempt(req, res) {
         const rec = answers[qid];
         if (rec && typeof rec.is_correct === 'boolean') {
           gradedCount++;
-          if (rec.is_correct) correctCount++;
+          if (rec.is_correct) {correctCount++;}
         }
       }
       const denom = gradedCount > 0 ? (gradedCount === totalQuestions ? totalQuestions : gradedCount) : 1;
@@ -492,9 +493,9 @@ async function updateProctoringAnalytics(client, sessionId) {
 
   // Determine risk level
   let riskLevel = 'low';
-  if (totalViolations >= 5) riskLevel = 'critical';
-  else if (totalViolations >= 3) riskLevel = 'high';
-  else if (totalViolations >= 1) riskLevel = 'medium';
+  if (totalViolations >= 5) {riskLevel = 'critical';}
+  else if (totalViolations >= 3) {riskLevel = 'high';}
+  else if (totalViolations >= 1) {riskLevel = 'medium';}
 
   // Upsert analytics
   await client.query(`
@@ -543,7 +544,8 @@ export async function suspendQuizAttempt(req, res) {
         return res.status(404).json({ error: 'Quiz attempt not found' });
       }
 
-      const attempt = attemptCheck.rows[0];
+      // eslint-disable-next-line no-unused-vars
+      const _attempt = attemptCheck.rows[0];
 
       // Mark attempt as suspended (don't set finished_at so it can be resumed)
       const suspendQuery = `
@@ -813,7 +815,7 @@ async function updateQuizGamificationStats(client, userId, score, quizId) {
     const quizResult = await client.query(quizQuery, [quizId]);
     const quiz = quizResult.rows[0];
 
-    if (!quiz) return;
+    if (!quiz) {return;}
 
     // Calculate score percentage
     const scorePercentage = quiz.max_score > 0 ? (score / quiz.max_score) * 100 : 0;
@@ -889,8 +891,8 @@ export async function gradeQuizAttemptOverall(req, res) {
     const attemptId = Number(req.params.attemptId);
     const { grade, feedback } = req.body;
 
-    if (!attemptId) return res.status(400).json({ error: 'Missing attempt id' });
-    if (grade === undefined || grade === null) return res.status(400).json({ error: 'Grade is required' });
+    if (!attemptId) {return res.status(400).json({ error: 'Missing attempt id' });}
+    if (grade === undefined || grade === null) {return res.status(400).json({ error: 'Grade is required' });}
 
     // Verify the user has permission to grade this attempt
     const checkQ = `
@@ -901,7 +903,7 @@ export async function gradeQuizAttemptOverall(req, res) {
       WHERE qa.id = $1
     `;
     const checkR = await pool.query(checkQ, [attemptId]);
-    if (checkR.rowCount === 0) return res.status(404).json({ error: 'Attempt not found' });
+    if (checkR.rowCount === 0) {return res.status(404).json({ error: 'Attempt not found' });}
 
     const attempt = checkR.rows[0];
 
@@ -1058,7 +1060,7 @@ async function checkQuizAchievements(client, userId, stats) {
 
     // Get all quiz achievements
     const achievements = await client.query(
-      "SELECT * FROM achievements WHERE category = 'quiz' AND is_active = true"
+      'SELECT * FROM achievements WHERE category = \'quiz\' AND is_active = true'
     );
 
     for (const achievement of achievements.rows) {
@@ -1068,24 +1070,24 @@ async function checkQuizAchievements(client, userId, stats) {
         [userId, achievement.id]
       );
 
-      if (existing.rows.length > 0) continue; // Already unlocked
+      if (existing.rows.length > 0) {continue;} // Already unlocked
 
       let shouldUnlock = false;
 
       // Check achievement requirements
       switch (achievement.requirement_type) {
-        case 'quizzes_completed':
-          shouldUnlock = stats.quizzes_completed >= achievement.requirement_value;
-          break;
-        case 'perfect_quiz_score':
-          shouldUnlock = (stats.perfect_quiz_scores || 0) >= achievement.requirement_value;
-          break;
-        case 'high_quiz_scores':
-          shouldUnlock = (stats.high_quiz_scores || 0) >= achievement.requirement_value;
-          break;
-        case 'consistent_quiz_performance':
-          shouldUnlock = stats.average_quiz_score >= 80;
-          break;
+      case 'quizzes_completed':
+        shouldUnlock = stats.quizzes_completed >= achievement.requirement_value;
+        break;
+      case 'perfect_quiz_score':
+        shouldUnlock = (stats.perfect_quiz_scores || 0) >= achievement.requirement_value;
+        break;
+      case 'high_quiz_scores':
+        shouldUnlock = (stats.high_quiz_scores || 0) >= achievement.requirement_value;
+        break;
+      case 'consistent_quiz_performance':
+        shouldUnlock = stats.average_quiz_score >= 80;
+        break;
         // Add more achievement types as needed
       }
 

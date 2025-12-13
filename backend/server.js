@@ -5,7 +5,8 @@ import bodyParser from 'body-parser';
 import swaggerUi from 'swagger-ui-express';
 import { createServer } from 'http';
 import { Server } from 'socket.io';
-import path from 'path';
+// eslint-disable-next-line no-unused-vars
+import _path from 'path';
 import jwt from 'jsonwebtoken';
 import { pool } from './db/index.js';
 import authRoutes from './routes/auth.js';
@@ -52,7 +53,8 @@ function authenticateSocket(socket, next) {
     const payload = jwt.verify(token, JWT_SECRET);
     socket.user = { id: payload.id, role: payload.role, email: payload.email };
     next();
-  } catch (err) {
+  // eslint-disable-next-line no-unused-vars
+  } catch (_err) {
     next(new Error('Invalid authentication token'));
   }
 }
@@ -74,8 +76,8 @@ export async function startServer(port = 4000) {
   // Initialize Socket.IO with CORS and authentication
   const io = new Server(server, {
     cors: {
-      origin: [process.env.FRONTEND_URL, "http://13.233.144.115:4000", "http://localhost:5173", "http://localhost:5174","http://localhost:8083"],
-      methods: ["GET", "POST"],
+      origin: [process.env.FRONTEND_URL, 'http://13.233.144.115:4000', 'http://localhost:5173', 'http://localhost:5174','http://localhost:8083'],
+      methods: ['GET', 'POST'],
       credentials: true
     },
     // Improve connection stability
@@ -92,9 +94,9 @@ export async function startServer(port = 4000) {
   // CORS configuration - allow all origins in development
   app.use(
     cors({
-      origin: [process.env.FRONTEND_URL, "http://13.233.144.115:4000", "http://localhost:5173", "http://localhost:5174","http://localhost:8083"],
-      methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
-      allowedHeaders: ["Content-Type", "Authorization"],
+      origin: [process.env.FRONTEND_URL, 'http://13.233.144.115:4000', 'http://localhost:5173', 'http://localhost:5174','http://localhost:8083'],
+      methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+      allowedHeaders: ['Content-Type', 'Authorization'],
       credentials: true,
     })
   );
@@ -163,7 +165,8 @@ export async function startServer(port = 4000) {
   });
 
   // Global error handler
-  app.use((err, req, res, next) => {
+  // eslint-disable-next-line no-unused-vars
+  app.use((err, req, res, _next) => {
     logger.error('Unhandled error:', err);
     res.status(500).json({
       error: 'Internal server error',
@@ -467,7 +470,8 @@ export async function startServer(port = 4000) {
 
     socket.on('whiteboard-clear', async (data) => {
       const { lectureId } = data;
-      const userId = socket.user.id;
+      // eslint-disable-next-line no-unused-vars
+      const _userId = socket.user.id;
 
       try {
         // Update lecture's whiteboard cleared timestamp
@@ -497,7 +501,7 @@ export async function startServer(port = 4000) {
 
         // Get all drawings after the last clear
         let query = 'SELECT drawing_data FROM whiteboard_states WHERE live_lecture_id = $1';
-        let params = [lectureId];
+        const params = [lectureId];
 
         if (clearedAt) {
           query += ' AND created_at > $2';

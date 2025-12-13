@@ -19,7 +19,8 @@ export function calculateGamifiedScore({
   attempts,
   codeLength,
   executionTime,
-  memoryUsed
+  // eslint-disable-next-line no-unused-vars
+  _memoryUsed
 }) {
   if (!allTestsPassed) {
     return {
@@ -129,7 +130,7 @@ export async function updateUserGamificationStats(userId, scoreData, isFirstSolv
     if (!stats) {
       // Create initial stats
       const insertResult = await pool.query(
-        `INSERT INTO user_gamification_stats (user_id) VALUES ($1) RETURNING *`,
+        'INSERT INTO user_gamification_stats (user_id) VALUES ($1) RETURNING *',
         [userId]
       );
       stats = insertResult.rows[0];
@@ -147,15 +148,15 @@ export async function updateUserGamificationStats(userId, scoreData, isFirstSolv
     // Update difficulty-specific counters
     if (isFirstSolve) {
       switch (difficulty) {
-        case 'easy':
-          updates.easy_solved = stats.easy_solved + 1;
-          break;
-        case 'medium':
-          updates.medium_solved = stats.medium_solved + 1;
-          break;
-        case 'hard':
-          updates.hard_solved = stats.hard_solved + 1;
-          break;
+      case 'easy':
+        updates.easy_solved = stats.easy_solved + 1;
+        break;
+      case 'medium':
+        updates.medium_solved = stats.medium_solved + 1;
+        break;
+      case 'hard':
+        updates.hard_solved = stats.hard_solved + 1;
+        break;
       }
     }
 
@@ -226,36 +227,36 @@ export async function checkAndUnlockAchievements(userId, stats, submissionData) 
         [userId, achievement.id]
       );
 
-      if (existing.rows.length > 0) continue; // Already unlocked
+      if (existing.rows.length > 0) {continue;} // Already unlocked
 
       let shouldUnlock = false;
 
       // Check achievement requirements
       switch (achievement.requirement_type) {
-        case 'problems_solved':
-          shouldUnlock = stats.problems_solved >= achievement.requirement_value;
-          break;
-        case 'easy_solved':
-          shouldUnlock = stats.easy_solved >= achievement.requirement_value;
-          break;
-        case 'medium_solved':
-          shouldUnlock = stats.medium_solved >= achievement.requirement_value;
-          break;
-        case 'hard_solved':
-          shouldUnlock = stats.hard_solved >= achievement.requirement_value;
-          break;
-        case 'streak':
-          shouldUnlock = stats.current_streak >= achievement.requirement_value;
-          break;
-        case 'fast_solve':
-          shouldUnlock = submissionData.timeSpentSeconds <= 300; // Under 5 minutes
-          break;
-        case 'perfect_solve':
-          shouldUnlock = submissionData.totalScore >= 200; // High score indicates optimal solution
-          break;
-        case 'daily_challenge':
-          // This would be checked separately when completing daily challenges
-          break;
+      case 'problems_solved':
+        shouldUnlock = stats.problems_solved >= achievement.requirement_value;
+        break;
+      case 'easy_solved':
+        shouldUnlock = stats.easy_solved >= achievement.requirement_value;
+        break;
+      case 'medium_solved':
+        shouldUnlock = stats.medium_solved >= achievement.requirement_value;
+        break;
+      case 'hard_solved':
+        shouldUnlock = stats.hard_solved >= achievement.requirement_value;
+        break;
+      case 'streak':
+        shouldUnlock = stats.current_streak >= achievement.requirement_value;
+        break;
+      case 'fast_solve':
+        shouldUnlock = submissionData.timeSpentSeconds <= 300; // Under 5 minutes
+        break;
+      case 'perfect_solve':
+        shouldUnlock = submissionData.totalScore >= 200; // High score indicates optimal solution
+        break;
+      case 'daily_challenge':
+        // This would be checked separately when completing daily challenges
+        break;
       }
 
       if (shouldUnlock) {
@@ -335,8 +336,8 @@ async function updateLeaderboardEntry(type, referenceId, userId, score, timeSpen
  */
 async function updateLeaderboardRanks(type, referenceId, date) {
   const query = referenceId
-    ? `SELECT id FROM leaderboards WHERE leaderboard_type = $1 AND reference_id = $2 AND submission_date >= $3 ORDER BY score DESC, time_spent_seconds ASC`
-    : `SELECT id FROM leaderboards WHERE leaderboard_type = $1 AND reference_id IS NULL AND submission_date >= $3 ORDER BY score DESC, time_spent_seconds ASC`;
+    ? 'SELECT id FROM leaderboards WHERE leaderboard_type = $1 AND reference_id = $2 AND submission_date >= $3 ORDER BY score DESC, time_spent_seconds ASC'
+    : 'SELECT id FROM leaderboards WHERE leaderboard_type = $1 AND reference_id IS NULL AND submission_date >= $3 ORDER BY score DESC, time_spent_seconds ASC';
 
   const entries = await pool.query(query, [type, referenceId, date]);
 

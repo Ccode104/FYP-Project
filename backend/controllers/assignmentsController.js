@@ -22,9 +22,9 @@ export async function createAssignment(req, res) {
 
   // Check if user has permission to create assignments for this offering
   if (req.user.role !== 'admin') {
-    const checkQ = `SELECT faculty_id FROM course_offerings WHERE id = $1`;
+    const checkQ = 'SELECT faculty_id FROM course_offerings WHERE id = $1';
     const checkR = await pool.query(checkQ, [course_offering_id]);
-    if (checkR.rowCount === 0) return res.status(404).json({ error: 'Course offering not found' });
+    if (checkR.rowCount === 0) {return res.status(404).json({ error: 'Course offering not found' });}
 
     const offering = checkR.rows[0];
     if (req.user.role === 'faculty' && req.user.id !== offering.faculty_id) {
@@ -116,9 +116,9 @@ export async function createAssignment(req, res) {
         max_file_size_mb: assignment_type === 'pdf' || assignment_type === 'ppt' || assignment_type === 'mixed' ? null : 10,
         required: true,
         instructions: assignment_type === 'pdf' ? 'Upload your PDF file to Google Drive and submit the shareable link' :
-                     assignment_type === 'ppt' ? 'Upload your PPT file to Google Drive and submit the shareable link' :
-                     assignment_type === 'mixed' ? 'Create a GitHub repository with your project files and submit the repository URL' :
-                     null
+          assignment_type === 'ppt' ? 'Upload your PPT file to Google Drive and submit the shareable link' :
+            assignment_type === 'mixed' ? 'Create a GitHub repository with your project files and submit the repository URL' :
+              null
       }];
 
       final_grading_config = {
@@ -189,7 +189,7 @@ export async function createAssignment(req, res) {
 
 export async function publishAssignment(req, res) {
   const id = Number(req.params.id);
-  if (!id) return res.status(400).json({ error: 'Missing assignment id' });
+  if (!id) {return res.status(400).json({ error: 'Missing assignment id' });}
 
   // First get the assignment and its offering details
   const checkQ = `
@@ -199,7 +199,7 @@ export async function publishAssignment(req, res) {
     WHERE a.id = $1
   `;
   const checkR = await pool.query(checkQ, [id]);
-  if (checkR.rowCount === 0) return res.status(404).json({ error: 'Assignment not found' });
+  if (checkR.rowCount === 0) {return res.status(404).json({ error: 'Assignment not found' });}
 
   // Check if current user is faculty for this offering (skip check for admin)
   const assignment = checkR.rows[0];
@@ -207,14 +207,14 @@ export async function publishAssignment(req, res) {
     return res.status(403).json({ error: 'Not authorized - you can only publish assignments in your own courses' });
   }
 
-  const q = `UPDATE assignments SET release_at = COALESCE(release_at, now()) WHERE id=$1 RETURNING *`;
+  const q = 'UPDATE assignments SET release_at = COALESCE(release_at, now()) WHERE id=$1 RETURNING *';
   const r = await pool.query(q, [id]);
   res.json(r.rows[0]);
 }
 
 export async function listAssignmentSubmissions(req, res) {
   const id = Number(req.params.id);
-  if (!id) return res.status(400).json({ error: 'Missing assignment id' });
+  if (!id) {return res.status(400).json({ error: 'Missing assignment id' });}
 
   // First verify the user has access to this assignment's offering
   const checkQ = `
@@ -224,7 +224,7 @@ export async function listAssignmentSubmissions(req, res) {
     WHERE a.id = $1
   `;
   const checkR = await pool.query(checkQ, [id]);
-  if (checkR.rowCount === 0) return res.status(404).json({ error: 'Assignment not found' });
+  if (checkR.rowCount === 0) {return res.status(404).json({ error: 'Assignment not found' });}
 
   // Check if current user is faculty for this offering (skip check for admin/ta)
   const assignment = checkR.rows[0];
@@ -233,15 +233,15 @@ export async function listAssignmentSubmissions(req, res) {
   }
 
   // Fetch submissions with student info
-  const q = `SELECT s.*, u.name as student_name, u.email as student_email FROM assignment_submissions s JOIN users u ON s.student_id = u.id WHERE s.assignment_id=$1 ORDER BY s.submitted_at DESC`;
+  const q = 'SELECT s.*, u.name as student_name, u.email as student_email FROM assignment_submissions s JOIN users u ON s.student_id = u.id WHERE s.assignment_id=$1 ORDER BY s.submitted_at DESC';
   const r = await pool.query(q, [id]);
   const submissions = r.rows || [];
 
-  if (submissions.length === 0) return res.json({ submissions: [] });
+  if (submissions.length === 0) {return res.json({ submissions: [] });}
 
   // Fetch files for all submissions in one query
   const ids = submissions.map((s) => s.id);
-  const filesQ = `SELECT submission_id, json_agg(json_build_object('id', id, 'storage_path', storage_path, 'filename', filename, 'mime_type', mime_type)) as files FROM submission_files WHERE submission_id = ANY($1::bigint[]) GROUP BY submission_id`;
+  const filesQ = 'SELECT submission_id, json_agg(json_build_object(\'id\', id, \'storage_path\', storage_path, \'filename\', filename, \'mime_type\', mime_type)) as files FROM submission_files WHERE submission_id = ANY($1::bigint[]) GROUP BY submission_id';
   const filesR2 = await pool.query(filesQ, [ids]);
   const filesMap = {};
   for (const row of filesR2.rows) {
@@ -249,13 +249,13 @@ export async function listAssignmentSubmissions(req, res) {
   }
 
   const enhanced = submissions.map((s) => Object.assign({}, s, { files: filesMap[s.id] || [] }));
-res.json({ submissions: enhanced });
+  res.json({ submissions: enhanced });
 
 }
 
 export async function getAssignment(req, res) {
   const id = Number(req.params.id);
-  if (!id) return res.status(400).json({ error: 'Missing assignment id' });
+  if (!id) {return res.status(400).json({ error: 'Missing assignment id' });}
 
   // Get assignment with course offering details
   const q = `
@@ -266,7 +266,7 @@ export async function getAssignment(req, res) {
     WHERE a.id = $1
   `;
   const r = await pool.query(q, [id]);
-  if (r.rowCount === 0) return res.status(404).json({ error: 'Assignment not found' });
+  if (r.rowCount === 0) {return res.status(404).json({ error: 'Assignment not found' });}
 
   const assignment = r.rows[0];
 
@@ -302,17 +302,17 @@ export async function getAssignment(req, res) {
 
 export async function deleteAssignment(req, res) {
   const id = Number(req.params.id);
-  if (!id) return res.status(400).json({ error: 'Missing assignment id' });
+  if (!id) {return res.status(400).json({ error: 'Missing assignment id' });}
   // Verify ownership: creator or faculty for offering, or admin
-  const checkQ = `SELECT a.id, a.created_by, o.faculty_id FROM assignments a JOIN course_offerings o ON a.course_offering_id=o.id WHERE a.id=$1`;
+  const checkQ = 'SELECT a.id, a.created_by, o.faculty_id FROM assignments a JOIN course_offerings o ON a.course_offering_id=o.id WHERE a.id=$1';
   const r = await pool.query(checkQ, [id]);
-  if (r.rowCount === 0) return res.status(404).json({ error: 'Not found' });
+  if (r.rowCount === 0) {return res.status(404).json({ error: 'Not found' });}
   const row = r.rows[0];
   const uid = req.user?.id;
   const role = req.user?.role;
   const isOwner = uid && (uid === row.created_by || uid === row.faculty_id);
-  if (!(isOwner || role === 'admin')) return res.status(403).json({ error: 'Forbidden' });
-  await pool.query(`DELETE FROM assignments WHERE id=$1`, [id]);
+  if (!(isOwner || role === 'admin')) {return res.status(403).json({ error: 'Forbidden' });}
+  await pool.query('DELETE FROM assignments WHERE id=$1', [id]);
   res.json({ success: true });
 }
 
@@ -320,7 +320,7 @@ export async function deleteAssignment(req, res) {
 export async function getAssignmentQuestions(req, res) {
   try {
     const assignmentId = Number(req.params.id);
-    if (!assignmentId) return res.status(400).json({ error: 'Missing assignment id' });
+    if (!assignmentId) {return res.status(400).json({ error: 'Missing assignment id' });}
 
     // Verify assignment exists and user has access
     const checkQ = `
@@ -330,9 +330,7 @@ export async function getAssignmentQuestions(req, res) {
       WHERE a.id = $1
     `;
     const checkR = await pool.query(checkQ, [assignmentId]);
-    if (checkR.rowCount === 0) return res.status(404).json({ error: 'Assignment not found' });
-
-    const assignment = checkR.rows[0];
+    if (checkR.rowCount === 0) {return res.status(404).json({ error: 'Assignment not found' });}
 
     // For code assignments, get questions from assignment_questions
     // Note: Since we removed assignment_type, this check will need to be updated
@@ -422,7 +420,7 @@ export async function submitComponentAssignment(req, res) {
       await client.query('BEGIN');
 
       // Create or update main assignment submission
-      let submissionResult = await client.query(`
+      const submissionResult = await client.query(`
         SELECT id FROM assignment_submissions
         WHERE assignment_id = $1 AND student_id = $2
       `, [assignmentId, req.user.id]);
@@ -488,7 +486,7 @@ export async function gradeComponentSubmission(req, res) {
     const submissionId = Number(req.params.id);
     const { componentGrades, overallFeedback } = req.body;
 
-    if (!submissionId) return res.status(400).json({ error: 'Missing submission id' });
+    if (!submissionId) {return res.status(400).json({ error: 'Missing submission id' });}
 
     // Verify the user has permission to grade this submission
     const checkQ = `
@@ -499,7 +497,7 @@ export async function gradeComponentSubmission(req, res) {
       WHERE s.id = $1
     `;
     const checkR = await pool.query(checkQ, [submissionId]);
-    if (checkR.rowCount === 0) return res.status(404).json({ error: 'Submission not found' });
+    if (checkR.rowCount === 0) {return res.status(404).json({ error: 'Submission not found' });}
 
     const submission = checkR.rows[0];
 
@@ -513,7 +511,6 @@ export async function gradeComponentSubmission(req, res) {
       await client.query('BEGIN');
 
       let totalScore = 0;
-      let totalPossible = 0;
 
       // Insert component grades
       if (componentGrades && Array.isArray(componentGrades)) {
@@ -566,7 +563,7 @@ export async function gradeComponentSubmission(req, res) {
 export async function getComponentSubmissions(req, res) {
   try {
     const submissionId = Number(req.params.id);
-    if (!submissionId) return res.status(400).json({ error: 'Missing submission id' });
+    if (!submissionId) {return res.status(400).json({ error: 'Missing submission id' });}
 
     const components = await pool.query(`
       SELECT acs.*, acs.metadata as submission_metadata
@@ -597,7 +594,7 @@ export async function gradeSubmission(req, res) {
     const submissionId = Number(req.params.id);
     const { grade, feedback, rubricGrades } = req.body;
 
-    if (!submissionId) return res.status(400).json({ error: 'Missing submission id' });
+    if (!submissionId) {return res.status(400).json({ error: 'Missing submission id' });}
 
     // Verify the user has permission to grade this submission
     const checkQ = `
@@ -608,7 +605,7 @@ export async function gradeSubmission(req, res) {
       WHERE s.id = $1
     `;
     const checkR = await pool.query(checkQ, [submissionId]);
-    if (checkR.rowCount === 0) return res.status(404).json({ error: 'Submission not found' });
+    if (checkR.rowCount === 0) {return res.status(404).json({ error: 'Submission not found' });}
 
     const submission = checkR.rows[0];
 

@@ -51,7 +51,7 @@ export async function executeCode(req, res) {
       const { pool } = await import('../db/index.js');
 
       // Fetch driver code
-      const driverQuery = `SELECT driver_code FROM code_questions WHERE id = $1`;
+      const driverQuery = 'SELECT driver_code FROM code_questions WHERE id = $1';
       const driverResult = await pool.query(driverQuery, [question_id]);
       if (driverResult.rows.length > 0) {
         const driverCode = driverResult.rows[0].driver_code;
@@ -198,8 +198,9 @@ export async function executeCode(req, res) {
     if ((!result || (result.status && (result.status.id === 1 || result.status.id === 2))) && attempts >= maxAttempts) {
       try {
         const finalResp = await fetch(pollUrl, { headers });
-        if (finalResp.ok) result = await finalResp.json();
-      } catch (err) {
+        if (finalResp.ok) {result = await finalResp.json();}
+      // eslint-disable-next-line no-unused-vars
+      } catch (_err) {
         return res.status(500).json({
           error: 'Timeout waiting for code execution result',
           details: 'The code submission was accepted but the result is not yet available'

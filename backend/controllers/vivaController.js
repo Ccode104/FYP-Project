@@ -60,8 +60,8 @@ export async function getVivaSessions(req, res) {
       FROM viva_sessions vs
       JOIN course_offerings co ON vs.course_offering_id = co.id
     `;
-    let params = [];
-    let whereConditions = [];
+    const params = [];
+    const whereConditions = [];
 
     if (courseOfferingId) {
       whereConditions.push(`vs.course_offering_id = $${params.length + 1}`);
@@ -237,7 +237,6 @@ export async function generateVivaQuestions(req, res) {
     ).join('\n\n');
 
     // Temporarily modify the generateVivaQuestions to use viva context
-    const originalGenerateVivaQuestions = generateQuestions;
     mockReq.body.context = `Viva Session Context:\n${contextInfo}\n\nGenerate ${count} viva questions at ${difficulty} difficulty level for this student based on their assignment performance.`;
 
     const result = await generateQuestions(mockReq, mockRes);

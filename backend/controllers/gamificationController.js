@@ -6,7 +6,7 @@ import { pool } from '../db/index.js';
 export async function getUserStats(req, res) {
   try {
     const userId = req.user?.id;
-    if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+    if (!userId) {return res.status(401).json({ error: 'Unauthorized' });}
 
     const stats = await pool.query(
       'SELECT * FROM user_gamification_stats WHERE user_id = $1',
@@ -43,7 +43,7 @@ export async function getUserStats(req, res) {
  */
 export async function getLeaderboard(req, res) {
   try {
-    const { type, referenceId, limit = 50, period = 'all' } = req.query;
+    const { type, referenceId, limit = 50 } = req.query;
     const userId = req.user?.id;
 
     if (!['assignment', 'course', 'quiz', 'global'].includes(type)) {
@@ -128,8 +128,8 @@ export async function getLeaderboard(req, res) {
         }
       } else {
         const rankQuery = type === 'global'
-          ? `SELECT rank FROM leaderboards WHERE leaderboard_type = 'global' AND user_id = $1 ORDER BY submission_date DESC LIMIT 1`
-          : `SELECT rank FROM leaderboards WHERE leaderboard_type = $1 AND reference_id = $2 AND user_id = $3 ORDER BY submission_date DESC LIMIT 1`;
+          ? 'SELECT rank FROM leaderboards WHERE leaderboard_type = \'global\' AND user_id = $1 ORDER BY submission_date DESC LIMIT 1'
+          : 'SELECT rank FROM leaderboards WHERE leaderboard_type = $1 AND reference_id = $2 AND user_id = $3 ORDER BY submission_date DESC LIMIT 1';
 
         const rankParams = type === 'global' ? [userId] : [type, referenceId, userId];
         const rankResult = await pool.query(rankQuery, rankParams);
@@ -158,7 +158,7 @@ export async function getLeaderboard(req, res) {
 export async function getUserAchievements(req, res) {
   try {
     const userId = req.user?.id;
-    if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+    if (!userId) {return res.status(401).json({ error: 'Unauthorized' });}
 
     const achievements = await pool.query(
       `SELECT ua.*, a.name, a.description, a.icon, a.category, a.rarity, a.points_reward
@@ -238,10 +238,10 @@ export async function getDailyChallenge(req, res) {
 export async function completeDailyChallenge(req, res) {
   try {
     const userId = req.user?.id;
-    if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+    if (!userId) {return res.status(401).json({ error: 'Unauthorized' });}
 
-    const { challengeId, score } = req.body;
-    if (!challengeId) return res.status(400).json({ error: 'Challenge ID required' });
+    const { challengeId } = req.body;
+    if (!challengeId) {return res.status(400).json({ error: 'Challenge ID required' });}
 
     // Check if challenge exists and is active
     const challenge = await pool.query(
@@ -293,7 +293,7 @@ export async function completeDailyChallenge(req, res) {
 export async function getUserSubmissionHistory(req, res) {
   try {
     const userId = req.user?.id;
-    if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+    if (!userId) {return res.status(401).json({ error: 'Unauthorized' });}
 
     const { limit = 20, offset = 0 } = req.query;
 

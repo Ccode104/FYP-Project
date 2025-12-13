@@ -22,7 +22,7 @@ export async function createResource(req, res) {
 
 export async function listResources(req, res) {
   const offeringId = req.query.offeringId;
-  const q = `SELECT * FROM resources WHERE course_offering_id = $1 ORDER BY uploaded_at DESC`;
+  const q = 'SELECT * FROM resources WHERE course_offering_id = $1 ORDER BY uploaded_at DESC';
   const r = await pool.query(q, [offeringId]);
   res.json(r.rows);
 }
@@ -55,8 +55,8 @@ export async function uploadResource(req, res) {
           folder: 'lms_resources'
         },
         (error, result) => {
-          if (error) reject(error);
-          else resolve(result);
+          if (error) {reject(error);}
+          else {resolve(result);}
         }
       );
       stream.end(req.file.buffer);
@@ -105,7 +105,7 @@ export async function deleteResource(req, res) {
     }
 
     // Get resource info first to delete from Cloudinary
-    const resourceQuery = `SELECT storage_path FROM resources WHERE id = $1`;
+    const resourceQuery = 'SELECT storage_path FROM resources WHERE id = $1';
     const resourceResult = await pool.query(resourceQuery, [id]);
 
     if (resourceResult.rowCount === 0) {
@@ -130,7 +130,7 @@ export async function deleteResource(req, res) {
     }
 
     // Delete from database
-    const deleteQuery = `DELETE FROM resources WHERE id = $1 RETURNING *`;
+    const deleteQuery = 'DELETE FROM resources WHERE id = $1 RETURNING *';
     const deleteResult = await pool.query(deleteQuery, [id]);
 
     res.json({
@@ -152,7 +152,7 @@ export async function getResourceById(req, res) {
       return res.status(400).json({ error: 'Resource ID is required' });
     }
 
-    const query = `SELECT * FROM resources WHERE id = $1`;
+    const query = 'SELECT * FROM resources WHERE id = $1';
     const result = await pool.query(query, [id]);
 
     if (result.rowCount === 0) {
@@ -207,7 +207,7 @@ export async function getCourseResources(req, res) {
   try {
     const { offeringId } = req.params;
     const result = await pool.query(
-      `SELECT * FROM resources WHERE course_offering_id = $1`,
+      'SELECT * FROM resources WHERE course_offering_id = $1',
       [offeringId]
     );
     res.json(result.rows);
@@ -222,7 +222,7 @@ export async function getCoursePYQs(req, res) {
   try {
     const { offeringId } = req.params;
     const result = await pool.query(
-      `SELECT * FROM resources WHERE course_offering_id = $1 AND resource_type = 'pyq'`,
+      'SELECT * FROM resources WHERE course_offering_id = $1 AND resource_type = \'pyq\'',
       [offeringId]
     );
     res.json(result.rows);
@@ -237,7 +237,7 @@ export async function getCourseNotes(req, res) {
   try {
     const { offeringId } = req.params;
     const result = await pool.query(
-      `SELECT * FROM resources WHERE course_offering_id = $1 AND resource_type = 'lecture_note'`,
+      'SELECT * FROM resources WHERE course_offering_id = $1 AND resource_type = \'lecture_note\'',
       [offeringId]
     );
     res.json(result.rows);
@@ -252,7 +252,7 @@ export async function getCourseAssignments(req, res) {
   try {
     const { offeringId } = req.params;
     const result = await pool.query(
-      `SELECT * FROM assignments WHERE course_offering_id = $1`,
+      'SELECT * FROM assignments WHERE course_offering_id = $1',
       [offeringId]
     );
     res.json(result.rows);

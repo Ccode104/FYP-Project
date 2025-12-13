@@ -1,10 +1,10 @@
 import { pool } from '../db/index.js';
-// import { uploadBufferToS3 } from '../middleware/upload.js';
+import { uploadBufferToS3 } from '../middleware/upload.js';
 
 // Create a new code question
 export async function createCodeQuestion(req, res) {
   try {
-    const { title, description, constraints, template_code, driver_code, course_offering_id, test_cases } = req.body;
+    const { title, description, constraints, template_code, driver_code, test_cases } = req.body;
     const created_by = req.user?.id || null;
 
     if (!title || !description) {
@@ -203,7 +203,7 @@ export async function updateCodeQuestion(req, res) {
     const { title, description, constraints, template_code, driver_code, test_cases } = req.body;
 
     // Check if question exists and user has permission
-    const checkQ = `SELECT created_by FROM code_questions WHERE id = $1`;
+    const checkQ = 'SELECT created_by FROM code_questions WHERE id = $1';
     const checkR = await pool.query(checkQ, [id]);
 
     if (checkR.rows.length === 0) {
@@ -228,7 +228,7 @@ export async function updateCodeQuestion(req, res) {
     // If test cases are provided, update them
     if (test_cases && Array.isArray(test_cases)) {
       // Delete existing test cases
-      await pool.query(`DELETE FROM code_question_testcases WHERE question_id = $1`, [id]);
+      await pool.query('DELETE FROM code_question_testcases WHERE question_id = $1', [id]);
 
       // Insert new test cases
       for (const testCase of test_cases) {
@@ -288,7 +288,7 @@ export async function deleteCodeQuestion(req, res) {
     const { id } = req.params;
 
     // Check if question exists and user has permission
-    const checkQ = `SELECT created_by FROM code_questions WHERE id = $1`;
+    const checkQ = 'SELECT created_by FROM code_questions WHERE id = $1';
     const checkR = await pool.query(checkQ, [id]);
     
     if (checkR.rows.length === 0) {
@@ -301,7 +301,7 @@ export async function deleteCodeQuestion(req, res) {
     }
 
     // Delete question (cascade will delete test cases)
-    await pool.query(`DELETE FROM code_questions WHERE id = $1`, [id]);
+    await pool.query('DELETE FROM code_questions WHERE id = $1', [id]);
 
     res.json({ success: true });
   } catch (err) {

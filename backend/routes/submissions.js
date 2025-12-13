@@ -42,10 +42,10 @@ const router = express.Router();
  */
 // router.post('/submit/files', requireAuth, requireRole('student','ta','faculty'), upload.array('files', 5), submitFileAssignment);
 router.post(
-  "/submit/files",
+  '/submit/files',
   requireAuth,
-  requireRole("student", "ta", "faculty"),
-  upload.array("files", 5),
+  requireRole('student', 'ta', 'faculty'),
+  upload.array('files', 5),
   submitFileAssignment
 );
 

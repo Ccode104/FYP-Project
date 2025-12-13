@@ -6,7 +6,7 @@ async function populateCSE304DataStructures() {
     console.log('Populating CSE304 Data Structures Implementation assignment...');
 
     // Find the CSE304 course offering
-    let courseResult = await pool.query(`
+    const courseResult = await pool.query(`
       SELECT co.id FROM course_offerings co
       JOIN courses c ON co.course_id = c.id
       WHERE c.code = $1
@@ -46,7 +46,7 @@ async function populateCSE304DataStructures() {
     console.log(`Using course ID: ${courseId}`);
 
     // Find or create the Data Structures Implementation assignment
-    let assignmentResult = await pool.query(
+    const assignmentResult = await pool.query(
       'SELECT id FROM assignments WHERE title = $1 AND course_offering_id = $2',
       ['Data Structures Implementation', courseId]
     );

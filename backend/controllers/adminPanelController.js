@@ -54,20 +54,20 @@ export async function adminCreateMaterial(req, res) {
 export async function adminUpdateMaterial(req, res) {
   try {
     const id = Number(req.params.id);
-    if (!id) return res.status(400).json({ error: 'Invalid id' });
+    if (!id) {return res.status(400).json({ error: 'Invalid id' });}
     const { title, description, category, material, storage_path, filename, department_id, course_id } = req.body || {};
     const fields = [];
     const params = [];
     function set(col, val) { params.push(val); fields.push(`${col} = $${params.length}`); }
-    if (title !== undefined) set('title', title);
-    if (description !== undefined) set('description', description);
-    if (category !== undefined) set('category', category);
-    if (material !== undefined) set('material', material);
-    if (storage_path !== undefined) set('storage_path', storage_path);
-    if (filename !== undefined) set('filename', filename);
-    if (department_id !== undefined) set('department_id', department_id ? Number(department_id) : null);
-    if (course_id !== undefined) set('course_id', course_id ? Number(course_id) : null);
-    if (!fields.length) return res.status(400).json({ error: 'No updates provided' });
+    if (title !== undefined) {set('title', title);}
+    if (description !== undefined) {set('description', description);}
+    if (category !== undefined) {set('category', category);}
+    if (material !== undefined) {set('material', material);}
+    if (storage_path !== undefined) {set('storage_path', storage_path);}
+    if (filename !== undefined) {set('filename', filename);}
+    if (department_id !== undefined) {set('department_id', department_id ? Number(department_id) : null);}
+    if (course_id !== undefined) {set('course_id', course_id ? Number(course_id) : null);}
+    if (!fields.length) {return res.status(400).json({ error: 'No updates provided' });}
     params.push(id);
     const r = await pool.query(`UPDATE study_materials SET ${fields.join(', ')}, updated_at = now() WHERE id=$${params.length} RETURNING *`, params);
     res.json({ material: r.rows[0] });
@@ -80,7 +80,7 @@ export async function adminUpdateMaterial(req, res) {
 export async function adminDeleteMaterial(req, res) {
   try {
     const id = Number(req.params.id);
-    if (!id) return res.status(400).json({ error: 'Invalid id' });
+    if (!id) {return res.status(400).json({ error: 'Invalid id' });}
     await pool.query('DELETE FROM study_materials WHERE id=$1', [id]);
     res.json({ success: true });
   } catch (err) {
@@ -125,7 +125,7 @@ export async function adminAssignFacultyToCourse(req, res) {
   try {
     const courseId = Number(req.params.courseId);
     const { faculty_ids } = req.body || {};
-    if (!courseId) return res.status(400).json({ error: 'Invalid course id' });
+    if (!courseId) {return res.status(400).json({ error: 'Invalid course id' });}
     if (!Array.isArray(faculty_ids) || faculty_ids.length === 0) {
       return res.status(400).json({ error: 'faculty_ids (non-empty array) is required' });
     }
@@ -154,30 +154,30 @@ export async function adminAssignFacultyToCourse(req, res) {
 export async function adminUpdateUser(req, res) {
   try {
     const id = Number(req.params.id);
-    if (!id) return res.status(400).json({ error: 'Invalid id' });
+    if (!id) {return res.status(400).json({ error: 'Invalid id' });}
     const { role, department_id, is_active, name } = req.body || {};
 
     // Check permissions
     const superAdmin = await isSuperAdmin(req.user.id);
     const targetUser = await pool.query('SELECT role FROM users WHERE id = $1', [id]);
-    if (targetUser.rowCount === 0) return res.status(404).json({ error: 'User not found' });
+    if (targetUser.rowCount === 0) {return res.status(404).json({ error: 'User not found' });}
     const targetRole = targetUser.rows[0].role;
 
     if (!superAdmin) {
       // Non-super cannot modify other admins
-      if (targetRole === 'admin') return res.status(403).json({ error: 'Forbidden: cannot modify admin accounts' });
+      if (targetRole === 'admin') {return res.status(403).json({ error: 'Forbidden: cannot modify admin accounts' });}
       // Cannot set role to admin
-      if (role === 'admin') return res.status(403).json({ error: 'Forbidden: cannot promote to admin' });
+      if (role === 'admin') {return res.status(403).json({ error: 'Forbidden: cannot promote to admin' });}
     }
 
     const fields = [];
     const params = [];
     function set(col, val) { params.push(val); fields.push(`${col} = $${params.length}`); }
-    if (role !== undefined) set('role', role);
-    if (name !== undefined) set('name', name);
-    if (department_id !== undefined) set('department_id', department_id ? Number(department_id) : null);
-    if (is_active !== undefined) set('is_active', !!is_active);
-    if (!fields.length) return res.status(400).json({ error: 'No updates provided' });
+    if (role !== undefined) {set('role', role);}
+    if (name !== undefined) {set('name', name);}
+    if (department_id !== undefined) {set('department_id', department_id ? Number(department_id) : null);}
+    if (is_active !== undefined) {set('is_active', !!is_active);}
+    if (!fields.length) {return res.status(400).json({ error: 'No updates provided' });}
     params.push(id);
     const r = await pool.query(`UPDATE users SET ${fields.join(', ')}, updated_at = now() WHERE id=$${params.length} RETURNING id, email, name, role, department_id, is_active`, params);
 
@@ -235,17 +235,17 @@ export async function adminCreateDepartment(req, res) {
 export async function adminUpdateDepartment(req, res) {
   try {
     const id = Number(req.params.id);
-    if (!id) return res.status(400).json({ error: 'Invalid id' });
+    if (!id) {return res.status(400).json({ error: 'Invalid id' });}
     const { code, name } = req.body || {};
     const fields = [];
     const params = [];
     function set(col, val) { params.push(val); fields.push(`${col} = $${params.length}`); }
-    if (code !== undefined) set('code', code.toUpperCase());
-    if (name !== undefined) set('name', name);
-    if (!fields.length) return res.status(400).json({ error: 'No updates provided' });
+    if (code !== undefined) {set('code', code.toUpperCase());}
+    if (name !== undefined) {set('name', name);}
+    if (!fields.length) {return res.status(400).json({ error: 'No updates provided' });}
     params.push(id);
     const r = await pool.query(`UPDATE departments SET ${fields.join(', ')} WHERE id=$${params.length} RETURNING id, code, name`, params);
-    if (r.rowCount === 0) return res.status(404).json({ error: 'Department not found' });
+    if (r.rowCount === 0) {return res.status(404).json({ error: 'Department not found' });}
     res.json({ department: r.rows[0] });
   } catch (err) {
     console.error('adminUpdateDepartment', err);
@@ -260,7 +260,7 @@ export async function adminUpdateDepartment(req, res) {
 export async function adminDeleteDepartment(req, res) {
   try {
     const id = Number(req.params.id);
-    if (!id) return res.status(400).json({ error: 'Invalid id' });
+    if (!id) {return res.status(400).json({ error: 'Invalid id' });}
     // Check if department has courses
     const courses = await pool.query('SELECT COUNT(*) FROM courses WHERE department_id = $1', [id]);
     if (parseInt(courses.rows[0].count) > 0) {
@@ -277,9 +277,9 @@ export async function adminDeleteDepartment(req, res) {
 export async function adminUserOverview(req, res) {
   try {
     const id = Number(req.params.id);
-    if (!id) return res.status(400).json({ error: 'Invalid id' });
+    if (!id) {return res.status(400).json({ error: 'Invalid id' });}
     const ures = await pool.query('SELECT id, name, email, role FROM users WHERE id=$1 LIMIT 1', [id]);
-    if (ures.rowCount === 0) return res.status(404).json({ error: 'User not found' });
+    if (ures.rowCount === 0) {return res.status(404).json({ error: 'User not found' });}
     const user = ures.rows[0];
 
     if (user.role === 'student') {
@@ -304,7 +304,7 @@ export async function adminUserOverview(req, res) {
         WHERE o.faculty_id = $1
         ORDER BY o.id DESC`, [id]);
       const offeringIds = off.rows.map(r => r.offering_id);
-      let enrollMap = {};
+      const enrollMap = {};
       if (offeringIds.length) {
         const enr = await pool.query(`
           SELECT e.course_offering_id, u.id as student_id, u.name as student_name, u.email as student_email
@@ -312,7 +312,7 @@ export async function adminUserOverview(req, res) {
           WHERE e.course_offering_id = ANY($1::bigint[])
           ORDER BY e.course_offering_id DESC, u.name ASC`, [offeringIds]);
         for (const row of enr.rows) {
-          if (!enrollMap[row.course_offering_id]) enrollMap[row.course_offering_id] = [];
+          if (!enrollMap[row.course_offering_id]) {enrollMap[row.course_offering_id] = [];}
           enrollMap[row.course_offering_id].push({ id: row.student_id, name: row.student_name, email: row.student_email });
         }
       }
@@ -342,7 +342,7 @@ export async function adminUserOverview(req, res) {
 export async function adminGetCoursesByDepartment(req, res) {
   try {
     const deptId = Number(req.params.departmentId);
-    if (!deptId) return res.status(400).json({ error: 'Invalid department id' });
+    if (!deptId) {return res.status(400).json({ error: 'Invalid department id' });}
     const r = await pool.query(`
       SELECT c.id, c.code, c.title, c.description, c.credits
       FROM courses c
@@ -360,11 +360,11 @@ export async function adminGetCoursesByDepartment(req, res) {
 export async function adminGetCourseDetails(req, res) {
   try {
     const courseId = Number(req.params.courseId);
-    if (!courseId) return res.status(400).json({ error: 'Invalid course id' });
+    if (!courseId) {return res.status(400).json({ error: 'Invalid course id' });}
     
     // Get course info
     const courseRes = await pool.query('SELECT * FROM courses WHERE id = $1', [courseId]);
-    if (courseRes.rowCount === 0) return res.status(404).json({ error: 'Course not found' });
+    if (courseRes.rowCount === 0) {return res.status(404).json({ error: 'Course not found' });}
     const course = courseRes.rows[0];
     
     // Get all offerings with professors
@@ -379,7 +379,7 @@ export async function adminGetCourseDetails(req, res) {
     
     // Get students for each offering
     const offeringIds = offerings.rows.map(o => o.offering_id);
-    let enrollMap = {};
+    const enrollMap = {};
     if (offeringIds.length) {
       const enr = await pool.query(`
         SELECT e.course_offering_id, u.id as student_id, u.name as student_name, u.email as student_email, u.roll_number
@@ -389,7 +389,7 @@ export async function adminGetCourseDetails(req, res) {
         ORDER BY u.name ASC
       `, [offeringIds]);
       for (const row of enr.rows) {
-        if (!enrollMap[row.course_offering_id]) enrollMap[row.course_offering_id] = [];
+        if (!enrollMap[row.course_offering_id]) {enrollMap[row.course_offering_id] = [];}
         enrollMap[row.course_offering_id].push({
           id: row.student_id,
           name: row.student_name,
@@ -415,7 +415,7 @@ export async function adminGetCourseDetails(req, res) {
 export async function adminGetAssignmentsByFaculty(req, res) {
   try {
     const offeringId = Number(req.params.offeringId);
-    if (!offeringId) return res.status(400).json({ error: 'Invalid offering id' });
+    if (!offeringId) {return res.status(400).json({ error: 'Invalid offering id' });}
     
     const r = await pool.query(`
       SELECT a.id, a.title, a.description, a.due_at as due_date, a.max_score as total_marks, a.created_at,
@@ -438,7 +438,7 @@ export async function adminGetAssignmentsByFaculty(req, res) {
 export async function adminGetAssignmentsByFacultyId(req, res) {
   try {
     const facultyId = Number(req.params.facultyId);
-    if (!facultyId) return res.status(400).json({ error: 'Invalid faculty id' });
+    if (!facultyId) {return res.status(400).json({ error: 'Invalid faculty id' });}
     
     const r = await pool.query(`
       SELECT a.id, a.title, a.description, a.due_at as due_date, a.max_score as total_marks, a.created_at,
@@ -462,7 +462,7 @@ export async function adminGetAssignmentsByFacultyId(req, res) {
 export async function adminGetSubmissions(req, res) {
   try {
     const assignmentId = Number(req.params.assignmentId);
-    if (!assignmentId) return res.status(400).json({ error: 'Invalid assignment id' });
+    if (!assignmentId) {return res.status(400).json({ error: 'Invalid assignment id' });}
 
     const r = await pool.query(`
       SELECT s.id, s.submitted_at, s.final_score as marks_obtained, s.comments as feedback, s.graded_at,
@@ -485,12 +485,12 @@ export async function adminGetSubmissions(req, res) {
 export async function adminDeleteUser(req, res) {
   try {
     const id = Number(req.params.id);
-    if (!id) return res.status(400).json({ error: 'Invalid id' });
+    if (!id) {return res.status(400).json({ error: 'Invalid id' });}
 
     // Check permissions
     const superAdmin = await isSuperAdmin(req.user.id);
     const targetUser = await pool.query('SELECT id, name, email, role, department_id, roll_number, is_active FROM users WHERE id = $1', [id]);
-    if (targetUser.rowCount === 0) return res.status(404).json({ error: 'User not found' });
+    if (targetUser.rowCount === 0) {return res.status(404).json({ error: 'User not found' });}
     const targetRole = targetUser.rows[0].role;
 
     if (!superAdmin && targetRole === 'admin') {
@@ -569,21 +569,21 @@ export async function adminCreateOffering(req, res) {
 export async function adminUpdateOffering(req, res) {
   try {
     const id = Number(req.params.id);
-    if (!id) return res.status(400).json({ error: 'Invalid id' });
+    if (!id) {return res.status(400).json({ error: 'Invalid id' });}
     const { term, section, faculty_id, max_capacity, start_date, end_date } = req.body || {};
     const fields = [];
     const params = [];
     function set(col, val) { params.push(val); fields.push(`${col} = $${params.length}`); }
-    if (term !== undefined) set('term', term);
-    if (section !== undefined) set('section', section);
-    if (faculty_id !== undefined) set('faculty_id', Number(faculty_id));
-    if (max_capacity !== undefined) set('max_capacity', max_capacity ? Number(max_capacity) : null);
-    if (start_date !== undefined) set('start_date', start_date);
-    if (end_date !== undefined) set('end_date', end_date);
-    if (!fields.length) return res.status(400).json({ error: 'No updates provided' });
+    if (term !== undefined) {set('term', term);}
+    if (section !== undefined) {set('section', section);}
+    if (faculty_id !== undefined) {set('faculty_id', Number(faculty_id));}
+    if (max_capacity !== undefined) {set('max_capacity', max_capacity ? Number(max_capacity) : null);}
+    if (start_date !== undefined) {set('start_date', start_date);}
+    if (end_date !== undefined) {set('end_date', end_date);}
+    if (!fields.length) {return res.status(400).json({ error: 'No updates provided' });}
     params.push(id);
     const r = await pool.query(`UPDATE course_offerings SET ${fields.join(', ')} WHERE id=$${params.length} RETURNING *`, params);
-    if (r.rowCount === 0) return res.status(404).json({ error: 'Offering not found' });
+    if (r.rowCount === 0) {return res.status(404).json({ error: 'Offering not found' });}
     res.json({ offering: r.rows[0] });
   } catch (err) {
     console.error('adminUpdateOffering', err);
@@ -598,7 +598,7 @@ export async function adminUpdateOffering(req, res) {
 export async function adminDeleteOffering(req, res) {
   try {
     const id = Number(req.params.id);
-    if (!id) return res.status(400).json({ error: 'Invalid id' });
+    if (!id) {return res.status(400).json({ error: 'Invalid id' });}
 
     // Start transaction for cascading deletes
     await pool.query('BEGIN');
@@ -702,20 +702,20 @@ export async function adminCreateCourse(req, res) {
 export async function adminUpdateCourse(req, res) {
   try {
     const id = Number(req.params.id);
-    if (!id) return res.status(400).json({ error: 'Invalid id' });
+    if (!id) {return res.status(400).json({ error: 'Invalid id' });}
     const { code, title, description, department_id, credits } = req.body || {};
     const fields = [];
     const params = [];
     function set(col, val) { params.push(val); fields.push(`${col} = $${params.length}`); }
-    if (code !== undefined) set('code', code.toUpperCase());
-    if (title !== undefined) set('title', title);
-    if (description !== undefined) set('description', description);
-    if (department_id !== undefined) set('department_id', department_id ? Number(department_id) : null);
-    if (credits !== undefined) set('credits', credits ? Number(credits) : null);
-    if (!fields.length) return res.status(400).json({ error: 'No updates provided' });
+    if (code !== undefined) {set('code', code.toUpperCase());}
+    if (title !== undefined) {set('title', title);}
+    if (description !== undefined) {set('description', description);}
+    if (department_id !== undefined) {set('department_id', department_id ? Number(department_id) : null);}
+    if (credits !== undefined) {set('credits', credits ? Number(credits) : null);}
+    if (!fields.length) {return res.status(400).json({ error: 'No updates provided' });}
     params.push(id);
     const r = await pool.query(`UPDATE courses SET ${fields.join(', ')}, updated_at = now() WHERE id=$${params.length} RETURNING *`, params);
-    if (r.rowCount === 0) return res.status(404).json({ error: 'Course not found' });
+    if (r.rowCount === 0) {return res.status(404).json({ error: 'Course not found' });}
     res.json({ course: r.rows[0] });
   } catch (err) {
     console.error('adminUpdateCourse', err);
@@ -730,7 +730,7 @@ export async function adminUpdateCourse(req, res) {
 export async function adminDeleteCourse(req, res) {
   try {
     const id = Number(req.params.id);
-    if (!id) return res.status(400).json({ error: 'Invalid id' });
+    if (!id) {return res.status(400).json({ error: 'Invalid id' });}
     // Check if course has offerings
     const offerings = await pool.query('SELECT COUNT(*) FROM course_offerings WHERE course_id = $1', [id]);
     if (parseInt(offerings.rows[0].count) > 0) {
@@ -791,22 +791,22 @@ export async function adminCreateAssignment(req, res) {
 export async function adminUpdateAssignment(req, res) {
   try {
     const id = Number(req.params.id);
-    if (!id) return res.status(400).json({ error: 'Invalid id' });
+    if (!id) {return res.status(400).json({ error: 'Invalid id' });}
     const { title, description, assignment_type, release_at, due_at, max_score, allow_multiple_submissions } = req.body || {};
     const fields = [];
     const params = [];
     function set(col, val) { params.push(val); fields.push(`${col} = $${params.length}`); }
-    if (title !== undefined) set('title', title);
-    if (description !== undefined) set('description', description);
-    if (assignment_type !== undefined) set('assignment_type', assignment_type);
-    if (release_at !== undefined) set('release_at', release_at);
-    if (due_at !== undefined) set('due_at', due_at);
-    if (max_score !== undefined) set('max_score', Number(max_score));
-    if (allow_multiple_submissions !== undefined) set('allow_multiple_submissions', !!allow_multiple_submissions);
-    if (!fields.length) return res.status(400).json({ error: 'No updates provided' });
+    if (title !== undefined) {set('title', title);}
+    if (description !== undefined) {set('description', description);}
+    if (assignment_type !== undefined) {set('assignment_type', assignment_type);}
+    if (release_at !== undefined) {set('release_at', release_at);}
+    if (due_at !== undefined) {set('due_at', due_at);}
+    if (max_score !== undefined) {set('max_score', Number(max_score));}
+    if (allow_multiple_submissions !== undefined) {set('allow_multiple_submissions', !!allow_multiple_submissions);}
+    if (!fields.length) {return res.status(400).json({ error: 'No updates provided' });}
     params.push(id);
     const r = await pool.query(`UPDATE assignments SET ${fields.join(', ')} WHERE id=$${params.length} RETURNING *`, params);
-    if (r.rowCount === 0) return res.status(404).json({ error: 'Assignment not found' });
+    if (r.rowCount === 0) {return res.status(404).json({ error: 'Assignment not found' });}
     res.json({ assignment: r.rows[0] });
   } catch (err) {
     console.error('adminUpdateAssignment', err);
@@ -817,7 +817,7 @@ export async function adminUpdateAssignment(req, res) {
 export async function adminDeleteAssignment(req, res) {
   try {
     const id = Number(req.params.id);
-    if (!id) return res.status(400).json({ error: 'Invalid id' });
+    if (!id) {return res.status(400).json({ error: 'Invalid id' });}
     // Check if assignment has submissions
     const submissions = await pool.query('SELECT COUNT(*) FROM assignment_submissions WHERE assignment_id = $1', [id]);
     if (parseInt(submissions.rows[0].count) > 0) {
@@ -877,23 +877,23 @@ export async function adminCreateQuiz(req, res) {
 export async function adminUpdateQuiz(req, res) {
   try {
     const id = Number(req.params.id);
-    if (!id) return res.status(400).json({ error: 'Invalid id' });
+    if (!id) {return res.status(400).json({ error: 'Invalid id' });}
     const { title, start_at, end_at, max_score, is_proctored, time_limit, proctoring_config_id, allow_suspension_resume } = req.body || {};
     const fields = [];
     const params = [];
     function set(col, val) { params.push(val); fields.push(`${col} = $${params.length}`); }
-    if (title !== undefined) set('title', title);
-    if (start_at !== undefined) set('start_at', start_at);
-    if (end_at !== undefined) set('end_at', end_at);
-    if (max_score !== undefined) set('max_score', Number(max_score));
-    if (is_proctored !== undefined) set('is_proctored', !!is_proctored);
-    if (time_limit !== undefined) set('time_limit', time_limit ? Number(time_limit) : null);
-    if (proctoring_config_id !== undefined) set('proctoring_config_id', proctoring_config_id ? Number(proctoring_config_id) : null);
-    if (allow_suspension_resume !== undefined) set('allow_suspension_resume', !!allow_suspension_resume);
-    if (!fields.length) return res.status(400).json({ error: 'No updates provided' });
+    if (title !== undefined) {set('title', title);}
+    if (start_at !== undefined) {set('start_at', start_at);}
+    if (end_at !== undefined) {set('end_at', end_at);}
+    if (max_score !== undefined) {set('max_score', Number(max_score));}
+    if (is_proctored !== undefined) {set('is_proctored', !!is_proctored);}
+    if (time_limit !== undefined) {set('time_limit', time_limit ? Number(time_limit) : null);}
+    if (proctoring_config_id !== undefined) {set('proctoring_config_id', proctoring_config_id ? Number(proctoring_config_id) : null);}
+    if (allow_suspension_resume !== undefined) {set('allow_suspension_resume', !!allow_suspension_resume);}
+    if (!fields.length) {return res.status(400).json({ error: 'No updates provided' });}
     params.push(id);
     const r = await pool.query(`UPDATE quizzes SET ${fields.join(', ')} WHERE id=$${params.length} RETURNING *`, params);
-    if (r.rowCount === 0) return res.status(404).json({ error: 'Quiz not found' });
+    if (r.rowCount === 0) {return res.status(404).json({ error: 'Quiz not found' });}
     res.json({ quiz: r.rows[0] });
   } catch (err) {
     console.error('adminUpdateQuiz', err);
@@ -904,7 +904,7 @@ export async function adminUpdateQuiz(req, res) {
 export async function adminDeleteQuiz(req, res) {
   try {
     const id = Number(req.params.id);
-    if (!id) return res.status(400).json({ error: 'Invalid id' });
+    if (!id) {return res.status(400).json({ error: 'Invalid id' });}
     // Check if quiz has attempts
     const attempts = await pool.query('SELECT COUNT(*) FROM quiz_attempts WHERE quiz_id = $1', [id]);
     if (parseInt(attempts.rows[0].count) > 0) {
@@ -969,7 +969,7 @@ export async function adminCreateEnrollment(req, res) {
 export async function adminDeleteEnrollment(req, res) {
   try {
     const id = Number(req.params.id);
-    if (!id) return res.status(400).json({ error: 'Invalid id' });
+    if (!id) {return res.status(400).json({ error: 'Invalid id' });}
     await pool.query('DELETE FROM enrollments WHERE id=$1', [id]);
     res.json({ success: true });
   } catch (err) {
@@ -1063,7 +1063,7 @@ export async function adminGetRecentActivities(req, res) {
 export async function adminUndoActivity(req, res) {
   try {
     const activityId = Number(req.params.id);
-    if (!activityId) return res.status(400).json({ error: 'Invalid activity id' });
+    if (!activityId) {return res.status(400).json({ error: 'Invalid activity id' });}
 
     // Get the activity
     const activityResult = await pool.query(`
@@ -1094,55 +1094,55 @@ export async function adminUndoActivity(req, res) {
     let undoResult = null;
 
     switch (activity.action) {
-      case 'create_user':
-        if (undoData.user_id) {
-          await pool.query('DELETE FROM users WHERE id = $1', [undoData.user_id]);
-          undoResult = { deleted: true };
-        }
-        break;
-      case 'update_user':
-        if (undoData.user_id && undoData.previous_data) {
-          const fields = [];
-          const params = [];
-          function set(col, val) { params.push(val); fields.push(`${col} = $${params.length}`); }
-          Object.entries(undoData.previous_data).forEach(([key, value]) => {
-            set(key, value);
-          });
-          params.push(undoData.user_id);
-          await pool.query(`UPDATE users SET ${fields.join(', ')} WHERE id = $${params.length}`, params);
-          undoResult = { updated: true };
-        }
-        break;
-      case 'delete_user':
-        if (undoData.user_data) {
-          const userData = undoData.user_data;
-          const r = await pool.query(`
+    case 'create_user':
+      if (undoData.user_id) {
+        await pool.query('DELETE FROM users WHERE id = $1', [undoData.user_id]);
+        undoResult = { deleted: true };
+      }
+      break;
+    case 'update_user':
+      if (undoData.user_id && undoData.previous_data) {
+        const fields = [];
+        const params = [];
+        function set(col, val) { params.push(val); fields.push(`${col} = $${params.length}`); }
+        Object.entries(undoData.previous_data).forEach(([key, value]) => {
+          set(key, value);
+        });
+        params.push(undoData.user_id);
+        await pool.query(`UPDATE users SET ${fields.join(', ')} WHERE id = $${params.length}`, params);
+        undoResult = { updated: true };
+      }
+      break;
+    case 'delete_user':
+      if (undoData.user_data) {
+        const userData = undoData.user_data;
+        const r = await pool.query(`
             INSERT INTO users (name, email, role, department_id, roll_number, is_active, password_hash)
             VALUES ($1, $2, $3, $4, $5, $6, $7)
             RETURNING id
           `, [userData.name, userData.email, userData.role, userData.department_id, userData.roll_number, userData.is_active, userData.password_hash]);
-          undoResult = { restored_id: r.rows[0].id };
-        }
-        break;
-      case 'create_course':
-        if (undoData.course_id) {
-          await pool.query('DELETE FROM courses WHERE id = $1', [undoData.course_id]);
-          undoResult = { deleted: true };
-        }
-        break;
-      case 'delete_course':
-        if (undoData.course_data) {
-          const courseData = undoData.course_data;
-          const r = await pool.query(`
+        undoResult = { restored_id: r.rows[0].id };
+      }
+      break;
+    case 'create_course':
+      if (undoData.course_id) {
+        await pool.query('DELETE FROM courses WHERE id = $1', [undoData.course_id]);
+        undoResult = { deleted: true };
+      }
+      break;
+    case 'delete_course':
+      if (undoData.course_data) {
+        const courseData = undoData.course_data;
+        const r = await pool.query(`
             INSERT INTO courses (code, title, description, department_id, credits)
             VALUES ($1, $2, $3, $4, $5)
             RETURNING id
           `, [courseData.code, courseData.title, courseData.description, courseData.department_id, courseData.credits]);
-          undoResult = { restored_id: r.rows[0].id };
-        }
-        break;
-      default:
-        return res.status(400).json({ error: 'Undo not supported for this action type' });
+        undoResult = { restored_id: r.rows[0].id };
+      }
+      break;
+    default:
+      return res.status(400).json({ error: 'Undo not supported for this action type' });
     }
 
     // Mark activity as undone (you might want to add an 'undone' column to the table)

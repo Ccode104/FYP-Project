@@ -26,7 +26,6 @@ interface CourseSidebarInnerProps extends CourseSidebarProps {
 }
 
 function CourseSidebarInner({ tabs, activeTab, onTabChange, userRole, isOpen, onSidebarLeave, onSidebarEnter, onSidebarClick }: CourseSidebarInnerProps) {
-  const [hoveredTab, setHoveredTab] = useState<string | null>(null)
 
   const handleKeyDown = (e: React.KeyboardEvent, tabId: string) => {
     if (e.key === 'Enter' || e.key === ' ') {
@@ -56,8 +55,7 @@ function CourseSidebarInner({ tabs, activeTab, onTabChange, userRole, isOpen, on
                 className={`nav-item ${activeTab === tab.id ? 'active' : ''}`}
                 onClick={(e) => { e.stopPropagation(); onTabChange(tab.id); }}
                 onKeyDown={(e) => handleKeyDown(e, tab.id)}
-                onMouseEnter={() => setHoveredTab(tab.id)}
-                onMouseLeave={() => setHoveredTab(null)}
+
                 aria-current={activeTab === tab.id ? 'page' : undefined}
                 tabIndex={0}
               >
@@ -91,14 +89,15 @@ export default function CourseSidebar(props: CourseSidebarProps) {
   const [isOpen, setIsOpen] = useState(true)
   const [openedByHamburger, setOpenedByHamburger] = useState(false)
   const timeoutRef = useRef<NodeJS.Timeout | null>(null)
+  const { onSidebarToggle } = props
 
   // Handle global click to close sidebar when opened by hover
   useEffect(() => {
     const handleGlobalClick = () => {
       if (isOpen && !openedByHamburger) {
         setIsOpen(false)
-        if (props.onSidebarToggle) {
-          props.onSidebarToggle(false)
+        if (onSidebarToggle) {
+          onSidebarToggle(false)
         }
       }
     }
@@ -107,7 +106,7 @@ export default function CourseSidebar(props: CourseSidebarProps) {
       document.addEventListener('click', handleGlobalClick)
       return () => document.removeEventListener('click', handleGlobalClick)
     }
-  }, [isOpen, openedByHamburger, props.onSidebarToggle])
+  }, [isOpen, openedByHamburger, onSidebarToggle])
 
   const handleToggle = () => {
     const newState = !isOpen

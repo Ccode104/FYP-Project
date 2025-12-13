@@ -611,8 +611,8 @@ async function updateSessionAnalytics(client, sessionId) {
 
   // Determine risk level
   let riskLevel = 'low';
-  if (totalViolations >= 5) riskLevel = 'high';
-  else if (totalViolations >= 2) riskLevel = 'medium';
+  if (totalViolations >= 5) {riskLevel = 'high';}
+  else if (totalViolations >= 2) {riskLevel = 'medium';}
 
   // Upsert analytics
   await client.query(`
