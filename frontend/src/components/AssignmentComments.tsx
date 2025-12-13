@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { apiFetch } from '../services/api';
 import { useToast } from './ToastProvider';
@@ -31,11 +31,7 @@ export default function AssignmentComments({ assignmentId }: AssignmentCommentsP
   const [replyContent, setReplyContent] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
-  useEffect(() => {
-    loadComments();
-  }, [assignmentId]);
-
-  const loadComments = async () => {
+  const loadComments = useCallback(async () => {
     try {
       const data = await apiFetch<Comment[]>(`/api/assignments/${assignmentId}/comments`);
       // Organize comments into threads
@@ -46,7 +42,11 @@ export default function AssignmentComments({ assignmentId }: AssignmentCommentsP
     } finally {
       setLoading(false);
     }
-  };
+  }, [assignmentId]);
+
+  useEffect(() => {
+    loadComments();
+  }, [loadComments]);
 
   const organizeComments = (flatComments: Comment[]): Comment[] => {
     const commentMap = new Map<number, Comment>();
@@ -87,9 +87,10 @@ export default function AssignmentComments({ assignmentId }: AssignmentCommentsP
       toast?.push({ kind: 'success', message: 'Comment posted successfully!' });
       setNewComment('');
       loadComments(); // Refresh comments
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Failed to post comment:', error);
-      toast?.push({ kind: 'error', message: error?.message || 'Failed to post comment' });
+      const message = error instanceof Error ? error.message : 'Failed to post comment';
+      toast?.push({ kind: 'error', message });
     } finally {
       setSubmitting(false);
     }
@@ -108,9 +109,10 @@ export default function AssignmentComments({ assignmentId }: AssignmentCommentsP
       setReplyContent('');
       setReplyingTo(null);
       loadComments(); // Refresh comments
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Failed to post reply:', error);
-      toast?.push({ kind: 'error', message: error?.message || 'Failed to post reply' });
+      const message = error instanceof Error ? error.message : 'Failed to post reply';
+      toast?.push({ kind: 'error', message });
     } finally {
       setSubmitting(false);
     }

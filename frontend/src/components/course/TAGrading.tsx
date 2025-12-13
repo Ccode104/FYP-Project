@@ -153,7 +153,7 @@ export default function TAGrading({ courseId }: TAGradingProps) {
           {rubric && rubric.criteria && (
             <div className="rubric-grading">
               <h5>Rubric</h5>
-              {rubric.criteria.map((criterion: any) => (
+              {rubric.criteria.map((criterion: unknown) => (
                 <div key={criterion.id} className="rubric-criterion">
                   <h6>{criterion.title}</h6>
                   <p>{criterion.description}</p>

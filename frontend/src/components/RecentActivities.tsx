@@ -33,7 +33,7 @@ export default function RecentActivities({ limit = 5, refreshTrigger, onNavigate
       setLoading(true)
       const response = await apiFetch<{ activities: ActivityItem[] }>(`/api/admin/activities?limit=${limit}`)
       setActivities(response.activities)
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Error loading activities:', err)
       // Don't show error toast for activity loading failures to avoid spam
       // The component will show "No recent activities" instead

@@ -32,7 +32,7 @@ export default function QuizTake() {
       final_score: number | null;
     }
   } | null>(null)
-  const [gradedAnswers, setGradedAnswers] = useState<Record<number, { student_answer: any; is_correct: boolean | null; correct_answer: any }>>({})
+  const [gradedAnswers, setGradedAnswers] = useState<Record<number, { student_answer: unknown; is_correct: boolean | null; correct_answer: unknown }>>({})
 
   // Proctoring state
    const [timeRemaining, setTimeRemaining] = useState<number | null>(null)
@@ -357,9 +357,9 @@ export default function QuizTake() {
       console.log('DEBUG: Fullscreen status at quiz start:', {
         isCurrentlyFullscreen,
         fullscreenElement: !!document.fullscreenElement,
-        webkitFullscreenElement: !!(document as any).webkitFullscreenElement,
-        mozFullScreenElement: !!(document as any).mozFullScreenElement,
-        msFullscreenElement: !!(document as any).msFullscreenElement
+        webkitFullscreenElement: !!(document as unknown).webkitFullscreenElement,
+        mozFullScreenElement: !!(document as unknown).mozFullScreenElement,
+        msFullscreenElement: !!(document as unknown).msFullscreenElement
       })
 
       if (!isCurrentlyFullscreen) {
@@ -399,9 +399,9 @@ export default function QuizTake() {
     console.log('DEBUG: Browser user agent:', navigator.userAgent)
     console.log('DEBUG: Current fullscreen state before request:', {
       fullscreenElement: !!document.fullscreenElement,
-      webkitFullscreenElement: !!(document as any).webkitFullscreenElement,
-      mozFullScreenElement: !!(document as any).mozFullScreenElement,
-      msFullscreenElement: !!(document as any).msFullscreenElement
+      webkitFullscreenElement: !!(document as unknown).webkitFullscreenElement,
+      mozFullScreenElement: !!(document as unknown).mozFullScreenElement,
+      msFullscreenElement: !!(document as unknown).msFullscreenElement
     })
 
     try {
@@ -456,9 +456,9 @@ export default function QuizTake() {
         console.log(`DEBUG: Fullscreen check attempt ${attempts + 1}/${maxAttempts}:`, {
           isFullscreen,
           fullscreenElement: !!document.fullscreenElement,
-          webkitFullscreenElement: !!(document as any).webkitFullscreenElement,
-          mozFullScreenElement: !!(document as any).mozFullScreenElement,
-          msFullscreenElement: !!(document as any).msFullscreenElement
+          webkitFullscreenElement: !!(document as unknown).webkitFullscreenElement,
+          mozFullScreenElement: !!(document as unknown).mozFullScreenElement,
+          msFullscreenElement: !!(document as unknown).msFullscreenElement
         })
 
         if (isFullscreen) {
@@ -872,7 +872,7 @@ export default function QuizTake() {
         needs_manual_grading: res.needs_manual_grading,
         proctoring_result: res.proctoring_result
       })
-      setGradedAnswers(res.graded_answers as any)
+      setGradedAnswers(res.graded_answers as unknown)
 
       if (res.proctoring_result?.violated) {
         push({
@@ -1335,7 +1335,7 @@ export default function QuizTake() {
 
         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
           <button className="btn btn-primary" type="submit" disabled={!canSubmit || submitting || !!result}>
-            {submitting ? 'Submitting…' : (!!result ? 'Submitted' : 'Submit Quiz')}
+            {submitting ? 'Submitting…' : (result ? 'Submitted' : 'Submit Quiz')}
           </button>
         </div>
       </form>

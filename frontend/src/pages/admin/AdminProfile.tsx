@@ -7,7 +7,7 @@ import Modal from '../../components/Modal';
 import './AdminProfile.css';
 
 export default function AdminProfile() {
-  const { user } = useAuth();
+  const { user: _user } = useAuth();
   const { push } = useToast();
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
@@ -24,7 +24,7 @@ export default function AdminProfile() {
       setLoading(true);
       const data = await getUserProfile();
       setProfile(data);
-    } catch (err: any) {
+    } catch (err: unknown) {
       push({ kind: 'error', message: err?.message || 'Failed to load profile' });
     } finally {
       setLoading(false);
@@ -44,7 +44,7 @@ export default function AdminProfile() {
   const handleSave = async () => {
     try {
       setSaving(true);
-      const updates: any = {};
+      const updates: unknown = {};
       if (editForm.name !== profile?.name) updates.name = editForm.name;
       if (editForm.email !== profile?.email) updates.email = editForm.email;
 
@@ -57,7 +57,7 @@ export default function AdminProfile() {
       push({ kind: 'success', message: 'Profile updated successfully' });
       setEditModal(false);
       loadProfile();
-    } catch (err: any) {
+    } catch (err: unknown) {
       push({ kind: 'error', message: err?.message || 'Failed to update profile' });
     } finally {
       setSaving(false);

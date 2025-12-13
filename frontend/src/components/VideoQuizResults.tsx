@@ -16,7 +16,7 @@ interface Attempt {
   score: number | null;
   max_score: number | null;
   answers: Record<number, {
-    answer: any;
+    answer: unknown;
     is_correct: boolean;
     points_earned: number;
     explanation: string | null;
@@ -54,7 +54,7 @@ export default function VideoQuizResults({ videoId }: VideoQuizResultsProps) {
       ]);
       setAttempts(attemptsData.attempts || []);
       setQuestions(questionsData.questions || []);
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Error loading quiz results:', error);
     } finally {
       setLoading(false);

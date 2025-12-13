@@ -72,7 +72,7 @@ export default function CourseDetails() {
   const navigate = useNavigate()
   const { setCourseTitle } = useCourse()
   const [tab, setTab] = useState<'assignment' | 'present' | 'past' | 'pyq' | 'notes' | 'quizzes' | 'quizzes_submitted' | 'manage' | 'submissions' | 'grading' | 'progress' | 'discussion' | 'pdfchat' | 'videos' | 'live-lectures'>(
-    (urlTab as any) || 'present'
+    (urlTab as unknown) || 'present'
   )
   const [backendVideos, setBackendVideos] = useState<any[]>([])
   const [selectedVideo, setSelectedVideo] = useState<any | null>(null)
@@ -90,8 +90,8 @@ export default function CourseDetails() {
   const isBackend = !!courseId && /^\d+$/.test(courseId)
   const toast = useToast()
   const push = (opts: { kind?: 'success' | 'error' | string; message?: string }) => {
-    if (toast && typeof (toast as any).push === 'function') {
-      (toast as any).push(opts)
+    if (toast && typeof (toast as unknown).push === 'function') {
+      (toast as unknown).push(opts)
     } else {
       console.log(opts)
     }
@@ -116,7 +116,7 @@ export default function CourseDetails() {
 
   // Auto-close sidebar when switching tabs
   const handleTabChange = (tabId: string) => {
-    setTab(tabId as any)
+    setTab(tabId as unknown)
     setSidebarOpen(false)
   }
   const [readMessageIds, setReadMessageIds] = useState<Set<number>>(() => {
@@ -162,7 +162,7 @@ export default function CourseDetails() {
   // Compute present assignments (not past due date)
   const allPresentAssignments = useMemo(() => {
     if (isBackend) {
-      const filtered = backendAssignments.filter((a: any) => {
+      const filtered = backendAssignments.filter((a: unknown) => {
         if (!a.due_at) return true
         const dueDate = new Date(a.due_at)
         const now = new Date()
@@ -178,7 +178,7 @@ export default function CourseDetails() {
   const teacherAssignments = useMemo(() => {
     if (isBackend) return backendAssignments || []
     const present = course?.assignmentsPresent || []
-    const past = (course as any)?.assignmentsPast || []
+    const past = (course as unknown)?.assignmentsPast || []
     return [...present, ...past]
   }, [isBackend, backendAssignments, course])
 
@@ -195,12 +195,12 @@ export default function CourseDetails() {
     // IMPORTANT: Only filter if submissions have been loaded (not null)
     // If mySubmissions is null, we haven't loaded them yet, so show all assignments with isSubmitted: false
     if (mySubmissions === null) {
-      const assignmentsWithStatus = allPresentAssignments.map((a: any) => ({
+      const assignmentsWithStatus = allPresentAssignments.map((a: unknown) => ({
         ...a,
         isSubmitted: false
       }))
       const quizzesWithStatus = (backendQuizzes || [])
-        .map((q: any) => ({
+        .map((q: unknown) => ({
           id: `quiz_${q.id}`,
           title: q.title,
           assignment_type: 'quiz',
@@ -216,7 +216,7 @@ export default function CourseDetails() {
 
     // Get set of submitted assignment IDs
     const submittedAssignmentIds = new Set(
-      mySubmissions.map((s: any) => {
+      mySubmissions.map((s: unknown) => {
         const id = s.assignment_id || s.id // Handle both submission formats
         return String(id)
       })
@@ -224,14 +224,14 @@ export default function CourseDetails() {
 
     // Get set of attempted quiz IDs
     const attemptedQuizIds = new Set(
-      (myQuizAttempts || []).map((a: any) => String(a.quiz_id))
+      (myQuizAttempts || []).map((a: unknown) => String(a.quiz_id))
     )
 
     // Add submission status to assignments instead of filtering them out
     const sourceAssignments = (isBackend && Array.isArray(backendAssignments) && user?.role === 'student')
       ? backendAssignments
       : allPresentAssignments
-    const assignmentsWithStatus = sourceAssignments.map((a: any) => {
+    const assignmentsWithStatus = sourceAssignments.map((a: unknown) => {
       const assignmentId = String(a.id)
       const isSubmitted = submittedAssignmentIds.has(assignmentId)
       return {
@@ -242,9 +242,9 @@ export default function CourseDetails() {
 
     // Add quizzes with attempt status
     const quizzesWithStatus = (backendQuizzes || [])
-      .map((q: any) => {
-        const quizAttempts = myQuizAttempts.filter((a: any) => a.quiz_id === q.id)
-        const hasViolatedAttempt = quizAttempts.some((a: any) => a.violated)
+      .map((q: unknown) => {
+        const quizAttempts = myQuizAttempts.filter((a: unknown) => a.quiz_id === q.id)
+        const hasViolatedAttempt = quizAttempts.some((a: unknown) => a.violated)
         return {
           id: `quiz_${q.id}`,
           title: q.title,
@@ -269,23 +269,23 @@ export default function CourseDetails() {
 
   // Filter assignments and quizzes separately
   const assignmentsOnly = useMemo(() =>
-    presentAssignments.filter((a: any) => !a.is_quiz),
+    presentAssignments.filter((a: unknown) => !a.is_quiz),
     [presentAssignments]
   )
 
   const quizzesOnly = useMemo(() =>
-    presentAssignments.filter((a: any) => a.is_quiz),
+    presentAssignments.filter((a: unknown) => a.is_quiz),
     [presentAssignments]
   )
 
   // Sidebar tabs configuration
   const sidebarTabs = useMemo((): TabItem[] => {
     // Count ALL unsubmitted assignments (not just unviewed)
-    const unsubmittedAssignments = assignmentsOnly.filter((a: any) => !a.isSubmitted)
+    const unsubmittedAssignments = assignmentsOnly.filter((a: unknown) => !a.isSubmitted)
     const assignmentCount = unsubmittedAssignments.length > 0 ? unsubmittedAssignments.length : undefined
 
     // Count ALL unattempted quizzes (not just unviewed)
-    const unattemptedQuizzes = quizzesOnly.filter((a: any) => !a.isSubmitted)
+    const unattemptedQuizzes = quizzesOnly.filter((a: unknown) => !a.isSubmitted)
     const quizCount = unattemptedQuizzes.length > 0 ? unattemptedQuizzes.length : undefined
 
     // Count unread discussion messages
@@ -362,7 +362,7 @@ export default function CourseDetails() {
         try {
           const questions = await apiFetch<CodeQuestion[]>(`/api/courses/${courseId}/code-questions`)
           setCodeQuestions(questions || [])
-        } catch (err: any) {
+        } catch (err: unknown) {
           console.error('Failed to load code questions:', err)
           // Fallback to empty array
           setCodeQuestions([])
@@ -467,7 +467,7 @@ export default function CourseDetails() {
         setSelectedQuestionIds({})
         setAssignmentCreationType('selection')
         setTab('present')
-      } catch (err: any) {
+      } catch (err: unknown) {
         console.error('Error creating code assignment:', err)
         push({ kind: 'error', message: err?.message || 'Failed to create assignment. Check console for details.' })
       }
@@ -526,7 +526,7 @@ export default function CourseDetails() {
         }
 
         // Prepare request body (course_offering_id is optional, used for filtering only)
-        const requestBody: any = {
+        const requestBody: unknown = {
           title: newCodeQ.title,
           description: newCodeQ.description,
           constraints: newCodeQ.constraints || null
@@ -547,7 +547,7 @@ export default function CourseDetails() {
         try {
           const updated = await apiFetch<any[]>(`/api/courses/${courseId}/code-questions`)
           setCodeQuestions(updated || [])
-        } catch (reloadErr: any) {
+        } catch (reloadErr: unknown) {
           console.warn('Failed to reload questions, but question was created:', reloadErr)
           // Still show success even if reload fails
         }
@@ -565,7 +565,7 @@ export default function CourseDetails() {
           test_input: '',
           expected_output: ''
         })
-      } catch (err: any) {
+      } catch (err: unknown) {
         console.error('Error saving code question:', err)
 
         // Provide more helpful error messages
@@ -605,7 +605,7 @@ export default function CourseDetails() {
   }
 
   // Student: start attempting a code assignment (navigate to dedicated editor page)
-  const startCodeAttempt = async (assignment: any) => {
+  const startCodeAttempt = async (assignment: unknown) => {
     if (!assignment || !courseId) return
     // Navigate to the dedicated code editor page
     navigate(`/courses/${courseId}/assignments/${assignment.id}/editor`)
@@ -699,7 +699,7 @@ export default function CourseDetails() {
           });
           if (suspendedSessionsResponse.ok) {
             const suspendedData = await suspendedSessionsResponse.json();
-            const suspendedIds = new Set((suspendedData.sessions?.map((s: any) => String(s.quiz_id)) || []) as string[]);
+            const suspendedIds = new Set((suspendedData.sessions?.map((s: unknown) => String(s.quiz_id)) || []) as string[]);
             setSuspendedQuizIds(suspendedIds);
           }
         } catch (error) {
@@ -714,7 +714,7 @@ export default function CourseDetails() {
           });
           if (activeSessionsResponse.ok) {
             const activeData = await activeSessionsResponse.json();
-            const activeIds = new Set((activeData.sessions?.map((s: any) => String(s.quiz_id)) || []) as string[]);
+            const activeIds = new Set((activeData.sessions?.map((s: unknown) => String(s.quiz_id)) || []) as string[]);
             setActiveQuizIds(activeIds);
           }
         } catch (error) {
@@ -853,7 +853,7 @@ export default function CourseDetails() {
         setNewPostContent('')
         push({ kind: 'success', message: 'Message posted successfully' })
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Failed to post message:', err)
       push({ kind: 'error', message: err.message || 'Failed to post message' })
     } finally {
@@ -874,7 +874,7 @@ export default function CourseDetails() {
         setReplyingTo(null)
         push({ kind: 'success', message: 'Reply posted successfully' })
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Failed to post reply:', err)
       push({ kind: 'error', message: err.message || 'Failed to post reply' })
     } finally {
@@ -1035,7 +1035,7 @@ export default function CourseDetails() {
 
           {user?.role === 'teacher' && tab === 'assignment' && (
             <TeacherAssignments
-              assignments={teacherAssignments as any[]}
+              assignments={teacherAssignments as unknown[]}
               onViewCode={(submission) => { setShowCodeEditor(true); setViewingCodeSubmission(submission) }}
             />
           )}
@@ -1045,7 +1045,7 @@ export default function CourseDetails() {
               {/* Current Assignments */}
               <PresentAssignmentsSection
                 userRole={user?.role}
-                presentAssignments={assignmentsOnly as any[]}
+                presentAssignments={assignmentsOnly as unknown[]}
                 isBackend={isBackend}
                 onTeacherDelete={async (id: number) => {
                   try {
@@ -1054,12 +1054,12 @@ export default function CourseDetails() {
                     push({ kind: 'success', message: 'Assignment deleted' })
                     const data = await apiFetch<any[]>(`/api/courses/${courseId}/assignments`)
                     setBackendAssignments(data)
-                  } catch (e: any) {
+                  } catch (e: unknown) {
                     push({ kind: 'error', message: e?.message || 'Failed' })
                   }
                 }}
-                onAttemptQuiz={(quizId: any) => { location.assign(`/quizzes/${quizId}`) }}
-                onStartCodeAttempt={(assignment: any) => { void startCodeAttempt(assignment) }}
+                onAttemptQuiz={(quizId: unknown) => { location.assign(`/quizzes/${quizId}`) }}
+                onStartCodeAttempt={(assignment: unknown) => { void startCodeAttempt(assignment) }}
                 onSubmitSuccess={refreshSubmissions}
               />
 
@@ -1069,17 +1069,17 @@ export default function CourseDetails() {
                   <div className="section-header">
                     <h2 className="section-title">Past Assignments</h2>
                     <span className="assignment-count">
-                      {backendAssignments.filter((a: any) => {
+                      {backendAssignments.filter((a: unknown) => {
                         if (!a.due_at) return false
                         return new Date(a.due_at) < new Date()
                       }).length} completed
                     </span>
                   </div>
                   <ul className="list">
-                    {backendAssignments.filter((a: any) => {
+                    {backendAssignments.filter((a: unknown) => {
                       if (!a.due_at) return false
                       return new Date(a.due_at) < new Date()
-                    }).map((a: any) => (
+                    }).map((a: unknown) => (
                       <li key={a.id} style={{
                         display: 'flex',
                         justifyContent: 'space-between',
@@ -1126,7 +1126,7 @@ export default function CourseDetails() {
                         </tr>
                       </thead>
                       <tbody>
-                        {mySubmissions.map((submission: any) => (
+                        {mySubmissions.map((submission: unknown) => (
                           <tr key={submission.id}>
                             <td>
                               <strong>{submission.assignment_title || 'Unknown Assignment'}</strong>
@@ -1203,7 +1203,7 @@ export default function CourseDetails() {
                           </tr>
                         </thead>
                         <tbody>
-                          {backendQuizzes.map((quiz: any) => (
+                          {backendQuizzes.map((quiz: unknown) => (
                             <tr key={quiz.id}>
                               <td>
                                 <strong>{quiz.title}</strong>
@@ -1267,7 +1267,7 @@ export default function CourseDetails() {
                                           const quizzesMod = await import('../../services/quizzes');
                                           const quizzes = await quizzesMod.listCourseQuizzes(Number(courseId));
                                           setBackendQuizzes(quizzes);
-                                        } catch (err: any) {
+                                        } catch (err: unknown) {
                                           push({ kind: 'error', message: err?.message || 'Failed to delete quiz' });
                                         }
                                       }
@@ -1297,7 +1297,7 @@ export default function CourseDetails() {
                   <p className="muted">No quizzes available at the moment.</p>
                 ) : (
                   <ul className="list">
-                    {quizzesOnly.map((quiz: any) => (
+                    {quizzesOnly.map((quiz: unknown) => (
                       <li key={quiz.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px', borderRadius: '6px', background: 'var(--bg-secondary)', marginBottom: '8px' }}>
                         <div>
                           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
@@ -1385,7 +1385,7 @@ export default function CourseDetails() {
                               className="btn"
                               onClick={() => {
                                 // Find the attempt and show results
-                                const attempt = myQuizAttempts.find((a: any) => a.quiz_id === quiz.quiz_id);
+                                const attempt = myQuizAttempts.find((a: unknown) => a.quiz_id === quiz.quiz_id);
                                 if (attempt) {
                                   setSelectedQuizResult(attempt);
                                   setShowQuizResultModal(true);
@@ -1421,7 +1421,7 @@ export default function CourseDetails() {
                         </tr>
                       </thead>
                       <tbody>
-                        {myQuizAttempts.map((attempt: any) => (
+                        {myQuizAttempts.map((attempt: unknown) => (
                           <tr key={attempt.id}>
                             <td>
                               <strong>{attempt.quiz_title}</strong>
@@ -1473,7 +1473,7 @@ export default function CourseDetails() {
                                     // Get detailed quiz results
                                     const result = await apiFetch(`/api/quizzes/${attempt.quiz_id}/results`);
                                     setQuizResultDetails(result);
-                                  } catch (error: any) {
+                                  } catch (error: unknown) {
                                     console.error('Failed to load quiz results:', error);
                                     push({ kind: 'error', message: 'Failed to load detailed quiz results' });
                                   }
@@ -1989,7 +1989,7 @@ export default function CourseDetails() {
                                       </div>
                                       {q.test_cases && q.test_cases.length > 0 && (
                                         <div className="muted" style={{ fontSize: 11, marginTop: 2 }}>
-                                          {q.test_cases.filter((tc: any) => tc.is_sample).length} sample test case(s)
+                                          {q.test_cases.filter((tc: unknown) => tc.is_sample).length} sample test case(s)
                                         </div>
                                       )}
                                     </div>
@@ -2067,11 +2067,11 @@ export default function CourseDetails() {
           )}
 
           {tab === 'pyq' && (
-            <PyqList isBackend={isBackend} items={backendPYQ as any[]} />
+            <PyqList isBackend={isBackend} items={backendPYQ as unknown[]} />
           )}
 
           {tab === 'notes' && (
-            <NotesList isBackend={isBackend} items={backendNotes as any[]} />
+            <NotesList isBackend={isBackend} items={backendNotes as unknown[]} />
           )}
 
           {tab === 'progress' && isBackend && (
@@ -2173,7 +2173,7 @@ export default function CourseDetails() {
                         // Reset form
                         setFile(null);
                         setNewAssnType('file');
-                      } catch (error: any) {
+                      } catch (error: unknown) {
                         push({ kind: 'error', message: error?.message || 'Upload failed' });
                       }
                     }}
@@ -2214,7 +2214,7 @@ export default function CourseDetails() {
                         push({ kind: 'success', message: 'Graded successfully' })
                         setShowCodeEditor(false)
                         setViewingCodeSubmission(null)
-                      } catch (err: any) {
+                      } catch (err: unknown) {
                         push({ kind: 'error', message: err?.message || 'Grading failed' })
                       }
                     }}
@@ -2328,7 +2328,7 @@ export default function CourseDetails() {
                           </tr>
                         </thead>
                         <tbody>
-                          {backendVideos.map((video: any) => (
+                          {backendVideos.map((video: unknown) => (
                             <tr key={video.id}>
                               <td>
                                 <button
@@ -2379,7 +2379,7 @@ export default function CourseDetails() {
                                           const { getVideosByCourseOffering } = await import('../../services/videos');
                                           const videosData = await getVideosByCourseOffering(courseId!);
                                           setBackendVideos(videosData.videos || []);
-                                        } catch (e: any) {
+                                        } catch (e: unknown) {
                                           push({ kind: 'error', message: e?.message || 'Failed to delete video' });
                                         }
                                       }
@@ -2430,7 +2430,7 @@ export default function CourseDetails() {
                       </tr>
                     </thead>
                     <tbody>
-                      {liveLectures.map((lecture: any) => (
+                      {liveLectures.map((lecture: unknown) => (
                         <tr key={lecture.id}>
                           <td>
                             <div>
@@ -2485,7 +2485,7 @@ export default function CourseDetails() {
                                     const lecturesData = await getLiveLecturesByCourse(courseId!);
                                     setLiveLectures(lecturesData.lectures || []);
                                     push({ kind: 'success', message: 'Live lecture started' });
-                                  } catch (err: any) {
+                                  } catch (err: unknown) {
                                     push({ kind: 'error', message: err?.message || 'Failed to start lecture' });
                                   }
                                 }}
@@ -2504,7 +2504,7 @@ export default function CourseDetails() {
                                     const lecturesData = await getLiveLecturesByCourse(courseId!);
                                     setLiveLectures(lecturesData.lectures || []);
                                     push({ kind: 'success', message: 'Live lecture ended' });
-                                  } catch (err: any) {
+                                  } catch (err: unknown) {
                                     push({ kind: 'error', message: err?.message || 'Failed to end lecture' });
                                   }
                                 }}
@@ -2539,7 +2539,7 @@ export default function CourseDetails() {
                     setLiveLectures(lecturesData.lectures || []);
                     setShowLiveLectureBroadcaster(false);
                     push({ kind: 'success', message: 'Live lecture created successfully' });
-                  } catch (err: any) {
+                  } catch (err: unknown) {
                     push({ kind: 'error', message: err?.message || 'Failed to refresh lectures' });
                   }
                 }}
@@ -2604,7 +2604,7 @@ export default function CourseDetails() {
                     <h4>Question Details</h4>
                     {quizResultDetails.questions && quizResultDetails.questions.length > 0 ? (
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
-                        {quizResultDetails.questions.map((question: any, index: number) => {
+                        {quizResultDetails.questions.map((question: unknown, index: number) => {
                           const studentAnswer = selectedQuizResult.answers?.[question.id];
                           const isCorrect = studentAnswer === question.correct_answer;
 

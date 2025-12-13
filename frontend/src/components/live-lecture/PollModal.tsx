@@ -167,7 +167,7 @@ export const PollModal: React.FC<PollModalProps> = ({
                       Options
                     </label>
                     <div className="space-y-2">
-                      {options.map((option, index) => (
+                      {options.map((option, _index) => (
                         <div key={index} className="flex gap-2">
                           <input
                             type="text"

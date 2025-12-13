@@ -49,8 +49,8 @@ export default function ContestEditorPage() {
   const { setCourseTitle } = useCourse()
   const toast = useToast()
   const push = (opts: { kind?: 'success' | 'error' | string; message?: string }) => {
-    if (toast && typeof (toast as any).push === 'function') {
-      (toast as any).push(opts)
+    if (toast && typeof (toast as unknown).push === 'function') {
+      (toast as unknown).push(opts)
     } else {
       console.log(opts)
     }
@@ -66,7 +66,7 @@ export default function ContestEditorPage() {
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState<number>(0)
   const [consoleExpanded, setConsoleExpanded] = useState<boolean>(false) // Console section collapsed by default
   const [activeConsoleTab, setActiveConsoleTab] = useState<'test-cases' | 'test-results'>('test-cases')
-  const [customTestCases, setCustomTestCases] = useState<Record<string, Array<{ id: string, input: string, expected: string, result?: any }>>>({})
+  const [customTestCases, setCustomTestCases] = useState<Record<string, Array<{ id: string, input: string, expected: string, result?: unknown }>>>({})
   const [testCaseResults, setTestCaseResults] = useState<Record<string, Record<string, any>>>({})
   const [questionTimers, setQuestionTimers] = useState<Record<string, { startTime: number, elapsedTime: number }>>({})
   const [currentQuestionStartTime, setCurrentQuestionStartTime] = useState<number>(Date.now())
@@ -174,17 +174,17 @@ export default function ContestEditorPage() {
         // Initialize editors and languages
         const editors: Record<string, string> = {}
         const langs: Record<string, string> = {}
-        const testCases: Record<string, Array<{ id: string, input: string, expected: string, result?: any }>> = {}
+        const testCases: Record<string, Array<{ id: string, input: string, expected: string, result?: unknown }>> = {}
         questions.forEach(q => {
           editors[q.id] = ''
           langs[q.id] = 'python'
 
           // Initialize test cases for each question
-          const questionTestCases: Array<{ id: string, input: string, expected: string, result?: any }> = []
+          const questionTestCases: Array<{ id: string, input: string, expected: string, result?: unknown }> = []
 
           // Add sample test cases from the question
           if (q.test_cases && Array.isArray(q.test_cases)) {
-            q.test_cases.filter((tc: any) => tc.is_sample === true).forEach((tc: any, idx: number) => {
+            q.test_cases.filter((tc: unknown) => tc.is_sample === true).forEach((tc: unknown, idx: number) => {
               questionTestCases.push({
                 id: `sample-${idx}`,
                 input: tc.input_text || '',
@@ -208,7 +208,7 @@ export default function ContestEditorPage() {
         setCustomTestCases(testCases)
         setRunResults({})
         setSavedQuestions({})
-      } catch (err: any) {
+      } catch (err: unknown) {
         push({ kind: 'error', message: err?.message || 'Failed to load contest' })
         navigate(`/courses/${courseId}`)
       }
@@ -322,7 +322,7 @@ export default function ContestEditorPage() {
           expected,
           actual: stdout
         }
-      } catch (err: any) {
+      } catch (err: unknown) {
         results[testCase.id] = {
           ok: false,
           message: err?.message || 'Judge failed',
@@ -350,7 +350,7 @@ export default function ContestEditorPage() {
     setIsRunningCode(prev => ({ ...prev, [q.id]: false }))
 
     // Show summary
-    const passedCount = Object.values(results).filter((r: any) => r.ok).length
+    const passedCount = Object.values(results).filter((r: unknown) => r.ok).length
     const totalCount = testCases.length
 
     if (passedCount === totalCount) {
@@ -497,7 +497,7 @@ export default function ContestEditorPage() {
 
                     // Show achievement notifications
                     if (submissionResult.gamification.unlocked_achievements?.length > 0) {
-                      submissionResult.gamification.unlocked_achievements.forEach((achievement: any) => {
+                      submissionResult.gamification.unlocked_achievements.forEach((achievement: unknown) => {
                         push({
                           kind: 'success',
                           message: `🏆 Achievement Unlocked: ${achievement.name}! +${achievement.points_reward} points`
@@ -516,7 +516,7 @@ export default function ContestEditorPage() {
 
                   setSavedQuestions(prev => ({ ...prev, [currentQuestion.id]: true }))
                   push({ kind: 'success', message: `Question ${currentQuestionIndex + 1} code saved successfully` })
-                } catch (err: any) {
+                } catch (err: unknown) {
                   push({ kind: 'error', message: err?.message || 'Failed to save code' })
                 } finally {
                   setIsSavingCode(prev => ({ ...prev, [currentQuestion.id]: false }))
@@ -579,7 +579,7 @@ export default function ContestEditorPage() {
                           }
                         })
                         setSavedQuestions(prev => ({ ...prev, [q.id]: true }))
-                      } catch (err: any) {
+                      } catch (err: unknown) {
                         push({ kind: 'error', message: `Failed to save question ${q.id}: ${err?.message}` })
                         return
                       }
@@ -644,9 +644,9 @@ export default function ContestEditorPage() {
 
                 {(() => {
                   // Get sample test cases from test_cases array (backend) or direct properties (local)
-                  let sampleCases: any[] = []
+                  let sampleCases: unknown[] = []
                   if (currentQuestion.test_cases && Array.isArray(currentQuestion.test_cases)) {
-                    sampleCases = currentQuestion.test_cases.filter((tc: any) => tc.is_sample === true)
+                    sampleCases = currentQuestion.test_cases.filter((tc: unknown) => tc.is_sample === true)
                   } else if (currentQuestion.sample_input && currentQuestion.sample_output) {
                     // Fallback to direct properties for local mode
                     sampleCases = [{ input_text: currentQuestion.sample_input, expected_text: currentQuestion.sample_output }]
@@ -655,7 +655,7 @@ export default function ContestEditorPage() {
                   return sampleCases.length > 0 ? (
                     <div className="examples-section">
                       <h4>Examples</h4>
-                      {sampleCases.map((tc: any, tcIdx: number) => (
+                      {sampleCases.map((tc: unknown, tcIdx: number) => (
                         <div key={tcIdx} className="example-item">
                           <div className="example-header">
                             <strong>Example {tcIdx + 1}:</strong>

@@ -10,13 +10,13 @@ export interface EnrolledOffering {
 
 export async function getEnrolledCourses(): Promise<EnrolledOffering[]> {
   // Expecting backend to return an array; if it returns an object, adjust mapping here
-  const data = await apiFetch<any>(`/api/student/courses`)
+  const data = await apiFetch<unknown>(`/api/student/courses`)
   if (Array.isArray(data)) return data as EnrolledOffering[]
-  if (Array.isArray((data as any).offerings)) return (data as any).offerings as EnrolledOffering[]
+  if (Array.isArray((data as { offerings?: unknown }).offerings)) return (data as { offerings: EnrolledOffering[] }).offerings
   return []
 }
 
-export async function getGradedAssignment(assignmentId: number): Promise<any> {
+export async function getGradedAssignment(assignmentId: number): Promise<unknown> {
   return apiFetch(`/api/student/graded/${assignmentId}`);
 }
 
@@ -24,7 +24,7 @@ export async function submitRegradeRequest(data: {
   submissionId: number;
   criterionId?: number;
   reason: string;
-}): Promise<any> {
+}): Promise<unknown> {
   return apiFetch('/api/student/grade-query', {
     method: 'POST',
     body: JSON.stringify(data),
@@ -34,12 +34,12 @@ export async function enrollSelf(offeringId: number) {
   return apiFetch(`/api/student/enroll`, { method: 'POST', body: { offeringId } })
 }
 
-export async function getLiveLecturesForCourses(courseIds: number[]): Promise<any[]> {
-  const lectures = []
+export async function getLiveLecturesForCourses(courseIds: number[]): Promise<unknown[]> {
+  const lectures: unknown[] = []
   for (const courseId of courseIds) {
     try {
-      const courseLectures = await apiFetch<any>(`/api/live-lectures/course/${courseId}`)
-      const lecturesArray = Array.isArray(courseLectures) ? courseLectures : (courseLectures as any)?.lectures || []
+      const courseLectures = await apiFetch<unknown>(`/api/live-lectures/course/${courseId}`)
+      const lecturesArray = Array.isArray(courseLectures) ? courseLectures : (courseLectures as { lectures?: unknown[] })?.lectures || []
       lectures.push(...lecturesArray)
     } catch (error) {
       console.error(`Failed to fetch lectures for course ${courseId}:`, error)

@@ -93,7 +93,7 @@ export default function StudentDashboard() {
       }
 
       try {
-        const response = await apiFetch<{ courses: any[] }>('/api/courses/card-data')
+        const response = await apiFetch<{ courses: unknown[] }>('/api/courses/card-data')
 
         // Transform the data to match the expected format
         const counts: Record<number, any> = {}
@@ -126,15 +126,15 @@ export default function StudentDashboard() {
         setLastFetchTime(now)
 
         // Fetch live lectures for all enrolled courses
-        const courseIds = response.courses.map((course: any) => course.id)
-        let lecturesWithTitles: any[] = []
+        const courseIds = response.courses.map((course: unknown) => course.id)
+        let lecturesWithTitles: unknown[] = []
         if (courseIds.length > 0) {
           try {
             const allLectures = await getLiveLecturesForCourses(courseIds)
             // Add course title to each lecture
-            lecturesWithTitles = allLectures.map((lecture: any) => ({
+            lecturesWithTitles = allLectures.map((lecture: unknown) => ({
               ...lecture,
-              course_title: response.courses.find((c: any) => c.id === lecture.course_offering_id)?.course_title
+              course_title: response.courses.find((c: unknown) => c.id === lecture.course_offering_id)?.course_title
             }))
             setLectures(lecturesWithTitles)
           } catch (error) {
@@ -152,7 +152,7 @@ export default function StudentDashboard() {
           console.log('Using cached assignments and contests')
         } else {
           try {
-            const allAssignments: any[] = []
+            const allAssignments: unknown[] = []
             console.log('Fetching assignments and contests for courseIds:', courseIds)
             for (const courseId of courseIds) {
               try {
@@ -161,13 +161,13 @@ export default function StudentDashboard() {
                 console.log(`Received assignments for course ${courseId}:`, courseAssignments)
                 // Transform assignments to calendar events
                 const assignmentDeadlineEvents = courseAssignments
-                  .filter((assignment: any) => assignment.due_at) // Only assignments with due dates
-                  .map((assignment: any) => ({
+                  .filter((assignment: unknown) => assignment.due_at) // Only assignments with due dates
+                  .map((assignment: unknown) => ({
                     id: `assignment_${assignment.id}`,
                     title: `Assignment Due: ${assignment.title}`,
                     scheduled_at: assignment.due_at,
                     course_offering_id: courseId,
-                    course_title: response.courses.find((c: any) => c.id === courseId)?.course_title,
+                    course_title: response.courses.find((c: unknown) => c.id === courseId)?.course_title,
                     type: 'deadline' as const
                   }))
                 console.log(`Created assignment deadline events for course ${courseId}:`, assignmentDeadlineEvents)
@@ -179,13 +179,13 @@ export default function StudentDashboard() {
                 console.log(`Received contests for course ${courseId}:`, courseContests)
                 // Transform contests to calendar events (end_at as deadline)
                 const contestDeadlineEvents = courseContests
-                  .filter((contest: any) => contest.end_at) // Only contests with end dates
-                  .map((contest: any) => ({
+                  .filter((contest: unknown) => contest.end_at) // Only contests with end dates
+                  .map((contest: unknown) => ({
                     id: `contest_${contest.id}`,
                     title: `Contest Deadline: ${contest.title}`,
                     scheduled_at: contest.end_at,
                     course_offering_id: courseId,
-                    course_title: response.courses.find((c: any) => c.id === courseId)?.course_title,
+                    course_title: response.courses.find((c: unknown) => c.id === courseId)?.course_title,
                     type: 'deadline' as const
                   }))
                 console.log(`Created contest deadline events for course ${courseId}:`, contestDeadlineEvents)
@@ -206,7 +206,7 @@ export default function StudentDashboard() {
         }
 
         // Merge lectures and assignments into events
-        const lectureEvents = lecturesWithTitles.map((lecture: any) => ({ ...lecture, type: 'lecture' as const }))
+        const lectureEvents = lecturesWithTitles.map((lecture: unknown) => ({ ...lecture, type: 'lecture' as const }))
         const allEvents = [
           ...lectureEvents,
           ...currentAssignments
@@ -242,7 +242,7 @@ export default function StudentDashboard() {
     (async () => {
       try {
         await refreshCourseCounts()
-      } catch (e: any) {
+      } catch (e: unknown) {
         setErr(e?.message || 'Failed to load courses')
       } finally {
         setLoading(false)
@@ -282,7 +282,7 @@ export default function StudentDashboard() {
       await refreshCourseCounts(true)
       push({ kind: 'success', message: 'Enrolled' })
       setEnrOpen(false); setOffId(''); setStuId('')
-    } catch (e: any) {
+    } catch (e: unknown) {
       push({ kind: 'error', message: e?.message || 'Enroll failed' })
     }
   }
@@ -364,7 +364,7 @@ export default function StudentDashboard() {
                         // Refresh course data after unenrollment (force refresh to bypass cache)
                         await refreshCourseCounts(true);
                         push({ kind: 'success', message: 'Unenrolled' })
-                      } catch (e: any) {
+                      } catch (e: unknown) {
                         push({ kind: 'error', message: e?.message || 'Failed' })
                       }
                     }}

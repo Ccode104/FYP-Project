@@ -6,8 +6,8 @@ export default function TeacherAssignments({
   assignments,
   onViewCode,
 }: {
-  assignments: any[];
-  onViewCode?: (submission: any) => void;
+  assignments: unknown[];
+  onViewCode?: (submission: unknown) => void;
 }) {
   const [selectedId, setSelectedId] = useState<string>("");
   const [selected, setSelected] = useState<any>(null);
@@ -25,11 +25,11 @@ export default function TeacherAssignments({
     }
     setLoading(true);
     try {
-      const data = await apiFetch<{ submissions: any[] }>(
+      const data = await apiFetch<{ submissions: unknown[] }>(
         `/api/assignments/${id}/submissions`
       );
       setSubmissions(data.submissions || []);
-      const assn = assignments.find((a: any) => String(a.id) === String(id));
+      const assn = assignments.find((a: unknown) => String(a.id) === String(id));
       setSelected(assn);
 
       // Load plagiarism checks for assignments that support it
@@ -74,7 +74,7 @@ export default function TeacherAssignments({
               }}
             >
               <option value="">Choose an assignment...</option>
-              {assignments.map((a: any) => (
+              {assignments.map((a: unknown) => (
                 <option key={a.id} value={a.id}>
                   {a.title}{" "}
                   {a.due_at
@@ -144,7 +144,7 @@ export default function TeacherAssignments({
                     {plagiarismChecks.length > 0 && (
                       <div className="plagiarism-reports">
                         <h5>Recent Checks:</h5>
-                        {plagiarismChecks.slice(0, 3).map((check: any) => (
+                        {plagiarismChecks.slice(0, 3).map((check: unknown) => (
                           <div key={check.id} className="plagiarism-check-item">
                             <span>{new Date(check.checked_at).toLocaleString()}</span>
                             <span className={`status-${check.status}`}>{check.status}</span>
@@ -201,7 +201,7 @@ export default function TeacherAssignments({
                   </tr>
                 </thead>
                 <tbody>
-                  {submissions.map((s: any) => {
+                  {submissions.map((s: unknown) => {
                     const status =
                       typeof s.score === "number" ? "graded" : "submitted";
                     return (
@@ -240,7 +240,7 @@ export default function TeacherAssignments({
                                 className="btn btn-sm btn-secondary"
                                 onClick={async () => {
                                   const detail = await apiFetch<{
-                                    submission: any;
+                                    submission: unknown;
                                   }>(`/api/submissions/${s.id}`);
                                   onViewCode(detail.submission);
                                 }}

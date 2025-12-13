@@ -23,7 +23,7 @@ interface CodeViewerProps {
     passed?: boolean
     stdout?: string
     stderr?: string
-    status?: any
+    status?: unknown
     execution_time?: number
     memory?: number
   } | null

@@ -9,7 +9,7 @@ interface UseWebRTCReturn {
   isConnected: boolean;
   joinRoom: (roomId: string, userId: string) => Promise<void>;
   leaveRoom: () => void;
-  sendSignal: (signal: any, toUserId: string) => void;
+  sendSignal: (signal: unknown, toUserId: string) => void;
 }
 
 export const useWebRTC = (roomId?: string): UseWebRTCReturn => {
@@ -116,17 +116,17 @@ export const useWebRTC = (roomId?: string): UseWebRTCReturn => {
       setIsConnected(true);
     });
 
-    socketConnection.on('participant-joined', (data: any) => {
+    socketConnection.on('participant-joined', (data: unknown) => {
       if (data.userId !== userId) {
         createPeer(data.userId, true);
       }
     });
 
-    socketConnection.on('participant-left', (data: any) => {
+    socketConnection.on('participant-left', (data: unknown) => {
       removePeer(data.userId);
     });
 
-    socketConnection.on('webrtc-signal', (data: any) => {
+    socketConnection.on('webrtc-signal', (data: unknown) => {
       const peer = peersRef.current[data.fromUserId];
       if (peer && !peer.destroyed) {
         peer.signal(data.signal);
@@ -157,7 +157,7 @@ export const useWebRTC = (roomId?: string): UseWebRTCReturn => {
     setIsConnected(false);
   }, [socket]);
 
-  const sendSignal = useCallback((signal: any, toUserId: string) => {
+  const sendSignal = useCallback((signal: unknown, toUserId: string) => {
     socket?.emit('webrtc-signal', {
       roomId,
       signal,

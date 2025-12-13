@@ -34,7 +34,7 @@ export default function ContestCards({ courseId, userRole }: ContestCardsProps) 
       setLoading(true)
       const data = await apiFetch<Contest[]>(`/api/contests/course-offerings/${courseId}/contests`)
       setContests(data || [])
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Failed to load contests:', err)
       push({ kind: 'error', message: 'Failed to load contests' })
     } finally {

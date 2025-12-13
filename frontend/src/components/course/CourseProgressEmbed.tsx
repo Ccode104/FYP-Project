@@ -5,8 +5,8 @@ import { type ProgressRow } from '../../services/progress'
 function groupBy<T, K extends keyof any>(list: T[], getKey: (item: T) => K): Record<K, T[]> {
   return list.reduce((acc, item) => {
     const k = getKey(item)
-    ;(acc as any)[k] ||= []
-    ;(acc as any)[k].push(item)
+    ;(acc as unknown)[k] ||= []
+    ;(acc as unknown)[k].push(item)
     return acc
   }, {} as Record<K, T[]>)
 }

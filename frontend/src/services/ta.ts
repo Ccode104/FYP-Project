@@ -53,7 +53,7 @@ export async function submitGrading(data: {
   submissionId: number;
   rubricGrades?: Array<{ criterionId: number; score: number; feedback?: string }>;
   overallComments?: string;
-}): Promise<any> {
+}): Promise<unknown> {
   return apiFetch('/api/ta/grading/submit', {
     method: 'POST',
     body: JSON.stringify(data),

@@ -163,19 +163,19 @@ export async function getCoursesByDepartment(departmentId: number) {
 }
 
 export async function getCourseDetails(courseId: number) {
-  return apiFetch<{ course: any; offerings: any[] }>(`/api/admin/courses/${courseId}/details`)
+  return apiFetch<{ course: unknown; offerings: unknown[] }>(`/api/admin/courses/${courseId}/details`)
 }
 
 export async function getAssignmentsByOffering(offeringId: number) {
-  return apiFetch<{ assignments: any[] }>(`/api/admin/offerings/${offeringId}/assignments`)
+  return apiFetch<{ assignments: unknown[] }>(`/api/admin/offerings/${offeringId}/assignments`)
 }
 
 export async function getAssignmentsByFaculty(facultyId: number) {
-  return apiFetch<{ assignments: any[] }>(`/api/admin/faculty/${facultyId}/assignments`)
+  return apiFetch<{ assignments: unknown[] }>(`/api/admin/faculty/${facultyId}/assignments`)
 }
 
 export async function getSubmissionsByAssignment(assignmentId: number) {
-  return apiFetch<{ submissions: any[] }>(`/api/admin/assignments/${assignmentId}/submissions`)
+  return apiFetch<{ submissions: unknown[] }>(`/api/admin/assignments/${assignmentId}/submissions`)
 }
 
 export async function assignFacultyToCourse(courseId: number, facultyIds: number[]) {
@@ -297,7 +297,7 @@ export async function deleteEnrollment(id: number) {
 
 // Activities
 export async function getRecentActivities(limit = 5) {
-  return apiFetch<{ activities: any[] }>(`/api/admin/activities?limit=${limit}`)
+  return apiFetch<{ activities: unknown[] }>(`/api/admin/activities?limit=${limit}`)
 }
 
 export async function undoActivity(activityId: string) {

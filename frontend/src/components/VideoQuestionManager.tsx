@@ -43,7 +43,7 @@ export default function VideoQuestionManager({
     try {
       const data = await getVideoQuizQuestions(videoId);
       setQuestions(data.questions || []);
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Error loading questions:', error);
     }
   };
@@ -62,7 +62,7 @@ export default function VideoQuestionManager({
     setShowForm(true);
   };
 
-  const handleEditQuestion = (question: any) => {
+  const handleEditQuestion = (question: unknown) => {
     setEditingQuestion(question);
     const options = question.options ? JSON.parse(question.options) : ['', '', '', ''];
     setFormData({
@@ -94,7 +94,7 @@ export default function VideoQuestionManager({
     }
 
     try {
-      const questionData: any = {
+      const questionData: unknown = {
         question_text: formData.question_text,
         question_type: formData.question_type,
         correct_answer: formData.correct_answer,
@@ -119,7 +119,7 @@ export default function VideoQuestionManager({
       setEditingQuestion(null);
       loadQuestions();
       setTimeout(() => setMessage(null), 3000);
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Error saving question:', error);
       setMessage({ kind: 'error', text: error?.message || 'Failed to save question' });
       setTimeout(() => setMessage(null), 3000);
@@ -134,7 +134,7 @@ export default function VideoQuestionManager({
       setMessage({ kind: 'success', text: 'Question deleted' });
       loadQuestions();
       setTimeout(() => setMessage(null), 3000);
-    } catch (error: any) {
+    } catch (error: unknown) {
       setMessage({ kind: 'error', text: error?.message || 'Failed to delete question' });
       setTimeout(() => setMessage(null), 3000);
     }
@@ -205,7 +205,7 @@ export default function VideoQuestionManager({
             {formData.question_type === 'mcq' && (
               <div className="form-group">
                 <label>Options *</label>
-                {formData.options.map((option, index) => (
+                {formData.options.map((option, _index) => (
                   <input
                     key={index}
                     type="text"

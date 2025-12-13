@@ -243,19 +243,19 @@ const LiveLectureViewer: React.FC<LiveLectureViewerProps> = ({
     const peer = createPeer(data.fromUserId.toString(), false, streamRef.current);
     peersRef.current[data.fromUserId] = peer;
     setPeers(prev => ({ ...prev, [data.fromUserId]: peer }));
-    if (data.offer) peer.signal(data.offer as any);
+    if (data.offer) peer.signal(data.offer as unknown);
   };
 
   const handleWebRTCAnswer = (data: WebRTCData) => {
     if (data.toUserId !== userId) return;
     const peer = peersRef.current[data.fromUserId];
-    if (peer && data.answer) peer.signal(data.answer as any);
+    if (peer && data.answer) peer.signal(data.answer as unknown);
   };
 
   const handleWebRTCIceCandidate = (data: WebRTCData) => {
     if (data.toUserId !== userId) return;
     const peer = peersRef.current[data.fromUserId];
-    if (peer && data.candidate) peer.signal(data.candidate as any);
+    if (peer && data.candidate) peer.signal(data.candidate as unknown);
   };
 
   // Feature Handlers

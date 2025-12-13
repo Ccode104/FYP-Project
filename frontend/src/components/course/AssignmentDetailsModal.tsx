@@ -4,7 +4,7 @@ import Modal from '../Modal';
 interface AssignmentDetailsModalProps {
   isOpen: boolean;
   onClose: () => void;
-  assignment: any;
+  assignment: unknown;
 }
 
 export default function AssignmentDetailsModal({

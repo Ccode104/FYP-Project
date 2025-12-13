@@ -185,7 +185,7 @@ export default function SuspendedQuizzes() {
                 <div style={{ marginTop: '16px' }}>
                   <h4 style={{ margin: '0 0 8px 0', fontSize: '1em' }}>Recent Violations:</h4>
                   <div style={{ display: 'grid', gap: '8px', maxHeight: '200px', overflowY: 'auto' }}>
-                    {attempt.violations.slice(0, 5).map((violation, index) => (
+                    {attempt.violations.slice(0, 5).map((violation, _index) => (
                       <div
                         key={index}
                         style={{

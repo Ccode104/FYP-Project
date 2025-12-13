@@ -7,8 +7,8 @@ import { useToast } from '../../components/ToastProvider'
 function groupBy<T, K extends keyof any>(list: T[], getKey: (item: T) => K): Record<K, T[]> {
   return list.reduce((acc, item) => {
     const k = getKey(item)
-    ;(acc as any)[k] ||= []
-    ;(acc as any)[k].push(item)
+    ;(acc as unknown)[k] ||= []
+    ;(acc as unknown)[k].push(item)
     return acc
   }, {} as Record<K, T[]>)
 }
@@ -29,7 +29,7 @@ export default function CourseProgress() {
       try {
         const data = await getCourseProgress(offeringId)
         setRows(data.rows || [])
-      } catch (e: any) {
+      } catch (e: unknown) {
         setError(e?.message || 'Failed to load course progress')
         push({ kind: 'error', message: 'Failed to load progress' })
       } finally {

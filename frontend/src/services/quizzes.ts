@@ -134,6 +134,6 @@ export async function getStudentProctoringHistory(studentId: number) {
 // keeping the intended type definitions intact.
 //
 // Ideally consumers should use `import type { Quiz }` so no shim is needed.
-export const Quiz: any = undefined
-export const QuizQuestion: any = undefined
-export const QuizAttempt: any = undefined
+export const Quiz: unknown = undefined
+export const QuizQuestion: unknown = undefined
+export const QuizAttempt: unknown = undefined

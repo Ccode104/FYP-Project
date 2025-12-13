@@ -174,7 +174,7 @@ export default function FullscreenInstructions({
             paddingLeft: '20px',
             color: '#374151'
           }}>
-            {browser.steps.map((step, index) => (
+            {browser.steps.map((step, _index) => (
               <li key={index} style={{
                 marginBottom: '8px',
                 fontSize: '0.9rem',

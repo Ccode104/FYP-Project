@@ -10,19 +10,17 @@ import {
   getCoursesByDepartment, getCourseDetails,
   getAssignmentsByOffering, getAssignmentsByFaculty, getSubmissionsByAssignment,
   assignFacultyToCourse, getOverview, deleteCourse,
-  listCourses, createCourse, updateCourse,
+  listCourses, createCourse,
   listOfferings, createOffering, updateOffering, deleteOffering,
-  listAssignments, createAssignment, updateAssignment, deleteAssignment,
-  listQuizzes, createQuiz, updateQuiz, deleteQuiz,
+  listAssignments, createAssignment,
+  listQuizzes, createQuiz,
   listEnrollments, createEnrollment, deleteEnrollment
 } from '../../services/admin'
-import { createCourse as createCourseFromCourses, createOffering as createOfferingFromCourses, listCourses as listCoursesFromCourses } from '../../services/courses'
-import { register } from '../../services/auth'
 import { useToast } from '../../components/ToastProvider'
 import SupportTicketList from '../../components/SupportTicketList'
 import Reports from '../../components/Reports'
 import RecentActivities from '../../components/RecentActivities'
-import Skeleton, { SkeletonCard } from '../../components/Skeleton'
+import { SkeletonCard } from '../../components/Skeleton'
 import ConfirmationModal from '../../components/ConfirmationModal'
 interface User {
   id: number;
@@ -35,7 +33,7 @@ interface User {
 }
 
 export default function AdminDashboard() {
-  const { user, logout} = useAuth()
+  const { user } = useAuth()
   const navigate = useNavigate()
   const { push } = useToast()
 
@@ -66,7 +64,6 @@ export default function AdminDashboard() {
   const [userRoleFilter, setUserRoleFilter] = useState<string[]>([])
   const [userDeptMultiFilter, setUserDeptMultiFilter] = useState<string[]>([])
   const [showUserDetailsModal, setShowUserDetailsModal] = useState(false)
-  const [hasSearched, setHasSearched] = useState(false)
   const [liveSearchEnabled, setLiveSearchEnabled] = useState(true)
   const [searchParameterHistory, setSearchParameterHistory] = useState<Array<{
     keyword: string
@@ -89,7 +86,7 @@ export default function AdminDashboard() {
       setLoadError('')
       const r = await listUsers()
       setUsersList(r.users || [])
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Error loading users:', err)
       setLoadError(err?.message || 'Failed to load users')
       setUsersList([])
@@ -116,7 +113,6 @@ export default function AdminDashboard() {
     const savedParameterHistory = localStorage.getItem('adminSearchParameterHistory')
     const savedRecentUsers = localStorage.getItem('adminRecentUsers')
     const savedDeptParameterHistory = localStorage.getItem('adminDeptSearchParameterHistory')
-    const savedCourseParameterHistory = localStorage.getItem('adminCourseSearchParameterHistory')
     if (savedParameterHistory) {
       setSearchParameterHistory(JSON.parse(savedParameterHistory))
     }
@@ -125,9 +121,6 @@ export default function AdminDashboard() {
     }
     if (savedDeptParameterHistory) {
       setDeptSearchParameterHistory(JSON.parse(savedDeptParameterHistory))
-    }
-    if (savedCourseParameterHistory) {
-      setCourseSearchParameterHistory(JSON.parse(savedCourseParameterHistory))
     }
   }, [])
 
@@ -189,21 +182,12 @@ export default function AdminDashboard() {
   const [courseSearch, setCourseSearch] = useState('')
   const [courseSearchType, setCourseSearchType] = useState<'all' | 'code' | 'title'>('all')
   const [courseDeptFilter, setCourseDeptFilter] = useState('')
-  const [courseViewMode, setCourseViewMode] = useState<'cards' | 'table'>('cards')
-  const [courseLiveSearchEnabled, setCourseLiveSearchEnabled] = useState(true)
-  const [courseSearchParameterHistory, setCourseSearchParameterHistory] = useState<Array<{
-    keyword: string
-    searchType: 'all' | 'code' | 'title'
-    deptFilter: string
-    timestamp: number
-  }>>([])
-  const [showCourseSearchSuggestions, setShowCourseSearchSuggestions] = useState(false)
   const [courseCurrentPage, setCourseCurrentPage] = useState(1)
   const [courseItemsPerPage] = useState(10)
 
   // Debounced course search effect
   useEffect(() => {
-    if (!courseLiveSearchEnabled || !courseSearch.trim()) return
+    if (!courseSearch.trim()) return
 
     const timeoutId = setTimeout(() => {
       // For courses, we just filter the existing data
@@ -211,7 +195,7 @@ export default function AdminDashboard() {
     }, 300) // 300ms debounce for courses
 
     return () => clearTimeout(timeoutId)
-  }, [courseSearch, courseSearchType, courseDeptFilter, courseLiveSearchEnabled])
+  }, [courseSearch, courseSearchType, courseDeptFilter])
 // Advanced search scoring function
 const calculateSearchScore = (text: string, searchTerm: string): number => {
   if (!text || !searchTerm) return 0
@@ -282,7 +266,7 @@ const filterUsers = (users: User[], search: string, searchType: 'all' | 'name' |
   const deptFilterArray = Array.isArray(deptFilter) ? deptFilter : (deptFilter ? [deptFilter] : [])
 
   // First filter by roles and departments (multi-select support)
-  let filtered = users.filter(u => {
+  const filtered = users.filter(u => {
     const roleMatch = roleFilterArray.length === 0 || roleFilterArray.includes(u.role)
     const deptMatch = deptFilterArray.length === 0 || deptFilterArray.includes(u.department_id?.toString() || '')
     return roleMatch && deptMatch
@@ -344,13 +328,6 @@ const paginatedUsers = filteredUsers.slice((currentPage - 1) * itemsPerPage, cur
   const [selectedDept, setSelectedDept] = useState<any>(null)
   const [deptCourses, setDeptCourses] = useState<any[]>([])
   const [selectedCourse, setSelectedCourse] = useState<any>(null)
-  const [courseDetails, setCourseDetails] = useState<any>(null)
-  const [selectedOffering, setSelectedOffering] = useState<any>(null)
-  const [offeringAssignments, setOfferingAssignments] = useState<any[]>([])
-  const [selectedAssignment, setSelectedAssignment] = useState<any>(null)
-  const [assignmentSubmissions, setAssignmentSubmissions] = useState<any[]>([])
-  const [selectedFaculty, setSelectedFaculty] = useState<any>(null)
-  const [facultyAssignments, setFacultyAssignments] = useState<any[]>([])
 
   // Admin Courses state
   const [adminCourses, setAdminCourses] = useState<any[]>([])
@@ -390,9 +367,6 @@ const filteredCourses = useMemo(() =>
   ) : [],
   [adminCourses, courseSearch, courseSearchType, courseDeptFilter]
 )
-
-const courseTotalPages = Math.ceil(filteredCourses.length / courseItemsPerPage)
-const paginatedCourses = filteredCourses.slice((courseCurrentPage - 1) * courseItemsPerPage, courseCurrentPage * courseItemsPerPage)
 
   const [showCreateCourse, setShowCreateCourse] = useState(false)
   const [newCode, setNewCode] = useState('')
@@ -455,13 +429,7 @@ const paginatedCourses = filteredCourses.slice((courseCurrentPage - 1) * courseI
   const [offerEnd, setOfferEnd] = useState('')
   const [savingOffering, setSavingOffering] = useState(false)
 
-  // Offerings management state
-  const [offerings, setOfferings] = useState<any[]>([])
-  const [loadingOfferings, setLoadingOfferings] = useState(false)
-  const [offeringSearch, setOfferingSearch] = useState('')
-  const [offeringSearchType, setOfferingSearchType] = useState<'all' | 'course' | 'faculty' | 'term'>('all')
-  const [offeringCourseFilter, setOfferingCourseFilter] = useState('')
-  const [offeringFacultyFilter, setOfferingFacultyFilter] = useState('')
+
   const [showCreateOffering, setShowCreateOffering] = useState(false)
   const [newOffering, setNewOffering] = useState({
     course_id: '',
@@ -474,73 +442,17 @@ const paginatedCourses = filteredCourses.slice((courseCurrentPage - 1) * courseI
   })
   const [creatingOffering, setCreatingOffering] = useState(false)
 
-  // Enrollments management state
-  const [enrollments, setEnrollments] = useState<any[]>([])
-  const [loadingEnrollments, setLoadingEnrollments] = useState(false)
-  const [enrollmentSearch, setEnrollmentSearch] = useState('')
-  const [enrollmentSearchType, setEnrollmentSearchType] = useState<'all' | 'student' | 'course' | 'offering'>('all')
-  const [enrollmentOfferingFilter, setEnrollmentOfferingFilter] = useState('')
-  const [enrollmentStudentFilter, setEnrollmentStudentFilter] = useState('')
-  const [showCreateEnrollment, setShowCreateEnrollment] = useState(false)
-  const [enrollmentFromManage, setEnrollmentFromManage] = useState(false)
-  const [newEnrollment, setNewEnrollment] = useState({
-    course_offering_id: '',
-    student_id: ''
-  })
-  const [creatingEnrollment, setCreatingEnrollment] = useState(false)
 
-  // Assignments management state
-  const [assignments, setAssignments] = useState<any[]>([])
-  const [loadingAssignments, setLoadingAssignments] = useState(false)
-  const [assignmentSearch, setAssignmentSearch] = useState('')
-  const [assignmentSearchType, setAssignmentSearchType] = useState<'all' | 'title' | 'course' | 'faculty'>('all')
-  const [assignmentOfferingFilter, setAssignmentOfferingFilter] = useState('')
-  const [assignmentFacultyFilter, setAssignmentFacultyFilter] = useState('')
-  const [showCreateAssignment, setShowCreateAssignment] = useState(false)
-  const [newAssignment, setNewAssignment] = useState({
-    course_offering_id: '',
-    title: '',
-    description: '',
-    allow_github_repo: false,
-    release_at: '',
-    due_at: '',
-    max_score: '100',
-    allow_multiple_submissions: false,
-    file_size_limit_mb: ''
-  })
-  const [creatingAssignment, setCreatingAssignment] = useState(false)
 
-  // Quizzes management state
-  const [quizzes, setQuizzes] = useState<any[]>([])
-  const [loadingQuizzes, setLoadingQuizzes] = useState(false)
-  const [quizSearch, setQuizSearch] = useState('')
-  const [quizSearchType, setQuizSearchType] = useState<'all' | 'title' | 'course'>('all')
-  const [quizOfferingFilter, setQuizOfferingFilter] = useState('')
-  const [showCreateQuiz, setShowCreateQuiz] = useState(false)
-  const [newQuiz, setNewQuiz] = useState({
-    course_offering_id: '',
-    title: '',
-    start_at: '',
-    end_at: '',
-    max_score: '100',
-    is_proctored: false,
-    time_limit: '',
-    allow_suspension_resume: true,
-    proctoring_config_id: ''
-  })
-  const [creatingQuiz, setCreatingQuiz] = useState(false)
+
+
+
 
   // Course management modals
   const [showManageOfferings, setShowManageOfferings] = useState(false)
   const [showManageEnrollments, setShowManageEnrollments] = useState(false)
   const [courseEnrollments, setCourseEnrollments] = useState<any[]>([])
   const [loadingCourseEnrollments, setLoadingCourseEnrollments] = useState(false)
-  const [courseEnrollmentSearch, setCourseEnrollmentSearch] = useState('')
-  const [courseEnrollmentSearchType, setCourseEnrollmentSearchType] = useState<'all' | 'student' | 'offering'>('all')
-
-  // Edit offering state
-  const [editingOffering, setEditingOffering] = useState<any>(null)
-  const [showEditOffering, setShowEditOffering] = useState(false)
 
   // Overview state
   const [overviewStats, setOverviewStats] = useState<any>(null)
@@ -559,7 +471,7 @@ const paginatedCourses = filteredCourses.slice((courseCurrentPage - 1) * courseI
     try {
       setLoadingCourses(true)
       const r = await listCourses()
-      const coursesWithDetails = await Promise.all((r.courses || []).map(async (c: any) => {
+      const coursesWithDetails = await Promise.all((r.courses || []).map(async (c: unknown) => {
         const details = await getCourseDetails(c.id)
         return { ...c, offerings: details.offerings || [] }
       }))
@@ -568,54 +480,6 @@ const paginatedCourses = filteredCourses.slice((courseCurrentPage - 1) * courseI
       console.error('Error loading admin courses:', err)
     } finally {
       setLoadingCourses(false)
-    }
-  }
-
-  const loadOfferings = async () => {
-    try {
-      setLoadingOfferings(true)
-      const r = await listOfferings()
-      setOfferings(r.offerings)
-    } catch (err) {
-      console.error('Error loading offerings:', err)
-    } finally {
-      setLoadingOfferings(false)
-    }
-  }
-
-  const loadEnrollments = async () => {
-    try {
-      setLoadingEnrollments(true)
-      const r = await listEnrollments()
-      setEnrollments(r.enrollments)
-    } catch (err) {
-      console.error('Error loading enrollments:', err)
-    } finally {
-      setLoadingEnrollments(false)
-    }
-  }
-
-  const loadAssignments = async () => {
-    try {
-      setLoadingAssignments(true)
-      const r = await listAssignments()
-      setAssignments(r.assignments)
-    } catch (err) {
-      console.error('Error loading assignments:', err)
-    } finally {
-      setLoadingAssignments(false)
-    }
-  }
-
-  const loadQuizzes = async () => {
-    try {
-      setLoadingQuizzes(true)
-      const r = await listQuizzes()
-      setQuizzes(r.quizzes)
-    } catch (err) {
-      console.error('Error loading quizzes:', err)
-    } finally {
-      setLoadingQuizzes(false)
     }
   }
 
@@ -638,11 +502,11 @@ const paginatedCourses = filteredCourses.slice((courseCurrentPage - 1) * courseI
       const r = await listEnrollments()
       console.log('All enrollments:', r.enrollments)
       // Filter enrollments for this course's offerings
-      const courseOfferings = adminCourses.find((c: any) => c.id === courseId)?.offerings || []
+      const courseOfferings = adminCourses.find((c: unknown) => c.id === courseId)?.offerings || []
       console.log('Course offerings:', courseOfferings)
-      const offeringIds = courseOfferings.map((o: any) => o.offering_id)
+      const offeringIds = courseOfferings.map((o: unknown) => o.offering_id)
       console.log('Offering IDs:', offeringIds)
-      const filteredEnrollments = r.enrollments.filter((e: any) => offeringIds.includes(e.course_offering_id))
+      const filteredEnrollments = r.enrollments.filter((e: unknown) => offeringIds.includes(e.course_offering_id))
       console.log('Filtered enrollments:', filteredEnrollments)
       setCourseEnrollments(filteredEnrollments)
     } catch (err) {
@@ -651,74 +515,9 @@ const paginatedCourses = filteredCourses.slice((courseCurrentPage - 1) * courseI
       setLoadingCourseEnrollments(false)
     }
   }
-
-  const selectDepartment = async (dept: any) => {
-    setSelectedDept(dept)
-    setSelectedCourse(null)
-    setSelectedOffering(null)
-    setSelectedAssignment(null)
-    try {
-      const r = await getCoursesByDepartment(dept.id)
-      setDeptCourses(r.courses)
-    } catch (err) {
-      console.error('Error loading courses:', err)
-    }
-    try {
-      const fac = await listUsers('faculty')
-      setDeptFaculty((fac.users || []).filter((u: any) => u.department_id === dept.id))
-    } catch {}
-  }
-
-  const selectCourse = async (course: any) => {
-    setSelectedCourse(course)
-    setSelectedOffering(null)
-    setSelectedAssignment(null)
-    try {
-      const r = await getCourseDetails(course.id)
-      setCourseDetails(r)
-    } catch (err) {
-      console.error('Error loading course details:', err)
-    }
-  }
-
-  const selectOffering = async (offering: any) => {
-    setSelectedOffering(offering)
-    setSelectedAssignment(null)
-    setSelectedFaculty(null)
-    try {
-      const r = await getAssignmentsByOffering(offering.offering_id)
-      setOfferingAssignments(r.assignments)
-    } catch (err) {
-      console.error('Error loading assignments:', err)
-    }
-  }
-
-  const selectFaculty = async (faculty: any) => {
-    setSelectedFaculty(faculty)
-    setSelectedOffering(null)
-    setSelectedAssignment(null)
-    try {
-      const r = await getAssignmentsByFaculty(faculty.faculty_id)
-      setFacultyAssignments(r.assignments)
-    } catch (err) {
-      console.error('Error loading faculty assignments:', err)
-    }
-  }
-
-  const selectAssignment = async (assignment: any) => {
-    setSelectedAssignment(assignment)
-    try {
-      const r = await getSubmissionsByAssignment(assignment.id)
-      setAssignmentSubmissions(r.submissions)
-    } catch (err) {
-      console.error('Error loading submissions:', err)
-    }
-  }
-
   // Debounced search function
   const performSearch = useCallback(async () => {
     if (!userSearch.trim()) {
-      setHasSearched(false)
       return
     }
 
@@ -746,8 +545,7 @@ const paginatedCourses = filteredCourses.slice((courseCurrentPage - 1) * courseI
       localStorage.setItem('adminSearchParameterHistory', JSON.stringify(newHistory))
 
       // For now, just filter existing users (in a real app, this would call the backend)
-      setHasSearched(true)
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Search error:', err)
     } finally {
       setIsLoading(false)
@@ -805,33 +603,6 @@ const paginatedCourses = filteredCourses.slice((courseCurrentPage - 1) * courseI
     link.click()
     document.body.removeChild(link)
   }
-  
-  // Export courses to CSV
-  const exportCoursesToCSV = () => {
-    const headers = ['ID', 'Code', 'Title', 'Description', 'Credits', 'Department', 'Created At']
-    const csvData = [
-      headers.join(','),
-      ...filteredCourses.map(course => [
-        course.id,
-        `"${course.code || ''}"`,
-        `"${course.title || ''}"`,
-        `"${course.description || ''}"`,
-        course.credits || '',
-        `"${departments.find(d => d.id.toString() === course.department_id?.toString())?.name || ''}"`,
-        new Date().toISOString().split('T')[0] // Placeholder for created_at
-      ].join(','))
-    ].join('\n')
-  
-    const blob = new Blob([csvData], { type: 'text/csv;charset=utf-8;' })
-    const link = document.createElement('a')
-    const url = URL.createObjectURL(blob)
-    link.setAttribute('href', url)
-    link.setAttribute('download', `courses_export_${new Date().toISOString().split('T')[0]}.csv`)
-    link.style.visibility = 'hidden'
-    document.body.appendChild(link)
-    link.click()
-    document.body.removeChild(link)
-  }
 
   // Add user to recently viewed
   const addToRecentlyViewed = (user: User) => {
@@ -859,17 +630,7 @@ const paginatedCourses = filteredCourses.slice((courseCurrentPage - 1) * courseI
     }
   }, [isAdmin, tab])
 
-  useEffect(() => {
-    if (isAdmin && tab === 'assignments') {
-      void loadAssignments()
-    }
-  }, [isAdmin, tab])
 
-  useEffect(() => {
-    if (isAdmin && tab === 'quizzes') {
-      void loadQuizzes()
-    }
-  }, [isAdmin, tab])
 
   // Load course enrollments when manage enrollments modal opens
   useEffect(() => {
@@ -1021,7 +782,7 @@ const paginatedCourses = filteredCourses.slice((courseCurrentPage - 1) * courseI
                     {searchParameterHistory
                       .filter(item => item.keyword.toLowerCase().includes(userSearch.toLowerCase()))
                       .slice(0, 5)
-                      .map((item, index) => (
+                      .map((item, _index) => (
                         <button
                           key={index}
                           onMouseDown={(e) => {
@@ -1120,7 +881,7 @@ const paginatedCourses = filteredCourses.slice((courseCurrentPage - 1) * courseI
                       overflowY: 'auto',
                       backgroundColor: 'var(--surface)'
                     }}>
-                      {departments.map((dept: any) => (
+                      {departments.map((dept: unknown) => (
                         <label key={dept.id} style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '4px', fontSize: '0.85em' }}>
                           <input
                             type="checkbox"
@@ -1185,7 +946,7 @@ const paginatedCourses = filteredCourses.slice((courseCurrentPage - 1) * courseI
                     aria-label="Filter by department"
                   >
                     <option value="">All Departments</option>
-                    {departments.map((d: any) => (
+                    {departments.map((d: unknown) => (
                       <option key={d.id} value={d.id}>{d.name}</option>
                     ))}
                   </select>
@@ -1223,7 +984,6 @@ const paginatedCourses = filteredCourses.slice((courseCurrentPage - 1) * courseI
                   setUserSearchType('all');
                   setUserDeptFilter('');
                   setRoleFilter('');
-                  setHasSearched(false);
                 }}
                 style={{ flex: 1, fontWeight: '500', padding: '8px 16px', borderRadius: '6px', border: '1px solid var(--border)', backgroundColor: 'var(--surface)', color: 'var(--text)', transition: 'all 0.2s ease' }}
                 disabled={isLoading}
@@ -1295,7 +1055,7 @@ const paginatedCourses = filteredCourses.slice((courseCurrentPage - 1) * courseI
                       borderRadius: '12px',
                       fontSize: '0.8em'
                     }}>
-                      Dept: {departments.find((d: any) => d.id.toString() === userDeptFilter)?.name || userDeptFilter}
+                      Dept: {departments.find((d: unknown) => d.id.toString() === userDeptFilter)?.name || userDeptFilter}
                     </span>
                   )}
                   {roleFilter && (
@@ -1385,7 +1145,6 @@ const paginatedCourses = filteredCourses.slice((courseCurrentPage - 1) * courseI
                       setRoleFilter('');
                       setUserDeptMultiFilter([]);
                       setUserRoleFilter([]);
-                      setHasSearched(false);
                       setCurrentPage(1);
                     }}
                     style={{ fontWeight: '500', padding: '8px 16px', borderRadius: '6px', border: '1px solid var(--border)', backgroundColor: 'var(--surface)', color: 'var(--text)', transition: 'all 0.2s ease' }}
@@ -1629,7 +1388,7 @@ const paginatedCourses = filteredCourses.slice((courseCurrentPage - 1) * courseI
               style={{ width: '100%' }}
             >
               <option value="">All Departments</option>
-              {departments.map((d: any) => (
+              {departments.map((d: unknown) => (
                 <option key={d.id} value={d.id}>{d.name}</option>
               ))}
             </select>
@@ -1661,7 +1420,7 @@ const paginatedCourses = filteredCourses.slice((courseCurrentPage - 1) * courseI
                     <div className="course-offerings">
                       <h5>Offerings:</h5>
                       {course.offerings && course.offerings.length > 0 ? (
-                        course.offerings.map((offering: any) => (
+                        course.offerings.map((offering: unknown) => (
                           <div key={offering.offering_id} className="offering-item">
                             <p><strong>Term:</strong> {offering.term} {offering.section ? `Section ${offering.section}` : ''}</p>
                             <p><strong>Faculty:</strong> {offering.faculty_name || 'N/A'}</p>
@@ -1803,7 +1562,7 @@ const paginatedCourses = filteredCourses.slice((courseCurrentPage - 1) * courseI
                     {deptSearchParameterHistory
                       .filter(item => item.keyword.toLowerCase().includes(deptSearch.toLowerCase()))
                       .slice(0, 5)
-                      .map((item, index) => (
+                      .map((item, _index) => (
                         <button
                           key={index}
                           onMouseDown={(e) => {
@@ -2010,7 +1769,7 @@ const paginatedCourses = filteredCourses.slice((courseCurrentPage - 1) * courseI
                   {deptViewMode === 'cards' ? (
                     /* Cards View */
                     <div className="grid" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 16 }}>
-                      {paginatedDepartments.map((dept: any) => (
+                      {paginatedDepartments.map((dept: unknown) => (
                         <div key={dept.id} className="card department-card" style={{ padding: '16px' }}>
                           <div style={{ marginBottom: 12 }}>
                             <strong style={{ fontSize: '1.1em' }}>{dept.code}</strong>
@@ -2042,7 +1801,7 @@ const paginatedCourses = filteredCourses.slice((courseCurrentPage - 1) * courseI
                                     await updateDepartment(dept.id, { code: newCode, name: newName })
                                     push({ kind: 'success', message: 'Department updated successfully' })
                                     loadDepartments()
-                                  } catch (e: any) {
+                                  } catch (e: unknown) {
                                     push({ kind: 'error', message: e?.message || 'Failed to update department' })
                                   }
                                 }
@@ -2082,7 +1841,7 @@ const paginatedCourses = filteredCourses.slice((courseCurrentPage - 1) * courseI
                           </tr>
                         </thead>
                         <tbody>
-                          {paginatedDepartments.map((dept: any) => (
+                          {paginatedDepartments.map((dept: unknown) => (
                             <tr key={dept.id} style={{ borderBottom: '1px solid var(--border)' }}>
                               <td style={{ padding: '12px' }}>
                                 <strong>{dept.code}</strong>
@@ -2253,7 +2012,7 @@ const paginatedCourses = filteredCourses.slice((courseCurrentPage - 1) * courseI
             <RecentActivities
               refreshTrigger={Date.now()}
               onNavigate={(tab: string, filter?: string) => {
-                setTab(tab as any)
+                setTab(tab as unknown)
                 if (filter && tab === 'users') {
                   setUserDeptFilter(filter)
                 }
@@ -2317,7 +2076,7 @@ const paginatedCourses = filteredCourses.slice((courseCurrentPage - 1) * courseI
                     setShowCreateCourse(false)
                     push({ kind: 'success', message: `Course ${c.code || ''} created successfully` })
                     setTimeout(() => window.location.reload(), 800)
-                  } catch (e: any) {
+                  } catch (e: unknown) {
                     push({ kind: 'error', message: e?.message || 'Failed to create course' })
                   } finally {
                     setSavingCourse(false)
@@ -2372,7 +2131,7 @@ const paginatedCourses = filteredCourses.slice((courseCurrentPage - 1) * courseI
                     setOfferForCourse(null)
                     push({ kind: 'success', message: `Offering #${res.id} created` })
                     setTimeout(() => window.location.reload(), 800)
-                  } catch (e: any) {
+                  } catch (e: unknown) {
                     push({ kind: 'error', message: e?.message || 'Failed to create offering' })
                   } finally {
                     setSavingOffering(false)
@@ -2395,7 +2154,7 @@ const paginatedCourses = filteredCourses.slice((courseCurrentPage - 1) * courseI
               <input className="input" value={newUser.name} onChange={(e) => setNewUser({ ...newUser, name: e.target.value })} placeholder="Full Name" />
               <input className="input" type="email" value={newUser.email} onChange={(e) => setNewUser({ ...newUser, email: e.target.value })} placeholder="Email Address" />
               <input className="input" type="password" value={newUser.password} onChange={(e) => setNewUser({ ...newUser, password: e.target.value })} placeholder="Password" />
-              <select className="input" value={newUser.role} onChange={(e) => setNewUser({ ...newUser, role: e.target.value as any })}>
+              <select className="input" value={newUser.role} onChange={(e) => setNewUser({ ...newUser, role: e.target.value as unknown })}>
                 <option value="student">Student</option>
                 <option value="faculty">Faculty</option>
                 <option value="ta">Teaching Assistant</option>
@@ -2403,7 +2162,7 @@ const paginatedCourses = filteredCourses.slice((courseCurrentPage - 1) * courseI
               </select>
               <select className="input" value={newUser.department_id} onChange={(e) => setNewUser({ ...newUser, department_id: e.target.value })}>
                 <option value="">Select Department (Optional)</option>
-                {departments.map((d: any) => (
+                {departments.map((d: unknown) => (
                   <option key={d.id} value={d.id}>{d.name}</option>
                 ))}
               </select>
@@ -2417,12 +2176,12 @@ const paginatedCourses = filteredCourses.slice((courseCurrentPage - 1) * courseI
                   if (!newUser.name || !newUser.email || !newUser.password) return
                   try {
                     setCreatingUser(true)
-                    await register(newUser.name, newUser.email, newUser.password, newUser.role as any, newUser.department_id ? Number(newUser.department_id) : undefined, newUser.roll_number || undefined)
+                    await register(newUser.name, newUser.email, newUser.password, newUser.role as unknown, newUser.department_id ? Number(newUser.department_id) : undefined, newUser.roll_number || undefined)
                     setShowCreateUser(false)
                     setNewUser({ name: '', email: '', password: '', role: 'student', department_id: '', roll_number: '' })
                     push({ kind: 'success', message: 'User created successfully' })
                     loadUsers()
-                  } catch (e: any) {
+                  } catch (e: unknown) {
                     push({ kind: 'error', message: e?.message || 'Failed to create user' })
                   } finally {
                     setCreatingUser(false)
@@ -2458,7 +2217,7 @@ const paginatedCourses = filteredCourses.slice((courseCurrentPage - 1) * courseI
                     setNewDept({ code: '', name: '' })
                     push({ kind: 'success', message: 'Department created successfully' })
                     loadDepartments()
-                  } catch (e: any) {
+                  } catch (e: unknown) {
                     push({ kind: 'error', message: e?.message || 'Failed to create department' })
                   } finally {
                     setCreatingDept(false)
@@ -2480,7 +2239,7 @@ const paginatedCourses = filteredCourses.slice((courseCurrentPage - 1) * courseI
             <div className="form" style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
               <select className="input" value={newOffering.course_id} onChange={(e) => setNewOffering({ ...newOffering, course_id: e.target.value })}>
                 <option value="">Select Course</option>
-                {adminCourses.map((c: any) => (
+                {adminCourses.map((c: unknown) => (
                   <option key={c.id} value={c.id}>{c.code} - {c.title}</option>
                 ))}
               </select>
@@ -2488,7 +2247,7 @@ const paginatedCourses = filteredCourses.slice((courseCurrentPage - 1) * courseI
               <input className="input" value={newOffering.section} onChange={(e) => setNewOffering({ ...newOffering, section: e.target.value })} placeholder="Section (e.g., A)" />
               <select className="input" value={newOffering.faculty_id} onChange={(e) => setNewOffering({ ...newOffering, faculty_id: e.target.value })}>
                 <option value="">Select Faculty</option>
-                {usersList.filter((u: any) => u.role === 'faculty').map((f: any) => (
+                {usersList.filter((u: unknown) => u.role === 'faculty').map((f: unknown) => (
                   <option key={f.id} value={f.id}>{f.name || f.email}</option>
                 ))}
               </select>
@@ -2522,7 +2281,7 @@ const paginatedCourses = filteredCourses.slice((courseCurrentPage - 1) * courseI
                     if (showManageOfferings && selectedCourse) {
                       loadAdminCourses() // Refresh the course offerings
                     }
-                  } catch (e: any) {
+                  } catch (e: unknown) {
                     push({ kind: 'error', message: e?.message || 'Failed to create offering' })
                   } finally {
                     setCreatingOffering(false)
@@ -2544,7 +2303,7 @@ const paginatedCourses = filteredCourses.slice((courseCurrentPage - 1) * courseI
             <div className="form" style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
               <select className="input" value={newEnrollment.course_offering_id} onChange={(e) => setNewEnrollment({ ...newEnrollment, course_offering_id: e.target.value })}>
                 <option value="">Select Course Offering</option>
-                {(enrollmentFromManage && selectedCourse ? selectedCourse.offerings : offerings).map((o: any) => (
+                {(enrollmentFromManage && selectedCourse ? selectedCourse.offerings : offerings).map((o: unknown) => (
                   <option key={o.offering_id || o.id} value={o.offering_id || o.id}>
                     {o.course_code || selectedCourse?.code} {o.term}{o.section ? '-' + o.section : ''} - {o.faculty_name || 'N/A'}
                   </option>
@@ -2552,7 +2311,7 @@ const paginatedCourses = filteredCourses.slice((courseCurrentPage - 1) * courseI
               </select>
               <select className="input" value={newEnrollment.student_id} onChange={(e) => setNewEnrollment({ ...newEnrollment, student_id: e.target.value })}>
                 <option value="">Select Student</option>
-                {usersList.filter((u: any) => u.role === 'student').map((s: any) => (
+                {usersList.filter((u: unknown) => u.role === 'student').map((s: unknown) => (
                   <option key={s.id} value={s.id}>{s.name || s.email} ({s.roll_number || 'No Roll Number'})</option>
                 ))}
               </select>
@@ -2581,7 +2340,7 @@ const paginatedCourses = filteredCourses.slice((courseCurrentPage - 1) * courseI
                     if (enrollmentFromManage && selectedCourse) {
                       loadCourseEnrollments(selectedCourse.id)
                     }
-                  } catch (e: any) {
+                  } catch (e: unknown) {
                     push({ kind: 'error', message: e?.message || 'Failed to create enrollment' })
                   } finally {
                     setCreatingEnrollment(false)
@@ -2603,7 +2362,7 @@ const paginatedCourses = filteredCourses.slice((courseCurrentPage - 1) * courseI
             <div className="form" style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
               <select className="input" value={newAssignment.course_offering_id} onChange={(e) => setNewAssignment({ ...newAssignment, course_offering_id: e.target.value })}>
                 <option value="">Select Course Offering</option>
-                {offerings.map((o: any) => (
+                {offerings.map((o: unknown) => (
                   <option key={o.id} value={o.id}>{o.course_code} {o.term}{o.section ? '-' + o.section : ''} - {o.faculty_name || 'N/A'}</option>
                 ))}
               </select>
@@ -2665,7 +2424,7 @@ const paginatedCourses = filteredCourses.slice((courseCurrentPage - 1) * courseI
                     })
                     push({ kind: 'success', message: 'Assignment created successfully' })
                     loadAssignments()
-                  } catch (e: any) {
+                  } catch (e: unknown) {
                     push({ kind: 'error', message: e?.message || 'Failed to create assignment' })
                   } finally {
                     setCreatingAssignment(false)
@@ -2687,7 +2446,7 @@ const paginatedCourses = filteredCourses.slice((courseCurrentPage - 1) * courseI
             <div className="form" style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
               <select className="input" value={newQuiz.course_offering_id} onChange={(e) => setNewQuiz({ ...newQuiz, course_offering_id: e.target.value })}>
                 <option value="">Select Course Offering</option>
-                {offerings.map((o: any) => (
+                {offerings.map((o: unknown) => (
                   <option key={o.id} value={o.id}>{o.course_code} {o.term}{o.section ? '-' + o.section : ''} - {o.faculty_name || 'N/A'}</option>
                 ))}
               </select>
@@ -2748,7 +2507,7 @@ const paginatedCourses = filteredCourses.slice((courseCurrentPage - 1) * courseI
                     })
                     push({ kind: 'success', message: 'Quiz created successfully' })
                     loadQuizzes()
-                  } catch (e: any) {
+                  } catch (e: unknown) {
                     push({ kind: 'error', message: e?.message || 'Failed to create quiz' })
                   } finally {
                     setCreatingQuiz(false)
@@ -2777,7 +2536,7 @@ const paginatedCourses = filteredCourses.slice((courseCurrentPage - 1) * courseI
                   <>
                     <h5>Enrolled Courses</h5>
                     <ul className="list">
-                      {selectedOverview.student.enrollments.map((e: any) => (
+                      {selectedOverview.student.enrollments.map((e: unknown) => (
                         <li key={e.offering_id}>{e.course_code} — {e.course_title} [{e.term}{e.section ? '-' + e.section : ''}] · Faculty: {e.faculty_name}</li>
                       ))}
                     </ul>
@@ -2787,12 +2546,12 @@ const paginatedCourses = filteredCourses.slice((courseCurrentPage - 1) * courseI
                   <>
                     <h5>Offerings</h5>
                     <ul className="list">
-                      {selectedOverview.faculty.offerings.map((o: any) => (
+                      {selectedOverview.faculty.offerings.map((o: unknown) => (
                         <li key={o.offering_id}>
                           {o.course_code} — {o.course_title} [{o.term}{o.section ? '-' + o.section : ''}]
                           {o.students?.length ? (
                             <ul className="list" style={{ marginTop: 6 }}>
-                              {o.students.map((s: any) => (
+                              {o.students.map((s: unknown) => (
                                 <li key={s.id}>{s.name || s.email} <span className="muted">({s.email})</span></li>
                               ))}
                             </ul>
@@ -2806,7 +2565,7 @@ const paginatedCourses = filteredCourses.slice((courseCurrentPage - 1) * courseI
                   <>
                     <h5>TA Assignments</h5>
                     <ul className="list">
-                      {selectedOverview.ta.assignments.map((a: any) => (
+                      {selectedOverview.ta.assignments.map((a: unknown) => (
                         <li key={a.offering_id}>{a.course_code} — {a.course_title} [{a.term}{a.section ? '-' + a.section : ''}]</li>
                       ))}
                     </ul>
@@ -2890,7 +2649,7 @@ const paginatedCourses = filteredCourses.slice((courseCurrentPage - 1) * courseI
             </div>
             <div className="offerings-list">
               {selectedCourse.offerings && selectedCourse.offerings.length > 0 ? (
-                selectedCourse.offerings.map((offering: any) => (
+                selectedCourse.offerings.map((offering: unknown) => (
                   <div key={offering.offering_id} className="card offering-admin-card" style={{ marginBottom: 12 }}>
                     <div className="offering-header">
                       <h4 className="offering-title">{selectedCourse.code} - {selectedCourse.title}</h4>
@@ -2917,7 +2676,7 @@ const paginatedCourses = filteredCourses.slice((courseCurrentPage - 1) * courseI
                               })
                               push({ kind: 'success', message: 'Offering updated successfully' })
                               loadAdminCourses()
-                            } catch (e: any) {
+                            } catch (e: unknown) {
                               push({ kind: 'error', message: e?.message || 'Failed to update offering' })
                             }
                           }
@@ -2974,7 +2733,7 @@ const paginatedCourses = filteredCourses.slice((courseCurrentPage - 1) * courseI
             ) : (
               <div className="enrollments-list">
                 {courseEnrollments.length > 0 ? (
-                  courseEnrollments.map((enrollment: any) => (
+                  courseEnrollments.map((enrollment: unknown) => (
                     <div key={enrollment.id} className="card enrollment-admin-card" style={{ marginBottom: 12 }}>
                       <div className="enrollment-header">
                         <h4 className="enrollment-title">{enrollment.student_name || enrollment.student_email}</h4>
@@ -3021,7 +2780,7 @@ const paginatedCourses = filteredCourses.slice((courseCurrentPage - 1) * courseI
               </select>
               <select className="input" value={editUserData.department_id} onChange={(e) => setEditUserData({ ...editUserData, department_id: e.target.value })}>
                 <option value="">Select Department (Optional)</option>
-                {departments.map((d: any) => (
+                {departments.map((d: unknown) => (
                   <option key={d.id} value={d.id}>{d.name}</option>
                 ))}
               </select>
@@ -3052,7 +2811,7 @@ const paginatedCourses = filteredCourses.slice((courseCurrentPage - 1) * courseI
                     setShowEditUser(false)
                     push({ kind: 'success', message: 'User updated successfully' })
                     loadUsers()
-                  } catch (e: any) {
+                  } catch (e: unknown) {
                     push({ kind: 'error', message: e?.message || 'Failed to update user' })
                   } finally {
                     setUpdatingUser(false)
@@ -3083,7 +2842,7 @@ const paginatedCourses = filteredCourses.slice((courseCurrentPage - 1) * courseI
             loadUsers()
             setShowDeleteConfirm(false)
             setUserToDelete(null)
-          } catch (e: any) {
+          } catch (e: unknown) {
             push({ kind: 'error', message: e?.message || 'Failed to delete user' })
           } finally {
             setDeletingUser(false)
@@ -3114,7 +2873,7 @@ const paginatedCourses = filteredCourses.slice((courseCurrentPage - 1) * courseI
             loadAdminCourses()
             setShowDeleteCourseConfirm(false)
             setCourseToDelete(null)
-          } catch (e: any) {
+          } catch (e: unknown) {
             push({ kind: 'error', message: e?.message || 'Failed to delete course' })
           } finally {
             setDeletingCourse(false)
@@ -3145,7 +2904,7 @@ const paginatedCourses = filteredCourses.slice((courseCurrentPage - 1) * courseI
             loadDepartments()
             setShowDeleteDeptConfirm(false)
             setDeptToDelete(null)
-          } catch (e: any) {
+          } catch (e: unknown) {
             push({ kind: 'error', message: e?.message || 'Failed to delete department' })
           } finally {
             setDeletingDept(false)
@@ -3179,7 +2938,7 @@ const paginatedCourses = filteredCourses.slice((courseCurrentPage - 1) * courseI
             setShowDeleteOfferingConfirm(false)
             setOfferingToDelete(null)
             setOfferingToDeleteMessage('')
-          } catch (e: any) {
+          } catch (e: unknown) {
             push({ kind: 'error', message: e?.message || 'Failed to delete offering' })
           } finally {
             setDeletingOffering(false)
@@ -3210,7 +2969,7 @@ const paginatedCourses = filteredCourses.slice((courseCurrentPage - 1) * courseI
             loadCourseEnrollments(selectedCourse.id)
             setShowDeleteEnrollmentConfirm(false)
             setEnrollmentToDelete(null)
-          } catch (e: any) {
+          } catch (e: unknown) {
             push({ kind: 'error', message: e?.message || 'Failed to remove enrollment' })
           } finally {
             setDeletingEnrollment(false)
@@ -3243,7 +3002,7 @@ const paginatedCourses = filteredCourses.slice((courseCurrentPage - 1) * courseI
               <h4>Courses in this Department</h4>
               {deptDetailsCourses.length > 0 ? (
                 <ul className="list">
-                  {deptDetailsCourses.map((course: any) => (
+                  {deptDetailsCourses.map((course: unknown) => (
                     <li key={course.id}>{course.code} - {course.title}</li>
                   ))}
                 </ul>

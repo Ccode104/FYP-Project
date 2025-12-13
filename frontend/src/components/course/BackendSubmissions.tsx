@@ -1,15 +1,15 @@
 import { useState } from 'react'
 import { apiFetch } from '../../services/api'
 
-function BackendSubmissions({ assignments, onViewCode }: { assignments: any[]; onViewCode?: (submission: any) => void }) {
+function BackendSubmissions({ assignments, onViewCode }: { assignments: unknown[]; onViewCode?: (submission: unknown) => void }) {
   const [assignmentId, setAssignmentId] = useState<string>('')
   const [items, setItems] = useState<any[]>([])
   const [selectedAssignment, setSelectedAssignment] = useState<any>(null)
   const load = async (id: string) => {
     if (!id) { setItems([]); setSelectedAssignment(null); return }
-    const data = await apiFetch<{ submissions: any[] }>(`/api/assignments/${id}/submissions`)
+    const data = await apiFetch<{ submissions: unknown[] }>(`/api/assignments/${id}/submissions`)
     setItems(data.submissions || [])
-    const assn = assignments.find((a: any) => String(a.id) === String(id))
+    const assn = assignments.find((a: unknown) => String(a.id) === String(id))
     setSelectedAssignment(assn)
   }
   return (
@@ -17,7 +17,7 @@ function BackendSubmissions({ assignments, onViewCode }: { assignments: any[]; o
       <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 8 }}>
         <select className="select" value={assignmentId} onChange={(e) => { setAssignmentId(e.target.value); void load(e.target.value) }}>
           <option value="">Select assignment</option>
-          {assignments.map((a: any) => (<option key={a.id} value={a.id}>{a.title} ({a.assignment_type || 'file'})</option>))}
+          {assignments.map((a: unknown) => (<option key={a.id} value={a.id}>{a.title} ({a.assignment_type || 'file'})</option>))}
         </select>
       </div>
       {items.length === 0 ? <p className="muted">No submissions yet.</p> : (
@@ -29,7 +29,7 @@ function BackendSubmissions({ assignments, onViewCode }: { assignments: any[]; o
               </span>
               {selectedAssignment?.assignment_type === 'code' && onViewCode && (
                 <button className="btn btn-primary" onClick={async () => {
-                  const detail = await apiFetch<{ submission: any }>(`/api/submissions/${s.id}`)
+                  const detail = await apiFetch<{ submission: unknown }>(`/api/submissions/${s.id}`)
                   onViewCode(detail.submission)
                 }}>View Code</button>
               )}

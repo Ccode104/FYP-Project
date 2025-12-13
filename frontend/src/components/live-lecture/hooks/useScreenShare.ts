@@ -36,7 +36,7 @@ export const useScreenShare = (): UseScreenShareReturn => {
         stopScreenShare();
       });
 
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Screen share failed:', err);
       setError(err.message || 'Failed to start screen sharing');
       throw err;

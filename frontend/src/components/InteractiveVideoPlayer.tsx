@@ -96,12 +96,12 @@ export default function InteractiveVideoPlayer({ video, userRole, onComplete }: 
               const newAttempt = await startVideoQuizAttempt(video.id);
               setAttempt(newAttempt.attempt);
               setMaxScore(newAttempt.attempt.max_score);
-            } catch (e: any) {
+            } catch (e: unknown) {
               console.error('Failed to start attempt:', e);
             }
           }
         }
-      } catch (error: any) {
+      } catch (error: unknown) {
         console.error('Error loading video quiz data:', error);
         push({ kind: 'error', message: 'Failed to load video quiz data' });
       } finally {
@@ -116,9 +116,9 @@ export default function InteractiveVideoPlayer({ video, userRole, onComplete }: 
     const handleFullscreenChange = () => {
       const isCurrentlyFullscreen = !!(
         document.fullscreenElement ||
-        (document as any).webkitFullscreenElement ||
-        (document as any).mozFullScreenElement ||
-        (document as any).msFullscreenElement
+        (document as unknown).webkitFullscreenElement ||
+        (document as unknown).mozFullScreenElement ||
+        (document as unknown).msFullscreenElement
       );
       setIsFullscreen(isCurrentlyFullscreen);
     };
@@ -334,7 +334,7 @@ export default function InteractiveVideoPlayer({ video, userRole, onComplete }: 
     if (!currentQuestion || isSubmitting) return;
 
     // Normalize payload by question type to match backend expectations
-    let answerPayload: any = answer;
+    let answerPayload: unknown = answer;
     if (currentQuestion.question_type === 'mcq') {
       // send numeric index
       const idx = Number(answer);
@@ -380,7 +380,7 @@ export default function InteractiveVideoPlayer({ video, userRole, onComplete }: 
 
       // User will manually continue using the button in the feedback
 
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Error submitting answer:', error);
       push({ kind: 'error', message: error?.message || 'Failed to submit answer' });
     } finally {
@@ -432,7 +432,7 @@ export default function InteractiveVideoPlayer({ video, userRole, onComplete }: 
         kind: 'success',
         message: `Quiz completed! Score: ${result.score}/${result.max_score} (${result.percentage}%)`,
       });
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Error completing attempt:', error);
       push({ kind: 'error', message: 'Failed to complete quiz' });
     }

@@ -123,6 +123,6 @@ export async function listProctoringConfigs(): Promise<{ configs: ProctoringConf
 }
 
 // Get suspended proctoring sessions (for teachers/admins)
-export async function getSuspendedProctoringSessions(): Promise<{ sessions: any[] }> {
-  return await apiFetch<{ sessions: any[] }>('/api/proctoring/sessions/suspended-sessions');
+export async function getSuspendedProctoringSessions(): Promise<{ sessions: unknown[] }> {
+  return await apiFetch<{ sessions: unknown[] }>('/api/proctoring/sessions/suspended-sessions');
 }

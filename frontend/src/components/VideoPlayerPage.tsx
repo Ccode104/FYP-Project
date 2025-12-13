@@ -40,7 +40,7 @@ export default function VideoPlayerPage() {
       const videoResponse = await apiFetch(`/api/videos/${videoId}`);
       setVideo(videoResponse.video);
 
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Error loading video data:', error);
       push({ kind: 'error', message: 'Failed to load video' });
     } finally {

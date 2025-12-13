@@ -37,7 +37,7 @@ export default function Login() {
       const user = await login(email, password, role)
       push({ kind: 'success', message: 'Login successful' })
       navigate(getDashboardPathForRole(user.role), { replace: true })
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Login failed:', err.message)
       setError(err.message || 'Login failed')
       push({ kind: 'error', message: 'Login failed' })
@@ -53,7 +53,7 @@ export default function Login() {
       const user = await loginWithGoogle(credential, role)
       push({ kind: 'success', message: 'Login successful' })
       navigate(getDashboardPathForRole(user.role), { replace: true })
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Google login failed:', err.message)
       setError(err.message || 'Google login failed')
       push({ kind: 'error', message: 'Google login failed' })

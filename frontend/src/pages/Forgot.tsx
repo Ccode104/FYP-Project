@@ -21,8 +21,8 @@ export default function Forgot() {
       const res = await requestPasswordReset(email)
       setSent(true)
       push({ kind: 'success', message: 'If the email exists, a reset link has been sent.' })
-      if ((res as any)?.token) navigate(`/reset?token=${encodeURIComponent((res as any).token)}`) // DEV ONLY: remove this line for prod
-    } catch (err: any) {
+      if ((res as unknown)?.token) navigate(`/reset?token=${encodeURIComponent((res as unknown).token)}`) // DEV ONLY: remove this line for prod
+    } catch (err: unknown) {
       setError(err.message || 'Failed to send reset link')
       push({ kind: 'error', message: 'Failed to send reset link' })
     } finally {

@@ -37,7 +37,7 @@ function EmptyState({
 }
 
 export default function TeacherDashboard() {
-  const { user } = useAuth();
+  const { user: _user } = useAuth();
   const navigate = useNavigate();
 
   interface CourseOffering {

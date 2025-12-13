@@ -5,7 +5,7 @@ import './TeacherCodeSubmissionViewer.css'
 import RubricGradingForm from './RubricGradingForm'
 import type { RubricGrade } from '../../services/rubrics'
 
-function TeacherCodeSubmissionViewer({ submission, onGrade, push }: { submission: any; onGrade: (score: number, feedback: string) => void; push: any }) {
+function TeacherCodeSubmissionViewer({ submission, onGrade, push }: { submission: unknown; onGrade: (score: number, feedback: string) => void; push: unknown }) {
   const [showGradingForm, setShowGradingForm] = useState(false)
   const [gradingMode, setGradingMode] = useState<'standard' | 'rubric'>('standard')
   const [score, setScore] = useState('')
@@ -35,7 +35,7 @@ function TeacherCodeSubmissionViewer({ submission, onGrade, push }: { submission
     }
   }, [submission])
 
-  const runHiddenTestCases = async (codeSub: any, questionId: number) => {
+  const runHiddenTestCases = async (codeSub: unknown, questionId: number) => {
     if (!codeSub.code || !codeSub.language) {
       push({ kind: 'error', message: 'No code found for this question' })
       return
@@ -45,7 +45,7 @@ function TeacherCodeSubmissionViewer({ submission, onGrade, push }: { submission
     try {
       const question = await apiFetch(`/api/code-questions/${questionId}`)
       const allTestCases = question.test_cases || []
-      const hiddenTestCases = allTestCases.filter((tc: any) => !tc.is_sample)
+      const hiddenTestCases = allTestCases.filter((tc: unknown) => !tc.is_sample)
 
       if (hiddenTestCases.length === 0) {
         push({ kind: 'info', message: 'No hidden test cases found for this question' })
@@ -53,7 +53,7 @@ function TeacherCodeSubmissionViewer({ submission, onGrade, push }: { submission
         return
       }
 
-      const results: any[] = []
+      const results: unknown[] = []
       for (const testCase of hiddenTestCases) {
         try {
           const result = await apiFetch('/api/judge', {
@@ -77,7 +77,7 @@ function TeacherCodeSubmissionViewer({ submission, onGrade, push }: { submission
             execution_time_ms: result.time ? Math.round(result.time * 1000) : null,
             status: result.status
           })
-        } catch (err: any) {
+        } catch (err: unknown) {
           results.push({
             ...testCase,
             passed: false,
@@ -89,7 +89,7 @@ function TeacherCodeSubmissionViewer({ submission, onGrade, push }: { submission
       setTestCaseResults(prev => ({ ...prev, [codeSub.id]: results }))
       const passedCount = results.filter(r => r.passed).length
       push({ kind: 'success', message: `Ran ${results.length} hidden test cases. ${passedCount}/${results.length} passed.` })
-    } catch (err: any) {
+    } catch (err: unknown) {
       push({ kind: 'error', message: err?.message || 'Failed to run hidden test cases' })
     } finally {
       setRunningTestCases(prev => ({ ...prev, [codeSub.id]: false }))
@@ -130,7 +130,7 @@ function TeacherCodeSubmissionViewer({ submission, onGrade, push }: { submission
         const totalScore = rubricGrades.reduce((sum, grade) => sum + grade.score, 0)
         onGrade(totalScore, overallFeedback || '')
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       push({ kind: 'error', message: error?.message || 'Failed to submit rubric grade' })
     }
   }
@@ -224,7 +224,7 @@ function TeacherCodeSubmissionViewer({ submission, onGrade, push }: { submission
         </div>
       )}
 
-      {submission.code.map((codeSub: any, idx: number) => {
+      {submission.code.map((codeSub: unknown, idx: number) => {
         const question = questionDetails[codeSub.id]
         const hiddenTestResults = testCaseResults[codeSub.id] || []
         const existingTestResults = codeSub.test_case_results || []
@@ -290,7 +290,7 @@ function TeacherCodeSubmissionViewer({ submission, onGrade, push }: { submission
               <div style={{ marginTop: '16px' }}>
                 <h5 style={{ marginBottom: '12px' }}>Test Case Results</h5>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                  {allTestResults.map((testCase: any, tcIdx: number) => (
+                  {allTestResults.map((testCase: unknown, tcIdx: number) => (
                     <div
                       key={testCase.id || tcIdx}
                       className={`teacher-test-case ${testCase.passed ? 'passed' : 'failed'}`}
@@ -357,7 +357,7 @@ function TeacherCodeSubmissionViewer({ submission, onGrade, push }: { submission
             {allTestResults.length > 0 && (
               <div className="teacher-summary">
                 <strong>Summary: </strong>
-                {allTestResults.filter((tc: any) => tc.passed).length} / {allTestResults.length} test cases passed
+                {allTestResults.filter((tc: unknown) => tc.passed).length} / {allTestResults.length} test cases passed
               </div>
             )}
           </div>

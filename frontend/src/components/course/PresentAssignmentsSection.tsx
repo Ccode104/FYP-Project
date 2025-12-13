@@ -13,11 +13,11 @@ export default function PresentAssignmentsSection({
   onSubmitSuccess,
 }: {
   userRole?: string;
-  presentAssignments: any[];
+  presentAssignments: unknown[];
   isBackend: boolean;
   onTeacherDelete: (assignmentId: number) => Promise<void>;
-  onAttemptQuiz: (quizId: any) => void;
-  onStartCodeAttempt: (assignment: any) => void;
+  onAttemptQuiz: (quizId: unknown) => void;
+  onStartCodeAttempt: (assignment: unknown) => void;
   onSubmitSuccess?: () => void;
 }) {
   const navigate = useNavigate();
@@ -43,7 +43,7 @@ export default function PresentAssignmentsSection({
       )}
 
       <div className="assignments-grid">
-        {presentAssignments.map((a: any) => (
+        {presentAssignments.map((a: unknown) => (
           <div
             key={a.id}
             className={`assignment-card ${

@@ -31,7 +31,7 @@ export default function Signup() {
       })
       push({ kind: 'success', message: 'Signup successful' })
       navigate('/login', { replace: true })
-    } catch (err: any) {
+    } catch (err: unknown) {
       setError(err?.message || 'Failed to sign up')
     } finally {
       setLoading(false)
@@ -112,7 +112,7 @@ export default function Signup() {
               const user = await loginWithGoogle(credential, role)
               push({ kind: 'success', message: 'Sign up successful' })
               navigate(getDashboardPathForRole(user.role), { replace: true })
-            } catch (err: any) {
+            } catch (err: unknown) {
               setError(err?.message || 'Google sign up failed')
               push({ kind: 'error', message: err?.message || 'Google sign up failed' })
             } finally {

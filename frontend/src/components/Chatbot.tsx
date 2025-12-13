@@ -17,6 +17,12 @@ interface ChatSession {
   messageCount: number;
 }
 
+interface UploadedDocument {
+  id: string;
+  filename: string;
+  usedOCR?: boolean;
+}
+
 interface ChatbotProps {
   courseId?: string;
   isOpen: boolean;
@@ -30,7 +36,7 @@ export default function Chatbot({ courseId, isOpen, onClose }: ChatbotProps) {
   const [sessions, setSessions] = useState<ChatSession[]>([]);
   const [currentSession, setCurrentSession] = useState<ChatSession | null>(null);
   const [showSessions, setShowSessions] = useState(false);
-  const [uploadedDocuments, setUploadedDocuments] = useState<any[]>([]);
+  const [uploadedDocuments, setUploadedDocuments] = useState<UploadedDocument[]>([]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   // Initialize with welcome message
@@ -106,7 +112,7 @@ What would you like to know about your course?`,
         method: 'POST',
         body: {
           courseId: courseId?.toString(),
-          documentIds: uploadedDocuments.map((doc: any) => doc.id),
+          documentIds: uploadedDocuments.map((doc: unknown) => doc.id),
           message: input.trim(),
           history: messages.slice(-10).map(m => ({ role: m.role, content: m.content })),
           enableWebSearch: true
@@ -116,13 +122,13 @@ What would you like to know about your course?`,
       const assistantMessage: Message = {
         id: (Date.now() + 1).toString(),
         role: 'assistant',
-        content: (response as any).reply || 'I apologize, but I couldn\'t generate a response.',
-        timestamp: (response as any).timestamp || new Date().toISOString()
+        content: (response as unknown).reply || 'I apologize, but I couldn\'t generate a response.',
+        timestamp: (response as unknown).timestamp || new Date().toISOString()
       };
 
       setMessages(prev => [...prev, assistantMessage]);
 
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Chatbot error:', error);
       const errorMessage: Message = {
         id: (Date.now() + 2).toString(),
@@ -167,12 +173,12 @@ What would you like to know about your course?`,
   const loadChatSession = async (sessionId: string) => {
     try {
       const response = await apiFetch(`/api/chatbot/chats/${sessionId}`);
-      setMessages((response as any).session.messages.map((m: any, index: number) => ({
+      setMessages((response as unknown).session.messages.map((m: unknown, index: number) => ({
         ...m,
         id: `loaded-${index}`
       })));
-      setUploadedDocuments((response as any).session.uploadedDocuments || []);
-      setCurrentSession((response as any).session);
+      setUploadedDocuments((response as unknown).session.uploadedDocuments || []);
+      setCurrentSession((response as unknown).session);
       setShowSessions(false);
     } catch (error) {
       console.error('Failed to load chat session:', error);
@@ -444,7 +450,7 @@ What would you like to know about your course?`,
           <div style={{ fontSize: '12px', fontWeight: '600', marginBottom: '4px', color: '#ffffff' }}>
             📎 Documents ({uploadedDocuments.length})
           </div>
-          {uploadedDocuments.map((doc: any) => (
+          {uploadedDocuments.map((doc: unknown) => (
             <div key={doc.id} style={{
               fontSize: '11px',
               color: '#cccccc',

@@ -6,7 +6,7 @@ interface CodeQuestion {
   title: string
   description: string
   constraints?: string
-  test_cases?: any[]
+  test_cases?: unknown[]
 }
 
 interface CodeAssignmentCreatorProps {
@@ -18,14 +18,14 @@ export default function CodeAssignmentCreator({ courseOfferingId, onComplete }: 
   const toast = useToast()
   let push: (opts: { kind?: 'success' | 'error' | string; message?: string }) => void = (opts) => {
     if (!opts) return
-    const kind = (opts as any)?.kind
-    const msg = (opts as any)?.message ?? opts
+    const kind = (opts as unknown)?.kind
+    const msg = (opts as unknown)?.message ?? opts
     if (kind === 'error') console.error(msg)
     else if (kind === 'success') console.log(msg)
     else console.log(msg)
   }
-  if (toast && typeof (toast as any).push === 'function') {
-    push = (toast as any).push
+  if (toast && typeof (toast as unknown).push === 'function') {
+    push = (toast as unknown).push
   }
 
   const [title, setTitle] = useState('')
@@ -47,7 +47,7 @@ export default function CodeAssignmentCreator({ courseOfferingId, onComplete }: 
       const { apiFetch } = await import('../services/api')
       const questions = await apiFetch<CodeQuestion[]>(`/api/courses/${courseOfferingId}/code-questions`)
       setAvailableQuestions(questions || [])
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Failed to load questions:', err)
       push({ kind: 'error', message: 'Failed to load code questions' })
     } finally {
@@ -93,7 +93,7 @@ export default function CodeAssignmentCreator({ courseOfferingId, onComplete }: 
       })
       push({ kind: 'success', message: 'Code assignment created successfully' })
       onComplete()
-    } catch (e: any) {
+    } catch (e: unknown) {
       push({ kind: 'error', message: e?.message || 'Failed to create assignment' })
     } finally {
       setIsSubmitting(false)

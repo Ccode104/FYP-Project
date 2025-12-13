@@ -24,7 +24,7 @@ export const useCamera = (stream?: MediaStream | null): UseCameraReturn => {
       const videoDevices = devices.filter(device => device.kind === 'videoinput');
       setAvailableDevices(videoDevices);
       return videoDevices;
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Failed to get video devices:', err);
       setError('Failed to enumerate video devices');
       return [];
@@ -90,7 +90,7 @@ export const useCamera = (stream?: MediaStream | null): UseCameraReturn => {
 
       setCurrentDevice(targetDeviceId);
 
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Failed to switch camera:', err);
       setError(err.message || 'Failed to switch camera');
       throw err;

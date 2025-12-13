@@ -1,13 +1,13 @@
 import { useState } from 'react'
 import { apiFetch } from '../../services/api'
 
-function BackendGrading({ assignments, onSave }: { assignments: any[]; onSave: (sid: string, letter: string) => void }) {
+function BackendGrading({ assignments, onSave }: { assignments: unknown[]; onSave: (sid: string, letter: string) => void }) {
   const [assignmentId, setAssignmentId] = useState<string>('')
   const [items, setItems] = useState<any[]>([])
   const [grades, setGrades] = useState<Record<string, string>>({})
   const load = async (id: string) => {
     if (!id) { setItems([]); return }
-    const data = await apiFetch<{ submissions: any[] }>(`/api/assignments/${id}/submissions`)
+    const data = await apiFetch<{ submissions: unknown[] }>(`/api/assignments/${id}/submissions`)
     setItems(data.submissions || [])
   }
   const save = async (sid: string) => {
@@ -22,7 +22,7 @@ function BackendGrading({ assignments, onSave }: { assignments: any[]; onSave: (
       <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 8 }}>
         <select className="select" value={assignmentId} onChange={(e) => { setAssignmentId(e.target.value); void load(e.target.value) }}>
           <option value="">Select assignment</option>
-          {assignments.map((a: any) => (<option key={a.id} value={a.id}>{a.title}</option>))}
+          {assignments.map((a: unknown) => (<option key={a.id} value={a.id}>{a.title}</option>))}
         </select>
       </div>
       {items.length === 0 ? <p className="muted">No submissions to grade.</p> : (

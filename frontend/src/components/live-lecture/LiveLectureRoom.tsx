@@ -198,7 +198,7 @@ const LiveLectureRoom: React.FC<LiveLectureRoomProps> = ({
       const response = await getLiveLectureParticipants(lectureId);
       const currentParticipants = response.participants || [];
 
-      const formattedParticipants: Participant[] = currentParticipants.map((p: any) => ({
+      const formattedParticipants: Participant[] = currentParticipants.map((p: unknown) => ({
         id: p.id || p.user_id,
         userId: p.user_id || p.id,
         userName: p.name || p.user_name || `User ${p.user_id || p.id}`,
@@ -332,7 +332,7 @@ const LiveLectureRoom: React.FC<LiveLectureRoomProps> = ({
       setSocket(socketConnection);
       socketRef.current = socketConnection;
 
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Failed to initialize connection:', error);
       const errorMsg = error?.message || 'Failed to initialize connection';
       setConnectionError(errorMsg);
@@ -370,7 +370,7 @@ const LiveLectureRoom: React.FC<LiveLectureRoomProps> = ({
       // Add stream to existing peer connections
       addStreamToPeers(stream);
 
-    } catch (error: any) {
+    } catch (error: unknown) {
       // Handle permission denied errors gracefully
       if (error.name === 'NotAllowedError') {
         // Check which permissions were denied
@@ -408,7 +408,7 @@ const LiveLectureRoom: React.FC<LiveLectureRoomProps> = ({
 
         // Add stream to existing peer connections
         addStreamToPeers(fallbackStream);
-      } catch (fallbackError: any) {
+      } catch (fallbackError: unknown) {
         if (fallbackError.name === 'NotAllowedError') {
           setCameraPermission('denied');
           setMicrophonePermission('denied');
@@ -455,7 +455,7 @@ const LiveLectureRoom: React.FC<LiveLectureRoomProps> = ({
     });
 
     // WebRTC signaling
-    socketConnection.on('webrtc-signal', (data: any) => {
+    socketConnection.on('webrtc-signal', (data: unknown) => {
       const { signal, fromUserId, toUserId } = data;
       console.log(`Received WebRTC signal from ${fromUserId} to ${toUserId} (current user: ${userId})`);
 
@@ -495,7 +495,7 @@ const LiveLectureRoom: React.FC<LiveLectureRoomProps> = ({
     setIsConnected(true);
   }, []);
 
-  const handleLectureStarted = useCallback(async (data: any) => {
+  const handleLectureStarted = useCallback(async (data: unknown) => {
     console.log('Lecture started event received:', data);
     setIsWaitingForLecture(false);
     setIsConnected(true);
@@ -525,7 +525,7 @@ const LiveLectureRoom: React.FC<LiveLectureRoomProps> = ({
     onClose();
   }, [onClose]);
 
-  const handleParticipantJoined = useCallback((data: any) => {
+  const handleParticipantJoined = useCallback((data: unknown) => {
     const participantData: Participant = {
       id: data.id || data.userId,
       userId: data.userId,
@@ -550,12 +550,12 @@ const LiveLectureRoom: React.FC<LiveLectureRoomProps> = ({
     }
   }, [userId]);
 
-  const handleParticipantLeft = useCallback((data: any) => {
+  const handleParticipantLeft = useCallback((data: unknown) => {
     setParticipants(prev => prev.filter(p => p.userId !== data.userId));
     removePeer(data.userId.toString());
   }, []);
 
-  const handleChatMessage = useCallback((data: any) => {
+  const handleChatMessage = useCallback((data: unknown) => {
     setChatMessages(prev => [...prev, {
       id: Date.now().toString(),
       userId: data.userId,
@@ -566,7 +566,7 @@ const LiveLectureRoom: React.FC<LiveLectureRoomProps> = ({
     }]);
   }, []);
 
-  const handleRemoteMute = useCallback((data: any) => {
+  const handleRemoteMute = useCallback((data: unknown) => {
     if (data.participantId === userId) {
       setIsMuted(true);
       if (streamRef.current) {
@@ -575,7 +575,7 @@ const LiveLectureRoom: React.FC<LiveLectureRoomProps> = ({
     }
   }, [userId]);
 
-  const handleRemoteUnmute = useCallback((data: any) => {
+  const handleRemoteUnmute = useCallback((data: unknown) => {
     if (data.participantId === userId) {
       setIsMuted(false);
       if (streamRef.current) {
@@ -585,12 +585,12 @@ const LiveLectureRoom: React.FC<LiveLectureRoomProps> = ({
   }, [userId]);
 
 
-  const handleReactionReceived = useCallback((data: any) => {
+  const handleReactionReceived = useCallback((data: unknown) => {
     // TODO: Implement reaction animations
     console.log('Reaction received:', data.reaction);
   }, []);
 
-  const handleScreenShareUpdate = useCallback((data: any) => {
+  const handleScreenShareUpdate = useCallback((data: unknown) => {
     setParticipants(prev => prev.map(p => 
       p.userId === data.userId ? { ...p, isScreenSharing: data.isSharing } : p
     ));
@@ -948,7 +948,7 @@ const LiveLectureRoom: React.FC<LiveLectureRoomProps> = ({
         connectionStatus={getConnectionStatus()}
         participantCount={participants.reduce((acc, p, index, arr) => {
           // Count unique participants by checking if this userId appears earlier in the array
-          const isDuplicate = arr.slice(0, index).some(prev => prev.userId === p.userId);
+          const isDuplicate = arr.slice(0, _index).some(prev => prev.userId === p.userId);
           return isDuplicate ? acc : acc + 1;
         }, 0)}
         isRecording={isRecording}

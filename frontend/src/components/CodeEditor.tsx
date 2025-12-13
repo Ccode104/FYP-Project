@@ -35,7 +35,6 @@ export default function CodeEditor({ defaultLanguage = 'python', disabled = fals
   const eventListenersRef = useRef<(() => void) | null>(null)
   const typingMetricsRef = useRef<TypingMetrics[]>([])
   const lastKeystrokeTimeRef = useRef<number>(Date.now())
-  const keystrokeBufferRef = useRef<string[]>([])
 
   // Sync external value changes
   useEffect(() => {

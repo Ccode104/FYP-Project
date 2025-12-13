@@ -11,6 +11,16 @@ interface TestCase {
   expected_path?: string
 }
 
+interface RunResult {
+  stdout?: string
+  stderr?: string
+  compile_output?: string
+  passed?: boolean
+  status?: string
+  message?: string
+  error?: string
+}
+
 interface CodeQuestion {
   id: number
   title: string
@@ -31,21 +41,21 @@ export default function CodeAssignmentViewer({ assignmentId, onComplete }: CodeA
   const toast = useToast()
   let push: (opts: { kind?: 'success' | 'error' | string; message?: string }) => void = (opts) => {
     if (!opts) return
-    const kind = (opts as any)?.kind
-    const msg = (opts as any)?.message ?? opts
+    const kind = (opts as unknown)?.kind
+    const msg = (opts as unknown)?.message ?? opts
     if (kind === 'error') console.error(msg)
     else if (kind === 'success') console.log(msg)
     else console.log(msg)
   }
-  if (toast && typeof (toast as any).push === 'function') {
-    push = (toast as any).push
+  if (toast && typeof (toast as unknown).push === 'function') {
+    push = (toast as unknown).push
   }
 
   const [questions, setQuestions] = useState<CodeQuestion[]>([])
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0)
   const [code, setCode] = useState<Record<number, string>>({})
   const [language, setLanguage] = useState<Record<number, string>>({})
-  const [runResults, setRunResults] = useState<Record<number, any>>({})
+  const [runResults, setRunResults] = useState<Record<number, RunResult>>({})
   const [isLoading, setIsLoading] = useState(true)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isRunning, setIsRunning] = useState(false)
@@ -70,7 +80,7 @@ export default function CodeAssignmentViewer({ assignmentId, onComplete }: CodeA
       })
       setCode(initialCode)
       setLanguage(initialLang)
-    } catch (err: any) {
+    } catch (err: unknown) {
       push({ kind: 'error', message: err?.message || 'Failed to load questions' })
     } finally {
       setIsLoading(false)
@@ -131,7 +141,7 @@ export default function CodeAssignmentViewer({ assignmentId, onComplete }: CodeA
       } else {
         push({ kind: 'error', message: 'Test failed. Check the output.' })
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       setRunResults(prev => ({
         ...prev,
         [questionId]: {
@@ -182,7 +192,7 @@ export default function CodeAssignmentViewer({ assignmentId, onComplete }: CodeA
       if (onComplete) {
         onComplete()
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       push({ kind: 'error', message: err?.message || 'Failed to submit code' })
     } finally {
       setIsSubmitting(false)

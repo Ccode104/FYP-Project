@@ -113,7 +113,7 @@ export default function GoogleSignIn({
         }
 
         checkGoogle()
-      } catch (error: any) {
+      } catch (error: unknown) {
         console.error('Error initializing Google Sign-In:', error)
         if (onError) {
           onError(error.message || 'Failed to initialize Google Sign-In')

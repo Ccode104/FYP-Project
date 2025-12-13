@@ -19,14 +19,14 @@ export default function CodeQuestionCreator({ courseOfferingId, onComplete }: Co
   const toast = useToast()
   let push: (opts: { kind?: 'success' | 'error' | string; message?: string }) => void = (opts) => {
     if (!opts) return
-    const kind = (opts as any)?.kind
-    const msg = (opts as any)?.message ?? opts
+    const kind = (opts as unknown)?.kind
+    const msg = (opts as unknown)?.message ?? opts
     if (kind === 'error') console.error(msg)
     else if (kind === 'success') console.log(msg)
     else console.log(msg)
   }
-  if (toast && typeof (toast as any).push === 'function') {
-    push = (toast as any).push
+  if (toast && typeof (toast as unknown).push === 'function') {
+    push = (toast as unknown).push
   }
 
   const [title, setTitle] = useState('')
@@ -50,7 +50,7 @@ export default function CodeQuestionCreator({ courseOfferingId, onComplete }: Co
     setTestCases(testCases.filter(tc => tc.id !== id))
   }
 
-  const updateTestCase = (id: string, field: keyof TestCase, value: any) => {
+  const updateTestCase = (id: string, field: keyof TestCase, value: unknown) => {
     setTestCases(testCases.map(tc => 
       tc.id === id ? { ...tc, [field]: value } : tc
     ))
@@ -138,7 +138,7 @@ export default function CodeQuestionCreator({ courseOfferingId, onComplete }: Co
 
       push({ kind: 'success', message: 'Code question created successfully' })
       onComplete()
-    } catch (e: any) {
+    } catch (e: unknown) {
       push({ kind: 'error', message: e?.message || 'Failed to create code question' })
     } finally {
       setIsSubmitting(false)

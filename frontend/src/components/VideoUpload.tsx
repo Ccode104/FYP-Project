@@ -5,7 +5,7 @@ import './VideoUpload.css';
 
 interface VideoUploadProps {
   courseOfferingId: string | number;
-  onUploadSuccess?: (video: any) => void;
+  onUploadSuccess?: (video: unknown) => void;
   onClose?: () => void;
 }
 
@@ -98,7 +98,7 @@ export default function VideoUpload({ courseOfferingId, onUploadSuccess, onClose
         formData.append('description', description);
       }
       // Upload with progress tracking
-      const response = await uploadVideo(formData, (progressData: any) => {
+      const response = await uploadVideo(formData, (progressData: unknown) => {
         setUploadProgress(progressData.percentCompleted || 0);
       });
       // Success
@@ -119,7 +119,7 @@ export default function VideoUpload({ courseOfferingId, onUploadSuccess, onClose
           onClose();
         }
       }, 3000);
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Upload error:', error, error?.response?.data);
       const backendMsg = error?.response?.data;
       const message = typeof backendMsg === 'string'

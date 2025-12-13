@@ -22,7 +22,7 @@ export const useMicrophone = (stream?: MediaStream | null): UseMicrophoneReturn 
   useEffect(() => {
     if (stream && stream.getAudioTracks().length > 0) {
       try {
-        const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+        const audioContext = new (window.AudioContext || (window as unknown).webkitAudioContext)();
         const analyser = audioContext.createAnalyser();
         const gainNode = audioContext.createGain();
 
@@ -36,7 +36,7 @@ export const useMicrophone = (stream?: MediaStream | null): UseMicrophoneReturn 
 
         setIsEnabled(true);
         setError(null);
-      } catch (err: any) {
+      } catch (err: unknown) {
         console.error('Failed to initialize audio context:', err);
         setError('Audio context initialization failed');
       }

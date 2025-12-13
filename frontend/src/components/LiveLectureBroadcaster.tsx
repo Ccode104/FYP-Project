@@ -35,7 +35,7 @@ const LiveLectureBroadcaster: React.FC<LiveLectureBroadcasterProps> = ({
       });
 
       onLectureCreated();
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Error creating live lecture:', error);
       alert(error?.message || 'Failed to create live lecture');
     } finally {

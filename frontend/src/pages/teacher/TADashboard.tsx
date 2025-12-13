@@ -63,7 +63,7 @@ interface Course {
 }
 
 export default function TADashboard() {
-  const { user } = useAuth();
+  const { user: _user } = useAuth();
   const navigate = useNavigate();
 
   const [dashboardData, setDashboardData] = useState<TADashboardData | null>(null);

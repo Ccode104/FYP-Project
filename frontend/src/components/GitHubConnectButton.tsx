@@ -6,6 +6,12 @@ interface GitHubConnectButtonProps {
   className?: string;
 }
 
+interface UserProfile {
+  github_connected?: boolean;
+  github_username?: string;
+  // Add other fields as needed
+}
+
 export default function GitHubConnectButton({
   onConnectionChange,
   className = ''
@@ -19,7 +25,7 @@ export default function GitHubConnectButton({
     try {
       setConnectionStatus('checking');
       // Fetch user profile to check GitHub connection
-      const response = await apiFetch<{ profile: any }>('/api/users/profile');
+      const response = await apiFetch<{ profile: UserProfile }>('/api/users/profile');
       const profile = response.profile;
 
       if (profile.github_connected && profile.github_username) {
@@ -31,7 +37,7 @@ export default function GitHubConnectButton({
         setGithubUsername(null);
         onConnectionChange?.(false);
       }
-    } catch (err: any) {
+    } catch {
       setConnectionStatus('disconnected');
       setGithubUsername(null);
       onConnectionChange?.(false);
@@ -71,8 +77,9 @@ export default function GitHubConnectButton({
         }
       }, 1000);
 
-    } catch (err: any) {
-      alert('Failed to initiate GitHub connection: ' + (err.message || 'Unknown error'));
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Unknown error';
+      alert('Failed to initiate GitHub connection: ' + message);
       setConnectionStatus('disconnected');
     } finally {
       setIsLoading(false);
@@ -91,8 +98,9 @@ export default function GitHubConnectButton({
       setConnectionStatus('disconnected');
       setGithubUsername(null);
       onConnectionChange?.(false);
-    } catch (err: any) {
-      alert('Failed to disconnect GitHub: ' + (err.message || 'Unknown error'));
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Unknown error';
+      alert('Failed to disconnect GitHub: ' + message);
     } finally {
       setIsLoading(false);
     }
@@ -125,7 +133,7 @@ export default function GitHubConnectButton({
 
   // Get button style based on status
   const getButtonClasses = () => {
-    let baseClasses = 'btn github-connect-btn';
+    const baseClasses = 'btn github-connect-btn' as const;
     let statusClasses = '';
 
     if (connectionStatus === 'connected') {

@@ -274,7 +274,7 @@ export default function ProctoringDashboard() {
               {dashboardData.recent_violations.length === 0 ? (
                 <p style={{ margin: 0, color: '#6b7280', fontStyle: 'italic' }}>No recent violations</p>
               ) : (
-                dashboardData.recent_violations.map((violation, index) => (
+                dashboardData.recent_violations.map((violation, _index) => (
                   <div
                     key={index}
                     style={{

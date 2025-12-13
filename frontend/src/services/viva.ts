@@ -82,7 +82,7 @@ export async function gradeVivaParticipant(data: {
   participantId: number
   score: number
   feedback?: string
-}): Promise<{ grade: any; message: string }> {
+}): Promise<{ grade: unknown; message: string }> {
   return apiFetch('/api/viva/grade', {
     method: 'POST',
     body: data

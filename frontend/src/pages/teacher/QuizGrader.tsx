@@ -28,7 +28,7 @@ export default function QuizGrader() {
         ])
         setQuiz(q)
         setAttempts(ats)
-      } catch (e: any) {
+      } catch (e: unknown) {
         push({ kind: 'error', message: e?.message || 'Failed to load grading data' })
       } finally {
         setLoading(false)
@@ -51,7 +51,7 @@ export default function QuizGrader() {
       // reload attempts to reflect new score
       const ats = await listQuizAttemptsForQuiz(Number(quizId))
       setAttempts(ats)
-    } catch (e: any) {
+    } catch (e: unknown) {
       push({ kind: 'error', message: e?.message || 'Failed to save grading' })
     }
   }
@@ -96,7 +96,7 @@ export default function QuizGrader() {
                     const ats = await listQuizAttemptsForQuiz(Number(quizId))
                     setAttempts(ats)
                     setSelectedAttemptId('')
-                  } catch (e: any) {
+                  } catch (e: unknown) {
                     push({ kind: 'error', message: e?.message || 'Failed to reset attempt' })
                   }
                 }
@@ -113,7 +113,7 @@ export default function QuizGrader() {
       ) : (
         <div className="card">
           <ol style={{ paddingLeft: 20 }}>
-            {quiz.questions.map((q: any, idx: number) => {
+            {quiz.questions.map((q: unknown, idx: number) => {
               const ans = selectedAttempt.answers?.[q.id]
               const studentAnswer = ans?.student_answer
               const isCorrect = ans?.is_correct
@@ -148,14 +148,14 @@ export default function QuizGrader() {
 // Helpers
 async function fetchQuizForGrading(quizId: number) {
   // using existing endpoint that includes correct answers
-  const res = await fetch(`${(import.meta as any).env?.REACT_APP_API_URL || 'http://localhost:4000'}/api/quizzes/${quizId}/grading`, {
+  const res = await fetch(`${(import.meta as unknown).env?.REACT_APP_API_URL || 'http://localhost:4000'}/api/quizzes/${quizId}/grading`, {
     headers: { 'Authorization': `Bearer ${localStorage.getItem('auth:token') || ''}` }
   })
   if (!res.ok) throw new Error('Failed to fetch quiz for grading')
   return res.json()
 }
 
-function renderCorrect(q: any) {
+function renderCorrect(q: unknown) {
   if (q.question_type === 'mcq') {
     const idx = Number(q.metadata?.correct_answer)
     const choice = q.metadata?.choices?.[idx]
@@ -168,7 +168,7 @@ function renderCorrect(q: any) {
   return q.metadata?.correct_answer ?? '—'
 }
 
-function renderStudentAnswer(q: any, a: any) {
+function renderStudentAnswer(q: unknown, a: unknown) {
   if (q.question_type === 'mcq') {
     const idx = Number(a)
     const choice = q.metadata?.choices?.[idx]

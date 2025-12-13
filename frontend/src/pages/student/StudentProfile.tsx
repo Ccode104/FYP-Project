@@ -1,5 +1,4 @@
-import { useState, useEffect } from 'react';
-import { useAuth } from '../../context/AuthContext';
+import { useState, useEffect, useCallback } from 'react';
 import { getUserProfile, updateUserProfile } from '../../services/users';
 import type { UserProfile } from '../../services/users';
 import { useToast } from '../../components/ToastProvider';
@@ -10,7 +9,6 @@ import SupportTicketForm from '../../components/SupportTicketForm';
 import './StudentProfile.css';
 
 export default function StudentProfile() {
-  const { user } = useAuth();
   const { push } = useToast();
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
@@ -19,21 +17,22 @@ export default function StudentProfile() {
   const [saving, setSaving] = useState(false);
   const [showTicketForm, setShowTicketForm] = useState(false);
 
-  useEffect(() => {
-    loadProfile();
-  }, []);
-
-  const loadProfile = async () => {
+  const loadProfile = useCallback(async () => {
     try {
       setLoading(true);
       const data = await getUserProfile();
       setProfile(data);
-    } catch (err: any) {
-      push({ kind: 'error', message: err?.message || 'Failed to load profile' });
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Failed to load profile';
+      push({ kind: 'error', message });
     } finally {
       setLoading(false);
     }
-  };
+  }, [push]);
+
+  useEffect(() => {
+    loadProfile();
+  }, [loadProfile]);
 
   const handleEdit = () => {
     if (profile) {
@@ -49,7 +48,7 @@ export default function StudentProfile() {
   const handleSave = async () => {
     try {
       setSaving(true);
-      const updates: any = {};
+      const updates: Record<string, unknown> = {};
       if (editForm.name !== profile?.name) updates.name = editForm.name;
       if (editForm.email !== profile?.email) updates.email = editForm.email;
       if (editForm.roll_number !== profile?.roll_number) updates.roll_number = editForm.roll_number;
@@ -63,8 +62,9 @@ export default function StudentProfile() {
       push({ kind: 'success', message: 'Profile updated successfully' });
       setEditModal(false);
       loadProfile(); // Reload profile
-    } catch (err: any) {
-      push({ kind: 'error', message: err?.message || 'Failed to update profile' });
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Failed to update profile';
+      push({ kind: 'error', message });
     } finally {
       setSaving(false);
     }
@@ -145,7 +145,7 @@ export default function StudentProfile() {
           <h2>Enrolled Courses</h2>
           {profile.enrolledCourses && profile.enrolledCourses.length > 0 ? (
             <div className="courses-list">
-              {profile.enrolledCourses.map((course, index) => (
+              {profile.enrolledCourses.map((course, _index) => (
                 <div key={index} className="course-item">
                   <div className="course-info">
                     <h3>{course.course_code} - {course.course_title}</h3>
@@ -175,7 +175,7 @@ export default function StudentProfile() {
           <section className="profile-section">
             <h2>Achievements</h2>
             <div className="achievements-grid">
-              {profile.achievements.map((achievement, index) => (
+              {profile.achievements.map((achievement, _index) => (
                 <div key={index} className="achievement-card">
                   <div className="achievement-icon">{achievement.icon || '🏆'}</div>
                   <div className="achievement-info">

@@ -1,28 +1,13 @@
-import { createContext, useContext, useMemo, useState } from 'react'
-
-export type Role = 'student' | 'teacher' | 'ta' | 'admin'
-
-export interface User {
-  id: string
-  name: string
-  email: string
-  role: Role
-}
+import { useMemo, useState } from 'react'
+import type { User } from '../utils/auth'
+import { mapBackendRole } from '../utils/auth'
+import { AuthContext } from './AuthContextBase'
 
 interface AuthContextValue {
   user: User | null
   login: (email: string, password: string, role?: 'student' | 'teacher' | 'ta' | 'admin') => Promise<User>
   loginWithGoogle: (credential: string, role?: 'student' | 'teacher' | 'ta' | 'admin') => Promise<User>
   logout: () => void
-}
-
-const AuthContext = createContext<AuthContextValue | undefined>(undefined)
-
-function mapBackendRole(r: string): Role {
-  if (r === 'faculty') return 'teacher'
-  if (r === 'admin') return 'admin'
-  if (r === 'ta') return 'ta'
-  return 'student'
 }
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
@@ -98,26 +83,3 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
 }
 
-export function useAuth() {
-  const ctx = useContext(AuthContext)
-  if (!ctx) throw new Error('useAuth must be used within AuthProvider')
-  return ctx
-}
-
-export function getDashboardPathForRole(role: Role) {
-  // Admins should always go to admin dashboard regardless of role switching
-  if (role === 'admin') {
-    return '/dashboard/admin'
-  }
-
-  switch (role) {
-    case 'student':
-      return '/dashboard/student'
-    case 'teacher':
-      return '/dashboard/teacher'
-    case 'ta':
-      return '/dashboard/ta'
-    default:
-      return '/login'
-  }
-}

@@ -27,7 +27,7 @@ interface Assignment {
 
 export default function AssignmentDetails() {
   const { courseId, assignmentId } = useParams();
-  const { user } = useAuth();
+  const { user: _user } = useAuth();
   const { setAssignmentTitle, setCourseTitle } = useCourse();
   const navigate = useNavigate();
   const toast = useToast();
@@ -51,7 +51,7 @@ export default function AssignmentDetails() {
         if (data.course_name) {
           setCourseTitle(`${data.course_code} - ${data.course_name}`);
         }
-      } catch (err: any) {
+      } catch (err: unknown) {
         console.error('Failed to fetch assignment:', err);
         setError(err.message || 'Failed to load assignment details');
       } finally {

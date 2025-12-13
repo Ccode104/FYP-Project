@@ -30,7 +30,7 @@ export default function Reset() {
       await confirmPasswordReset(token, password)
       push({ kind: 'success', message: 'Password reset successful' })
       navigate('/login')
-    } catch (err: any) {
+    } catch (err: unknown) {
       setError(err.message || 'Failed to reset password')
       push({ kind: 'error', message: 'Failed to reset password' })
     } finally {

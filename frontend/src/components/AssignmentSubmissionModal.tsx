@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import Modal from './Modal';
 import { apiFetch } from '../services/api';
 import { useToast } from './ToastProvider';
@@ -17,6 +17,28 @@ interface AssignmentSubmissionModalProps {
   onSubmitSuccess?: () => void;
 }
 
+interface SelectedRepository {
+  id: number;
+  name: string;
+  full_name: string;
+  html_url: string;
+  description: string | null;
+  language: string | null;
+  updated_at: string | null;
+  private: boolean | null;
+  fork: boolean | null;
+  // add other properties as needed
+}
+
+interface FullAssignment {
+  file_size_limit_mb?: number;
+}
+
+interface Profile {
+  github_connected?: boolean;
+  github_username?: string;
+}
+
 export default function AssignmentSubmissionModal({
   isOpen,
   onClose,
@@ -26,10 +48,19 @@ export default function AssignmentSubmissionModal({
   const [uploadedFiles, setUploadedFiles] = useState<File[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [isGitHubConnected, setIsGitHubConnected] = useState<boolean | null>(null);
-  const [selectedRepository, setSelectedRepository] = useState<any>(null);
-  const [fullAssignment, setFullAssignment] = useState<any>(null);
-  const [loadingAssignment, setLoadingAssignment] = useState(false);
+  const [selectedRepository, setSelectedRepository] = useState<SelectedRepository | null>(null);
+  const [fullAssignment, setFullAssignment] = useState<FullAssignment | null>(null);
   const toast = useToast();
+
+  // Fetch full assignment details
+  const fetchFullAssignment = useCallback(async () => {
+    try {
+      const response = await apiFetch<FullAssignment>(`/api/assignments/${assignment.id}`);
+      setFullAssignment(response);
+    } catch (error) {
+      console.error('Failed to fetch assignment details:', error);
+    }
+  }, [assignment.id]);
 
   // Fetch full assignment details and check GitHub connection when modal opens
   useEffect(() => {
@@ -39,29 +70,16 @@ export default function AssignmentSubmissionModal({
         checkGitHubConnection();
       }
     }
-  }, [isOpen, assignment]);
-
-  // Fetch full assignment details
-  const fetchFullAssignment = async () => {
-    try {
-      setLoadingAssignment(true);
-      const response = await apiFetch(`/api/assignments/${assignment.id}`);
-      setFullAssignment(response);
-    } catch (error) {
-      console.error('Failed to fetch assignment details:', error);
-    } finally {
-      setLoadingAssignment(false);
-    }
-  };
+  }, [isOpen, assignment, fetchFullAssignment]);
 
   // Check GitHub connection status
   const checkGitHubConnection = async () => {
     try {
-      const response = await apiFetch<{ profile: any }>('/api/users/profile');
+      const response = await apiFetch<{ profile: Profile }>('/api/users/profile');
       const profile = response.profile;
-      const connected = profile.github_connected && profile.github_username;
+      const connected = !!(profile.github_connected && profile.github_username);
       setIsGitHubConnected(connected);
-    } catch (err) {
+    } catch {
       setIsGitHubConnected(false);
     }
   };
@@ -72,9 +90,10 @@ export default function AssignmentSubmissionModal({
   };
 
   // Handle repository selection
-  const handleRepositorySelect = (repository: any) => {
-    console.log('DEBUG: Modal received repository selection:', repository.name);
-    setSelectedRepository(repository);
+  const handleRepositorySelect = (repository: unknown) => {
+    console.log('DEBUG: Modal received repository selection:', (repository as SelectedRepository).name);
+    const repo = repository as SelectedRepository;
+    setSelectedRepository({ ...repo, id: repo.id || 0 });
   };
 
   const getSubmissionInstructions = () => {
@@ -133,7 +152,7 @@ export default function AssignmentSubmissionModal({
       if (hasFiles) {
         const formData = new FormData();
         formData.append('assignment_id', assignment.id.toString());
-        uploadedFiles.forEach((file, index) => {
+        uploadedFiles.forEach((file) => {
           formData.append('files', file);
         });
 
@@ -158,9 +177,9 @@ export default function AssignmentSubmissionModal({
       setUploadedFiles([]);
       onSubmitSuccess?.();
       onClose();
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Submission failed:', err);
-      toast?.push({ kind: 'error', message: err?.message || 'Submission failed. Please try again.' });
+      toast?.push({ kind: 'error', message: err instanceof Error ? err.message : 'Submission failed. Please try again.' });
     } finally {
       setSubmitting(false);
     }
@@ -297,7 +316,8 @@ export default function AssignmentSubmissionModal({
             ) : isGitHubConnected ? (
               <GitHubRepositorySelector
                 onRepositorySelect={handleRepositorySelect}
-                selectedRepository={selectedRepository}
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                selectedRepository={selectedRepository as any}
               />
             ) : (
               <div style={{

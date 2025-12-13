@@ -5,16 +5,39 @@ interface AssignmentProgressProps {
   courseId: string
 }
 
+interface Assignment {
+  id: string
+  title: string
+  assignment_type?: string
+  due_at?: string
+  max_score?: number
+}
+
+interface Submission {
+  assignment_id: string
+  submitted_at: string
+  score?: number
+  feedback?: string
+}
+
+interface ProgressItem extends Assignment {
+  status: string
+  submittedAt?: string
+  score?: number
+  feedback?: string
+  isLate?: boolean
+}
+
 export default function AssignmentProgress({ courseId }: AssignmentProgressProps) {
-  const [progress, setProgress] = useState<any[]>([])
+  const [progress, setProgress] = useState<ProgressItem[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     const fetchProgress = async () => {
       try {
-        const data = await apiFetch<any[]>(`/api/courses/${courseId}/assignments`)
-        const submissions = await apiFetch<any[]>(`/api/student/courses/${courseId}/submissions`)
+        const data = await apiFetch<Assignment[]>(`/api/courses/${courseId}/assignments`)
+        const submissions = await apiFetch<Submission[]>(`/api/student/courses/${courseId}/submissions`)
         
         // Map assignments with their submission status
         const progressData = data.map(assignment => {
@@ -25,14 +48,14 @@ export default function AssignmentProgress({ courseId }: AssignmentProgressProps
             submittedAt: submission?.submitted_at,
             score: submission?.score,
             feedback: submission?.feedback,
-            isLate: submission && assignment.due_at && 
-                    new Date(submission.submitted_at) > new Date(assignment.due_at)
+            isLate: !!(submission && assignment.due_at &&
+                     new Date(submission.submitted_at) > new Date(assignment.due_at))
           }
         })
 
         setProgress(progressData)
-      } catch (err: any) {
-        setError(err.message || 'Failed to load progress')
+      } catch (err: unknown) {
+        setError(err instanceof Error ? err.message : 'Failed to load progress')
       } finally {
         setLoading(false)
       }

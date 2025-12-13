@@ -446,7 +446,7 @@ export const VideoGrid: React.FC<VideoGridProps> = ({
     >
       <div className="video-grid">
         <AnimatePresence>
-          {uniqueParticipants.map((participant, index) => (
+          {uniqueParticipants.map((participant, _index) => (
             <motion.div
               key={`grid-${participant.userId}-${participant.joinedAt}`}
               initial={{ opacity: 0, scale: 0.9 }}

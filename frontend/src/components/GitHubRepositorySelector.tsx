@@ -49,7 +49,7 @@ export default function GitHubRepositorySelector({
       await apiFetch<RepositoriesResponse>('/api/github/repositories?page=1&per_page=1');
       console.log('DEBUG: GitHub connected');
       setIsGitHubConnected(true);
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.log('DEBUG: GitHub connection check failed:', err.message);
       if (err.message?.includes('GitHub not connected')) {
         setIsGitHubConnected(false);
@@ -76,7 +76,7 @@ export default function GitHubRepositorySelector({
       console.log('DEBUG: Fetched repositories:', newRepos.length);
       setRepositories(newRepos);
       setFilteredRepositories([]);
-    } catch (err: any) {
+    } catch (err: unknown) {
       setError(err.message || 'Failed to fetch repositories');
       console.error('Error fetching repositories:', err);
     } finally {

@@ -24,15 +24,15 @@ export default function QuizCreator({ courseOfferingId, onComplete }: QuizCreato
   let push: (opts: { kind?: 'success' | 'error' | string; message?: string }) => void = (opts) => {
     if (!opts) return
     // allow either { kind, message } or a simple string/object
-    const kind = (opts as any)?.kind
-    const msg = (opts as any)?.message ?? opts
+    const kind = (opts as unknown)?.kind
+    const msg = (opts as unknown)?.message ?? opts
     if (kind === 'error') console.error(msg)
     else if (kind === 'success') console.log(msg)
     else console.log(msg)
   }
   // if provider exists and implements push, use it; otherwise keep console fallback
-  if (toast && typeof (toast as any).push === 'function') {
-    push = (toast as any).push
+  if (toast && typeof (toast as unknown).push === 'function') {
+    push = (toast as unknown).push
   } else {
     // Helpful dev hint if provider isn't wired
     // Keep runtime console warning minimal to avoid noise in production builds
@@ -144,7 +144,7 @@ export default function QuizCreator({ courseOfferingId, onComplete }: QuizCreato
       await createQuizAssignment(quizData)
       push({ kind: 'success', message: 'Quiz created successfully' })
       onComplete()
-    } catch (e: any) {
+    } catch (e: unknown) {
       push({ kind: 'error', message: e?.message || 'Failed to create quiz' })
     } finally {
       setIsSubmitting(false)
@@ -252,7 +252,7 @@ export default function QuizCreator({ courseOfferingId, onComplete }: QuizCreato
             style={{ display: 'block', width: '100%', boxSizing: 'border-box' }}
             value={currentType}
             onChange={(e) => {
-              setCurrentType(e.target.value as any)
+              setCurrentType(e.target.value as unknown)
               setCorrectAnswer('')
               if (e.target.value === 'mcq') setMcqChoices(['', '', '', ''])
             }}

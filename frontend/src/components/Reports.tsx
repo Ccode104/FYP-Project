@@ -89,7 +89,7 @@ function Reports() {
       }
 
       setStats(reportStats)
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Failed to load report data:', err)
       setError(err?.message || 'Failed to load report data')
     } finally {

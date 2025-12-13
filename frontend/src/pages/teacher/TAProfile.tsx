@@ -8,7 +8,7 @@ import Modal from '../../components/Modal';
 import './TAProfile.css';
 
 export default function TAProfile() {
-  const { user } = useAuth();
+  const { user: _user } = useAuth();
   const navigate = useNavigate();
   const { push } = useToast();
   const [profile, setProfile] = useState<UserProfile | null>(null);
@@ -26,7 +26,7 @@ export default function TAProfile() {
       setLoading(true);
       const data = await getUserProfile();
       setProfile(data);
-    } catch (err: any) {
+    } catch (err: unknown) {
       push({ kind: 'error', message: err?.message || 'Failed to load profile' });
     } finally {
       setLoading(false);
@@ -46,7 +46,7 @@ export default function TAProfile() {
   const handleSave = async () => {
     try {
       setSaving(true);
-      const updates: any = {};
+      const updates: unknown = {};
       if (editForm.name !== profile?.name) updates.name = editForm.name;
       if (editForm.email !== profile?.email) updates.email = editForm.email;
 
@@ -59,7 +59,7 @@ export default function TAProfile() {
       push({ kind: 'success', message: 'Profile updated successfully' });
       setEditModal(false);
       loadProfile();
-    } catch (err: any) {
+    } catch (err: unknown) {
       push({ kind: 'error', message: err?.message || 'Failed to update profile' });
     } finally {
       setSaving(false);
@@ -142,7 +142,7 @@ export default function TAProfile() {
           <h2>Courses Assisted</h2>
           {profile.taAssignments && profile.taAssignments.length > 0 ? (
             <div className="courses-list">
-              {profile.taAssignments.map((assignment, index) => (
+              {profile.taAssignments.map((assignment, _index) => (
                 <div key={index} className="course-item">
                   <div className="course-info">
                     <h3>{assignment.course_code} - {assignment.course_title}</h3>
