@@ -6,7 +6,7 @@
     "dev": "nodemon --watch src --exec node src/index.js",
     "start": "nodemon index.js",
     "migrate": "psql \"$DATABASE_URL\" -f prisma/migrations/20251014_additional.sql",
-    "test": "jest",
+    "test": "jest --passWithNoTests",
     "lint": "eslint ."
   },
   "dependencies": {
