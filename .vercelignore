@@ -1,0 +1,13 @@
+backend/
+EduPortal-Mobile/
+node_modules/
+*.log
+.env
+.env.local
+coverage/
+dist/
+build/
+.DS_Store
+*.md
+!README.md
+

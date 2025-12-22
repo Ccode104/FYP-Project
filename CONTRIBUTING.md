@@ -12,20 +12,22 @@ Thank you for your interest in contributing! This document provides guidelines a
 ## Development Setup
 
 1. **Fork and Clone**
+
    ```bash
    git clone https://github.com/your-username/FYP-Project.git
    cd FYP-Project
    ```
 
 2. **Install Dependencies**
+
    ```bash
    # Install root dependencies
    npm install
-   
+
    # Install backend dependencies
    cd backend
    npm install
-   
+
    # Install frontend dependencies
    cd ../frontend
    npm install
@@ -41,6 +43,7 @@ Thank you for your interest in contributing! This document provides guidelines a
 ### Branch Naming
 
 Use descriptive branch names following the pattern:
+
 - `feature/description` - New features
 - `fix/description` - Bug fixes
 - `docs/description` - Documentation updates
@@ -60,6 +63,7 @@ type(scope): description
 ```
 
 **Types:**
+
 - `feat`: New feature
 - `fix`: Bug fix
 - `docs`: Documentation changes
@@ -73,6 +77,7 @@ type(scope): description
 - `revert`: Revert previous commit
 
 **Examples:**
+
 ```
 feat(auth): add Google OAuth sign-in
 fix(ui): resolve button alignment issue
@@ -89,6 +94,7 @@ The project uses Husky and lint-staged to ensure code quality:
 - **Tests**: Full test suite runs before commit
 
 To bypass hooks (not recommended):
+
 ```bash
 git commit --no-verify
 ```
@@ -101,11 +107,13 @@ git commit --no-verify
 - **Frontend**: ESLint + TypeScript ESLint
 
 Run linting:
+
 ```bash
 npm run lint
 ```
 
 Fix auto-fixable issues:
+
 ```bash
 npm run lint:fix
 ```
@@ -121,6 +129,7 @@ npm run format
 ### Type Checking
 
 Frontend uses TypeScript:
+
 ```bash
 cd frontend
 npm run type-check
@@ -131,6 +140,7 @@ npm run type-check
 Write tests for new features and bug fixes:
 
 **Backend:**
+
 ```bash
 cd backend
 npm test
@@ -138,6 +148,7 @@ npm run test:watch  # Watch mode
 ```
 
 **Frontend:**
+
 ```bash
 cd frontend
 npm test
@@ -147,6 +158,7 @@ npm run test:watch  # Watch mode
 ## Pull Request Process
 
 1. **Create a Branch**
+
    ```bash
    git checkout -b feature/your-feature-name
    ```
@@ -158,15 +170,18 @@ npm run test:watch  # Watch mode
    - Ensure all tests pass
 
 3. **Commit Changes**
+
    ```bash
    git add .
    git commit -m "feat(scope): your commit message"
    ```
 
 4. **Push and Create PR**
+
    ```bash
    git push origin feature/your-feature-name
    ```
+
    Then create a Pull Request on GitHub.
 
 5. **PR Requirements**
@@ -178,12 +193,14 @@ npm run test:watch  # Watch mode
 ## Code Review Guidelines
 
 ### For Authors
+
 - Keep PRs focused and reasonably sized
 - Respond to feedback promptly
 - Update PR based on review comments
 - Mark conversations as resolved when addressed
 
 ### For Reviewers
+
 - Be constructive and respectful
 - Focus on code quality and maintainability
 - Approve when satisfied
@@ -192,16 +209,19 @@ npm run test:watch  # Watch mode
 ## Testing Guidelines
 
 ### Unit Tests
+
 - Test individual functions and components
 - Aim for high coverage (>80%)
 - Test edge cases and error scenarios
 
 ### Integration Tests
+
 - Test API endpoints
 - Test component interactions
 - Test database operations
 
 ### E2E Tests
+
 - Test critical user workflows
 - Test cross-browser compatibility
 
@@ -219,4 +239,3 @@ npm run test:watch  # Watch mode
 - Ask questions in discussions or issues
 
 Thank you for contributing! 🎉
-

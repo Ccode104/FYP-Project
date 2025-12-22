@@ -10,28 +10,28 @@ jobs:
   check-updates:
     name: Check for Dependency Updates
     runs-on: ubuntu-latest
-    
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-      
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '20.x'
-      
+
       - name: Check backend dependencies
         run: |
           cd backend
           npm outdated || true
           echo "Backend dependency check complete"
-      
+
       - name: Check frontend dependencies
         run: |
           cd frontend
           npm outdated || true
           echo "Frontend dependency check complete"
-      
+
       - name: Create issue for updates
         uses: actions/github-script@v7
         with:
@@ -42,7 +42,7 @@ jobs:
               state: 'open',
               labels: 'dependencies'
             });
-            
+
             if (issues.length === 0) {
               await github.rest.issues.create({
                 owner: context.repo.owner,
@@ -52,4 +52,3 @@ jobs:
                 labels: ['dependencies', 'maintenance']
               });
             }
-

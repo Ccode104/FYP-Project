@@ -1,7 +1,11 @@
-export const API_URL = (import.meta as { env?: { REACT_APP_API_URL?: string } }).env?.REACT_APP_API_URL || 'http://localhost:4000';
+// Use VITE_API_BASE_URL for Vite, fallback to localhost for development
+export const API_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:4000';
 export type HttpMethod = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
 
-export async function apiFetch<T = unknown>(path: string, opts: { method?: HttpMethod; body?: unknown; headers?: Record<string, string> } = {}): Promise<T> {
+export async function apiFetch<T = unknown>(
+  path: string,
+  opts: { method?: HttpMethod; body?: unknown; headers?: Record<string, string> } = {}
+): Promise<T> {
   const token = localStorage.getItem('auth:token') || '';
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
@@ -15,31 +19,37 @@ export async function apiFetch<T = unknown>(path: string, opts: { method?: HttpM
       headers,
       body: opts.body ? JSON.stringify(opts.body) : undefined,
     });
-    
+
     if (!res.ok) {
       let msg = `HTTP ${res.status}`;
-      try { 
-        const data = await res.json(); 
-        msg = data.error || msg; 
+      try {
+        const data = await res.json();
+        msg = data.error || msg;
       } catch {
         // If response is not JSON, use status text
         msg = res.statusText || msg;
       }
       throw new Error(msg);
     }
-    
+
     return res.json();
   } catch (err: unknown) {
     // Handle network errors (Failed to fetch, CORS, etc.)
     if (err instanceof TypeError && err.message.includes('fetch')) {
-      throw new Error(`Failed to fetch: Cannot connect to ${API_URL}${path}. Please check if the backend server is running.`);
+      throw new Error(
+        `Failed to fetch: Cannot connect to ${API_URL}${path}. Please check if the backend server is running.`
+      );
     }
     // Re-throw other errors
     throw err;
   }
 }
 
-export async function apiForm<T = unknown>(path: string, form: FormData, method: HttpMethod = 'POST'): Promise<T> {
+export async function apiForm<T = unknown>(
+  path: string,
+  form: FormData,
+  method: HttpMethod = 'POST'
+): Promise<T> {
   const token = localStorage.getItem('auth:token') || '';
   const headers: Record<string, string> = {};
   if (token) headers['Authorization'] = `Bearer ${token}`;

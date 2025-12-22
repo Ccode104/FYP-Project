@@ -53,7 +53,7 @@ function authenticateSocket(socket, next) {
     const payload = jwt.verify(token, JWT_SECRET);
     socket.user = { id: payload.id, role: payload.role, email: payload.email };
     next();
-  // eslint-disable-next-line no-unused-vars
+    // eslint-disable-next-line no-unused-vars
   } catch (_err) {
     next(new Error('Invalid authentication token'));
   }
@@ -63,43 +63,80 @@ export async function startServer(port = 4000) {
   const app = express();
 
   // Configure server for large file uploads
-  const server = createServer({
-    maxHeaderSize: 1024 * 1024, // 1MB headers
-    keepAliveTimeout: 300000, // 5 minutes
-    headersTimeout: 300000, // 5 minutes
-    requestTimeout: 600000, // 10 minutes for large uploads
-    // Allow unlimited body size
-    allowHTTP1: true,
-  }, app);
-
+  const server = createServer(
+    {
+      maxHeaderSize: 1024 * 1024, // 1MB headers
+      keepAliveTimeout: 300000, // 5 minutes
+      headersTimeout: 300000, // 5 minutes
+      requestTimeout: 600000, // 10 minutes for large uploads
+      // Allow unlimited body size
+      allowHTTP1: true,
+    },
+    app
+  );
 
   // Initialize Socket.IO with CORS and authentication
+  const socketOrigins = [
+    process.env.FRONTEND_URL,
+    process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : null,
+    process.env.VERCEL_BRANCH_URL ? `https://${process.env.VERCEL_BRANCH_URL}` : null,
+    'http://13.233.144.115:4000',
+    'http://localhost:5173',
+    'http://localhost:5174',
+    'http://localhost:8083',
+  ].filter(Boolean);
+
   const io = new Server(server, {
     cors: {
-      origin: [process.env.FRONTEND_URL, 'http://13.233.144.115:4000', 'http://localhost:5173', 'http://localhost:5174','http://localhost:8083'],
+      origin: process.env.NODE_ENV === 'production' ? socketOrigins : true,
       methods: ['GET', 'POST'],
-      credentials: true
+      credentials: true,
     },
     // Improve connection stability
     pingTimeout: 60000,
     pingInterval: 25000,
     upgradeTimeout: 30000,
     allowEIO3: true,
-    transports: ['websocket', 'polling']
+    transports: ['websocket', 'polling'],
   });
 
   // Apply authentication middleware to Socket.IO
   io.use(authenticateSocket);
 
   // CORS configuration - allow all origins in development
-  app.use(
-    cors({
-      origin: [process.env.FRONTEND_URL, 'http://13.233.144.115:4000', 'http://localhost:5173', 'http://localhost:5174','http://localhost:8083'],
-      methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-      allowedHeaders: ['Content-Type', 'Authorization'],
-      credentials: true,
-    })
-  );
+  const allowedOrigins = [
+    process.env.FRONTEND_URL,
+    process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : null,
+    process.env.VERCEL_BRANCH_URL ? `https://${process.env.VERCEL_BRANCH_URL}` : null,
+    'http://13.233.144.115:4000',
+    'http://localhost:5173',
+    'http://localhost:5174',
+    'http://localhost:8083',
+  ].filter(Boolean);
+
+  // In production, use specific origins; in development, allow all
+  const corsOptions =
+    process.env.NODE_ENV === 'production'
+      ? {
+          origin: (origin, callback) => {
+            if (!origin || allowedOrigins.includes(origin)) {
+              callback(null, true);
+            } else {
+              callback(new Error('Not allowed by CORS'));
+            }
+          },
+          methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+          allowedHeaders: ['Content-Type', 'Authorization'],
+          credentials: true,
+        }
+      : {
+          origin: true, // Allow all origins in development
+          methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+          allowedHeaders: ['Content-Type', 'Authorization'],
+          credentials: true,
+        };
+
+  app.use(cors(corsOptions));
 
   app.use(bodyParser.json({ limit: '10mb' }));
   app.use(bodyParser.urlencoded({ extended: true, limit: '500mb' }));
@@ -160,7 +197,7 @@ export async function startServer(port = 4000) {
     // Return JSON error response
     res.status(err.status || 500).json({
       error: err.message || 'Internal server error',
-      details: process.env.NODE_ENV === 'development' ? err.stack : undefined
+      details: process.env.NODE_ENV === 'development' ? err.stack : undefined,
     });
   });
 
@@ -170,16 +207,16 @@ export async function startServer(port = 4000) {
     logger.error('Unhandled error:', err);
     res.status(500).json({
       error: 'Internal server error',
-      message: process.env.NODE_ENV === 'development' ? err.message : undefined
+      message: process.env.NODE_ENV === 'development' ? err.message : undefined,
     });
   });
 
   // Socket.IO connection handling
-  io.on('connection', (socket) => {
+  io.on('connection', socket => {
     console.log('Client connected:', socket.id);
 
     // Proctoring namespace events
-    socket.on('join-proctoring-session', (data) => {
+    socket.on('join-proctoring-session', data => {
       const { sessionToken, userId, userType } = data;
       console.log(`User ${userId} (${userType}) joining proctoring session: ${sessionToken}`);
 
@@ -194,7 +231,7 @@ export async function startServer(port = 4000) {
       socket.emit('proctoring-joined', { sessionToken, status: 'connected' });
     });
 
-    socket.on('proctoring-violation', (data) => {
+    socket.on('proctoring-violation', data => {
       const { sessionToken, violation, studentId } = data;
       console.log('Violation reported:', { sessionToken, violation, studentId });
 
@@ -203,14 +240,14 @@ export async function startServer(port = 4000) {
         sessionToken,
         violation,
         studentId,
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
       });
 
       // Store violation in database (will be implemented in controller)
       // This is just the real-time notification part
     });
 
-    socket.on('proctoring-status-update', (data) => {
+    socket.on('proctoring-status-update', data => {
       const { sessionToken, status, studentId } = data;
 
       // Broadcast status updates to monitors
@@ -218,15 +255,19 @@ export async function startServer(port = 4000) {
         sessionToken,
         status,
         studentId,
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
       });
     });
 
-    socket.on('proctoring-suspend', async (data) => {
+    socket.on('proctoring-suspend', async data => {
       const { sessionToken, reason, suspendedBy } = data;
 
       try {
-        console.log('DEBUG: WebSocket proctoring-suspend received:', { sessionToken, reason, suspendedBy });
+        console.log('DEBUG: WebSocket proctoring-suspend received:', {
+          sessionToken,
+          reason,
+          suspendedBy,
+        });
 
         // Find session by token
         const sessionResult = await pool.query(
@@ -262,7 +303,7 @@ export async function startServer(port = 4000) {
         socket.to(`proctoring-${sessionToken}`).emit('session-suspended', {
           reason,
           suspendedBy,
-          timestamp: new Date().toISOString()
+          timestamp: new Date().toISOString(),
         });
 
         console.log('DEBUG: Suspension notification sent to student');
@@ -271,18 +312,18 @@ export async function startServer(port = 4000) {
       }
     });
 
-    socket.on('proctoring-resume', (data) => {
+    socket.on('proctoring-resume', data => {
       const { sessionToken, resumedBy } = data;
 
       // Notify student of resume
       socket.to(`proctoring-${sessionToken}`).emit('session-resumed', {
         resumedBy,
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
       });
     });
 
     // Live lecture events
-    socket.on('join-live-lecture', async (data) => {
+    socket.on('join-live-lecture', async data => {
       const { lectureId } = data;
       const userId = socket.user.id;
       const userType = socket.user.role;
@@ -301,10 +342,9 @@ export async function startServer(port = 4000) {
 
       // Get user information to broadcast to other participants
       try {
-        const userResult = await pool.query(
-          'SELECT name, email FROM users WHERE id = $1',
-          [userId]
-        );
+        const userResult = await pool.query('SELECT name, email FROM users WHERE id = $1', [
+          userId,
+        ]);
 
         if (userResult.rows.length > 0) {
           const userInfo = userResult.rows[0];
@@ -314,22 +354,24 @@ export async function startServer(port = 4000) {
             lectureId,
             userId,
             userName: userInfo.name || userInfo.email || `User ${userId}`,
-            role: userType === 'faculty' ? 'teacher' : (userType === 'ta' ? 'ta' : 'student'),
+            role: userType === 'faculty' ? 'teacher' : userType === 'ta' ? 'ta' : 'student',
             isMuted: true, // Default state
             isVideoOff: true, // Default state
             isHandRaised: false,
             isScreenSharing: false,
-            joinedAt: new Date().toISOString()
+            joinedAt: new Date().toISOString(),
           });
 
-          console.log(`Notified other participants about user ${userId} joining lecture ${lectureId}`);
+          console.log(
+            `Notified other participants about user ${userId} joining lecture ${lectureId}`
+          );
         }
       } catch (error) {
         console.error('Error fetching user info for participant join notification:', error);
       }
     });
 
-    socket.on('leave-live-lecture', (data) => {
+    socket.on('leave-live-lecture', data => {
       const { lectureId } = data;
       const userId = socket.user.id;
       console.log(`User ${userId} leaving live lecture: ${lectureId}`);
@@ -338,7 +380,7 @@ export async function startServer(port = 4000) {
       socket.to(`lecture-${lectureId}`).emit('participant-left', {
         lectureId,
         userId,
-        leftAt: new Date().toISOString()
+        leftAt: new Date().toISOString(),
       });
 
       socket.leave(`lecture-${lectureId}`);
@@ -348,7 +390,7 @@ export async function startServer(port = 4000) {
     });
 
     // WebRTC signaling for live lectures
-    socket.on('webrtc-signal', (data) => {
+    socket.on('webrtc-signal', data => {
       const { lectureId, signal, toUserId } = data;
       const fromUserId = socket.user.id;
       console.log(`WebRTC signal from ${fromUserId} to ${toUserId} in lecture ${lectureId}`);
@@ -359,11 +401,11 @@ export async function startServer(port = 4000) {
         lectureId,
         signal,
         fromUserId,
-        toUserId
+        toUserId,
       });
     });
 
-    socket.on('webrtc-offer', (data) => {
+    socket.on('webrtc-offer', data => {
       const { lectureId, offer, fromUserId, toUserId } = data;
       console.log(`WebRTC offer from ${fromUserId} to ${toUserId} in lecture ${lectureId}`);
 
@@ -372,11 +414,11 @@ export async function startServer(port = 4000) {
         lectureId,
         offer,
         fromUserId,
-        toUserId
+        toUserId,
       });
     });
 
-    socket.on('webrtc-answer', (data) => {
+    socket.on('webrtc-answer', data => {
       const { lectureId, answer, fromUserId, toUserId } = data;
       console.log(`WebRTC answer from ${fromUserId} to ${toUserId} in lecture ${lectureId}`);
 
@@ -385,11 +427,11 @@ export async function startServer(port = 4000) {
         lectureId,
         answer,
         fromUserId,
-        toUserId
+        toUserId,
       });
     });
 
-    socket.on('webrtc-ice-candidate', (data) => {
+    socket.on('webrtc-ice-candidate', data => {
       const { lectureId, candidate, fromUserId, toUserId } = data;
       console.log(`WebRTC ICE candidate from ${fromUserId} to ${toUserId} in lecture ${lectureId}`);
 
@@ -398,12 +440,12 @@ export async function startServer(port = 4000) {
         lectureId,
         candidate,
         fromUserId,
-        toUserId
+        toUserId,
       });
     });
 
     // Live lecture chat
-    socket.on('lecture-chat-message', (data) => {
+    socket.on('lecture-chat-message', data => {
       const { lectureId, message } = data;
       const userId = socket.user.id;
       const userName = socket.user.email; // Use email as display name, or we could fetch name from DB
@@ -416,12 +458,12 @@ export async function startServer(port = 4000) {
         userId,
         userName,
         role: socket.user.role,
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
       });
     });
 
     // Teacher controls
-    socket.on('lecture-mute-participant', (data) => {
+    socket.on('lecture-mute-participant', data => {
       const { lectureId, participantId } = data;
       const mutedBy = socket.user.id;
       console.log(`Muting participant ${participantId} in lecture ${lectureId} by ${mutedBy}`);
@@ -431,11 +473,11 @@ export async function startServer(port = 4000) {
         lectureId,
         participantId,
         mutedBy,
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
       });
     });
 
-    socket.on('lecture-unmute-participant', (data) => {
+    socket.on('lecture-unmute-participant', data => {
       const { lectureId, participantId } = data;
       const unmutedBy = socket.user.id;
       console.log(`Unmuting participant ${participantId} in lecture ${lectureId} by ${unmutedBy}`);
@@ -445,12 +487,12 @@ export async function startServer(port = 4000) {
         lectureId,
         participantId,
         unmutedBy,
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
       });
     });
 
     // Whiteboard events
-    socket.on('whiteboard-draw', async (data) => {
+    socket.on('whiteboard-draw', async data => {
       const { lectureId, drawingData } = data;
       const userId = socket.user.id;
 
@@ -468,17 +510,16 @@ export async function startServer(port = 4000) {
       }
     });
 
-    socket.on('whiteboard-clear', async (data) => {
+    socket.on('whiteboard-clear', async data => {
       const { lectureId } = data;
       // eslint-disable-next-line no-unused-vars
       const _userId = socket.user.id;
 
       try {
         // Update lecture's whiteboard cleared timestamp
-        await pool.query(
-          'UPDATE live_lectures SET whiteboard_cleared_at = NOW() WHERE id = $1',
-          [lectureId]
-        );
+        await pool.query('UPDATE live_lectures SET whiteboard_cleared_at = NOW() WHERE id = $1', [
+          lectureId,
+        ]);
 
         // Broadcast clear event
         socket.to(`lecture-${lectureId}`).emit('whiteboard-clear');
@@ -487,7 +528,7 @@ export async function startServer(port = 4000) {
       }
     });
 
-    socket.on('request-whiteboard-state', async (data) => {
+    socket.on('request-whiteboard-state', async data => {
       const { lectureId } = data;
 
       try {
@@ -516,7 +557,7 @@ export async function startServer(port = 4000) {
         if (history.length > 0) {
           socket.emit('whiteboard-state', {
             lectureId,
-            history
+            history,
           });
         }
       } catch (error) {
@@ -525,7 +566,7 @@ export async function startServer(port = 4000) {
     });
 
     // Hand raising and reactions
-    socket.on('raise-hand', (data) => {
+    socket.on('raise-hand', data => {
       const { lectureId, isRaised } = data;
       const userId = socket.user.id;
       const userName = socket.user.email; // Use email as display name
@@ -533,27 +574,27 @@ export async function startServer(port = 4000) {
         userId,
         userName,
         isRaised,
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
       });
     });
 
-    socket.on('send-reaction', (data) => {
+    socket.on('send-reaction', data => {
       const { lectureId, reaction } = data;
       const userId = socket.user.id;
       socket.to(`lecture-${lectureId}`).emit('reaction-received', {
         userId,
         reaction,
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
       });
     });
 
     // Screen share status
-    socket.on('screen-share-status', (data) => {
+    socket.on('screen-share-status', data => {
       const { lectureId, isSharing } = data;
       const userId = socket.user.id;
       socket.to(`lecture-${lectureId}`).emit('screen-share-update', {
         userId,
-        isSharing
+        isSharing,
       });
     });
 
@@ -573,7 +614,7 @@ export async function startServer(port = 4000) {
         resolve(app);
       });
 
-      server.on('error', (err) => {
+      server.on('error', err => {
         if (err.code === 'EADDRINUSE') {
           logger.error(`Port ${port} is already in use`);
           reject(new Error(`Port ${port} is already in use`));

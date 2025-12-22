@@ -19,15 +19,16 @@
 ## Related Issues
 
 <!-- Link related issues here -->
+
 Closes #
 
 ## Changes Made
 
 <!-- Describe the changes in detail -->
 
-- 
-- 
-- 
+-
+-
+-
 
 ## Testing
 
@@ -38,9 +39,10 @@ Closes #
 - [ ] Manual testing completed
 
 **Test Steps:**
-1. 
-2. 
-3. 
+
+1.
+2.
+3.
 
 ## Screenshots (if applicable)
 
@@ -63,4 +65,3 @@ Closes #
 ## Additional Notes
 
 <!-- Add any additional context or notes here -->
-

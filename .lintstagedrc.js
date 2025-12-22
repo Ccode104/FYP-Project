@@ -1,9 +1,9 @@
 module.exports = {
   // Backend files
-  'backend/**/*.js': ['eslint --fix', 'npx prettier --write'],
+  'backend/**/*.js': ['eslint --fix --config backend/eslint.config.js', 'npx prettier --write'],
 
   // Frontend files
-  'frontend/src/**/*.{ts,tsx}': ['eslint --fix', 'npx prettier --write'],
+  'frontend/src/**/*.{ts,tsx}': ['eslint --fix --config frontend/eslint.config.js', 'npx prettier --write'],
 
   // Frontend config files
   'frontend/**/*.{json,md}': ['npx prettier --write'],

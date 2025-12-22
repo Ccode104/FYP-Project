@@ -18,11 +18,13 @@ The project now includes a professional-grade CI/CD pipeline that ensures code q
 #### Main CI Pipeline (`.github/workflows/ci.yml`)
 
 **Triggers:**
+
 - Push to `main` or `develop` branches
 - Pull requests to `main` or `develop`
 - Ignores documentation and image files for faster runs
 
 **Jobs:**
+
 1. **Backend Lint** - ESLint validation for backend code
 2. **Backend Tests** - Jest test suite execution with coverage
 3. **Frontend Lint** - ESLint validation for frontend code
@@ -32,6 +34,7 @@ The project now includes a professional-grade CI/CD pipeline that ensures code q
 7. **Quality Gate** - Ensures all checks pass
 
 **Features:**
+
 - Parallel job execution for faster feedback
 - Node.js 20.x LTS
 - npm caching for faster installs
@@ -41,6 +44,7 @@ The project now includes a professional-grade CI/CD pipeline that ensures code q
 #### PR Quality Checks (`.github/workflows/pr-checks.yml`)
 
 **Checks:**
+
 - Merge conflict detection
 - Conventional commit message validation
 - Large file detection (>5MB)
@@ -48,6 +52,7 @@ The project now includes a professional-grade CI/CD pipeline that ensures code q
 #### Security Scanning (`.github/workflows/security.yml`)
 
 **Features:**
+
 - Dependency review for PRs
 - npm audit for backend and frontend
 - Weekly scheduled scans
@@ -56,6 +61,7 @@ The project now includes a professional-grade CI/CD pipeline that ensures code q
 #### CodeQL Analysis (`.github/workflows/codeql.yml`)
 
 **Features:**
+
 - Automated security vulnerability detection
 - Code quality analysis
 - Weekly scheduled scans
@@ -64,6 +70,7 @@ The project now includes a professional-grade CI/CD pipeline that ensures code q
 #### Dependency Updates (`.github/workflows/dependency-update.yml`)
 
 **Features:**
+
 - Monthly dependency update checks
 - Automated issue creation for review
 - Manual trigger support
@@ -73,10 +80,12 @@ The project now includes a professional-grade CI/CD pipeline that ensures code q
 #### Pre-commit Hook (`.husky/pre-commit`)
 
 **Actions:**
+
 1. Runs `lint-staged` on staged files only (fast)
 2. Runs full test suite (ensures everything works)
 
 **Benefits:**
+
 - Only lints/formats changed files
 - Catches issues before commit
 - Prevents broken code from being committed
@@ -84,6 +93,7 @@ The project now includes a professional-grade CI/CD pipeline that ensures code q
 #### Commit Message Hook (`.husky/commit-msg`)
 
 **Validation:**
+
 - Enforces Conventional Commits format
 - Validates commit message structure
 - Provides helpful error messages
@@ -97,11 +107,13 @@ The project now includes a professional-grade CI/CD pipeline that ensures code q
 #### Lint-Staged (`.lintstagedrc.js`)
 
 **Configuration:**
+
 - Backend JS files → ESLint + Prettier
 - Frontend TS/TSX files → ESLint + Prettier
 - Config files → Prettier only
 
 **Benefits:**
+
 - Only processes changed files
 - Automatic formatting
 - Fast feedback
@@ -109,6 +121,7 @@ The project now includes a professional-grade CI/CD pipeline that ensures code q
 #### Prettier (`.prettierrc.json`)
 
 **Configuration:**
+
 - Single quotes
 - 2-space indentation
 - 100 character line width
@@ -116,6 +129,7 @@ The project now includes a professional-grade CI/CD pipeline that ensures code q
 - LF line endings
 
 **Ignored:**
+
 - node_modules
 - dist/build folders
 - EduPortal-Mobile directory
@@ -124,6 +138,7 @@ The project now includes a professional-grade CI/CD pipeline that ensures code q
 ### 4. Dependabot (`.github/dependabot.yml`)
 
 **Configuration:**
+
 - Monthly updates for backend dependencies
 - Monthly updates for frontend dependencies
 - Monthly updates for GitHub Actions
@@ -134,6 +149,7 @@ The project now includes a professional-grade CI/CD pipeline that ensures code q
 #### Contributing Guide (`CONTRIBUTING.md`)
 
 **Contents:**
+
 - Code of conduct
 - Development setup
 - Branch naming conventions
@@ -145,6 +161,7 @@ The project now includes a professional-grade CI/CD pipeline that ensures code q
 #### CODEOWNERS (`.github/CODEOWNERS`)
 
 **Purpose:**
+
 - Defines code ownership
 - Ensures proper reviews
 - Maintains code quality
@@ -154,6 +171,7 @@ The project now includes a professional-grade CI/CD pipeline that ensures code q
 ### Development Workflow
 
 1. **Create Feature Branch**
+
    ```bash
    git checkout -b feature/your-feature
    ```
@@ -164,16 +182,19 @@ The project now includes a professional-grade CI/CD pipeline that ensures code q
    - Update documentation
 
 3. **Stage Changes**
+
    ```bash
    git add .
    ```
 
 4. **Commit** (hooks run automatically)
+
    ```bash
    git commit -m "feat(scope): your message"
    ```
 
 5. **Push and Create PR**
+
    ```bash
    git push origin feature/your-feature
    ```
@@ -207,6 +228,7 @@ Quality Gate → All Pass? → ✅ Success
 ## Configuration Files
 
 ### Root Level
+
 - `.gitignore` - Git ignore patterns (excludes EduPortal-Mobile)
 - `.prettierrc.json` - Prettier configuration
 - `.prettierignore` - Prettier ignore patterns
@@ -215,6 +237,7 @@ Quality Gate → All Pass? → ✅ Success
 - `CONTRIBUTING.md` - Contribution guidelines
 
 ### GitHub
+
 - `.github/workflows/ci.yml` - Main CI pipeline
 - `.github/workflows/pr-checks.yml` - PR quality checks
 - `.github/workflows/security.yml` - Security scanning
@@ -224,6 +247,7 @@ Quality Gate → All Pass? → ✅ Success
 - `.github/CODEOWNERS` - Code ownership
 
 ### Husky
+
 - `.husky/pre-commit` - Pre-commit hook
 - `.husky/commit-msg` - Commit message validation
 
@@ -232,11 +256,13 @@ Quality Gate → All Pass? → ✅ Success
 ### For Developers
 
 1. **Always run tests locally before pushing**
+
    ```bash
    npm run test
    ```
 
 2. **Format code before committing**
+
    ```bash
    npm run format
    ```
@@ -280,6 +306,7 @@ Quality Gate → All Pass? → ✅ Success
 **Issue:** Hook fails but code looks fine
 
 **Solution:**
+
 ```bash
 # Run linting manually
 npm run lint
@@ -296,6 +323,7 @@ npm run test
 **Issue:** Tests pass locally but fail in CI
 
 **Solutions:**
+
 - Check Node.js version matches (20.x)
 - Ensure environment variables are set in GitHub Secrets
 - Verify all dependencies are committed
@@ -306,6 +334,7 @@ npm run test
 **Issue:** Commit message doesn't follow format
 
 **Solution:**
+
 ```bash
 # Use conventional commits format
 git commit -m "feat(scope): description"
@@ -367,6 +396,7 @@ git commit -m "fix(scope): description"
 ## Future Enhancements
 
 Potential improvements:
+
 - [ ] E2E testing with Playwright/Cypress
 - [ ] Performance testing
 - [ ] Load testing
@@ -379,6 +409,7 @@ Potential improvements:
 ## Support
 
 For issues or questions:
+
 - Check existing GitHub issues
 - Review CONTRIBUTING.md
 - Open a new issue with details
@@ -387,4 +418,3 @@ For issues or questions:
 
 **Last Updated:** 2025-01-14
 **Maintained By:** Development Team
-
