@@ -118,23 +118,23 @@ export async function startServer(port = 4000) {
   const corsOptions =
     process.env.NODE_ENV === 'production'
       ? {
-          origin: (origin, callback) => {
-            if (!origin || allowedOrigins.includes(origin)) {
-              callback(null, true);
-            } else {
-              callback(new Error('Not allowed by CORS'));
-            }
-          },
-          methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-          allowedHeaders: ['Content-Type', 'Authorization'],
-          credentials: true,
-        }
+        origin: (origin, callback) => {
+          if (!origin || allowedOrigins.includes(origin)) {
+            callback(null, true);
+          } else {
+            callback(new Error('Not allowed by CORS'));
+          }
+        },
+        methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+        allowedHeaders: ['Content-Type', 'Authorization'],
+        credentials: true,
+      }
       : {
-          origin: true, // Allow all origins in development
-          methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-          allowedHeaders: ['Content-Type', 'Authorization'],
-          credentials: true,
-        };
+        origin: true, // Allow all origins in development
+        methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+        allowedHeaders: ['Content-Type', 'Authorization'],
+        credentials: true,
+      };
 
   app.use(cors(corsOptions));
 
