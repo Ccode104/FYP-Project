@@ -18,7 +18,7 @@ export default function FacultyProfile() {
 
   useEffect(() => {
     loadProfile();
-  }, []);
+  }, [loadProfile]);
 
   const loadProfile = async () => {
     try {

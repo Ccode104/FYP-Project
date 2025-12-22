@@ -66,12 +66,11 @@ export default function StudentDashboard() {
 
   const [loading, setLoading] = useState(true)
   const { push } = useToast()
-  const [offerings, setOfferings] = useState<any[]>([])
+  const [offerings, setOfferings] = useState<unknown[]>([])
   const [err, setErr] = useState<string | null>(null)
   const [courseCounts, setCourseCounts] = useState<Record<number, { pendingAssignments: number; pendingQuizzes: number; unreadNotifications: number }>>({})
-  const [lectures, setLectures] = useState<any[]>([])
-  const [assignments, setAssignments] = useState<any[]>([])
-  const [events, setEvents] = useState<any[]>([])
+  const [assignments, setAssignments] = useState<unknown[]>([])
+  const [events, setEvents] = useState<unknown[]>([])
 
   // Cache for course data to prevent unnecessary API calls
   const [lastFetchTime, setLastFetchTime] = useState<number>(0)
@@ -96,7 +95,7 @@ export default function StudentDashboard() {
         const response = await apiFetch<{ courses: unknown[] }>('/api/courses/card-data')
 
         // Transform the data to match the expected format
-        const counts: Record<number, any> = {}
+        const counts: Record<number, unknown> = {}
         const transformedOfferings = response.courses.map(course => ({
           id: course.id,
           term: course.term,
@@ -122,7 +121,7 @@ export default function StudentDashboard() {
           }
         })
 
-        setCourseCounts(counts)
+        setCourseCounts(counts as Record<number, { pendingAssignments: number; pendingQuizzes: number; unreadNotifications: number }>)
         setLastFetchTime(now)
 
         // Fetch live lectures for all enrolled courses
@@ -157,7 +156,7 @@ export default function StudentDashboard() {
             for (const courseId of courseIds) {
               try {
                 console.log(`Fetching assignments for course ${courseId}`)
-                const courseAssignments = await apiFetch<any[]>(`/api/student/courses/${courseId}/assignments`)
+                const courseAssignments = await apiFetch<unknown[]>(`/api/student/courses/${courseId}/assignments`)
                 console.log(`Received assignments for course ${courseId}:`, courseAssignments)
                 // Transform assignments to calendar events
                 const assignmentDeadlineEvents = courseAssignments
@@ -175,7 +174,7 @@ export default function StudentDashboard() {
 
                 // Fetch contests for this course
                 console.log(`Fetching contests for course ${courseId}`)
-                const courseContests = await apiFetch<any[]>(`/api/course-offerings/${courseId}/contests`)
+                const courseContests = await apiFetch<unknown[]>(`/api/course-offerings/${courseId}/contests`)
                 console.log(`Received contests for course ${courseId}:`, courseContests)
                 // Transform contests to calendar events (end_at as deadline)
                 const contestDeadlineEvents = courseContests

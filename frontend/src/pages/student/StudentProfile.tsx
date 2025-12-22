@@ -145,8 +145,8 @@ export default function StudentProfile() {
           <h2>Enrolled Courses</h2>
           {profile.enrolledCourses && profile.enrolledCourses.length > 0 ? (
             <div className="courses-list">
-              {profile.enrolledCourses.map((course, _index) => (
-                <div key={index} className="course-item">
+              {profile.enrolledCourses.map((course) => (
+                <div key={course.enrolled_at} className="course-item">
                   <div className="course-info">
                     <h3>{course.course_code} - {course.course_title}</h3>
                     <p>Term: {course.term} {course.section ? `Section ${course.section}` : ''}</p>
@@ -175,8 +175,8 @@ export default function StudentProfile() {
           <section className="profile-section">
             <h2>Achievements</h2>
             <div className="achievements-grid">
-              {profile.achievements.map((achievement, _index) => (
-                <div key={index} className="achievement-card">
+              {profile.achievements.map((achievement) => (
+                <div key={achievement.unlocked_at} className="achievement-card">
                   <div className="achievement-icon">{achievement.icon || '🏆'}</div>
                   <div className="achievement-info">
                     <h3>{achievement.name}</h3>

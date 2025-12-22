@@ -1,8 +1,8 @@
 import { useParams, useNavigate } from 'react-router-dom'
 import { useEffect, useMemo, useState, useRef } from 'react'
 import { courses } from '../../data/mock'
-import { useAuth } from '../../context/AuthContext'
-import { useCourse } from '../../context/CourseContext'
+import { useAuth } from '../../hooks/useAuth'
+import { useCourse } from '../../hooks/useCourse'
 import { getUserCourses } from '../../data/userCourses'
 import { addCustomAssignment } from '../../data/courseOverlays'
 import './CourseDetails.css'
@@ -30,7 +30,6 @@ import TeacherAssignments from '../../components/course/TeacherAssignments'
 import ContestCards from '../../components/course/ContestCards'
 import { listDiscussionMessages, postDiscussionMessage, type DiscussionMessage } from '../../services/discussion'
 import CourseSidebar, { type TabItem } from '../../components/course/CourseSidebar'
-import LiveLectureViewer from '../../components/LiveLectureViewer'
 import LiveLectureBroadcaster from '../../components/LiveLectureBroadcaster'
 import { getLiveLecturesByCourse } from '../../services/liveLectures'
 import SuspendedQuizzes from '../../components/SuspendedQuizzes'
@@ -63,7 +62,7 @@ function loadLocalCodeQuestions(courseId: string): CodeQuestion[] {
   } catch { return [] }
 }
 function saveLocalCodeQuestions(courseId: string, items: CodeQuestion[]) {
-  try { localStorage.setItem(`codeQuestions:${courseId}`, JSON.stringify(items)) } catch { }
+  try { localStorage.setItem(`codeQuestions:${courseId}`, JSON.stringify(items)) } catch { /* ignore */ }
 }
 
 export default function CourseDetails() {
@@ -72,16 +71,15 @@ export default function CourseDetails() {
   const navigate = useNavigate()
   const { setCourseTitle } = useCourse()
   const [tab, setTab] = useState<'assignment' | 'present' | 'past' | 'pyq' | 'notes' | 'quizzes' | 'quizzes_submitted' | 'manage' | 'submissions' | 'grading' | 'progress' | 'discussion' | 'pdfchat' | 'videos' | 'live-lectures'>(
-    (urlTab as unknown) || 'present'
+    (urlTab as typeof tab) || 'present'
   )
-  const [backendVideos, setBackendVideos] = useState<any[]>([])
-  const [selectedVideo, setSelectedVideo] = useState<any | null>(null)
-  const [videoQuestions, setVideoQuestions] = useState<any[]>([])
-  const [liveLectures, setLiveLectures] = useState<any[]>([])
+  const [backendVideos, setBackendVideos] = useState<unknown[]>([])
+  const [selectedVideo, setSelectedVideo] = useState<unknown | null>(null)
+  const [liveLectures, setLiveLectures] = useState<unknown[]>([])
   const [showLiveLectureBroadcaster, setShowLiveLectureBroadcaster] = useState(false)
-  const [selectedQuizResult, setSelectedQuizResult] = useState<any | null>(null)
+  const [selectedQuizResult, setSelectedQuizResult] = useState<unknown | null>(null)
   const [showQuizResultModal, setShowQuizResultModal] = useState(false)
-  const [quizResultDetails, setQuizResultDetails] = useState<any | null>(null)
+  const [quizResultDetails, setQuizResultDetails] = useState<unknown | null>(null)
   // const [showQuestionForm, setShowQuestionForm] = useState(false)
   const [currentVideoTime, setCurrentVideoTime] = useState<number>(0)
   const videoRefForFaculty = useRef<HTMLVideoElement>(null)
@@ -98,12 +96,12 @@ export default function CourseDetails() {
   }
 
   // Backend data states
-  const [backendAssignments, setBackendAssignments] = useState<any[]>([])
-  const [backendPYQ, setBackendPYQ] = useState<any[]>([])
-  const [backendNotes, setBackendNotes] = useState<any[]>([])
-  const [backendQuizzes, setBackendQuizzes] = useState<any[]>([])
-  const [myQuizAttempts, setMyQuizAttempts] = useState<any[]>([])
-  const [mySubmissions, setMySubmissions] = useState<any[] | null>(null) // Track student's submissions - null means not loaded yet
+  const [backendAssignments, setBackendAssignments] = useState<unknown[]>([])
+  const [backendPYQ, setBackendPYQ] = useState<unknown[]>([])
+  const [backendNotes, setBackendNotes] = useState<unknown[]>([])
+  const [backendQuizzes, setBackendQuizzes] = useState<unknown[]>([])
+  const [myQuizAttempts, setMyQuizAttempts] = useState<unknown[]>([])
+  const [mySubmissions, setMySubmissions] = useState<unknown[] | null>(null) // Track student's submissions - null means not loaded yet
   const [suspendedQuizIds, setSuspendedQuizIds] = useState<Set<string>>(new Set())
   const [activeQuizIds, setActiveQuizIds] = useState<Set<string>>(new Set())
   const [discussionMessages, setDiscussionMessages] = useState<DiscussionMessage[]>([])
@@ -111,7 +109,7 @@ export default function CourseDetails() {
   const [newPostContent, setNewPostContent] = useState('')
   const [replyingTo, setReplyingTo] = useState<number | null>(null)
   const [replyContent, setReplyContent] = useState('')
-  const [offeringDetails, setOfferingDetails] = useState<any>(null)
+  const [offeringDetails, setOfferingDetails] = useState<unknown>(null)
   const [sidebarOpen, setSidebarOpen] = useState(true)
 
   // Auto-close sidebar when switching tabs
@@ -333,7 +331,7 @@ export default function CourseDetails() {
   const [file, setFile] = useState<File | null>(null)
   // Code submission states
   const [showCodeEditor, setShowCodeEditor] = useState(false)
-  const [viewingCodeSubmission, setViewingCodeSubmission] = useState<any>(null)
+  const [viewingCodeSubmission, setViewingCodeSubmission] = useState<unknown>(null)
 
   // --- Added states for code-question management & editors ---
   const [codeQuestions, setCodeQuestions] = useState<CodeQuestion[]>(() => loadLocalCodeQuestions(courseId ?? ''))
@@ -401,7 +399,7 @@ export default function CourseDetails() {
           allow_multiple_submissions: newAssnMulti,
         },
       })
-      const data = await apiFetch<any[]>(`/api/courses/${courseId}/assignments`)
+      const data = await apiFetch<unknown[]>(`/api/courses/${courseId}/assignments`)
       setBackendAssignments(data)
       push({ kind: 'success', message: 'Assignment added' })
     } else {
@@ -453,7 +451,7 @@ export default function CourseDetails() {
         })
 
         // Refresh assignments list
-        const data = await apiFetch<any[]>(`/api/courses/${courseId}/assignments`)
+        const data = await apiFetch<unknown[]>(`/api/courses/${courseId}/assignments`)
         setBackendAssignments(data)
         push({ kind: 'success', message: 'Code assignment created successfully' })
 
@@ -538,14 +536,14 @@ export default function CourseDetails() {
         }
 
         // Create the question
-        const created = await apiFetch('/api/code-questions', {
+        await apiFetch('/api/code-questions', {
           method: 'POST',
           body: requestBody
         })
 
         // Reload questions from backend
         try {
-          const updated = await apiFetch<any[]>(`/api/courses/${courseId}/code-questions`)
+          const updated = await apiFetch<unknown[]>(`/api/courses/${courseId}/code-questions`)
           setCodeQuestions(updated || [])
         } catch (reloadErr: unknown) {
           console.warn('Failed to reload questions, but question was created:', reloadErr)
@@ -616,7 +614,7 @@ export default function CourseDetails() {
   const refreshSubmissions = async () => {
     if (user?.role === 'student' && user?.id && isBackend && courseId) {
       try {
-        const submissions = await apiFetch<any[]>(`/api/student/courses/${courseId}/submissions`)
+        const submissions = await apiFetch<unknown[]>(`/api/student/courses/${courseId}/submissions`)
         setMySubmissions(submissions || [])
       } catch (err) {
         console.error('Failed to refresh student submissions:', err)
@@ -632,17 +630,17 @@ export default function CourseDetails() {
       ; (async () => {
         // Load offering details first
         try {
-          const offering = await apiFetch<any>(`/api/student/courses/${courseId}`)
+          const offering = await apiFetch<unknown>(`/api/student/courses/${courseId}`)
           if (!cancelled) setOfferingDetails(offering)
         } catch (err) {
           console.error('Failed to load offering details:', err)
         }
         try {
-          const data = await apiFetch<any[]>(`/api/courses/${courseId}/assignments`)
+          const data = await apiFetch<unknown[]>(`/api/courses/${courseId}/assignments`)
           if (!cancelled) setBackendAssignments(data)
-        } catch { }
-        try { const pyq = await apiFetch<any[]>(`/api/courses/${courseId}/pyqs`); if (!cancelled) setBackendPYQ(pyq) } catch { }
-        try { const notes = await apiFetch<any[]>(`/api/courses/${courseId}/notes`); if (!cancelled) setBackendNotes(notes) } catch { }
+        } catch { /* ignore */ }
+        try { const pyq = await apiFetch<unknown[]>(`/api/courses/${courseId}/pyqs`); if (!cancelled) setBackendPYQ(pyq) } catch { /* ignore */ }
+        try { const notes = await apiFetch<unknown[]>(`/api/courses/${courseId}/notes`); if (!cancelled) setBackendNotes(notes) } catch { /* ignore */ }
         // quizzes list for offering + my attempts
         try {
           const quizzesMod = await import('../../services/quizzes')
@@ -652,7 +650,7 @@ export default function CourseDetails() {
             const attempts = await quizzesMod.getQuizAttempts(Number(user.id))
             if (!cancelled) setMyQuizAttempts(attempts)
           }
-        } catch { }
+        } catch { /* ignore */ }
         // Load student's submissions to track which assignments have been submitted
         await refreshSubmissions()
         // Load discussion messages
@@ -919,7 +917,7 @@ export default function CourseDetails() {
         const { getVideoQuizQuestions } = await import('../../services/videos');
         const questionsData = await getVideoQuizQuestions(selectedVideo.id);
         setVideoQuestions(questionsData.questions || []);
-      } catch { }
+      } catch { /* ignore */ }
     })();
   }, [selectedVideo, user?.role])
 
@@ -1052,7 +1050,7 @@ export default function CourseDetails() {
                     const mod = await import('../../services/assignments')
                     await mod.deleteAssignmentApi(Number(id))
                     push({ kind: 'success', message: 'Assignment deleted' })
-                    const data = await apiFetch<any[]>(`/api/courses/${courseId}/assignments`)
+                    const data = await apiFetch<unknown[]>(`/api/courses/${courseId}/assignments`)
                     setBackendAssignments(data)
                   } catch (e: unknown) {
                     push({ kind: 'error', message: e?.message || 'Failed' })
@@ -2157,18 +2155,18 @@ export default function CourseDetails() {
                           throw new Error('Upload failed');
                         }
 
-                        const result = await response.json();
+                        await response.json();
                         push({ kind: 'success', message: 'Resource uploaded successfully' });
 
                         // Refresh the resource lists
                         try {
-                          const pyq = await apiFetch<any[]>(`/api/courses/${courseId}/pyqs`);
+                          const pyq = await apiFetch<unknown[]>(`/api/courses/${courseId}/pyqs`);
                           setBackendPYQ(pyq);
-                        } catch { }
+                        } catch { /* ignore */ }
                         try {
-                          const notes = await apiFetch<any[]>(`/api/courses/${courseId}/notes`);
+                          const notes = await apiFetch<unknown[]>(`/api/courses/${courseId}/notes`);
                           setBackendNotes(notes);
-                        } catch { }
+                        } catch { /* ignore */ }
 
                         // Reset form
                         setFile(null);
@@ -2565,7 +2563,7 @@ export default function CourseDetails() {
                     const { getVideosByCourseOffering } = await import('../../services/videos');
                     const videosData = await getVideosByCourseOffering(courseId!);
                     setBackendVideos(videosData.videos || []);
-                  } catch { }
+                  } catch { /* ignore */ }
                 }}
                 onClose={() => setShowVideoUpload(false)}
               />
