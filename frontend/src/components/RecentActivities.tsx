@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react'
 import { apiFetch } from '../services/api'
-import { useToast } from './ToastProvider'
 import './RecentActivities.css'
 
 interface ActivityItem {
@@ -26,7 +25,6 @@ export default function RecentActivities({ limit = 5, refreshTrigger, onNavigate
   const [loading, setLoading] = useState(true)
   const [showActivityDetailsModal, setShowActivityDetailsModal] = useState(false)
   const [selectedActivity, setSelectedActivity] = useState<ActivityItem | null>(null)
-  const { push } = useToast()
 
   const loadActivities = async () => {
     try {
@@ -110,27 +108,6 @@ export default function RecentActivities({ limit = 5, refreshTrigger, onNavigate
     setShowActivityDetailsModal(true)
   }
 
-  const getActivityDetails = (activity: ActivityItem) => {
-    const { action, entity_type, entity_name, details } = activity
-    let detailText = `${getActionDescription(activity)}\n\n`
-
-    if (details && Object.keys(details).length > 0) {
-      detailText += 'Changes made:\n'
-      if (action === 'update_user' && details.changes) {
-        const changes = details.changes as Record<string, any>
-        Object.entries(changes).forEach(([field, value]) => {
-          detailText += `• ${field}: ${value}\n`
-        })
-      } else {
-        detailText += JSON.stringify(details, null, 2)
-      }
-    }
-
-    detailText += `\nPerformed by: ${activity.admin_name} (${activity.admin_email})`
-    detailText += `\nTime: ${new Date(activity.created_at).toLocaleString()}`
-
-    return detailText
-  }
 
 
   if (loading) {
@@ -260,7 +237,7 @@ export default function RecentActivities({ limit = 5, refreshTrigger, onNavigate
                         border: '1px solid var(--border)'
                       }}>
                         <div style={{ fontSize: '0.9em', lineHeight: '1.6' }}>
-                          {Object.entries(selectedActivity.details.changes as Record<string, any>).map(([field, changeData]) => {
+                          {Object.entries(selectedActivity.details.changes as Record<string, { old?: unknown; new?: unknown } | unknown>).map(([field, changeData]) => {
                             // Handle new format: { old: value, new: value }
                             if (typeof changeData === 'object' && changeData !== null && changeData.old !== undefined && changeData.new !== undefined) {
                               const oldVal = changeData.old === null ? 'null' : String(changeData.old)
@@ -320,7 +297,7 @@ export default function RecentActivities({ limit = 5, refreshTrigger, onNavigate
                         <div style={{ fontWeight: 'bold', marginBottom: '8px' }}>New {selectedActivity.entity_type.charAt(0).toUpperCase() + selectedActivity.entity_type.slice(1)} Created</div>
                         {selectedActivity.details && (
                           <div style={{ fontSize: '0.9em', lineHeight: '1.4' }}>
-                            {Object.entries(selectedActivity.details as Record<string, any>)
+                            {Object.entries(selectedActivity.details as Record<string, unknown>)
                               .filter(([key]) => !['changes', 'old_values', 'new_values'].includes(key))
                               .map(([key, value]) => (
                                 <div key={key}>
@@ -341,7 +318,7 @@ export default function RecentActivities({ limit = 5, refreshTrigger, onNavigate
                         <div style={{ fontWeight: 'bold', marginBottom: '8px' }}>{selectedActivity.entity_type.charAt(0).toUpperCase() + selectedActivity.entity_type.slice(1)} Deleted</div>
                         {selectedActivity.details && (
                           <div style={{ fontSize: '0.9em', lineHeight: '1.4' }}>
-                            {Object.entries(selectedActivity.details as Record<string, any>)
+                            {Object.entries(selectedActivity.details as Record<string, unknown>)
                               .filter(([key]) => !['changes', 'old_values', 'new_values'].includes(key))
                               .map(([key, value]) => (
                                 <div key={key}>

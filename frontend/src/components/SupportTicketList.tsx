@@ -1,14 +1,13 @@
 import { useState, useEffect } from 'react'
-import { getUserTickets, getAllTickets, updateTicketStatus, getTicketDetails, addTicketComment, updateTicketStatus as updateTicket } from '../services/support'
+import { getUserTickets, getAllTickets, updateTicketStatus, getTicketDetails, addTicketComment } from '../services/support'
 import { useAuth } from '../context/AuthContext'
 import type { SupportTicket, TicketDetails, TicketComment } from '../services/support'
 
 interface SupportTicketListProps {
   showAllTickets?: boolean // For admin view
-  courseOfferingId?: number // Filter by course
 }
 
-function SupportTicketList({ showAllTickets = false, courseOfferingId }: SupportTicketListProps) {
+function SupportTicketList({ showAllTickets = false }: SupportTicketListProps) {
   const { user } = useAuth()
   const [tickets, setTickets] = useState<SupportTicket[]>([])
   const [loading, setLoading] = useState(true)

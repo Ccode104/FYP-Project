@@ -1,5 +1,9 @@
 import { API_URL, apiFetch, apiForm } from './api';
 
+interface CustomError extends Error {
+  response?: { data: unknown };
+}
+
 // API base URL
 const baseURL = API_URL;
 
@@ -29,13 +33,13 @@ export async function uploadVideo(
         let data: unknown = {};
         try {
           data = respText ? JSON.parse(respText) : {};
-        } catch (e) {
+        } catch {
           data = { error: respText };
         }
         if (status >= 200 && status < 300) {
           resolve(data);
         } else {
-          const err: unknown = new Error(data.error || `HTTP ${status}`);
+          const err = new Error((data as { error?: string }).error || `HTTP ${status}`) as CustomError;
           err.response = { data };
           reject(err);
         }

@@ -1,9 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { useAuth } from '../../context/AuthContext';
 import { useCourse } from '../../context/CourseContext';
 import { apiFetch } from '../../services/api';
-import { useToast } from '../../components/ToastProvider';
 import AssignmentComments from '../../components/AssignmentComments';
 import './AssignmentDetails.css';
 import '../../components/AssignmentComments.css';
@@ -27,10 +25,8 @@ interface Assignment {
 
 export default function AssignmentDetails() {
   const { courseId, assignmentId } = useParams();
-  const { user: _user } = useAuth();
   const { setAssignmentTitle, setCourseTitle } = useCourse();
   const navigate = useNavigate();
-  const toast = useToast();
   const [assignment, setAssignment] = useState<Assignment | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);

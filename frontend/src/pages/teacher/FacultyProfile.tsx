@@ -1,5 +1,4 @@
 import { useState, useEffect } from 'react';
-import { useAuth } from '../../context/AuthContext';
 import { getUserProfile, updateUserProfile } from '../../services/users';
 import type { UserProfile } from '../../services/users';
 import { useToast } from '../../components/ToastProvider';
@@ -9,7 +8,6 @@ import SupportTicketForm from '../../components/SupportTicketForm';
 import './FacultyProfile.css';
 
 export default function FacultyProfile() {
-  const { user: _user } = useAuth();
   const { push } = useToast();
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);

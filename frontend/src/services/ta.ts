@@ -40,12 +40,12 @@ export interface PendingItem {
   scheduled_at?: string;
 }
 
-export async function getTAAssignments(courseId?: string): Promise<any[]> {
+export async function getTAAssignments(courseId?: string): Promise<unknown[]> {
   const url = courseId ? `/api/ta/assignments?courseId=${courseId}` : '/api/ta/assignments';
   return apiFetch(url);
 }
 
-export async function getGradingSubmissions(assignmentId: number): Promise<any[]> {
+export async function getGradingSubmissions(assignmentId: number): Promise<unknown[]> {
   return apiFetch(`/api/ta/grading/${assignmentId}/submissions`);
 }
 

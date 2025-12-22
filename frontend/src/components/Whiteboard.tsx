@@ -20,6 +20,17 @@ interface DrawData {
   width: number;
 }
 
+interface DrawEventData {
+  lectureId: number;
+  drawingData: DrawData;
+}
+
+
+interface StateEventData {
+  lectureId: number;
+  history: DrawData[];
+}
+
 const Whiteboard: React.FC<WhiteboardProps> = ({ socket, lectureId, isReadOnly, onClose }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [isDrawing, setIsDrawing] = useState(false);
@@ -66,11 +77,12 @@ const Whiteboard: React.FC<WhiteboardProps> = ({ socket, lectureId, isReadOnly, 
   useEffect(() => {
     if (!socket) return;
 
-    const handleDraw = (data: DrawData) => {
+    const handleDraw = (data: unknown) => {
+      const eventData = data as DrawEventData;
       const ctx = canvasRef.current?.getContext('2d');
       if (!ctx) return;
 
-      drawLine(ctx, data.prevPoint, data.currentPoint, data.color, data.width);
+      drawLine(ctx, eventData.drawingData.prevPoint, eventData.drawingData.currentPoint, eventData.drawingData.color, eventData.drawingData.width);
     };
 
     const handleClear = () => {
@@ -81,11 +93,12 @@ const Whiteboard: React.FC<WhiteboardProps> = ({ socket, lectureId, isReadOnly, 
       }
     };
 
-    const handleState = (data: { history: DrawData[] }) => {
+    const handleState = (data: unknown) => {
+      const eventData = data as StateEventData;
       const ctx = canvasRef.current?.getContext('2d');
       if (!ctx) return;
-      
-      data.history.forEach(item => {
+
+      eventData.history.forEach((item: DrawData) => {
         drawLine(ctx, item.prevPoint, item.currentPoint, item.color, item.width);
       });
     };

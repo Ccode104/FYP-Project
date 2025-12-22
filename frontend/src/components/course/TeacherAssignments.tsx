@@ -1,19 +1,38 @@
 import { useState } from "react";
 import { apiFetch } from "../../services/api";
-import { getPlagiarismChecks, runPlagiarismCheck, getPlagiarismMatches } from "../../services/assignments";
+import { getPlagiarismChecks, runPlagiarismCheck } from "../../services/assignments";
+
+interface Assignment {
+  id: string | number;
+  title?: string;
+  [key: string]: unknown;
+}
+
+interface Submission {
+  id: string | number;
+  student_name?: string;
+  submitted_at?: string;
+  [key: string]: unknown;
+}
+
+interface PlagiarismCheck {
+  id: string | number;
+  status?: string;
+  [key: string]: unknown;
+}
 
 export default function TeacherAssignments({
   assignments,
   onViewCode,
 }: {
-  assignments: unknown[];
-  onViewCode?: (submission: unknown) => void;
+  assignments: Assignment[];
+  onViewCode?: (submission: Submission) => void;
 }) {
   const [selectedId, setSelectedId] = useState<string>("");
-  const [selected, setSelected] = useState<any>(null);
+  const [selected, setSelected] = useState<Assignment | null>(null);
   const [loading, setLoading] = useState(false);
-  const [submissions, setSubmissions] = useState<any[]>([]);
-  const [plagiarismChecks, setPlagiarismChecks] = useState<any[]>([]);
+  const [submissions, setSubmissions] = useState<Submission[]>([]);
+  const [plagiarismChecks, setPlagiarismChecks] = useState<PlagiarismCheck[]>([]);
   const [plagiarismLoading, setPlagiarismLoading] = useState(false);
 
   const load = async (id: string) => {

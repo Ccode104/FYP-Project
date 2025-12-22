@@ -38,7 +38,6 @@ export default function InteractiveVideoPlayer({ video, userRole, onComplete }: 
   const [currentQuestion, setCurrentQuestion] = useState<Question | null>(null);
   const [answeredQuestions, setAnsweredQuestions] = useState<Set<number>>(new Set());
   const [studentAnswers, setStudentAnswers] = useState<Record<number, string>>({});
-  const [attempt, setAttempt] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [showScore, setShowScore] = useState(false);
   const [score, setScore] = useState<number | null>(null);
@@ -90,7 +89,7 @@ export default function InteractiveVideoPlayer({ video, userRole, onComplete }: 
               setMaxScore(attemptData.attempt.max_score);
               setShowScore(true);
             }
-          } catch (err) {
+          } catch {
             // Attempt doesn't exist, start new one
             try {
               const newAttempt = await startVideoQuizAttempt(video.id);

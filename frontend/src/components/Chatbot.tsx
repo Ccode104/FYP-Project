@@ -70,7 +70,7 @@ What would you like to know about your course?`,
   // Load chat sessions
   const loadChatSessions = useCallback(async () => {
     try {
-      const response = await apiFetch('/api/chatbot/chats');
+      const response = await apiFetch<{ sessions: ChatSession[] }>('/api/chatbot/chats');
       setSessions(response.sessions || []);
     } catch (error) {
       console.error('Failed to load chat sessions:', error);
@@ -108,11 +108,11 @@ What would you like to know about your course?`,
     setLoading(true);
 
     try {
-      const response = await apiFetch('/api/chatbot/chat', {
+      const response = await apiFetch<{ reply: string; timestamp: string }>('/api/chatbot/chat', {
         method: 'POST',
         body: {
           courseId: courseId?.toString(),
-          documentIds: uploadedDocuments.map((doc: unknown) => doc.id),
+          documentIds: uploadedDocuments.map((doc) => doc.id),
           message: input.trim(),
           history: messages.slice(-10).map(m => ({ role: m.role, content: m.content })),
           enableWebSearch: true
@@ -122,8 +122,8 @@ What would you like to know about your course?`,
       const assistantMessage: Message = {
         id: (Date.now() + 1).toString(),
         role: 'assistant',
-        content: (response as unknown).reply || 'I apologize, but I couldn\'t generate a response.',
-        timestamp: (response as unknown).timestamp || new Date().toISOString()
+        content: response.reply || 'I apologize, but I couldn\'t generate a response.',
+        timestamp: response.timestamp || new Date().toISOString()
       };
 
       setMessages(prev => [...prev, assistantMessage]);
@@ -133,7 +133,7 @@ What would you like to know about your course?`,
       const errorMessage: Message = {
         id: (Date.now() + 2).toString(),
         role: 'assistant',
-        content: `❌ Error: ${error.message || 'Failed to get response. Please try again.'}`,
+        content: `❌ Error: ${(error as Error).message || 'Failed to get response. Please try again.'}`,
         timestamp: new Date().toISOString()
       };
       setMessages(prev => [...prev, errorMessage]);
@@ -172,13 +172,13 @@ What would you like to know about your course?`,
   // Load chat session
   const loadChatSession = async (sessionId: string) => {
     try {
-      const response = await apiFetch(`/api/chatbot/chats/${sessionId}`);
-      setMessages((response as unknown).session.messages.map((m: unknown, index: number) => ({
+      const response = await apiFetch<{ session: { messages: Message[]; uploadedDocuments: UploadedDocument[] } & ChatSession }>(`/api/chatbot/chats/${sessionId}`);
+      setMessages(response.session.messages.map((m, index: number) => ({
         ...m,
         id: `loaded-${index}`
       })));
-      setUploadedDocuments((response as unknown).session.uploadedDocuments || []);
-      setCurrentSession((response as unknown).session);
+      setUploadedDocuments(response.session.uploadedDocuments || []);
+      setCurrentSession(response.session);
       setShowSessions(false);
     } catch (error) {
       console.error('Failed to load chat session:', error);
@@ -450,7 +450,7 @@ What would you like to know about your course?`,
           <div style={{ fontSize: '12px', fontWeight: '600', marginBottom: '4px', color: '#ffffff' }}>
             📎 Documents ({uploadedDocuments.length})
           </div>
-          {uploadedDocuments.map((doc: unknown) => (
+          {uploadedDocuments.map((doc) => (
             <div key={doc.id} style={{
               fontSize: '11px',
               color: '#cccccc',

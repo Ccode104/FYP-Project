@@ -43,7 +43,7 @@ function Reports() {
 
       // Load all data in parallel
       const [
-        overviewData,
+        ,
         usersData,
         coursesData,
         offeringsData,

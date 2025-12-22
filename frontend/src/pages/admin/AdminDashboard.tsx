@@ -1,6 +1,6 @@
 import { useEffect, useState, useMemo, useCallback } from 'react'
 import { courses } from '../../data/mock'
-import { useAuth } from '../../context/AuthContext'
+import { useAuth } from '../../hooks/useAuth'
 import { useNavigate } from 'react-router-dom'
 import CourseCard from '../../components/CourseCard'
 import './AdminDashboard.css'
@@ -8,12 +8,11 @@ import {
   listUsers, getUserOverview, updateUser, deleteUser,
   listDepartments, createDepartment, updateDepartment, deleteDepartment,
   getCoursesByDepartment, getCourseDetails,
-  getAssignmentsByOffering, getAssignmentsByFaculty, getSubmissionsByAssignment,
   assignFacultyToCourse, getOverview, deleteCourse,
   listCourses, createCourse,
-  listOfferings, createOffering, updateOffering, deleteOffering,
-  listAssignments, createAssignment,
-  listQuizzes, createQuiz,
+  createOffering, updateOffering, deleteOffering,
+  createAssignment,
+  createQuiz,
   listEnrollments, createEnrollment, deleteEnrollment
 } from '../../services/admin'
 import { useToast } from '../../components/ToastProvider'
@@ -55,7 +54,7 @@ export default function AdminDashboard() {
   const [roleFilter, setRoleFilter] = useState<'student' | 'faculty' | 'ta' | 'admin' | ''>('')
   const [usersList, setUsersList] = useState<User[]>([])
   const [selectedUser, setSelectedUser] = useState<User | null>(null)
-  const [selectedOverview, setSelectedOverview] = useState<any>(null)
+  const [selectedOverview, setSelectedOverview] = useState<unknown>(null)
   const [loadError, setLoadError] = useState<string>('')
   const [isLoading, setIsLoading] = useState(false)
   const [userSearch, setUserSearch] = useState('')
@@ -145,8 +144,21 @@ export default function AdminDashboard() {
   const [deptCurrentPage, setDeptCurrentPage] = useState(1)
   const [deptItemsPerPage] = useState(10)
   const [showDeptDetailsModal, setShowDeptDetailsModal] = useState(false)
-  const [selectedDeptDetails, setSelectedDeptDetails] = useState<any>(null)
-  const [deptDetailsCourses, setDeptDetailsCourses] = useState<any[]>([])
+  interface DepartmentDetails {
+    id?: string | number;
+    name?: string;
+    [key: string]: unknown;
+  }
+
+  interface Course {
+    id?: string | number;
+    code?: string;
+    name?: string;
+    [key: string]: unknown;
+  }
+
+  const [selectedDeptDetails, setSelectedDeptDetails] = useState<DepartmentDetails | null>(null)
+  const [deptDetailsCourses, setDeptDetailsCourses] = useState<Course[]>([])
 
   // Load users on initial mount for default view
   useEffect(() => {
@@ -182,8 +194,6 @@ export default function AdminDashboard() {
   const [courseSearch, setCourseSearch] = useState('')
   const [courseSearchType, setCourseSearchType] = useState<'all' | 'code' | 'title'>('all')
   const [courseDeptFilter, setCourseDeptFilter] = useState('')
-  const [courseCurrentPage, setCourseCurrentPage] = useState(1)
-  const [courseItemsPerPage] = useState(10)
 
   // Debounced course search effect
   useEffect(() => {
@@ -191,7 +201,7 @@ export default function AdminDashboard() {
 
     const timeoutId = setTimeout(() => {
       // For courses, we just filter the existing data
-      setCourseCurrentPage(1)
+      // No pagination for courses
     }, 300) // 300ms debounce for courses
 
     return () => clearTimeout(timeoutId)
@@ -324,13 +334,11 @@ const totalPages = Math.ceil(filteredUsers.length / itemsPerPage)
 const paginatedUsers = filteredUsers.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage)
 
   // Data Explorer state
-  const [departments, setDepartments] = useState<any[]>([])
-  const [selectedDept, setSelectedDept] = useState<any>(null)
-  const [deptCourses, setDeptCourses] = useState<any[]>([])
-  const [selectedCourse, setSelectedCourse] = useState<any>(null)
+  const [departments, setDepartments] = useState<DepartmentDetails[]>([])
+  const [selectedCourse, setSelectedCourse] = useState<Course | null>(null)
 
   // Admin Courses state
-  const [adminCourses, setAdminCourses] = useState<any[]>([])
+  const [adminCourses, setAdminCourses] = useState<Course[]>([])
   const [loadingCourses, setLoadingCourses] = useState(false)
 
 // Department filtering and pagination
@@ -352,33 +360,17 @@ const filteredDepartments = useMemo(() =>
 const deptTotalPages = Math.ceil(filteredDepartments.length / deptItemsPerPage)
 const paginatedDepartments = filteredDepartments.slice((deptCurrentPage - 1) * deptItemsPerPage, deptCurrentPage * deptItemsPerPage)
 
-// Course filtering and pagination
-const filteredCourses = useMemo(() =>
-  adminCourses ? advancedSearchAndSort(
-    adminCourses.filter(course => courseDeptFilter === '' || course.department_id == courseDeptFilter),
-    courseSearch,
-    (course) => {
-      if (courseSearchType === 'all') return [course.code || '', course.title || '']
-      if (courseSearchType === 'code') return [course.code || '']
-      if (courseSearchType === 'title') return [course.title || '']
-      return [course.code || '', course.title || '']
-    },
-    (course) => course.code || course.title || ''
-  ) : [],
-  [adminCourses, courseSearch, courseSearchType, courseDeptFilter]
-)
 
   const [showCreateCourse, setShowCreateCourse] = useState(false)
   const [newCode, setNewCode] = useState('')
   const [newTitle, setNewTitle] = useState('')
   const [newDesc, setNewDesc] = useState('')
   const [newCredits, setNewCredits] = useState<number | ''>('')
-  const [deptFaculty, setDeptFaculty] = useState<any[]>([])
   const [selectedFacultyIds, setSelectedFacultyIds] = useState<number[]>([])
   const [savingCourse, setSavingCourse] = useState(false)
 
   const [showOfferCourse, setShowOfferCourse] = useState(false)
-  const [offerForCourse, setOfferForCourse] = useState<any>(null)
+  const [offerForCourse, setOfferForCourse] = useState<Course | null>(null)
 
   // Create user modal
   const [showCreateUser, setShowCreateUser] = useState(false)
@@ -398,23 +390,49 @@ const filteredCourses = useMemo(() =>
 
   // Delete course confirmation modal
   const [showDeleteCourseConfirm, setShowDeleteCourseConfirm] = useState(false)
-  const [courseToDelete, setCourseToDelete] = useState<any>(null)
+  const [courseToDelete, setCourseToDelete] = useState<Course | null>(null)
   const [deletingCourse, setDeletingCourse] = useState(false)
 
   // Delete department confirmation modal
   const [showDeleteDeptConfirm, setShowDeleteDeptConfirm] = useState(false)
-  const [deptToDelete, setDeptToDelete] = useState<any>(null)
+  const [deptToDelete, setDeptToDelete] = useState<DepartmentDetails | null>(null)
   const [deletingDept, setDeletingDept] = useState(false)
+
+  interface Offering {
+    id?: string | number;
+    term?: string;
+    section?: string;
+    [key: string]: unknown;
+  }
+
+  interface Enrollment {
+    id?: string | number;
+    student_id?: string | number;
+    [key: string]: unknown;
+  }
+
+  interface EnrollmentData {
+    id?: string | number;
+    student_name?: string;
+    student_email?: string;
+    [key: string]: unknown;
+  }
+
+  interface OverviewStats {
+    total_users?: number;
+    total_courses?: number;
+    [key: string]: unknown;
+  }
 
   // Delete offering confirmation modal
   const [showDeleteOfferingConfirm, setShowDeleteOfferingConfirm] = useState(false)
-  const [offeringToDelete, setOfferingToDelete] = useState<any>(null)
+  const [offeringToDelete, setOfferingToDelete] = useState<Offering | null>(null)
   const [offeringToDeleteMessage, setOfferingToDeleteMessage] = useState('')
   const [deletingOffering, setDeletingOffering] = useState(false)
 
   // Delete enrollment confirmation modal
   const [showDeleteEnrollmentConfirm, setShowDeleteEnrollmentConfirm] = useState(false)
-  const [enrollmentToDelete, setEnrollmentToDelete] = useState<any>(null)
+  const [enrollmentToDelete, setEnrollmentToDelete] = useState<Enrollment | null>(null)
   const [deletingEnrollment, setDeletingEnrollment] = useState(false)
 
   // Create department modal
@@ -451,11 +469,11 @@ const filteredCourses = useMemo(() =>
   // Course management modals
   const [showManageOfferings, setShowManageOfferings] = useState(false)
   const [showManageEnrollments, setShowManageEnrollments] = useState(false)
-  const [courseEnrollments, setCourseEnrollments] = useState<any[]>([])
+  const [courseEnrollments, setCourseEnrollments] = useState<EnrollmentData[]>([])
   const [loadingCourseEnrollments, setLoadingCourseEnrollments] = useState(false)
 
   // Overview state
-  const [overviewStats, setOverviewStats] = useState<any>(null)
+  const [overviewStats, setOverviewStats] = useState<OverviewStats | null>(null)
   const [loadingOverview, setLoadingOverview] = useState(false)
 
   const loadDepartments = async () => {
@@ -782,7 +800,7 @@ const filteredCourses = useMemo(() =>
                     {searchParameterHistory
                       .filter(item => item.keyword.toLowerCase().includes(userSearch.toLowerCase()))
                       .slice(0, 5)
-                      .map((item, _index) => (
+                      .map((item) => (
                         <button
                           key={index}
                           onMouseDown={(e) => {
@@ -1562,7 +1580,7 @@ const filteredCourses = useMemo(() =>
                     {deptSearchParameterHistory
                       .filter(item => item.keyword.toLowerCase().includes(deptSearch.toLowerCase()))
                       .slice(0, 5)
-                      .map((item, _index) => (
+                      .map((item) => (
                         <button
                           key={index}
                           onMouseDown={(e) => {

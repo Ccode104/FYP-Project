@@ -1,6 +1,5 @@
 import { useParams, useNavigate } from 'react-router-dom'
 import { useEffect, useMemo, useState, useRef } from 'react'
-import { useAuth } from '../../context/AuthContext'
 import { useCourse } from '../../context/CourseContext'
 import './CodeSubmissionView.css'
 import { useToast } from '../../components/ToastProvider'
@@ -42,9 +41,14 @@ interface Contest {
   questions?: CodeQuestion[]
 }
 
+interface TestCaseResult {
+  passed?: boolean;
+  output?: string;
+  [key: string]: unknown;
+}
+
 export default function ContestEditorPage() {
   const { courseId, contestId } = useParams()
-  const { user } = useAuth()
   const navigate = useNavigate()
   const { setCourseTitle } = useCourse()
   const toast = useToast()
@@ -59,7 +63,6 @@ export default function ContestEditorPage() {
   const [selectedContest, setSelectedContest] = useState<Contest | null>(null)
   const [codeEditor, setCodeEditor] = useState<Record<string, string>>({})
   const [codeLang, setCodeLang] = useState<Record<string, string>>({})
-  const [runResults, setRunResults] = useState<Record<string, any>>({})
   const [isRunningCode, setIsRunningCode] = useState<Record<string, boolean>>({})
   const [savedQuestions, setSavedQuestions] = useState<Record<string, boolean>>({}) // Track which questions have been saved
   const [isSavingCode, setIsSavingCode] = useState<Record<string, boolean>>({}) // Track saving state per question
@@ -67,12 +70,13 @@ export default function ContestEditorPage() {
   const [consoleExpanded, setConsoleExpanded] = useState<boolean>(false) // Console section collapsed by default
   const [activeConsoleTab, setActiveConsoleTab] = useState<'test-cases' | 'test-results'>('test-cases')
   const [customTestCases, setCustomTestCases] = useState<Record<string, Array<{ id: string, input: string, expected: string, result?: unknown }>>>({})
-  const [testCaseResults, setTestCaseResults] = useState<Record<string, Record<string, any>>>({})
+  // testCaseResults is set but not directly read - results are computed inline
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const [testCaseResults, setTestCaseResults] = useState<Record<string, Record<string, TestCaseResult>>>({})
   const [questionTimers, setQuestionTimers] = useState<Record<string, { startTime: number, elapsedTime: number }>>({})
   const [currentQuestionStartTime, setCurrentQuestionStartTime] = useState<number>(Date.now())
   const [currentQuestionElapsedTime, setCurrentQuestionElapsedTime] = useState<number>(0)
   const [showGamification, setShowGamification] = useState<boolean>(false)
-  const [gamificationData, setGamificationData] = useState<any>(null)
   const previousQuestionRef = useRef<string | null>(null)
 
   // Get current question based on index
@@ -277,7 +281,7 @@ export default function ContestEditorPage() {
       [questionIdStr]: {}
     }))
 
-    const results: Record<string, any> = {}
+    const results: Record<string, TestCaseResult> = {}
 
     // Run code against each test case
     for (const testCase of testCases) {

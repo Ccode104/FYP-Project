@@ -22,21 +22,6 @@ export const useWebRTC = (roomId?: string): UseWebRTCReturn => {
   const localStreamRef = useRef<MediaStream | null>(null);
   const peersRef = useRef<{ [userId: string]: Peer.Instance }>({});
 
-  const initializeLocalStream = useCallback(async (audio = true, video = true) => {
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        audio: audio ? { echoCancellation: true, noiseSuppression: true } : false,
-        video: video ? { width: 1280, height: 720, frameRate: 30 } : false,
-      });
-
-      localStreamRef.current = stream;
-      setLocalStream(stream);
-      return stream;
-    } catch (error) {
-      console.error('Failed to get local stream:', error);
-      throw error;
-    }
-  }, []);
 
   const createPeer = useCallback((remoteUserId: string, initiator: boolean) => {
     const peer = new Peer({

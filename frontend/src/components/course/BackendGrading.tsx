@@ -1,9 +1,17 @@
 import { useState } from 'react'
 import { apiFetch } from '../../services/api'
 
+interface Submission {
+  id: string | number;
+  files?: Array<{ filename?: string }>;
+  student_name?: string;
+  student_email?: string;
+  [key: string]: unknown;
+}
+
 function BackendGrading({ assignments, onSave }: { assignments: unknown[]; onSave: (sid: string, letter: string) => void }) {
   const [assignmentId, setAssignmentId] = useState<string>('')
-  const [items, setItems] = useState<any[]>([])
+  const [items, setItems] = useState<Submission[]>([])
   const [grades, setGrades] = useState<Record<string, string>>({})
   const load = async (id: string) => {
     if (!id) { setItems([]); return }

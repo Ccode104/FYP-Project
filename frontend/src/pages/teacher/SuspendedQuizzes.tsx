@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useAuth } from '../../context/AuthContext'
-import { getSuspendedAttempts, suspendQuizAttempt, resumeQuizAttempt, markAttemptAsViolated } from '../../services/quizzes'
+import { getSuspendedAttempts, resumeQuizAttempt, markAttemptAsViolated } from '../../services/quizzes'
 import { useToast } from '../../components/ToastProvider'
 
 interface SuspendedAttempt {
@@ -83,21 +83,6 @@ export default function SuspendedQuizzes() {
     }
   }
 
-  const handleSuspend = async (attemptId: number, reason: string) => {
-    if (!user) return
-
-    setActionLoading(attemptId)
-    try {
-      await suspendQuizAttempt(attemptId, reason, Number(user.id))
-      push({ kind: 'success', message: 'Quiz attempt suspended successfully' })
-      await loadSuspendedAttempts() // Refresh the list
-    } catch (error) {
-      console.error('Failed to suspend attempt:', error)
-      push({ kind: 'error', message: 'Failed to suspend quiz attempt' })
-    } finally {
-      setActionLoading(null)
-    }
-  }
 
   const getSeverityColor = (severity: number) => {
     switch (severity) {
@@ -185,9 +170,9 @@ export default function SuspendedQuizzes() {
                 <div style={{ marginTop: '16px' }}>
                   <h4 style={{ margin: '0 0 8px 0', fontSize: '1em' }}>Recent Violations:</h4>
                   <div style={{ display: 'grid', gap: '8px', maxHeight: '200px', overflowY: 'auto' }}>
-                    {attempt.violations.slice(0, 5).map((violation, _index) => (
+                    {attempt.violations.slice(0, 5).map((violation) => (
                       <div
-                        key={index}
+                        key={violation.timestamp}
                         style={{
                           padding: '8px',
                           borderRadius: '4px',

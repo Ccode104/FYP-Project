@@ -9,13 +9,43 @@ interface VideoUploadProps {
   onClose?: () => void;
 }
 
+interface UploadProgress {
+  percentCompleted: number;
+  progressEvent: ProgressEvent;
+}
+
+interface Video {
+  id: number;
+  title: string;
+  description?: string;
+  video_url: string;
+  duration?: number;
+  upload_timestamp: string;
+}
+
+interface VideoUploadResponse {
+  video: Video;
+}
+
+interface UploadError extends Error {
+  response?: {
+    data: unknown;
+  };
+}
+
+interface ErrorResponseData {
+  error?: string;
+  message?: string;
+  [key: string]: unknown;
+}
+
 export default function VideoUpload({ courseOfferingId, onUploadSuccess, onClose }: VideoUploadProps) {
   const [file, setFile] = useState<File | null>(null);
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [uploadProgress, setUploadProgress] = useState(0);
   const [isUploading, setIsUploading] = useState(false);
-  const [uploadedVideo, setUploadedVideo] = useState<any>(null);
+  const [uploadedVideo, setUploadedVideo] = useState<Video | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { push } = useToast();
@@ -99,8 +129,9 @@ export default function VideoUpload({ courseOfferingId, onUploadSuccess, onClose
       }
       // Upload with progress tracking
       const response = await uploadVideo(formData, (progressData: unknown) => {
-        setUploadProgress(progressData.percentCompleted || 0);
-      });
+        const progress = progressData as UploadProgress;
+        setUploadProgress(progress.percentCompleted || 0);
+      }) as VideoUploadResponse;
       // Success
       setUploadedVideo(response.video);
       push({ kind: 'success', message: 'Video uploaded successfully!' });
@@ -120,15 +151,16 @@ export default function VideoUpload({ courseOfferingId, onUploadSuccess, onClose
         }
       }, 3000);
     } catch (error: unknown) {
-      console.error('Upload error:', error, error?.response?.data);
-      const backendMsg = error?.response?.data;
+      console.error('Upload error:', error);
+      const uploadError = error as UploadError;
+      const backendMsg = uploadError?.response?.data as ErrorResponseData | undefined;
       const message = typeof backendMsg === 'string'
         ? backendMsg
         : backendMsg && typeof backendMsg.error === 'string'
           ? backendMsg.error + (backendMsg.message ? (': ' + backendMsg.message) : '')
           : backendMsg && Object.keys(backendMsg).length
             ? JSON.stringify(backendMsg)
-            : error?.message || 'Failed to upload video';
+            : uploadError?.message || 'Failed to upload video';
       push({ kind: 'error', message });
     } finally {
       setIsUploading(false);

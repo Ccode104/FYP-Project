@@ -5,7 +5,7 @@ import LiveLectureRoom from '../../components/live-lecture/LiveLectureRoom';
 
 const LiveLecturePage: React.FC = () => {
   const { courseId, lectureId } = useParams<{ courseId: string; lectureId: string }>();
-  const { user: _user } = useAuth();
+  const { user } = useAuth();
   const navigate = useNavigate();
 
   if (!courseId || !lectureId || !user) {

@@ -1,5 +1,4 @@
 import { useState, useEffect } from 'react';
-import { useAuth } from '../../context/AuthContext';
 import { getUserProfile, updateUserProfile } from '../../services/users';
 import type { UserProfile } from '../../services/users';
 import { useToast } from '../../components/ToastProvider';
@@ -7,7 +6,6 @@ import Modal from '../../components/Modal';
 import './AdminProfile.css';
 
 export default function AdminProfile() {
-  const { user: _user } = useAuth();
   const { push } = useToast();
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);

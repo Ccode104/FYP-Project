@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { apiFetch } from '../../services/api'
 import { type ProgressRow } from '../../services/progress'
 
-function groupBy<T, K extends keyof any>(list: T[], getKey: (item: T) => K): Record<K, T[]> {
+function groupBy<T, K extends string | number | symbol>(list: T[], getKey: (item: T) => K): Record<K, T[]> {
   return list.reduce((acc, item) => {
     const k = getKey(item)
     ;(acc as unknown)[k] ||= []
@@ -20,7 +20,7 @@ export default function CourseProgressEmbed({ offeringId }: { offeringId: string
       try {
         const r = await apiFetch<{ rows: ProgressRow[] }>(`/api/progress/course/${offeringId}`)
         setRows(r.rows || [])
-      } catch(e:any){ setError(e?.message||'Failed to load') }
+      } catch(e: unknown){ setError((e as Error)?.message||'Failed to load') }
       finally { setLoading(false) }
     })()
   }, [offeringId])

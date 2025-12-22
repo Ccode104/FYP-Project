@@ -1,5 +1,4 @@
 import { useState, useEffect } from 'react';
-import { useAuth } from '../../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import { getUserProfile, updateUserProfile } from '../../services/users';
 import type { UserProfile } from '../../services/users';
@@ -8,7 +7,6 @@ import Modal from '../../components/Modal';
 import './TAProfile.css';
 
 export default function TAProfile() {
-  const { user: _user } = useAuth();
   const navigate = useNavigate();
   const { push } = useToast();
   const [profile, setProfile] = useState<UserProfile | null>(null);
@@ -142,8 +140,8 @@ export default function TAProfile() {
           <h2>Courses Assisted</h2>
           {profile.taAssignments && profile.taAssignments.length > 0 ? (
             <div className="courses-list">
-              {profile.taAssignments.map((assignment, _index) => (
-                <div key={index} className="course-item">
+              {profile.taAssignments.map((assignment) => (
+                <div key={assignment.assigned_at} className="course-item">
                   <div className="course-info">
                     <h3>{assignment.course_code} - {assignment.course_title}</h3>
                     <p>Term: {assignment.term} {assignment.section ? `Section ${assignment.section}` : ''}</p>

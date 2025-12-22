@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { apiFetch } from '../../services/api'
 import { type ProgressRow } from '../../services/progress'
 
-function groupBy<T, K extends keyof any>(list: T[], getKey: (item: T) => K): Record<K, T[]> {
+function groupBy<T, K extends string | number | symbol>(list: T[], getKey: (item: T) => K): Record<K, T[]> {
   return list.reduce((acc, item) => {
     const k = getKey(item)
     ;(acc as unknown)[k] ||= []
@@ -23,7 +23,7 @@ export default function StudentProgressEmbed({ offeringId, assignmentTotal }: { 
           .filter(row => (!offeringId || String(row.course_offering_id) === String(offeringId)))
           .filter(row => row.submitted_at != null || row.score != null)
         setRows(filtered)
-      } catch(e:any){ setError(e?.message||'Failed to load') }
+      } catch(e: unknown){ setError((e as Error)?.message||'Failed to load') }
       finally { setLoading(false) }
     })()
   }, [offeringId])

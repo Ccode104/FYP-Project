@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react'
-import { useAuth } from '../../context/AuthContext'
-import { getProctoringDashboard, getQuizAnalytics } from '../../services/quizzes'
+import { getProctoringDashboard } from '../../services/quizzes'
 import { useToast } from '../../components/ToastProvider'
 
 interface ProctoringSummary {
@@ -48,12 +47,10 @@ interface DashboardData {
 }
 
 export default function ProctoringDashboard() {
-  const { user } = useAuth()
   const { push } = useToast()
   const [dashboardData, setDashboardData] = useState<DashboardData | null>(null)
   const [loading, setLoading] = useState(true)
   const [selectedCourse, setSelectedCourse] = useState<number | null>(null)
-  const [courseAnalytics, setCourseAnalytics] = useState<any>(null)
 
   useEffect(() => {
     loadDashboardData()
@@ -77,7 +74,6 @@ export default function ProctoringDashboard() {
       // This would need to be implemented based on available quiz data
       setSelectedCourse(courseId)
       // For now, just set to null as we don't have quiz-specific analytics endpoint
-      setCourseAnalytics(null)
     } catch (error) {
       console.error('Failed to load course analytics:', error)
       push({ kind: 'error', message: 'Failed to load course analytics' })
@@ -274,9 +270,9 @@ export default function ProctoringDashboard() {
               {dashboardData.recent_violations.length === 0 ? (
                 <p style={{ margin: 0, color: '#6b7280', fontStyle: 'italic' }}>No recent violations</p>
               ) : (
-                dashboardData.recent_violations.map((violation, _index) => (
+                dashboardData.recent_violations.map((violation) => (
                   <div
-                    key={index}
+                    key={violation.timestamp}
                     style={{
                       padding: '12px',
                       borderRadius: '6px',

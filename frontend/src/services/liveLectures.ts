@@ -1,7 +1,4 @@
-import { API_URL, apiFetch } from './api';
-
-// API base URL
-const baseURL = API_URL;
+import { apiFetch } from './api';
 
 // Create a new live lecture
 export async function createLiveLecture(data: {

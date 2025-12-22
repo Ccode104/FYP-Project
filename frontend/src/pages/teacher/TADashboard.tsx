@@ -1,4 +1,4 @@
-import { useAuth } from "../../context/AuthContext";
+import { useAuth } from "../../hooks/useAuth";
 import { useNavigate } from "react-router-dom";
 import "./TeacherDashboard.css";
 import { useEffect, useState } from "react";
@@ -63,7 +63,7 @@ interface Course {
 }
 
 export default function TADashboard() {
-  const { user: _user } = useAuth();
+  const { user } = useAuth();
   const navigate = useNavigate();
 
   const [dashboardData, setDashboardData] = useState<TADashboardData | null>(null);

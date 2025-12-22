@@ -38,7 +38,13 @@ export default function TAGrading({ courseId }: TAGradingProps) {
   const [selectedAssignment, setSelectedAssignment] = useState<Assignment | null>(null);
   const [submissions, setSubmissions] = useState<Submission[]>([]);
   const [selectedSubmission, setSelectedSubmission] = useState<Submission | null>(null);
-  const [rubric, setRubric] = useState<any>(null);
+  interface Rubric {
+    id?: string | number;
+    criteria?: Array<{ id?: string | number; [key: string]: unknown }>;
+    [key: string]: unknown;
+  }
+
+  const [rubric, setRubric] = useState<Rubric | null>(null);
   const [rubricGrades, setRubricGrades] = useState<RubricGrade[]>([]);
   const [overallComments, setOverallComments] = useState('');
   const [loading, setLoading] = useState(false);

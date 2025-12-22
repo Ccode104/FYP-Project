@@ -18,8 +18,13 @@ export default function QuizTake() {
   const [loading, setLoading] = useState(true)
   const [err, setErr] = useState<string | null>(null)
 
+  interface Answer {
+    answer?: string | number | boolean | string[];
+    [key: string]: unknown;
+  }
+
   // answers keyed by question id
-  const [answers, setAnswers] = useState<Record<number, any>>({})
+  const [answers, setAnswers] = useState<Record<number, Answer>>({})
   const [submitting, setSubmitting] = useState(false)
   const [result, setResult] = useState<{
     score: number | null;
@@ -39,19 +44,20 @@ export default function QuizTake() {
    const [quizStarted, setQuizStarted] = useState(false)
    const [proctoringConfig, setProctoringConfig] = useState<ProctoringConfig | null>(null)
    const [proctoringStatus, setProctoringStatus] = useState<ProctoringStatus | null>(proctoringService.getStatus())
-   const [proctoringSession, setProctoringSession] = useState<any>(null)
+   interface ProctoringSession {
+     id?: string | number;
+     [key: string]: unknown;
+   }
+
+   const [proctoringSession, setProctoringSession] = useState<ProctoringSession | null>(null)
   const [isInitializingProctoring, setIsInitializingProctoring] = useState(false)
   const [checkingPermissions, setCheckingPermissions] = useState(false)
   const [permissionsGranted, setPermissionsGranted] = useState(false)
   const [showFullscreenInstructions, setShowFullscreenInstructions] = useState(false)
   const [fullscreenError, setFullscreenError] = useState<string>('')
   const [fullscreenRetryCount, setFullscreenRetryCount] = useState(0)
-  const [timeExpiredCount, setTimeExpiredCount] = useState(0)
   const [isSuspended, setIsSuspended] = useState(false)
-  const [showResumePrompt, setShowResumePrompt] = useState(false)
-  const [resumeCountdown, setResumeCountdown] = useState(0)
   const submittedAttemptedRef = useRef(false)
-  const sessionCheckInterval = useRef<number | null>(null)
   const resumeTimeout = useRef<number | null>(null)
 
   useEffect(() => {
@@ -671,7 +677,7 @@ export default function QuizTake() {
       return e.returnValue
     }
 
-    const handlePopState = (e: PopStateEvent) => {
+    const handlePopState = () => {
       // Suspend quiz immediately on back button press
       if (!submittedAttemptedRef.current) {
         submittedAttemptedRef.current = true
@@ -856,7 +862,7 @@ export default function QuizTake() {
     })
   }, [quiz, answers])
 
-  const handleSubmit = async (violated = false) => {
+  const handleSubmit = async () => {
     if (!quiz || !user || submitting || result) return
     setSubmitting(true)
     try {
@@ -891,6 +897,7 @@ export default function QuizTake() {
     }
   }
 
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const handleViolationSubmit = () => {
     handleSubmit(true)
   }

@@ -45,7 +45,7 @@ export default function AchievementBadge({ showAll = false, compact = false }: A
   const fetchUserAchievements = async () => {
     try {
       setLoading(true);
-      const response = await apiFetch('/api/gamification/achievements');
+      const response = await apiFetch<{ achievements: Achievement[] }>('/api/gamification/achievements');
       setAchievements(response.achievements || []);
     } catch (err) {
       setError((err as Error).message || 'Failed to load achievements');
@@ -58,8 +58,8 @@ export default function AchievementBadge({ showAll = false, compact = false }: A
     try {
       setLoading(true);
       const [userAchievements, allAchievementsData] = await Promise.all([
-        apiFetch('/api/gamification/achievements'),
-        apiFetch('/api/gamification/achievements/all')
+        apiFetch<{ achievements: Achievement[] }>('/api/gamification/achievements'),
+        apiFetch<{ achievements: AllAchievementData[] }>('/api/gamification/achievements/all')
       ]);
 
       const unlockedIds = new Set(userAchievements.achievements.map((a: Achievement) => a.id));

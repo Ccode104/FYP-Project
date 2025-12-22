@@ -1,0 +1,28 @@
+graph LR
+    subgraph Upload["📤 Upload"]
+        A["Video<br/>Metadata<br/>Cloudinary"]
+    end
+
+    subgraph Quiz["❓ Quiz Setup"]
+        B["Questions<br/>Timestamps<br/>MCQ/TF/SA"]
+    end
+
+    subgraph Play["▶️ Playback"]
+        C["Video Player<br/>Pause at Time<br/>Show Question"]
+    end
+
+    subgraph Interact["✍️ Student"]
+        D["Answer<br/>Submit<br/>Get Feedback"]
+    end
+
+    subgraph Track["📊 Tracking"]
+        E["Attempts<br/>Scores<br/>Analytics"]
+    end
+
+    Upload --> Quiz --> Play --> Interact --> Track
+
+    style Upload fill:#4A90E2,stroke:#2E5C8A,stroke-width:2px,color:#fff
+    style Quiz fill:#9B59B6,stroke:#6C3483,stroke-width:2px,color:#fff
+    style Play fill:#FF6B6B,stroke:#C93A3A,stroke-width:2px,color:#fff
+    style Interact fill:#50C878,stroke:#2D7A4A,stroke-width:2px,color:#fff
+    style Track fill:#F39C12,stroke:#D68910,stroke-width:2px,color:#fff

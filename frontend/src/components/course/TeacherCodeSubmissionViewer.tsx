@@ -5,18 +5,39 @@ import './TeacherCodeSubmissionViewer.css'
 import RubricGradingForm from './RubricGradingForm'
 import type { RubricGrade } from '../../services/rubrics'
 
-function TeacherCodeSubmissionViewer({ submission, onGrade, push }: { submission: unknown; onGrade: (score: number, feedback: string) => void; push: unknown }) {
+interface CodeSubmission {
+  code?: Array<{
+    id: string | number;
+    question_id?: string | number;
+    [key: string]: unknown;
+  }>;
+  [key: string]: unknown;
+}
+
+interface QuestionDetail {
+  id?: string | number;
+  title?: string;
+  [key: string]: unknown;
+}
+
+interface TestCaseResult {
+  passed?: boolean;
+  output?: string;
+  [key: string]: unknown;
+}
+
+function TeacherCodeSubmissionViewer({ submission, onGrade, push }: { submission: CodeSubmission; onGrade: (score: number, feedback: string) => void; push: (opts: { kind?: string; message?: string }) => void }) {
   const [showGradingForm, setShowGradingForm] = useState(false)
   const [gradingMode, setGradingMode] = useState<'standard' | 'rubric'>('standard')
   const [score, setScore] = useState('')
   const [feedback, setFeedback] = useState('')
   const [runningTestCases, setRunningTestCases] = useState<Record<string, boolean>>({})
-  const [testCaseResults, setTestCaseResults] = useState<Record<string, any>>({})
-  const [questionDetails, setQuestionDetails] = useState<Record<string, any>>({})
+  const [testCaseResults, setTestCaseResults] = useState<Record<string, TestCaseResult>>({})
+  const [questionDetails, setQuestionDetails] = useState<Record<string, QuestionDetail>>({})
 
   useEffect(() => {
     const loadQuestionDetails = async () => {
-      const details: Record<string, any> = {}
+      const details: Record<string, QuestionDetail> = {}
       for (const codeSub of submission.code || []) {
         const questionId = codeSub.question_id
         if (questionId) {

@@ -4,10 +4,6 @@ import styles from './ControlBar.module.css';
 interface ControlBarProps {
   isMuted: boolean;
   isVideoOff: boolean;
-  isHandRaised: boolean;
-  isScreenSharing: boolean;
-  isRecording: boolean;
-  connectionQuality?: 'excellent' | 'good' | 'poor' | 'disconnected';
   cameraPermission?: 'granted' | 'denied' | 'prompt';
   microphonePermission?: 'granted' | 'denied' | 'prompt';
   onToggleMute: () => void;
@@ -19,17 +15,11 @@ interface ControlBarProps {
   onOpenChat: () => void;
   onOpenParticipants: () => void;
   onOpenPolls: () => void;
-  onOpenSettings?: () => void;
-  userRole?: 'student' | 'teacher' | 'ta';
 }
 
 export const ControlBar: React.FC<ControlBarProps> = ({
   isMuted,
   isVideoOff,
-  isHandRaised,
-  isScreenSharing,
-  isRecording,
-  connectionQuality = 'excellent',
   cameraPermission = 'prompt',
   microphonePermission = 'prompt',
   onToggleMute,
@@ -41,8 +31,6 @@ export const ControlBar: React.FC<ControlBarProps> = ({
   onOpenChat,
   onOpenParticipants,
   onOpenPolls,
-  onOpenSettings,
-  userRole = 'student',
 }) => {
   return (
     <div className={styles['control-bar-container']}>

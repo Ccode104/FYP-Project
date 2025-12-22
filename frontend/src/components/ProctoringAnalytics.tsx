@@ -1,5 +1,4 @@
 import { useEffect, useState } from 'react'
-import { useAuth } from '../context/AuthContext'
 import { getProctoringDashboard } from '../services/quizzes'
 import { useToast } from './ToastProvider'
 
@@ -52,7 +51,6 @@ interface ProctoringAnalyticsProps {
 }
 
 export default function ProctoringAnalytics({ courseId }: ProctoringAnalyticsProps) {
-  const { user } = useAuth()
   const { push } = useToast()
   const [dashboardData, setDashboardData] = useState<DashboardData | null>(null)
   const [loading, setLoading] = useState(true)
@@ -274,7 +272,7 @@ export default function ProctoringAnalytics({ courseId }: ProctoringAnalyticsPro
               {dashboardData.recent_violations.length === 0 ? (
                 <p style={{ margin: 0, color: '#6b7280', fontStyle: 'italic' }}>No recent violations</p>
               ) : (
-                dashboardData.recent_violations.map((violation, _index) => (
+                dashboardData.recent_violations.map((violation, index) => (
                   <div
                     key={index}
                     style={{

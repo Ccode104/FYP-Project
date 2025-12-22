@@ -5,7 +5,7 @@ import TAProfile from './teacher/TAProfile';
 import AdminProfile from './admin/AdminProfile';
 
 export default function Profile() {
-  const { user: _user } = useAuth();
+  const { user } = useAuth();
 
   if (!user) {
     return <div>Please log in to view your profile.</div>;

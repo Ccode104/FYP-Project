@@ -3,26 +3,41 @@ import { useNavigate } from "react-router-dom";
 import { useState } from "react";
 import AssignmentSubmissionModal from "../AssignmentSubmissionModal";
 
+interface Assignment {
+  id: string | number;
+  title?: string;
+  [key: string]: unknown;
+}
+
+interface AssignmentItem {
+  id: string | number;
+  title?: string;
+  is_quiz?: boolean;
+  isSubmitted?: boolean;
+  quiz_id?: string | number;
+  due_at?: string;
+  allow_github_repo?: boolean;
+  [key: string]: unknown;
+}
+
 export default function PresentAssignmentsSection({
   userRole,
   presentAssignments,
   isBackend,
   onTeacherDelete,
   onAttemptQuiz,
-  onStartCodeAttempt,
   onSubmitSuccess,
 }: {
   userRole?: string;
-  presentAssignments: unknown[];
+  presentAssignments: AssignmentItem[];
   isBackend: boolean;
   onTeacherDelete: (assignmentId: number) => Promise<void>;
   onAttemptQuiz: (quizId: unknown) => void;
-  onStartCodeAttempt: (assignment: unknown) => void;
   onSubmitSuccess?: () => void;
 }) {
   const navigate = useNavigate();
   const [submissionModalOpen, setSubmissionModalOpen] = useState(false);
-  const [selectedAssignment, setSelectedAssignment] = useState<any>(null);
+  const [selectedAssignment, setSelectedAssignment] = useState<Assignment | null>(null);
   return (
     <section className="assignments-section">
       <div className="section-header">
@@ -43,7 +58,7 @@ export default function PresentAssignmentsSection({
       )}
 
       <div className="assignments-grid">
-        {presentAssignments.map((a: unknown) => (
+        {presentAssignments.map((a: AssignmentItem) => (
           <div
             key={a.id}
             className={`assignment-card ${

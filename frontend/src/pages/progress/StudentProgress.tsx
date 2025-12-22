@@ -1,10 +1,9 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { useAuth } from '../../context/AuthContext'
 import { getMyProgress, type ProgressRow } from '../../services/progress'
 import { useToast } from '../../components/ToastProvider'
 
-function groupBy<T, K extends keyof any>(list: T[], getKey: (item: T) => K): Record<K, T[]> {
+function groupBy<T, K extends string | number | symbol>(list: T[], getKey: (item: T) => K): Record<K, T[]> {
   return list.reduce((acc, item) => {
     const k = getKey(item)
     ;(acc as unknown)[k] ||= []
@@ -14,7 +13,7 @@ function groupBy<T, K extends keyof any>(list: T[], getKey: (item: T) => K): Rec
 }
 
 export default function StudentProgress() {
-  const { user, logout } = useAuth()
+  const { logout } = useAuth()
   const navigate = useNavigate()
   const { push } = useToast()
 

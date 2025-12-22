@@ -59,6 +59,7 @@ interface ConnectionStats {
   packetLoss?: number;
 }
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 interface SocketData {
   id?: number;
   userId: number;
@@ -77,17 +78,6 @@ interface SocketData {
   isSharing?: boolean;
 }
 
-interface ParticipantData extends SocketData {
-  user_id?: number;
-  name?: string;
-  user_name?: string;
-  role?: string;
-  is_muted?: boolean;
-  is_video_off?: boolean;
-  is_hand_raised?: boolean;
-  is_screen_sharing?: boolean;
-  joined_at?: string;
-}
 
 const LiveLectureRoom: React.FC<LiveLectureRoomProps> = ({
   lectureId,
@@ -123,15 +113,13 @@ const LiveLectureRoom: React.FC<LiveLectureRoomProps> = ({
   const [isHandRaised, setIsHandRaised] = useState(false);
   const [screenSharingUserId, setScreenSharingUserId] = useState<number | null>(null);
   const [isRecording, setIsRecording] = useState(false);
-  const [localStream, setLocalStream] = useState<MediaStream | null>(null);
 
   // Screen sharing hook
   const {
     isSharing: isScreenSharing,
     screenStream,
     startScreenShare,
-    stopScreenShare,
-    error: screenShareError
+    stopScreenShare
   } = useScreenShare();
 
   // Permission state

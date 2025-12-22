@@ -20,9 +20,21 @@ export default function VideoQuestionManager({
   currentTime,
   onTimeSelect,
 }: VideoQuestionManagerProps) {
-  const [questions, setQuestions] = useState<any[]>([]);
+  interface Question {
+    id?: string | number;
+    question_text?: string;
+    question_type?: string;
+    options?: string[];
+    correct_answer?: string;
+    points?: string | number;
+    explanation?: string;
+    timestamp?: string;
+    [key: string]: unknown;
+  }
+
+  const [questions, setQuestions] = useState<Question[]>([]);
   const [showForm, setShowForm] = useState(false);
-  const [editingQuestion, setEditingQuestion] = useState<any | null>(null);
+  const [editingQuestion, setEditingQuestion] = useState<Question | null>(null);
   const [formData, setFormData] = useState({
     question_text: '',
     question_type: 'mcq',
@@ -205,7 +217,7 @@ export default function VideoQuestionManager({
             {formData.question_type === 'mcq' && (
               <div className="form-group">
                 <label>Options *</label>
-                {formData.options.map((option, _index) => (
+                {formData.options.map((option, index) => (
                   <input
                     key={index}
                     type="text"

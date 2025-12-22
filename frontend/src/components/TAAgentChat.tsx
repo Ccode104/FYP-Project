@@ -207,7 +207,7 @@ How can I assist you with your evaluation tasks today?`,
       </div>
 
       <div className="quick-actions">
-        {quickActions.map((action, _index) => (
+        {quickActions.map((action, index) => (
           <button
             key={index}
             className="quick-action-btn"

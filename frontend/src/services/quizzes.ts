@@ -31,7 +31,7 @@ export interface QuizAttempt {
   started_at: string
   finished_at: string
   score: number | null
-  answers: Record<string, any>
+  answers: Record<string, unknown>
 }
 
 export async function listCourseQuizzes(offeringId: number): Promise<Partial<Quiz>[]> {
@@ -45,12 +45,12 @@ export async function getQuiz(quizId: number): Promise<Quiz> {
 export async function submitQuizAttempt(data: {
   quiz_id: number
   student_id: number
-  answers: Record<number, any>
+  answers: Record<number, unknown>
   proctoring_session_id?: number
 }): Promise<{
   message: string
   attempt: QuizAttempt
-  graded_answers: Record<number, any>
+  graded_answers: Record<number, unknown>
   needs_manual_grading: boolean
   proctoring_result?: {
     violated: boolean

@@ -1,10 +1,25 @@
 import { useState } from 'react'
 import { apiFetch } from '../../services/api'
 
-function BackendSubmissions({ assignments, onViewCode }: { assignments: unknown[]; onViewCode?: (submission: unknown) => void }) {
+interface Submission {
+  id: string | number;
+  files?: Array<{ filename?: string }>;
+  student_name?: string;
+  student_email?: string;
+  [key: string]: unknown;
+}
+
+interface Assignment {
+  id: string | number;
+  title?: string;
+  assignment_type?: string;
+  [key: string]: unknown;
+}
+
+function BackendSubmissions({ assignments, onViewCode }: { assignments: Assignment[]; onViewCode?: (submission: Submission) => void }) {
   const [assignmentId, setAssignmentId] = useState<string>('')
-  const [items, setItems] = useState<any[]>([])
-  const [selectedAssignment, setSelectedAssignment] = useState<any>(null)
+  const [items, setItems] = useState<Submission[]>([])
+  const [selectedAssignment, setSelectedAssignment] = useState<Assignment | null>(null)
   const load = async (id: string) => {
     if (!id) { setItems([]); setSelectedAssignment(null); return }
     const data = await apiFetch<{ submissions: unknown[] }>(`/api/assignments/${id}/submissions`)
