@@ -1,0 +1,55 @@
+name: Dependency Updates
+
+on:
+  schedule:
+    # Run monthly on the 1st at 00:00 UTC
+    - cron: '0 0 1 * *'
+  workflow_dispatch:
+
+jobs:
+  check-updates:
+    name: Check for Dependency Updates
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20.x'
+      
+      - name: Check backend dependencies
+        run: |
+          cd backend
+          npm outdated || true
+          echo "Backend dependency check complete"
+      
+      - name: Check frontend dependencies
+        run: |
+          cd frontend
+          npm outdated || true
+          echo "Frontend dependency check complete"
+      
+      - name: Create issue for updates
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const { data: issues } = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'open',
+              labels: 'dependencies'
+            });
+            
+            if (issues.length === 0) {
+              await github.rest.issues.create({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                title: '📦 Monthly Dependency Update Check',
+                body: 'This is an automated reminder to review and update dependencies.\n\nPlease check:\n- [ ] Backend dependencies (`backend/package.json`)\n- [ ] Frontend dependencies (`frontend/package.json`)\n- [ ] Security vulnerabilities\n- [ ] Breaking changes in major updates',
+                labels: ['dependencies', 'maintenance']
+              });
+            }
+

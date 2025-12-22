@@ -1,0 +1,21 @@
+# Default owners for the entire repository
+* @
+
+# Backend code
+/backend/ @
+
+# Frontend code
+/frontend/ @
+
+# CI/CD configuration
+/.github/ @
+
+# Documentation
+*.md @
+
+# Configuration files
+/.gitignore @
+/.prettierrc.json @
+/.lintstagedrc.js @
+/package.json @
+

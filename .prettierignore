@@ -1,0 +1,12 @@
+node_modules
+dist
+build
+coverage
+*.log
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+.env
+.env.*
+EduPortal-Mobile
+

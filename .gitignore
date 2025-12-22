@@ -7,10 +7,21 @@ yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
 
+# Dependencies
 node_modules
+.pnp
+.pnp.js
+
+# Build outputs
 dist
 dist-ssr
+build
 *.local
+
+# Testing
+coverage
+.nyc_output
+*.lcov
 
 # Editor directories and files
 .vscode/*
@@ -33,3 +44,21 @@ frontend/.env
 .env.development.local
 .env.test.local
 .env.production.local
+
+# Mobile app directory (to be removed in future)
+EduPortal-Mobile/
+EduPortal-Mobile/**
+!EduPortal-Mobile/.gitkeep
+
+# OS files
+Thumbs.db
+.DS_Store
+
+# Temporary files
+*.tmp
+*.temp
+.cache
+
+# CI/CD
+.vercel
+.netlify

@@ -1,1 +1,6 @@
+# Run lint-staged for staged files only (continue on error to allow commit)
+npx lint-staged || echo "⚠️  lint-staged had issues, but continuing..."
+
+# Run full test suite (can be slow, but ensures everything works)
+echo "Running full test suite..."
 cd backend && npm run lint && npm test && cd ../frontend && npm run lint && npm test

@@ -4,10 +4,15 @@
   "type": "module",
   "scripts": {
     "dev": "nodemon --watch src --exec node src/index.js",
-    "start": "nodemon index.js",
+    "start": "node index.js",
+    "start:dev": "nodemon index.js",
     "migrate": "psql \"$DATABASE_URL\" -f prisma/migrations/20251014_additional.sql",
-    "test": "jest --passWithNoTests",
-    "lint": "eslint ."
+    "test": "jest --passWithNoTests --coverage",
+    "test:watch": "jest --watch",
+    "test:ci": "jest --passWithNoTests --coverage --ci",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "format": "prettier --write \"**/*.{js,json,md}\" --ignore-path ../.prettierignore"
   },
   "dependencies": {
     "@langchain/community": "^0.3.0",

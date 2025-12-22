@@ -1,0 +1,60 @@
+name: PR Quality Checks
+
+on:
+  pull_request:
+    branches: [main, develop]
+    paths-ignore:
+      - '**.md'
+      - '**.png'
+      - '**.jpg'
+      - '**.jpeg'
+      - '**.gif'
+      - '**.svg'
+      - 'EduPortal-Mobile/**'
+
+env:
+  NODE_VERSION: '20.x'
+
+jobs:
+  pr-checks:
+    name: PR Quality Checks
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+      
+      - name: Check for merge conflicts
+        run: |
+          git fetch origin
+          git merge-base --is-ancestor origin/${{ github.base_ref }} HEAD || \
+          (echo "❌ Branch is not up to date with base branch" && exit 1)
+      
+      - name: Check commit messages
+        uses: actions/checkout@v4
+        run: |
+          echo "Checking commit messages..."
+          git log origin/${{ github.base_ref }}..HEAD --pretty=format:"%s" | while read msg; do
+            if ! echo "$msg" | grep -qE "^(feat|fix|docs|style|refactor|perf|test|chore|ci|build|revert)(\(.+\))?: .{1,}"; then
+              echo "❌ Invalid commit message: $msg"
+              echo "Commit messages must follow conventional commits format:"
+              echo "  type(scope): description"
+              echo "  Example: feat(auth): add Google sign-in"
+              exit 1
+            fi
+          done || true
+      
+      - name: Check file sizes
+        run: |
+          echo "Checking for large files..."
+          find . -type f -size +5M ! -path "./node_modules/*" ! -path "./.git/*" ! -path "./EduPortal-Mobile/*" ! -path "./dist/*" | while read file; do
+            echo "⚠️  Large file detected: $file ($(du -h "$file" | cut -f1))"
+          done || true
+

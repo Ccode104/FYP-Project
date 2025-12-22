@@ -7,9 +7,16 @@
     "dev": "vite",
     "start": "vite",
     "build": "vite build",
+    "build:analyze": "vite build --mode analyze",
     "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "type-check": "tsc --noEmit",
     "preview": "vite preview",
-    "test": "vitest run --passWithNoTests"
+    "test": "vitest run --passWithNoTests --coverage",
+    "test:watch": "vitest watch",
+    "test:ui": "vitest --ui",
+    "test:ci": "vitest run --passWithNoTests --coverage --ci",
+    "format": "prettier --write \"**/*.{ts,tsx,json,md,css}\" --ignore-path ../.prettierignore"
   },
   "dependencies": {
     "@monaco-editor/react": "^4.7.0",
