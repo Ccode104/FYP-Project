@@ -230,9 +230,6 @@ function App() {
             }
           />
 
-          {/* Catch-all fallback — any unknown route redirects to home */}
-          <Route path="*" element={<Navigate to="/" replace />} />
-
         </Routes>
         </Suspense>
       </Layout>
