@@ -71,6 +71,7 @@ export default function StudentDashboard() {
   const [courseCounts, setCourseCounts] = useState<Record<number, { pendingAssignments: number; pendingQuizzes: number; unreadNotifications: number }>>({})
   const [assignments, setAssignments] = useState<unknown[]>([])
   const [events, setEvents] = useState<unknown[]>([])
+  const [lectures, setLectures] = useState<unknown[]>([])
 
   // Cache for course data to prevent unnecessary API calls
   const [lastFetchTime, setLastFetchTime] = useState<number>(0)
