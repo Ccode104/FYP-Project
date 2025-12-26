@@ -1,7 +1,6 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useState, createContext, useContext } from 'react'
 import type { User } from '../utils/auth'
 import { mapBackendRole } from '../utils/auth'
-import { AuthContext } from './AuthContextBase'
 
 interface AuthContextValue {
   user: User | null
@@ -9,6 +8,8 @@ interface AuthContextValue {
   loginWithGoogle: (credential: string, role?: 'student' | 'teacher' | 'ta' | 'admin') => Promise<User>
   logout: () => void
 }
+
+const AuthContext = createContext<AuthContextValue | undefined>(undefined)
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(() => {
@@ -81,6 +82,27 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const value = useMemo(() => ({ user, login, loginWithGoogle, logout }), [user])
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
+}
+
+export function useAuth() {
+  const context = useContext(AuthContext)
+  if (!context) {
+    throw new Error('useAuth must be used within AuthProvider')
+  }
+  return context
+}
+
+export function getDashboardPathForRole(role: string | undefined): string {
+  if (!role) return '/'
+  
+  const roleMap: Record<string, string> = {
+    student: '/student/dashboard',
+    teacher: '/teacher/dashboard',
+    ta: '/ta/dashboard',
+    admin: '/admin/dashboard'
+  }
+  
+  return roleMap[role] || '/'
 }
 
 export { type Role } from '../utils/auth'
