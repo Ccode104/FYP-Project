@@ -1,12 +1,20 @@
 import { useNavigate } from 'react-router-dom'
+import { useEffect } from 'react'
 // // Ensure image is imported properly
 // import backgroundImg from '../assets/background.jpg'
 import './Landing.css'
-import { useAuth } from '../context/AuthContext'
+import { useAuth, getDashboardPathForRole } from '../context/AuthContext'
 
 export default function Landing() {
   const navigate = useNavigate()
   const { user } = useAuth()
+
+  // Redirect authenticated users to their dashboard
+  useEffect(() => {
+    if (user) {
+      navigate(getDashboardPathForRole(user.role), { replace: true })
+    }
+  }, [user, navigate])
 
   return (
     <div className="landing-page">
