@@ -168,6 +168,7 @@ export async function startServer(port = 4000) {
   app.use('/api/gamification', gamificationRoutes);
   app.use('/api/proctoring-analytics', proctoringAnalyticsRoutes);
   app.use('/api/proctoring', proctoringRoutes);
+  app.use('/api/contests', contestsRoutes);
   app.use('/api/messages', messagesRoutes);
   app.use('/api/ta', taRoutes);
   app.use('/api/viva', vivaRoutes);
