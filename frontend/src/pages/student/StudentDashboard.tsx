@@ -175,21 +175,26 @@ export default function StudentDashboard() {
 
                 // Fetch contests for this course
                 console.log(`Fetching contests for course ${courseId}`)
-                const courseContests = await apiFetch<unknown[]>(`/api/course-offerings/${courseId}/contests`)
-                console.log(`Received contests for course ${courseId}:`, courseContests)
-                // Transform contests to calendar events (end_at as deadline)
-                const contestDeadlineEvents = courseContests
-                  .filter((contest: unknown) => contest.end_at) // Only contests with end dates
-                  .map((contest: unknown) => ({
-                    id: `contest_${contest.id}`,
-                    title: `Contest Deadline: ${contest.title}`,
-                    scheduled_at: contest.end_at,
-                    course_offering_id: courseId,
-                    course_title: response.courses.find((c: unknown) => c.id === courseId)?.course_title,
-                    type: 'deadline' as const
-                  }))
-                console.log(`Created contest deadline events for course ${courseId}:`, contestDeadlineEvents)
-                allAssignments.push(...contestDeadlineEvents)
+                try {
+                  const courseContests = await apiFetch<unknown[]>(`/api/course-offerings/${courseId}/contests`)
+                  console.log(`Received contests for course ${courseId}:`, courseContests)
+                  // Transform contests to calendar events (end_at as deadline)
+                  const contestDeadlineEvents = courseContests
+                    .filter((contest: unknown) => contest.end_at) // Only contests with end dates
+                    .map((contest: unknown) => ({
+                      id: `contest_${contest.id}`,
+                      title: `Contest Deadline: ${contest.title}`,
+                      scheduled_at: contest.end_at,
+                      course_offering_id: courseId,
+                      course_title: response.courses.find((c: unknown) => c.id === courseId)?.course_title,
+                      type: 'deadline' as const
+                    }))
+                  console.log(`Created contest deadline events for course ${courseId}:`, contestDeadlineEvents)
+                  allAssignments.push(...contestDeadlineEvents)
+                } catch (contestErr) {
+                  // Contests endpoint might not be available, skip silently
+                  console.log(`No contests available for course ${courseId}`)
+                }
               } catch (err) {
                 console.warn(`Failed to fetch assignments/contests for course ${courseId}:`, err)
               }
