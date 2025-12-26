@@ -1,5 +1,5 @@
 import { useNavigate } from 'react-router-dom'
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
 // // Ensure image is imported properly
 // import backgroundImg from '../assets/background.jpg'
 import './Landing.css'
@@ -8,10 +8,12 @@ import { useAuth, getDashboardPathForRole } from '../context/AuthContext'
 export default function Landing() {
   const navigate = useNavigate()
   const { user } = useAuth()
+  const hasRedirected = useRef(false)
 
-  // Redirect authenticated users to their dashboard
+  // Redirect authenticated users to their dashboard (only once)
   useEffect(() => {
-    if (user) {
+    if (user && !hasRedirected.current) {
+      hasRedirected.current = true
       navigate(getDashboardPathForRole(user.role), { replace: true })
     }
   }, [user, navigate])
