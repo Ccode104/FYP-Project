@@ -96,10 +96,10 @@ export function getDashboardPathForRole(role: string | undefined): string {
   if (!role) return '/'
   
   const roleMap: Record<string, string> = {
-    student: '/student/dashboard',
-    teacher: '/teacher/dashboard',
-    ta: '/ta/dashboard',
-    admin: '/admin/dashboard'
+    student: '/dashboard/student',
+    teacher: '/dashboard/teacher',
+    ta: '/dashboard/ta',
+    admin: '/dashboard/admin'
   }
   
   return roleMap[role] || '/'
