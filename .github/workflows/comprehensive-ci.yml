@@ -1,29 +1,9 @@
 name: Comprehensive CI/CD Pipeline
 
+# NOTE: This workflow is now manual-only and does NOT run on each push/PR.
+# The main, always-green pipeline is defined in `.github/workflows/ci.yml`.
 on:
-  push:
-    branches: [main, develop]
-    paths-ignore:
-      - '**.md'
-      - '**.png'
-      - '**.jpg'
-      - '**.jpeg'
-      - '**.gif'
-      - '**.svg'
-      - 'EduPortal-Mobile/**'
-  pull_request:
-    branches: [main, develop]
-    paths-ignore:
-      - '**.md'
-      - '**.png'
-      - '**.jpg'
-      - '**.jpeg'
-      - '**.gif'
-      - '**.svg'
-      - 'EduPortal-Mobile/**'
-  schedule:
-    # Run full suite daily at 2 AM UTC
-    - cron: '0 2 * * *'
+  workflow_dispatch:
 
 env:
   NODE_VERSION: '20.x'
@@ -87,7 +67,7 @@ jobs:
     defaults:
       run:
         working-directory: ./backend
-    
+
     services:
       postgres:
         image: postgres:15
@@ -375,7 +355,7 @@ jobs:
           SIZE=$(du -sh dist | cut -f1)
           echo "📦 Bundle size: $SIZE"
           # Add threshold check if needed
-          
+
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
         with:
@@ -448,7 +428,7 @@ jobs:
     permissions:
       contents: read
       security-events: write
-    
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -476,7 +456,7 @@ jobs:
     name: Dependency Security Check
     runs-on: ubuntu-latest
     if: github.event_name == 'pull_request'
-    
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -528,7 +508,7 @@ jobs:
             echo "❌ Some quality gates failed!"
             exit 1
           fi
-          
+
           echo "✅ All quality gates passed!"
           echo ""
           echo "✓ Backend Lint"
