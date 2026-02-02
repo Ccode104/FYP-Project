@@ -152,8 +152,12 @@ function analyzeCodePatterns(code, language) {
 
   for (const rawLine of lines) {
     const trimmedLine = rawLine.trim();
-    if (!trimmedLine) continue;
-    if (trimmedLine.startsWith('//') || trimmedLine.startsWith('#')) continue;
+    if (!trimmedLine) {
+      continue;
+    }
+    if (trimmedLine.startsWith('//') || trimmedLine.startsWith('#')) {
+      continue;
+    }
 
     const indent = (rawLine.match(/^\s*/) || [''])[0].length;
 
@@ -190,7 +194,7 @@ function analyzeCodePatterns(code, language) {
   }
 
   // --- Algorithmic pattern detection (sorting, search, DP, structures) ----------------------
-  let dpDetected = /\b(dp|memo|cache)\s*[\[\.\_]/.test(codeStr) || /\[i\]\s*\[j\]/i.test(code);
+  const dpDetected = /\b(dp|memo|cache)\s*[\[\.\_]/.test(codeStr) || /\[i\]\s*\[j\]/i.test(code);
   if (dpDetected) {
     patterns.push('Dynamic Programming pattern detected');
   }
@@ -335,6 +339,7 @@ async function analyzeWithGroq(code, language) {
   try {
     parsed = JSON.parse(content);
   } catch (e) {
+    console.warn('Failed to parse Groq complexity JSON response:', e);
     throw new Error('Failed to parse Groq complexity JSON response');
   }
 
@@ -381,7 +386,7 @@ export async function injectLogicalBug(req, res) {
     }
 
     // Analyze code to find injection points
-    const bugInfo = selectBugInjectionPoint(code, language);
+    const bugInfo = selectBugInjectionPoint(code);
 
     if (!bugInfo) {
       return res.json({
@@ -431,7 +436,7 @@ export async function injectLogicalBug(req, res) {
 /**
  * Select a suitable point for bug injection
  */
-function selectBugInjectionPoint(code, language) {
+function selectBugInjectionPoint(code) {
   const lines = code.split('\n');
   const bugs = [
     {
