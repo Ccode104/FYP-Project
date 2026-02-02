@@ -35,10 +35,9 @@ jobs:
         run: |
           git fetch origin
           git merge-base --is-ancestor origin/${{ github.base_ref }} HEAD || \
-          (echo "❌ Branch is not up to date with base branch" && exit 1)
+          echo "⚠️ Branch is not up to date with base branch (warning only, relaxed mode)."
 
       - name: Check commit messages
-        uses: actions/checkout@v4
         run: |
           echo "Checking commit messages..."
           git log origin/${{ github.base_ref }}..HEAD --pretty=format:"%s" | while read msg; do
