@@ -221,7 +221,7 @@ Tests are automatically run on:
 - **Pull Requests**: All tests + coverage gates
 - **Daily Schedule**: Performance benchmarking
 
-View workflow: `.github/workflows/comprehensive-ci.yml`
+View workflow: `.github/workflows/ci.yml`
 
 ## Troubleshooting
 

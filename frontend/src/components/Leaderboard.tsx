@@ -13,7 +13,7 @@ interface LeaderboardEntry {
 }
 
 interface LeaderboardProps {
-  type: 'assignment' | 'course' | 'global';
+  type: 'assignment' | 'course' | 'global' | 'contest';
   referenceId?: number;
   limit?: number;
 }
@@ -101,9 +101,13 @@ export default function Leaderboard({ type, referenceId, limit = 20 }: Leaderboa
     <div className="leaderboard-container">
       <div className="leaderboard-header">
         <h3>
-          {type === 'global' ? 'Global Leaderboard' :
-           type === 'course' ? 'Course Leaderboard' :
-           'Assignment Leaderboard'}
+          {type === 'global'
+            ? 'Global Leaderboard'
+            : type === 'course'
+            ? 'Course Leaderboard'
+            : type === 'contest'
+            ? 'Contest Leaderboard'
+            : 'Assignment Leaderboard'}
         </h3>
         {userRank && (
           <div className="user-rank">

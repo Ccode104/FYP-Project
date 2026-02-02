@@ -4,7 +4,7 @@ import { useCourse } from '../../context/CourseContext'
 import './CodeSubmissionView.css'
 import { useToast } from '../../components/ToastProvider'
 import { apiFetch } from '../../services/api'
-import CodeEditor from '../../components/CodeEditor'
+import AIEnhancedCodeEditor from '../../components/AIEnhancedCodeEditor'
 import Leaderboard from '../../components/Leaderboard'
 import AchievementBadge from '../../components/AchievementBadge'
 import UserStats from '../../components/UserStats'
@@ -39,6 +39,18 @@ interface Contest {
   allow_multiple_submissions: boolean
   created_by: number
   questions?: CodeQuestion[]
+}
+
+interface RunResult {
+  output?: string;
+  error?: string;
+  [key: string]: unknown;
+}
+
+interface GamificationData {
+  points?: number;
+  badges?: unknown[];
+  [key: string]: unknown;
 }
 
 interface TestCaseResult {
@@ -77,6 +89,8 @@ export default function ContestEditorPage() {
   const [currentQuestionStartTime, setCurrentQuestionStartTime] = useState<number>(Date.now())
   const [currentQuestionElapsedTime, setCurrentQuestionElapsedTime] = useState<number>(0)
   const [showGamification, setShowGamification] = useState<boolean>(false)
+  const [, setRunResults] = useState<Record<string, RunResult>>({})
+  const [, setGamificationData] = useState<GamificationData | null>(null)
   const previousQuestionRef = useRef<string | null>(null)
 
   // Get current question based on index
@@ -692,14 +706,18 @@ export default function ContestEditorPage() {
               {/* Code Editor Area */}
               <div className="code-editor-area">
                 {currentQuestion && (
-                  <CodeEditor
-                    value={codeEditor[currentQuestion.id] || ''}
-                    onChange={(code) => setCodeEditor(prev => ({ ...prev, [currentQuestion.id]: code }))}
-                    onSubmit={(code, lang) => {
-                      setCodeEditor(prev => ({ ...prev, [currentQuestion.id]: code }))
+                  <AIEnhancedCodeEditor
+                    questionId={currentQuestion.id}
+                    initialCode={codeEditor[currentQuestion.id] || ''}
+                    language={codeLang[currentQuestion.id] || 'python'}
+                    onCodeChange={(updatedCode, lang) => {
+                      setCodeEditor(prev => ({ ...prev, [currentQuestion.id]: updatedCode }))
                       setCodeLang(prev => ({ ...prev, [currentQuestion.id]: lang }))
                     }}
-                    defaultLanguage={codeLang[currentQuestion.id] || 'python'}
+                    contestMode={true}
+                    allowAI={true}
+                    maxAIQueries={10}
+                    disableDistractionControl={false}
                   />
                 )}
               </div>

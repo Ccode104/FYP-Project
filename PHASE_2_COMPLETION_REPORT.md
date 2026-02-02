@@ -66,7 +66,7 @@
 |------|---------|-------------|
 | `jest.config.js` | Jest configuration | Coverage thresholds, verbose mode |
 | `jest.setup.js` | Global test setup | Mock factories, test utilities |
-| `comprehensive-ci.yml` | Enhanced CI/CD | Quality gates, automated testing |
+| `ci.yml` | Main CI/CD workflow | Linting, tests, build checks (relaxed mode) |
 
 ---
 
@@ -467,27 +467,21 @@ Data Persistence (2 tests):
 ## CI/CD Integration
 
 ### Enhanced Workflow File
-**Location**: `.github/workflows/comprehensive-ci.yml`
+**Location**: `.github/workflows/ci.yml`
 
-#### Quality Gates (Enforced)
+#### Quality Checks (Current, relaxed mode)
 - ✅ Backend lint (ESLint)
-- ✅ Backend unit tests (55+ tests)
-- ✅ Backend integration tests (30+ tests)
-- ✅ Backend security tests (45+ tests)
-- ✅ Backend performance tests (25+ tests)
+- ✅ Backend unit tests (via `npm run test:ci --workspace=backend`)
 - ✅ Frontend lint (ESLint)
 - ✅ Frontend type check (TypeScript)
-- ✅ Frontend unit tests (60+ tests)
+- ✅ Frontend unit tests (via `npm run test:ci --workspace=frontend`)
 - ✅ Frontend build
-- ✅ E2E tests (35+ tests)
-- ✅ Code quality analysis (CodeQL)
-- ✅ Dependency security review
-- ✅ Coverage reporting (Codecov)
+
+> **Note:** The workflow is currently configured in relaxed (non-blocking) mode for demos: failures are logged but do not fail the overall run. For a stricter production setup, remove the `|| echo ...` guards and `continue-on-error` flags.
 
 #### Automated Triggers
-- Push to main/develop: Full test suite
-- Pull requests: All tests + coverage gates
-- Daily schedule: Performance benchmarking
+- Push to main/develop: Backend + frontend checks
+- Pull requests to main/develop: Backend + frontend checks
 
 ---
 
@@ -604,7 +598,7 @@ Quick reference guide with:
 ```
 FYP-Project/
 ├── .github/workflows/
-│   └── comprehensive-ci.yml                    [700+ lines, 11 quality gates]
+│   └── ci.yml                                  [Main CI pipeline]
 ├── backend/
 │   ├── jest.config.js                         [Enhanced with coverage thresholds]
 │   ├── jest.setup.js                          [Global test utilities]

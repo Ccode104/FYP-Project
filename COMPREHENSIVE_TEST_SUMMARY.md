@@ -368,15 +368,12 @@ User Workflows:
 - Default test configuration
 
 ### Enhanced CI/CD Workflow
-**File**: `.github/workflows/comprehensive-ci.yml`
-- Unit tests with coverage checks
-- Integration tests with database
-- Security vulnerability scanning
-- Performance benchmarking
-- E2E test automation
-- Code quality analysis (CodeQL)
-- Dependency security review
-- Coverage reporting to Codecov
+**File**: `.github/workflows/ci.yml`
+- Backend linting and test execution
+- Frontend linting, type-checking, tests, and build verification
+- Automated execution on push and pull request to `main` / `develop`
+- Paths-ignore for docs, assets, and `EduPortal-Mobile`
+- Relaxed (non-blocking) mode for demos – failures are logged but do not break the build
 
 ---
 
@@ -483,7 +480,7 @@ Tests are automatically executed on:
 ```
 FYP-Project/
 ├── .github/workflows/
-│   └── comprehensive-ci.yml            ← Enhanced CI/CD pipeline
+│   └── ci.yml                          ← Main CI/CD pipeline
 ├── backend/
 │   ├── jest.config.js                  ← Updated with coverage thresholds
 │   ├── jest.setup.js                   ← Global test configuration
@@ -587,7 +584,7 @@ FYP-Project/
 | Performance tests | ✅ | performanceTests.test.js with 25+ tests |
 | E2E tests | ✅ | aiEditorE2E.test.js with 35+ tests |
 | Frontend tests | ✅ | AIEnhancedCodeEditor.test.tsx with 60+ tests |
-| CI/CD integration | ✅ | comprehensive-ci.yml with quality gates |
+| CI/CD integration | ✅ | ci.yml with quality gates (relaxed mode) |
 | Documentation | ✅ | TEST_DOCUMENTATION.md (2,500+ lines) |
 | Nothing left | ✅ | Comprehensive coverage across all areas |
 

@@ -307,8 +307,8 @@ open coverage/index.html
 - Daily schedule → Performance benchmarking
 
 ### Configuration
-- **File**: `.github/workflows/comprehensive-ci.yml`
-- **Status**: Active and enforced
+- **File**: `.github/workflows/ci.yml`
+- **Status**: Active (relaxed/non-blocking mode)
 
 ---
 
@@ -323,7 +323,7 @@ open coverage/index.html
 ### Configuration Files
 - [backend/jest.config.js](backend/jest.config.js) - Jest configuration
 - [backend/jest.setup.js](backend/jest.setup.js) - Global test setup
-- [.github/workflows/comprehensive-ci.yml](.github/workflows/comprehensive-ci.yml) - CI/CD pipeline
+- [.github/workflows/ci.yml](.github/workflows/ci.yml) - CI/CD pipeline
 
 ### Test Files
 - [backend/__tests__/](backend/__tests__/) - All backend tests

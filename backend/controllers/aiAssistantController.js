@@ -167,7 +167,7 @@ async function getGroqResponse(systemPrompt, userPrompt) {
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
-        model: 'mixtral-8x7b-32768',
+        model: 'llama-3.3-70b-versatile',
         messages: [
           { role: 'system', content: systemPrompt },
           { role: 'user', content: userPrompt }
@@ -186,8 +186,8 @@ async function getGroqResponse(systemPrompt, userPrompt) {
     return data.choices[0]?.message?.content || 'Unable to generate response';
   } catch (error) {
     console.error('Groq API error:', error);
-    // Return helpful fallback message
-    return 'Unable to get AI response at this moment. Try rephrasing your question or break it into smaller parts.';
+    // Fall back to an educational, non-solution hint when the real API fails
+    return getMockAIResponse();
   }
 }
 

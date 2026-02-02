@@ -39,6 +39,8 @@ import githubRoutes from './routes/github.js';
 import contestsRoutes from './routes/contests.js';
 import courseOfferingsRoutes from './routes/courseOfferings.js';
 import aiEditorRoutes from './routes/aiEditorRoutes.js';
+import { createAnalysisTables } from './controllers/codeAnalysisController.js';
+import { createAILogTables } from './controllers/aiAssistantController.js';
 import swaggerSpec from './swagger.js';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret';
@@ -62,6 +64,10 @@ function authenticateSocket(socket, next) {
 
 export async function startServer(port = 4000) {
   const app = express();
+
+  // Ensure AI editor logging tables exist (no-op if already created)
+  await createAnalysisTables();
+  await createAILogTables();
 
   // Configure server for large file uploads
   const server = createServer(

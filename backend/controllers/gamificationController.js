@@ -46,7 +46,8 @@ export async function getLeaderboard(req, res) {
     const { type, referenceId, limit = 50 } = req.query;
     const userId = req.user?.id;
 
-    if (!['assignment', 'course', 'quiz', 'global'].includes(type)) {
+    // Support assignment, course, quiz, global, and contest leaderboards
+    if (!['assignment', 'course', 'quiz', 'global', 'contest'].includes(type)) {
       return res.status(400).json({ error: 'Invalid leaderboard type' });
     }
 
