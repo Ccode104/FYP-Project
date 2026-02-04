@@ -39,8 +39,11 @@ import githubRoutes from './routes/github.js';
 import contestsRoutes from './routes/contests.js';
 import courseOfferingsRoutes from './routes/courseOfferings.js';
 import aiEditorRoutes from './routes/aiEditorRoutes.js';
+import plannerRoutes from './routes/planner.js';
 import { createAnalysisTables } from './controllers/codeAnalysisController.js';
 import { createAILogTables } from './controllers/aiAssistantController.js';
+import { createPlannerTables } from './controllers/plannerController.js';
+import { createRagTables } from './controllers/chatbotController.js';
 import swaggerSpec from './swagger.js';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret';
@@ -68,6 +71,8 @@ export async function startServer(port = 4000) {
   // Ensure AI editor logging tables exist (no-op if already created)
   await createAnalysisTables();
   await createAILogTables();
+  await createPlannerTables();
+  await createRagTables();
 
   // Configure server for large file uploads
   const server = createServer(
@@ -186,6 +191,7 @@ export async function startServer(port = 4000) {
   app.use('/api/course-offerings', courseOfferingsRoutes);
   app.use('/api/code-analysis', aiEditorRoutes);
   app.use('/api/ai-assistant', aiEditorRoutes);
+  app.use('/api/planner', plannerRoutes);
 
   app.get('/health', (req, res) => res.json({ ok: true }));
 

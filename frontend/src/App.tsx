@@ -9,6 +9,7 @@ const Signup = lazy(() => import('./pages/Signup'))
 const Forgot = lazy(() => import('./pages/Forgot'))
 const Reset = lazy(() => import('./pages/Reset'))
 const StudentDashboard = lazy(() => import('./pages/student/StudentDashboard'))
+const Planner = lazy(() => import('./pages/student/Planner'))
 const TeacherDashboard = lazy(() => import('./pages/teacher/TeacherDashboard'))
 const TADashboard = lazy(() => import('./pages/teacher/TADashboard'))
 const AdminDashboard = lazy(() => import('./pages/admin/AdminDashboard'))
@@ -66,6 +67,16 @@ function App() {
             element={
               <ProtectedRoute roles={["student"]}>
                 <StudentDashboard />
+              </ProtectedRoute>
+            }
+          />
+
+          {/* Student planner */}
+          <Route
+            path="/planner"
+            element={
+              <ProtectedRoute roles={["student"]}>
+                <Planner />
               </ProtectedRoute>
             }
           />

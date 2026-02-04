@@ -10,6 +10,74 @@ import { logger } from '../utils/logger.js';
 // In-memory PDF text store (avoid DB writes)
 const pdfTextStore = new Map();
 
+function normalizeWhitespace(text) {
+  return text.replace(/\s+/g, ' ').trim();
+}
+
+function chunkTextHierarchical(text, chunkSize = 900, overlap = 150) {
+  const paragraphs = text.split(/\n{2,}/).map(p => p.trim()).filter(Boolean);
+  const chunks = [];
+  let buffer = '';
+  let index = 0;
+
+  for (const paragraph of paragraphs) {
+    if ((buffer + ' ' + paragraph).length > chunkSize) {
+      if (buffer) {
+        chunks.push({ index: index++, content: buffer.trim() });
+      }
+      buffer = paragraph;
+    } else {
+      buffer = `${buffer} ${paragraph}`.trim();
+    }
+  }
+
+  if (buffer) {
+    chunks.push({ index: index++, content: buffer.trim() });
+  }
+
+  // Add overlap to preserve context
+  const overlapped = chunks.map((chunk, i) => {
+    if (i === 0) return chunk;
+    const prev = chunks[i - 1];
+    const overlapText = prev.content.slice(-overlap);
+    return {
+      ...chunk,
+      content: `${overlapText} ${chunk.content}`.trim()
+    };
+  });
+
+  return overlapped;
+}
+
+async function storeDocumentInDb({ id, userId, filename, content, usedOCR }) {
+  await pool.query(
+    `INSERT INTO ai_documents (id, user_id, filename, content, used_ocr, created_at)
+     VALUES ($1, $2, $3, $4, $5, now())
+     ON CONFLICT (id) DO UPDATE
+     SET filename = EXCLUDED.filename,
+         content = EXCLUDED.content,
+         used_ocr = EXCLUDED.used_ocr`,
+    [id, userId, filename, content, usedOCR]
+  );
+
+  await pool.query('DELETE FROM ai_document_chunks WHERE document_id = $1', [id]);
+
+  const chunks = chunkTextHierarchical(content);
+  for (const chunk of chunks) {
+    const chunkLabel = `${id}:${chunk.index + 1}`;
+    await pool.query(
+      `INSERT INTO ai_document_chunks (document_id, chunk_index, content, content_tsv, metadata, created_at)
+       VALUES ($1, $2, $3, to_tsvector('english', $3), $4, now())`,
+      [
+        id,
+        chunk.index,
+        chunk.content,
+        JSON.stringify({ chunkLabel })
+      ]
+    );
+  }
+}
+
 // Initialize Groq client (still needed for some functions)
 const groqApiKey = process.env.GROQ_API_KEY;
 if (!groqApiKey || groqApiKey === 'gsk_your_api_key_here') {
@@ -201,6 +269,14 @@ export async function uploadDocument(req, res) {
 
     // Update the agent's PDF store
     updatePdfTextStore(pdfTextStore);
+
+    await storeDocumentInDb({
+      id,
+      userId: req.user?.id ?? null,
+      filename,
+      content: normalizeWhitespace(text),
+      usedOCR
+    });
 
     res.json({
       success: true,
@@ -438,23 +514,61 @@ QUESTION: ${message}`;
  * ------------------------------------------------------------------ */
 export async function listUserDocuments(req, res) {
   try {
-    const items = [];
-    for (const [id, v] of pdfTextStore.entries()) {
-      if (!req.user?.id || v.uploaded_by === req.user.id) {
-        items.push({
-          id,
-          filename: v.filename,
-          uploaded_at: v.uploaded_at,
-          size: v.content.length,
-          usedOCR: v.usedOCR || false,
-        });
-      }
-    }
-    items.sort((a, b) => new Date(b.uploaded_at) - new Date(a.uploaded_at));
-    res.json({ documents: items.slice(0, 50) });
+    const userId = req.user?.id;
+    if (!userId) return res.status(401).json({ error: 'Authentication required' });
+
+    const result = await pool.query(
+      `SELECT id, filename, created_at as uploaded_at, length(content) as size, used_ocr as "usedOCR"
+       FROM ai_documents
+       WHERE user_id = $1
+       ORDER BY created_at DESC
+       LIMIT 50`,
+      [userId]
+    );
+
+    res.json({ documents: result.rows });
   } catch (err) {
     console.error('listUserDocuments error:', err);
     res.status(500).json({ error: 'Failed to fetch documents' });
+  }
+}
+
+export async function createRagTables() {
+  const sql = `
+    CREATE TABLE IF NOT EXISTS ai_documents (
+      id UUID PRIMARY KEY,
+      user_id BIGINT REFERENCES users(id) ON DELETE SET NULL,
+      filename TEXT NOT NULL,
+      content TEXT NOT NULL,
+      used_ocr BOOLEAN DEFAULT false,
+      created_at TIMESTAMPTZ DEFAULT now()
+    );
+
+    CREATE TABLE IF NOT EXISTS ai_document_chunks (
+      id BIGSERIAL PRIMARY KEY,
+      document_id UUID REFERENCES ai_documents(id) ON DELETE CASCADE,
+      chunk_index INTEGER NOT NULL,
+      content TEXT NOT NULL,
+      content_tsv tsvector,
+      metadata JSONB,
+      created_at TIMESTAMPTZ DEFAULT now()
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_ai_documents_user ON ai_documents(user_id);
+    CREATE INDEX IF NOT EXISTS idx_ai_chunks_doc ON ai_document_chunks(document_id);
+    CREATE INDEX IF NOT EXISTS idx_ai_chunks_tsv ON ai_document_chunks USING GIN (content_tsv);
+  `;
+
+  try {
+    const statements = sql.split(';').filter(s => s.trim());
+    for (const statement of statements) {
+      if (statement.trim()) {
+        await pool.query(statement);
+      }
+    }
+    console.log('✅ RAG tables ready');
+  } catch (error) {
+    console.error('Error creating RAG tables:', error);
   }
 }
 

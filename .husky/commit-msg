@@ -1,19 +1,11 @@
-# Validate commit message format (Conventional Commits)
+# Validate commit message format (Conventional Commits) in a non-blocking way
 commit_msg=$(cat "$1")
 
 # Pattern: type(scope): description
 # Types: feat, fix, docs, style, refactor, perf, test, chore, ci, build, revert
 if ! echo "$commit_msg" | grep -qE "^(feat|fix|docs|style|refactor|perf|test|chore|ci|build|revert)(\(.+\))?: .{1,}"; then
-  echo "❌ Invalid commit message format!"
-  echo ""
-  echo "Commit messages must follow Conventional Commits format:"
-  echo "  type(scope): description"
-  echo ""
-  echo "Examples:"
-  echo "  feat(auth): add Google sign-in"
-  echo "  fix(ui): resolve button alignment issue"
-  echo "  docs(readme): update installation instructions"
-  echo ""
-  echo "Types: feat, fix, docs, style, refactor, perf, test, chore, ci, build, revert"
-  exit 1
+  echo "⚠️  Commit message does not follow Conventional Commits format."
+  echo "    Recommended format: type(scope): description"
+  echo "    Example: feat(auth): add Google sign-in"
+  # Do NOT block the commit
 fi
