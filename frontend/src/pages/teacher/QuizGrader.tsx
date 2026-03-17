@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useToast } from '../../components/ToastProvider'
-import { listQuizAttemptsForQuiz, gradeQuizAttempt, deleteQuizAttempt } from '../../services/quizzes'
+import { listQuizAttemptsForQuiz, gradeQuizAttempt, deleteQuizAttempt } from '../../features/quizzes/api/quizzes'
 import { useAuth } from '../../context/AuthContext'
 
 export default function QuizGrader() {

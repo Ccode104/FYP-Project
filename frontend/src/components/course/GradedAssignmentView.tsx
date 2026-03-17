@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { getGradedAssignment, submitRegradeRequest } from '../../services/student';
+import { getGradedAssignment, submitRegradeRequest } from '../../features/student/api/student';
 import './GradedAssignmentView.css';
 
 interface RubricGrade {

@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useToast } from './ToastProvider'
-import { createQuizAssignment } from '../services/assignments'
+import { createQuizAssignment } from '../features/assignments/api/assignments'
 
 interface QuizQuestion {
   id: string

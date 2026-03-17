@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { getUserProfile, updateUserProfile } from '../../services/users';
-import type { UserProfile } from '../../services/users';
+import { getUserProfile, updateUserProfile } from '../../features/users/api/users';
+import type { UserProfile } from '../../features/users/api/users';
 import { useToast } from '../../components/ToastProvider';
 import Modal from '../../components/Modal';
 import './TAProfile.css';

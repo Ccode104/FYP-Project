@@ -1,11 +1,11 @@
 import { useEffect, useMemo, useState, useRef, useCallback } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useAuth } from '../../context/AuthContext'
-import { getQuiz, submitQuizAttempt, Quiz } from '../../services/quizzes'
+import { getQuiz, submitQuizAttempt, Quiz } from '../../features/quizzes/api/quizzes'
 import { useToast } from '../../components/ToastProvider'
-import { proctoringService } from '../../services/proctoring'
-import type { ProctoringConfig, ProctoringStatus } from '../../services/proctoring'
-import { createProctoringSession, getProctoringConfig } from '../../services/proctoringApi'
+import { proctoringService } from '../../features/proctoring/services/proctoring'
+import type { ProctoringConfig, ProctoringStatus } from '../../features/proctoring/services/proctoring'
+import { createProctoringSession, getProctoringConfig } from '../../features/proctoring/api/proctoringApi'
 import FullscreenInstructions from '../../components/FullscreenInstructions'
 
 export default function QuizTake() {
@@ -575,7 +575,7 @@ export default function QuizTake() {
                 const suspendViaAPI = async () => {
                   if (proctoringSession?.id) {
                     try {
-                      const { suspendSession: apiSuspend } = await import('../../services/proctoringApi')
+                      const { suspendSession: apiSuspend } = await import('../../features/proctoring/api/proctoringApi')
                       await apiSuspend(proctoringSession.id, 'Quiz time expired (2 attempts)')
                       console.log('DEBUG: Session suspended via API')
                       return true
@@ -614,7 +614,7 @@ export default function QuizTake() {
                     const suspendViaAPI = async () => {
                       if (proctoringSession?.id) {
                         try {
-                          const { suspendSession: apiSuspend } = await import('../../services/proctoringApi')
+                          const { suspendSession: apiSuspend } = await import('../../features/proctoring/api/proctoringApi')
                           await apiSuspend(proctoringSession.id, 'Quiz time expired and fullscreen could not be restored')
                           console.log('DEBUG: Session suspended via API')
                           return true
@@ -687,7 +687,7 @@ export default function QuizTake() {
         const suspendViaAPI = async () => {
           if (proctoringSession?.id) {
             try {
-              const { suspendSession: apiSuspend } = await import('../../services/proctoringApi')
+              const { suspendSession: apiSuspend } = await import('../../features/proctoring/api/proctoringApi')
               await apiSuspend(proctoringSession.id, 'Back button pressed during quiz')
               console.log('DEBUG: Session suspended via API')
               return true

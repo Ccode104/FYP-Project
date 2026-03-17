@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { apiFetch } from "../../services/api";
-import { getPlagiarismChecks, runPlagiarismCheck } from "../../services/assignments";
+import { getPlagiarismChecks, runPlagiarismCheck } from "../../features/assignments/api/assignments";
 
 interface Assignment {
   id: string | number;

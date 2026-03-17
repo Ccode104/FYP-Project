@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import backgroundImg from '../assets/background.jpg'
 import { useToast } from '../components/ToastProvider'
-import { confirmPasswordReset } from '../services/password'
+import { confirmPasswordReset } from '../features/auth/api/passwordReset'
 import './Login.css'
 
 export default function Reset() {

@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
-import { getUserProfile, updateUserProfile } from '../../services/users';
-import type { UserProfile } from '../../services/users';
+import { getUserProfile, updateUserProfile } from '../../features/users/api/users';
+import type { UserProfile } from '../../features/users/api/users';
 import { useToast } from '../../components/ToastProvider';
 import UserStats from '../../components/UserStats';
 import Modal from '../../components/Modal';

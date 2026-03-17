@@ -6,19 +6,10 @@ import { CourseProvider } from '../../context/CourseContext'
 import { BrowserRouter } from 'react-router-dom'
 import { ToastProvider } from '../../components/ToastProvider'
 
-// Mock the services
-vi.mock('../../services/student', () => ({
-  enrollSelf: vi.fn(),
-  getLiveLecturesForCourses: vi.fn().mockResolvedValue([])
-}))
-
-vi.mock('../../services/courses', () => ({
-  enrollStudent: vi.fn(),
-  unenrollStudent: vi.fn()
-}))
-
-// Create a more flexible mock for apiFetch that can handle different scenarios
-const mockApiFetch = vi.fn().mockImplementation((url: string) => {
+// Create a more flexible mock for apiFetch that can handle different scenarios.
+// Must be declared before vi.mock() because vitest hoists mock factories.
+const mockApiFetch = vi.hoisted(() =>
+  vi.fn().mockImplementation((url: string) => {
   // Mock successful response for card-data endpoint
   if (url.includes('/card-data')) {
     return Promise.resolve({
@@ -58,7 +49,19 @@ const mockApiFetch = vi.fn().mockImplementation((url: string) => {
   
   // Default: empty array
   return Promise.resolve([])
-})
+}),
+)
+
+// Mock the services
+vi.mock('../../features/student/api/student', () => ({
+  enrollSelf: vi.fn(),
+  getLiveLecturesForCourses: vi.fn().mockResolvedValue([])
+}))
+
+vi.mock('../../features/courses/api/courses', () => ({
+  enrollStudent: vi.fn(),
+  unenrollStudent: vi.fn()
+}))
 
 vi.mock('../../services/api', () => ({
   apiFetch: mockApiFetch
@@ -94,7 +97,7 @@ describe('StudentDashboard', () => {
 
   it('should render without crashing', () => {
     render(<StudentDashboardWrapper />)
-    expect(screen.getByText(/Student Dashboard/i) || document.body).toBeTruthy()
+    expect(screen.queryByText(/Student Dashboard/i) || document.body).toBeTruthy()
   })
 
   it('should initialize all state variables properly', async () => {

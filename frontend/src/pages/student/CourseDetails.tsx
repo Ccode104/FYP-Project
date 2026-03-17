@@ -28,10 +28,10 @@ import DiscussionForum from '../../components/course/DiscussionForum'
 import PresentAssignmentsSection from '../../components/course/PresentAssignmentsSection'
 import TeacherAssignments from '../../components/course/TeacherAssignments'
 import ContestCards from '../../components/course/ContestCards'
-import { listDiscussionMessages, postDiscussionMessage, type DiscussionMessage } from '../../services/discussion'
+import { listDiscussionMessages, postDiscussionMessage, type DiscussionMessage } from '../../features/discussion/api/discussion'
 import CourseSidebar, { type TabItem } from '../../components/course/CourseSidebar'
 import LiveLectureBroadcaster from '../../components/LiveLectureBroadcaster'
-import { getLiveLecturesByCourse } from '../../services/liveLectures'
+import { getLiveLecturesByCourse } from '../../features/live-lecture/api/liveLectures'
 import SuspendedQuizzes from '../../components/SuspendedQuizzes'
 import ProctoringAnalytics from '../../components/ProctoringAnalytics'
 
@@ -643,7 +643,7 @@ export default function CourseDetails() {
         try { const notes = await apiFetch<unknown[]>(`/api/courses/${courseId}/notes`); if (!cancelled) setBackendNotes(notes) } catch { /* ignore */ }
         // quizzes list for offering + my attempts
         try {
-          const quizzesMod = await import('../../services/quizzes')
+          const quizzesMod = await import('../../features/quizzes/api/quizzes')
           const quizzes = await quizzesMod.listCourseQuizzes(Number(courseId))
           if (!cancelled) setBackendQuizzes(quizzes)
           if (!cancelled && user?.role === 'student' && user?.id) {
@@ -802,7 +802,7 @@ export default function CourseDetails() {
     let cancelled = false
       ; (async () => {
         try {
-          const { getVideosByCourseOffering } = await import('../../services/videos')
+          const { getVideosByCourseOffering } = await import('../../features/videos/api/videos')
           const videosData = await getVideosByCourseOffering(courseId)
           if (!cancelled) setBackendVideos(videosData.videos || [])
         } catch (err) {
@@ -914,7 +914,7 @@ export default function CourseDetails() {
     if (!selectedVideo || user?.role !== 'teacher') return;
     (async () => {
       try {
-        const { getVideoQuizQuestions } = await import('../../services/videos');
+        const { getVideoQuizQuestions } = await import('../../features/videos/api/videos');
         const questionsData = await getVideoQuizQuestions(selectedVideo.id);
         setVideoQuestions(questionsData.questions || []);
       } catch { /* ignore */ }
@@ -1047,7 +1047,7 @@ export default function CourseDetails() {
                 isBackend={isBackend}
                 onTeacherDelete={async (id: number) => {
                   try {
-                    const mod = await import('../../services/assignments')
+                    const mod = await import('../../features/assignments/api/assignments')
                     await mod.deleteAssignmentApi(Number(id))
                     push({ kind: 'success', message: 'Assignment deleted' })
                     const data = await apiFetch<unknown[]>(`/api/courses/${courseId}/assignments`)
@@ -1262,7 +1262,7 @@ export default function CourseDetails() {
                                           await apiFetch(`/api/quizzes/${quiz.id}`, { method: 'DELETE' });
                                           push({ kind: 'success', message: 'Quiz deleted successfully' });
                                           // Refresh quizzes list
-                                          const quizzesMod = await import('../../services/quizzes');
+                                          const quizzesMod = await import('../../features/quizzes/api/quizzes');
                                           const quizzes = await quizzesMod.listCourseQuizzes(Number(courseId));
                                           setBackendQuizzes(quizzes);
                                         } catch (err: unknown) {
@@ -2371,10 +2371,10 @@ export default function CourseDetails() {
                                     onClick={async () => {
                                       if (confirm(`Delete "${video.title}"?`)) {
                                         try {
-                                          const { deleteVideo } = await import('../../services/videos');
+                                          const { deleteVideo } = await import('../../features/videos/api/videos');
                                           await deleteVideo(video.id);
                                           push({ kind: 'success', message: 'Video deleted' });
-                                          const { getVideosByCourseOffering } = await import('../../services/videos');
+                                          const { getVideosByCourseOffering } = await import('../../features/videos/api/videos');
                                           const videosData = await getVideosByCourseOffering(courseId!);
                                           setBackendVideos(videosData.videos || []);
                                         } catch (e: unknown) {
@@ -2477,7 +2477,7 @@ export default function CourseDetails() {
                                 className="btn btn-success"
                                 onClick={async () => {
                                   try {
-                                    const { startLiveLecture } = await import('../../services/liveLectures');
+                                    const { startLiveLecture } = await import('../../features/live-lecture/api/liveLectures');
                                     await startLiveLecture(lecture.id);
                                     // Refresh lectures
                                     const lecturesData = await getLiveLecturesByCourse(courseId!);
@@ -2496,7 +2496,7 @@ export default function CourseDetails() {
                                 className="btn btn-danger"
                                 onClick={async () => {
                                   try {
-                                    const { endLiveLecture } = await import('../../services/liveLectures');
+                                    const { endLiveLecture } = await import('../../features/live-lecture/api/liveLectures');
                                     await endLiveLecture(lecture.id);
                                     // Refresh lectures
                                     const lecturesData = await getLiveLecturesByCourse(courseId!);
@@ -2560,7 +2560,7 @@ export default function CourseDetails() {
                   setShowVideoUpload(false)
                   // Refresh videos list
                   try {
-                    const { getVideosByCourseOffering } = await import('../../services/videos');
+                    const { getVideosByCourseOffering } = await import('../../features/videos/api/videos');
                     const videosData = await getVideosByCourseOffering(courseId!);
                     setBackendVideos(videosData.videos || []);
                   } catch { /* ignore */ }

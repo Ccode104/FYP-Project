@@ -1,5 +1,5 @@
 import 'dotenv/config';
-import { pool } from './db/index.js';
+import { pool } from '../db/index.js';
 
 // Test script to verify GitHub integration setup
 async function testGitHubIntegration() {

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useAuth } from '../context/AuthContext'
-import { getSuspendedProctoringSessions, resumeSession } from '../services/proctoringApi'
+import { getSuspendedProctoringSessions, resumeSession } from '../features/proctoring/api/proctoringApi'
 import { useToast } from './ToastProvider'
 
 interface SuspendedSession {

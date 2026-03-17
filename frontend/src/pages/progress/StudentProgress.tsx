@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { getMyProgress, type ProgressRow } from '../../services/progress'
+import { getMyProgress, type ProgressRow } from '../../features/progress/api/progress'
 import { useToast } from '../../components/ToastProvider'
 
 function groupBy<T, K extends string | number | symbol>(list: T[], getKey: (item: T) => K): Record<K, T[]> {

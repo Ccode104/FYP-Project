@@ -1,6 +1,6 @@
 import { useState } from 'react'
-import { createTicket } from '../services/support'
-import type { SupportTicket } from '../services/support'
+import { createTicket } from '../features/support/api/support'
+import type { SupportTicket } from '../features/support/api/support'
 
 interface SupportTicketFormProps {
   courseOfferingId?: number

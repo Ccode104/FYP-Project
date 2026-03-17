@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { apiFetch } from '../../services/api'
-import { type ProgressRow } from '../../services/progress'
+import { type ProgressRow } from '../../features/progress/api/progress'
 
 function groupBy<T, K extends string | number | symbol>(list: T[], getKey: (item: T) => K): Record<K, T[]> {
   return list.reduce((acc, item) => {

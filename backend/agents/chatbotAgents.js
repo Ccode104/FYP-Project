@@ -255,6 +255,35 @@ class DocumentSearchTool extends Tool {
       if (courseId) {
         try {
           const expandedQuery = rewriteQuery(query);
+          const queryTokens = expandedQuery.split(/\s+/).filter(Boolean);
+
+          const courseChunks = await pool.query(
+            `SELECT c.content, r.title, r.filename, r.resource_type
+             FROM ai_course_chunks c
+             JOIN resources r ON r.id = c.resource_id
+             WHERE c.course_offering_id = $1
+             AND c.content_tsv @@ plainto_tsquery('english', $2)
+             ORDER BY ts_rank(c.content_tsv, plainto_tsquery('english', $2)) DESC
+             LIMIT 6`,
+            [courseId, expandedQuery]
+          );
+
+          if (courseChunks.rows.length > 0) {
+            courseChunks.rows.forEach(row => {
+              const title = row.title || row.filename || 'Resource';
+              const snippets = [row.content]
+                .map(snippet => snippet.split(/\n+/).slice(0, 3).join(' '))
+                .sort((a, b) => scoreSnippet(b, queryTokens) - scoreSnippet(a, queryTokens))
+                .slice(0, 2);
+              results.push({
+                source: row.resource_type === 'pyq' ? 'pyq' : 'course_notes',
+                filename: title,
+                snippets,
+                usedOCR: false
+              });
+            });
+          }
+
           // Search lecture notes
           const notesData = await pool.query(
             `SELECT title, description FROM resources

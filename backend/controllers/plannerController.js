@@ -1,7 +1,10 @@
 import { pool } from '../db/index.js';
 import { logger } from '../utils/logger.js';
+import Groq from 'groq-sdk';
 
 const DEFAULT_DAILY_MINUTES = 120;
+const groqApiKey = process.env.GROQ_API_KEY;
+const groq = new Groq({ apiKey: groqApiKey || 'gsk_your_api_key_here' });
 
 function parseDateOnly(value) {
   if (!value) return null;
@@ -100,11 +103,20 @@ export async function createPlannerTables() {
       updated_at TIMESTAMPTZ DEFAULT now()
     );
 
+    CREATE TABLE IF NOT EXISTS planner_recommendations (
+      id BIGSERIAL PRIMARY KEY,
+      user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      kind TEXT NOT NULL,
+      payload JSONB NOT NULL,
+      created_at TIMESTAMPTZ DEFAULT now()
+    );
+
     CREATE UNIQUE INDEX IF NOT EXISTS idx_planner_unique_source
       ON planner_tasks(user_id, source_type, source_id);
     CREATE INDEX IF NOT EXISTS idx_planner_user ON planner_tasks(user_id);
     CREATE INDEX IF NOT EXISTS idx_planner_due ON planner_tasks(due_at);
     CREATE INDEX IF NOT EXISTS idx_planner_status ON planner_tasks(status);
+    CREATE INDEX IF NOT EXISTS idx_planner_rec_user ON planner_recommendations(user_id);
   `;
 
   try {
@@ -117,6 +129,333 @@ export async function createPlannerTables() {
     console.log('✅ Planner tables ready');
   } catch (error) {
     console.error('Error creating planner tables:', error);
+  }
+}
+
+async function computeTimeOfDayRecommendation(userId) {
+  const submissions = await pool.query(
+    `SELECT submitted_at as activity_at
+     FROM assignment_submissions
+     WHERE student_id = $1
+     UNION ALL
+     SELECT finished_at as activity_at
+     FROM quiz_attempts
+     WHERE student_id = $1 AND finished_at IS NOT NULL
+     ORDER BY activity_at DESC
+     LIMIT 50`,
+    [userId]
+  );
+
+  if (submissions.rows.length === 0) {
+    return { best_hours: ['18:00-20:00'], reason: 'Not enough activity history yet.' };
+  }
+
+  const buckets = {
+    morning: 0,
+    afternoon: 0,
+    evening: 0,
+    night: 0
+  };
+
+  submissions.rows.forEach(row => {
+    const hour = new Date(row.activity_at).getHours();
+    if (hour >= 6 && hour < 12) buckets.morning += 1;
+    else if (hour >= 12 && hour < 17) buckets.afternoon += 1;
+    else if (hour >= 17 && hour < 21) buckets.evening += 1;
+    else buckets.night += 1;
+  });
+
+  const best = Object.entries(buckets).sort((a, b) => b[1] - a[1])[0]?.[0] || 'evening';
+  const hourMap = {
+    morning: ['08:00-10:00', '10:00-12:00'],
+    afternoon: ['13:00-15:00', '15:00-17:00'],
+    evening: ['18:00-20:00', '20:00-22:00'],
+    night: ['22:00-00:00']
+  };
+
+  return {
+    best_hours: hourMap[best],
+    reason: `Most of your recent study activity happens in the ${best}.`
+  };
+}
+
+async function generateAIInsights({ tasks, preferences, role }) {
+  if (!groqApiKey || groqApiKey === 'gsk_your_api_key_here') {
+    return null;
+  }
+
+  const taskPreview = tasks.slice(0, 6).map(task => ({
+    title: task.title,
+    due_at: task.due_at,
+    estimated_minutes: task.estimated_minutes
+  }));
+
+  const prompt = `You are an academic planning assistant. Provide 3 concise tips (bullet points) based on the plan.
+Role: ${role}
+Daily focus minutes: ${preferences?.daily_minutes ?? DEFAULT_DAILY_MINUTES}
+Tasks: ${JSON.stringify(taskPreview)}
+Respond with 3 bullet points only.`;
+
+  try {
+    const response = await groq.chat.completions.create({
+      model: 'llama-3.3-70b-versatile',
+      messages: [{ role: 'user', content: prompt }],
+      max_tokens: 120,
+      temperature: 0.4
+    });
+
+    return response.choices[0]?.message?.content?.trim() || null;
+  } catch (error) {
+    logger.warn('AI insights generation failed', error);
+    return null;
+  }
+}
+
+export async function getPlannerRecommendations(req, res) {
+  try {
+    const userId = req.user?.id;
+    if (!userId) return res.status(401).json({ error: 'Authentication required' });
+
+    const recommendation = await computeTimeOfDayRecommendation(userId);
+    const aiTips = await generateAIInsights({ tasks: [], preferences: null, role: 'student' });
+
+    await pool.query(
+      `INSERT INTO planner_recommendations (user_id, kind, payload)
+       VALUES ($1, $2, $3)`,
+      [userId, 'time_of_day', recommendation]
+    );
+
+    res.json({ recommendations: [recommendation], aiTips });
+  } catch (error) {
+    console.error('getPlannerRecommendations error:', error);
+    res.status(500).json({ error: 'Failed to generate recommendations' });
+  }
+}
+
+export async function generateTeacherPlanner(req, res) {
+  try {
+    const userId = req.user?.id;
+    if (!userId) return res.status(401).json({ error: 'Authentication required' });
+
+    const offerings = await pool.query(
+      `SELECT id FROM course_offerings WHERE faculty_id = $1`,
+      [userId]
+    );
+    const offeringIds = offerings.rows.map(row => Number(row.id));
+    if (offeringIds.length === 0) return res.json({ success: true, tasks: [] });
+
+    const assignments = await pool.query(
+      `SELECT id, course_offering_id, title, description, due_at
+       FROM assignments
+       WHERE course_offering_id = ANY($1) AND due_at IS NOT NULL
+       ORDER BY due_at ASC`,
+      [offeringIds]
+    );
+
+    const tasks = assignments.rows.map(assignment => ({
+      source_type: 'assignment_plan',
+      source_id: assignment.id,
+      course_offering_id: assignment.course_offering_id,
+      title: `Review grading timeline: ${assignment.title}`,
+      description: assignment.description,
+      due_at: assignment.due_at,
+      estimated_minutes: 60,
+      difficulty: 'medium'
+    }));
+
+    for (const task of tasks) {
+      await pool.query(
+        `INSERT INTO planner_tasks (
+          user_id, course_offering_id, source_type, source_id,
+          title, description, due_at, estimated_minutes, difficulty,
+          status, created_at, updated_at
+        ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,'pending',now(),now())
+        ON CONFLICT (user_id, source_type, source_id) DO UPDATE
+        SET title = EXCLUDED.title,
+            description = EXCLUDED.description,
+            due_at = EXCLUDED.due_at,
+            estimated_minutes = EXCLUDED.estimated_minutes,
+            updated_at = now()`,
+        [
+          userId,
+          task.course_offering_id,
+          task.source_type,
+          task.source_id,
+          task.title,
+          task.description,
+          task.due_at,
+          task.estimated_minutes,
+          task.difficulty
+        ]
+      );
+    }
+
+    const refreshed = await pool.query(
+      `SELECT * FROM planner_tasks WHERE user_id = $1
+       ORDER BY status = 'done', due_at NULLS LAST, order_index ASC`,
+      [userId]
+    );
+
+    const aiTips = await generateAIInsights({
+      tasks: refreshed.rows,
+      preferences: { daily_minutes: DEFAULT_DAILY_MINUTES },
+      role: 'teacher'
+    });
+
+    res.json({ success: true, tasks: refreshed.rows, aiTips });
+  } catch (error) {
+    logger.error('generateTeacherPlanner error:', error);
+    res.status(500).json({ error: 'Failed to generate teacher planner' });
+  }
+}
+
+export async function generateTAPlanner(req, res) {
+  try {
+    const userId = req.user?.id;
+    if (!userId) return res.status(401).json({ error: 'Authentication required' });
+
+    const taCourses = await pool.query(
+      `SELECT course_offering_id FROM ta_assignments WHERE ta_id = $1`,
+      [userId]
+    );
+    const offeringIds = taCourses.rows.map(row => Number(row.course_offering_id));
+    if (offeringIds.length === 0) return res.json({ success: true, tasks: [] });
+
+    const pending = await pool.query(
+      `SELECT a.id, a.course_offering_id, a.title, a.due_at,
+              COUNT(s.id) FILTER (WHERE s.final_score IS NULL) AS ungraded
+       FROM assignments a
+       LEFT JOIN assignment_submissions s ON a.id = s.assignment_id
+       WHERE a.course_offering_id = ANY($1)
+       GROUP BY a.id, a.course_offering_id, a.title, a.due_at
+       ORDER BY a.due_at ASC`,
+      [offeringIds]
+    );
+
+    const tasks = pending.rows.map(item => ({
+      source_type: 'ta_grading',
+      source_id: item.id,
+      course_offering_id: item.course_offering_id,
+      title: `Grade ${item.ungraded} submissions: ${item.title}`,
+      description: 'TA grading queue',
+      due_at: item.due_at,
+      estimated_minutes: Math.max(30, Number(item.ungraded) * 10),
+      difficulty: 'medium'
+    }));
+
+    for (const task of tasks) {
+      await pool.query(
+        `INSERT INTO planner_tasks (
+          user_id, course_offering_id, source_type, source_id,
+          title, description, due_at, estimated_minutes, difficulty,
+          status, created_at, updated_at
+        ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,'pending',now(),now())
+        ON CONFLICT (user_id, source_type, source_id) DO UPDATE
+        SET title = EXCLUDED.title,
+            description = EXCLUDED.description,
+            due_at = EXCLUDED.due_at,
+            estimated_minutes = EXCLUDED.estimated_minutes,
+            updated_at = now()`,
+        [
+          userId,
+          task.course_offering_id,
+          task.source_type,
+          task.source_id,
+          task.title,
+          task.description,
+          task.due_at,
+          task.estimated_minutes,
+          task.difficulty
+        ]
+      );
+    }
+
+    const refreshed = await pool.query(
+      `SELECT * FROM planner_tasks WHERE user_id = $1
+       ORDER BY status = 'done', due_at NULLS LAST, order_index ASC`,
+      [userId]
+    );
+
+    const aiTips = await generateAIInsights({
+      tasks: refreshed.rows,
+      preferences: { daily_minutes: DEFAULT_DAILY_MINUTES },
+      role: 'ta'
+    });
+
+    res.json({ success: true, tasks: refreshed.rows, aiTips });
+  } catch (error) {
+    logger.error('generateTAPlanner error:', error);
+    res.status(500).json({ error: 'Failed to generate TA planner' });
+  }
+}
+
+export async function generateAdminPlanner(req, res) {
+  try {
+    const userId = req.user?.id;
+    if (!userId) return res.status(401).json({ error: 'Authentication required' });
+
+    const issues = await pool.query(
+      `SELECT id, title, status, created_at
+       FROM support_tickets
+       WHERE status IN ('open', 'pending')
+       ORDER BY created_at DESC
+       LIMIT 10`
+    );
+
+    const tasks = issues.rows.map(ticket => ({
+      source_type: 'admin_support',
+      source_id: ticket.id,
+      course_offering_id: null,
+      title: `Resolve ticket: ${ticket.title}`,
+      description: `Status: ${ticket.status}`,
+      due_at: ticket.created_at,
+      estimated_minutes: 30,
+      difficulty: 'medium'
+    }));
+
+    for (const task of tasks) {
+      await pool.query(
+        `INSERT INTO planner_tasks (
+          user_id, course_offering_id, source_type, source_id,
+          title, description, due_at, estimated_minutes, difficulty,
+          status, created_at, updated_at
+        ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,'pending',now(),now())
+        ON CONFLICT (user_id, source_type, source_id) DO UPDATE
+        SET title = EXCLUDED.title,
+            description = EXCLUDED.description,
+            due_at = EXCLUDED.due_at,
+            estimated_minutes = EXCLUDED.estimated_minutes,
+            updated_at = now()`,
+        [
+          userId,
+          task.course_offering_id,
+          task.source_type,
+          task.source_id,
+          task.title,
+          task.description,
+          task.due_at,
+          task.estimated_minutes,
+          task.difficulty
+        ]
+      );
+    }
+
+    const refreshed = await pool.query(
+      `SELECT * FROM planner_tasks WHERE user_id = $1
+       ORDER BY status = 'done', due_at NULLS LAST, order_index ASC`,
+      [userId]
+    );
+
+    const aiTips = await generateAIInsights({
+      tasks: refreshed.rows,
+      preferences: { daily_minutes: DEFAULT_DAILY_MINUTES },
+      role: 'admin'
+    });
+
+    res.json({ success: true, tasks: refreshed.rows, aiTips });
+  } catch (error) {
+    logger.error('generateAdminPlanner error:', error);
+    res.status(500).json({ error: 'Failed to generate admin planner' });
   }
 }
 
@@ -434,7 +773,7 @@ export async function generatePlanner(req, res) {
     }
 
     if (taskCandidates.length === 0) {
-      return res.json({ success: true, tasks: [] });
+      return res.json({ success: true, tasks: [], aiTips: null });
     }
 
     const preferencesResult = await pool.query(
@@ -483,7 +822,13 @@ export async function generatePlanner(req, res) {
       [userId]
     );
 
-    res.json({ success: true, tasks: refreshed.rows });
+    const aiTips = await generateAIInsights({
+      tasks: refreshed.rows,
+      preferences,
+      role: 'student'
+    });
+
+    res.json({ success: true, tasks: refreshed.rows, aiTips });
   } catch (error) {
     logger.error('generatePlanner error:', error);
     res.status(500).json({ error: 'Failed to generate planner' });

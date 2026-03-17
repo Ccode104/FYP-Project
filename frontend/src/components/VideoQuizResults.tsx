@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { getVideoQuizAttempts, getVideoQuizQuestions } from '../services/videos';
+import { getVideoQuizAttempts, getVideoQuizQuestions } from '../features/videos/api/videos';
 import './VideoQuizResults.css';
 
 interface VideoQuizResultsProps {

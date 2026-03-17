@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
-import { getVivaSessionDetails, generateVivaQuestions } from '../services/viva'
-import type { VivaSessionDetails, VivaParticipant } from '../services/viva'
+import { getVivaSessionDetails, generateVivaQuestions } from '../features/viva/api/viva'
+import type { VivaSessionDetails, VivaParticipant } from '../features/viva/api/viva'
 
 interface VivaSessionProps {
   sessionId: number

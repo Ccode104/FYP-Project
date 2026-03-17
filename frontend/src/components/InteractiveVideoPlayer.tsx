@@ -5,7 +5,7 @@ import {
   submitVideoQuizAnswer,
   completeVideoQuizAttempt,
   getVideoQuizAttempt,
-} from '../services/videos';
+} from '../features/videos/api/videos';
 import { useToast } from './ToastProvider';
 import './InteractiveVideoPlayer.css';
 

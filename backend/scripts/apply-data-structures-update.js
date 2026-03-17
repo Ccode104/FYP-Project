@@ -1,6 +1,6 @@
 import 'dotenv/config';
 import fs from 'fs';
-import { pool } from './db/index.js';
+import { pool } from '../db/index.js';
 import { logger } from './utils/logger.js';
 
 async function applyDataStructuresUpdate() {

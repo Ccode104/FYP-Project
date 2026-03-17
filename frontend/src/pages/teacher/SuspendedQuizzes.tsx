@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useAuth } from '../../context/AuthContext'
-import { getSuspendedAttempts, resumeQuizAttempt, markAttemptAsViolated } from '../../services/quizzes'
+import { getSuspendedAttempts, resumeQuizAttempt, markAttemptAsViolated } from '../../features/quizzes/api/quizzes'
 import { useToast } from '../../components/ToastProvider'
 
 interface SuspendedAttempt {

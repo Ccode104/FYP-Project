@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { createLiveLecture } from '../services/liveLectures';
+import { createLiveLecture } from '../features/live-lecture/api/liveLectures';
 
 interface LiveLectureBroadcasterProps {
   courseOfferingId: string;

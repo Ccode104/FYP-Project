@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { io, Socket } from 'socket.io-client';
 import Peer from 'simple-peer';
 import { motion, AnimatePresence } from 'framer-motion';
-import { joinLiveLecture, leaveLiveLecture, getLiveLectureParticipants, getLiveLectureById } from '../../services/liveLectures';
+import { joinLiveLecture, leaveLiveLecture, getLiveLectureParticipants, getLiveLectureById } from '../../features/live-lecture/api/liveLectures';
 import { VideoGrid } from './VideoGrid';
 import { ParticipantList } from './ParticipantList';
 import { ControlBar } from './ControlBar';

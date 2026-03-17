@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
-import { getUserTickets, getAllTickets, updateTicketStatus, getTicketDetails, addTicketComment } from '../services/support'
+import { getUserTickets, getAllTickets, updateTicketStatus, getTicketDetails, addTicketComment } from '../features/support/api/support'
 import { useAuth } from '../context/AuthContext'
-import type { SupportTicket, TicketDetails, TicketComment } from '../services/support'
+import type { SupportTicket, TicketDetails, TicketComment } from '../features/support/api/support'
 
 interface SupportTicketListProps {
   showAllTickets?: boolean // For admin view

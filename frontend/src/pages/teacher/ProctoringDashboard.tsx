@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { getProctoringDashboard } from '../../services/quizzes'
+import { getProctoringDashboard } from '../../features/quizzes/api/quizzes'
 import { useToast } from '../../components/ToastProvider'
 
 interface ProctoringSummary {

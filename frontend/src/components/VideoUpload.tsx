@@ -1,5 +1,5 @@
 import { useState, useRef, useCallback } from 'react';
-import { uploadVideo } from '../services/videos';
+import { uploadVideo } from '../features/videos/api/videos';
 import { useToast } from './ToastProvider';
 import './VideoUpload.css';
 

@@ -7,8 +7,8 @@ import {
   listAssignments,
   listQuizzes,
   listEnrollments
-} from '../services/admin'
-import { getAllTickets } from '../services/support'
+} from '../features/admin/api/admin'
+import { getAllTickets } from '../features/support/api/support'
 
 interface ReportStats {
   totalUsers: number

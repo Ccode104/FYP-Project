@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import backgroundImg from '../assets/background.jpg'
 import { useToast } from '../components/ToastProvider'
-import { requestPasswordReset } from '../services/password'
+import { requestPasswordReset } from '../features/auth/api/passwordReset'
 import './Login.css'
 
 export default function Forgot() {

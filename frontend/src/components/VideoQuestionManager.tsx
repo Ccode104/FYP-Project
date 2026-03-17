@@ -4,7 +4,7 @@ import {
   addVideoQuizQuestion,
   updateVideoQuizQuestion,
   deleteVideoQuizQuestion,
-} from '../services/videos';
+} from '../features/videos/api/videos';
 import './VideoQuestionManager.css';
 
 interface VideoQuestionManagerProps {

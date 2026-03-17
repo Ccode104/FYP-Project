@@ -3,7 +3,7 @@ import { apiFetch } from '../../services/api'
 import '../CodeEditor.css'
 import './TeacherCodeSubmissionViewer.css'
 import RubricGradingForm from './RubricGradingForm'
-import type { RubricGrade } from '../../services/rubrics'
+import type { RubricGrade } from '../../features/rubrics/api/rubrics'
 
 interface CodeSubmission {
   code?: Array<{

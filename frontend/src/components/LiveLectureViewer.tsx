@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { io, Socket } from 'socket.io-client';
 import Peer from 'simple-peer';
-import { joinLiveLecture, leaveLiveLecture } from '../services/liveLectures';
+import { joinLiveLecture, leaveLiveLecture } from '../features/live-lecture/api/liveLectures';
 import Whiteboard from './Whiteboard';
 import './LiveLectureViewer.css';
 

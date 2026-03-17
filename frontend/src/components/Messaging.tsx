@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import type { Message } from '../services/messages';
-import { getMessages, getSentMessages, sendMessage, markMessageAsRead, deleteMessage, getUnreadCount, getUsersForMessaging } from '../services/messages';
+import type { Message } from '../features/messaging/api/messages';
+import { getMessages, getSentMessages, sendMessage, markMessageAsRead, deleteMessage, getUnreadCount, getUsersForMessaging } from '../features/messaging/api/messages';
 import { useToast } from './ToastProvider';
 import Modal from './Modal';
 import './Messaging.css';

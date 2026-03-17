@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
-import { getTAAssignments, getGradingSubmissions, submitGrading } from '../../services/ta';
-import { getAssignmentRubric } from '../../services/rubrics';
+import { getTAAssignments, getGradingSubmissions, submitGrading } from '../../features/ta/api/ta';
+import { getAssignmentRubric } from '../../features/rubrics/api/rubrics';
 
 interface Assignment {
   id: number;

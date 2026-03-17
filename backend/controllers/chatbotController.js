@@ -78,6 +78,55 @@ async function storeDocumentInDb({ id, userId, filename, content, usedOCR }) {
   }
 }
 
+function buildResourceText(resource) {
+  return normalizeWhitespace(
+    `${resource.title || resource.filename || ''}\n${resource.description || ''}`.trim()
+  );
+}
+
+async function indexCourseResource(resource) {
+  const content = buildResourceText(resource);
+  if (!content) return;
+
+  const chunks = chunkTextHierarchical(content, 600, 100);
+  await pool.query('DELETE FROM ai_course_chunks WHERE resource_id = $1', [resource.id]);
+
+  for (const chunk of chunks) {
+    await pool.query(
+      `INSERT INTO ai_course_chunks (resource_id, course_offering_id, chunk_index, content, content_tsv, metadata, created_at)
+       VALUES ($1, $2, $3, $4, to_tsvector('english', $4), $5, now())`,
+      [
+        resource.id,
+        resource.course_offering_id,
+        chunk.index,
+        chunk.content,
+        JSON.stringify({ resourceType: resource.resource_type })
+      ]
+    );
+  }
+}
+
+export async function reindexCourseResources(req, res) {
+  try {
+    const { offeringId } = req.params;
+    const result = await pool.query(
+      `SELECT id, course_offering_id, title, description, filename, resource_type
+       FROM resources
+       WHERE course_offering_id = $1`,
+      [offeringId]
+    );
+
+    for (const resource of result.rows) {
+      await indexCourseResource(resource);
+    }
+
+    res.json({ success: true, indexed: result.rows.length });
+  } catch (error) {
+    console.error('reindexCourseResources error:', error);
+    res.status(500).json({ error: 'Failed to reindex resources' });
+  }
+}
+
 // Initialize Groq client (still needed for some functions)
 const groqApiKey = process.env.GROQ_API_KEY;
 if (!groqApiKey || groqApiKey === 'gsk_your_api_key_here') {
@@ -554,9 +603,22 @@ export async function createRagTables() {
       created_at TIMESTAMPTZ DEFAULT now()
     );
 
+    CREATE TABLE IF NOT EXISTS ai_course_chunks (
+      id BIGSERIAL PRIMARY KEY,
+      resource_id BIGINT REFERENCES resources(id) ON DELETE CASCADE,
+      course_offering_id BIGINT REFERENCES course_offerings(id) ON DELETE CASCADE,
+      chunk_index INTEGER NOT NULL,
+      content TEXT NOT NULL,
+      content_tsv tsvector,
+      metadata JSONB,
+      created_at TIMESTAMPTZ DEFAULT now()
+    );
+
     CREATE INDEX IF NOT EXISTS idx_ai_documents_user ON ai_documents(user_id);
     CREATE INDEX IF NOT EXISTS idx_ai_chunks_doc ON ai_document_chunks(document_id);
     CREATE INDEX IF NOT EXISTS idx_ai_chunks_tsv ON ai_document_chunks USING GIN (content_tsv);
+    CREATE INDEX IF NOT EXISTS idx_ai_course_chunks_offering ON ai_course_chunks(course_offering_id);
+    CREATE INDEX IF NOT EXISTS idx_ai_course_chunks_tsv ON ai_course_chunks USING GIN (content_tsv);
   `;
 
   try {
@@ -571,6 +633,8 @@ export async function createRagTables() {
     console.error('Error creating RAG tables:', error);
   }
 }
+
+export { indexCourseResource };
 
 /* ------------------------------------------------------------------
  * 💾 SAVE CHAT SESSION

@@ -1,6 +1,7 @@
 import { pool } from '../db/index.js';
 import { v2 as cloudinary } from 'cloudinary';
 import { v4 as uuidv4 } from 'uuid';
+import { indexCourseResource } from './chatbotController.js';
 
 // Configure Cloudinary (should be done once, but ensuring here)
 if (!cloudinary.config().cloud_name) {
@@ -17,6 +18,7 @@ export async function createResource(req, res) {
   const q = `INSERT INTO resources (course_offering_id, uploaded_by, title, description, resource_type, storage_path, filename)
              VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING *`;
   const r = await pool.query(q, [course_offering_id, uploaded_by, title, description, resource_type, storage_path, filename]);
+  await indexCourseResource(r.rows[0]);
   res.json(r.rows[0]);
 }
 
@@ -78,6 +80,8 @@ export async function uploadResource(req, res) {
 
     const result = await pool.query(query, values);
     const resource = result.rows[0];
+
+    await indexCourseResource(resource);
 
     res.status(201).json({
       message: 'Resource uploaded successfully',
@@ -192,9 +196,12 @@ export async function updateResource(req, res) {
       return res.status(404).json({ error: 'Resource not found' });
     }
 
+    const updated = result.rows[0];
+    await indexCourseResource(updated);
+
     res.json({
       message: 'Resource updated successfully',
-      resource: result.rows[0]
+      resource: updated
     });
   } catch (error) {
     console.error('updateResource error:', error);

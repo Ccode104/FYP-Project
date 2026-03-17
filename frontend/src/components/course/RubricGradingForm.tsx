@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
-import { getAssignmentRubric } from '../../services/rubrics'
-import type { RubricWithCriteria, RubricCriterion, RubricGrade } from '../../services/rubrics'
+import { getAssignmentRubric } from '../../features/rubrics/api/rubrics'
+import type { RubricWithCriteria, RubricCriterion, RubricGrade } from '../../features/rubrics/api/rubrics'
 
 interface RubricGradingFormProps {
   assignmentId: number

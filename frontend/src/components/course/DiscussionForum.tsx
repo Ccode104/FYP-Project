@@ -1,4 +1,4 @@
-import { type DiscussionMessage } from "../../services/discussion";
+import { type DiscussionMessage } from "../../features/discussion/api/discussion";
 
 export default function DiscussionForum({
   loading,

@@ -22,7 +22,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   })
 
   const login: AuthContextValue['login'] = async (email, password, role = 'student') => {
-    const { loginRequest } = await import('../services/auth')
+    const { loginRequest } = await import('../features/auth/api/auth')
     const res = await loginRequest(email, password, role)
     
     // Handle case where user object might not be in response
@@ -48,7 +48,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   const loginWithGoogle: AuthContextValue['loginWithGoogle'] = async (credential, role = 'student') => {
-    const { loginWithGoogle: googleLogin } = await import('../services/auth')
+    const { loginWithGoogle: googleLogin } = await import('../features/auth/api/auth')
     const res = await googleLogin(credential, role)
     
     // Handle case where user object might not be in response
