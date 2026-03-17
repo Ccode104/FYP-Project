@@ -3,6 +3,8 @@
  * Configures global test environment and utilities
  */
 
+import { afterAll, jest } from '@jest/globals';
+
 // Set environment to test
 process.env.NODE_ENV = 'test';
 

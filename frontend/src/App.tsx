@@ -9,16 +9,19 @@ const Signup = lazy(() => import('./pages/Signup'))
 const Forgot = lazy(() => import('./pages/Forgot'))
 const Reset = lazy(() => import('./pages/Reset'))
 const StudentDashboard = lazy(() => import('./pages/student/StudentDashboard'))
-const Planner = lazy(() => import('./pages/student/Planner'))
+const PlannerStudent = lazy(() => import('./features/planner/pages/PlannerStudent'))
+const PlannerStaff = lazy(() => import('./features/planner/pages/PlannerStaff'))
 const TeacherDashboard = lazy(() => import('./pages/teacher/TeacherDashboard'))
 const TADashboard = lazy(() => import('./pages/teacher/TADashboard'))
 const AdminDashboard = lazy(() => import('./pages/admin/AdminDashboard'))
 const CourseDetails = lazy(() => import('./pages/student/CourseDetails'))
+const CourseHub = lazy(() => import('./pages/student/CourseHub'))
 const AssignmentDetails = lazy(() => import('./pages/student/AssignmentDetails'))
 const CodeEditorPage = lazy(() => import('./pages/student/CodeEditorPage'))
 const ContestEditorPage = lazy(() => import('./pages/student/ContestEditorPage'))
 const LiveLecturePage = lazy(() => import('./pages/student/LiveLecturePage'))
 const VideoPlayerPage = lazy(() => import('./components/VideoPlayerPage'))
+const SuccessCenter = lazy(() => import('./pages/student/SuccessCenter'))
 
 // Import the protected route wrapper for role-based access
 const ProtectedRoute = lazy(() => import('./routes/ProtectedRoute'))
@@ -31,6 +34,7 @@ const QuizTake = lazy(() => import('./pages/student/QuizTake'))
 const QuizGrader = lazy(() => import('./pages/teacher/QuizGrader'))
 const SuspendedQuizzes = lazy(() => import('./pages/teacher/SuspendedQuizzes'))
 const ProctoringDashboard = lazy(() => import('./pages/teacher/ProctoringDashboard'))
+const ReviewQueue = lazy(() => import('./pages/teacher/ReviewQueue'))
 
 // Progress / analytics pages
 const StudentProgress = lazy(() => import('./pages/progress/StudentProgress'))
@@ -76,7 +80,43 @@ function App() {
             path="/planner"
             element={
               <ProtectedRoute roles={["student"]}>
-                <Planner />
+                <PlannerStudent />
+              </ProtectedRoute>
+            }
+          />
+
+          {/* Student success center */}
+          <Route
+            path="/success-center"
+            element={
+              <ProtectedRoute roles={["student"]}>
+                <SuccessCenter />
+              </ProtectedRoute>
+            }
+          />
+
+          {/* Staff planners */}
+          <Route
+            path="/planner/teacher"
+            element={
+              <ProtectedRoute roles={["teacher"]}>
+                <PlannerStaff />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/planner/ta"
+            element={
+              <ProtectedRoute roles={["ta"]}>
+                <PlannerStaff />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/planner/admin"
+            element={
+              <ProtectedRoute roles={["admin"]}>
+                <PlannerStaff />
               </ProtectedRoute>
             }
           />
@@ -107,6 +147,16 @@ function App() {
             element={
               <ProtectedRoute roles={["admin"]}>
                 <AdminDashboard />
+              </ProtectedRoute>
+            }
+          />
+
+          {/* Course details (accessible by student, teacher, TA) */}
+          <Route
+            path="/courses/:courseId/hub"
+            element={
+              <ProtectedRoute roles={["student", "teacher", "ta"]}>
+                <CourseHub />
               </ProtectedRoute>
             }
           />
@@ -211,6 +261,16 @@ function App() {
             }
           />
 
+          {/* Staff review queue */}
+          <Route
+            path="/staff/review-queue"
+            element={
+              <ProtectedRoute roles={["teacher", "ta"]}>
+                <ReviewQueue />
+              </ProtectedRoute>
+            }
+          />
+
           {/* Student progress page */}
           <Route
             path="/progress"
@@ -249,68 +309,3 @@ function App() {
 }
 
 export default App
-
-/* ================================================================
-    DETAILED EXPLANATION OF THE FILE
-   ================================================================
-
-1. IMPORTS
--------------------------
-- We import routing tools (Route, Routes, Navigate).
-- We import all page components such as Login, Signup, Dashboard, etc.
-- We import ProtectedRoute to restrict access based on user roles.
-- Layout is used to wrap all pages with a shared UI layout (navbar/sidebar).
-- CourseProvider sets up global state for courses.
-
-2. APP STRUCTURE
--------------------------
-<App /> returns:
-
-   <CourseProvider>
-       <Layout>
-           <Routes>
-               ...all routes here...
-           </Routes>
-       </Layout>
-   </CourseProvider>
-
-Meaning:
-- The entire app has course context available.
-- Every page is wrapped with the same layout design.
-- Routes decide which component should load depending on the URL.
-
-3. ROLE-BASED PROTECTION
--------------------------
-ProtectedRoute checks:
-- Is the user logged in?
-- Does the user role match allowed roles?
-
-Example:
-<ProtectedRoute roles={["teacher"]}>...</ProtectedRoute>
-Only users with role "teacher" can view that page.
-
-4. DYNAMIC ROUTES
--------------------------
-Routes like:
-- /courses/:courseId
-- /quizzes/:quizId
-- /progress/course/:offeringId
-
-These use URL parameters.
-Example: /courses/123 → courseId = 123.
-
-5. FALLBACK ROUTE
--------------------------
-<Route path="*" element={<Navigate to="/" />} />
-Any invalid / unknown URL redirects to "/".
-
-6. WHAT THIS FILE ACHIEVES
--------------------------
-✔ Defines every route for the LMS  
-✔ Protects routes using role-based access  
-✔ Makes course data globally available  
-✔ Wraps UI with consistent layout  
-✔ Handles all dashboards, quizzes, progress pages  
-✔ Ensures unauthorized users cannot access restricted pages  
-
-================================================================ */

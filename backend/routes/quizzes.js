@@ -75,6 +75,9 @@ router.post('/', requireAuth, requireRole('faculty','admin'), createQuiz);
 // Get suspended attempts for a teacher
 router.get('/suspended-attempts', requireAuth, requireRole('faculty','ta','admin'), getSuspendedAttempts);
 
+// Get all quiz attempts for the current student
+router.get('/student/attempts', requireAuth, getStudentQuizAttempts);
+
 // Get quiz for students (without correct answers)
 router.get('/:quizId', requireAuth, getQuiz);
 
@@ -107,9 +110,6 @@ router.delete('/attempts/:attemptId', requireAuth, requireRole('faculty','ta','a
 
 // Get quiz results for a student (their attempts for a specific quiz)
 router.get('/:quizId/results', requireAuth, getQuizResults);
-
-// Get all quiz attempts for the current student
-router.get('/student/attempts', requireAuth, getStudentQuizAttempts);
 
 // Check if student has suspended attempts or sessions for a quiz
 router.get('/:quizId/attempts/suspended/:studentId', requireAuth, async (req, res) => {

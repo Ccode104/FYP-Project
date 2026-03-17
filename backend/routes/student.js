@@ -340,7 +340,6 @@ router.get('/graded/:assignmentId', getGradedAssignment);
  *         description: Forbidden
  */
 router.post('/grade-query', submitRegradeRequest);
-router.post('/enroll', enrollInCourse);
 
 /**
  * @swagger

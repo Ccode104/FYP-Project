@@ -7,9 +7,9 @@
     "start": "node index.js",
     "start:dev": "nodemon index.js",
     "migrate": "psql \"$DATABASE_URL\" -f prisma/migrations/20251014_additional.sql",
-    "test": "jest --passWithNoTests --coverage",
-    "test:watch": "jest --watch",
-    "test:ci": "jest --passWithNoTests --coverage --ci",
+    "test": "node --experimental-vm-modules ./node_modules/jest/bin/jest.js --passWithNoTests --coverage",
+    "test:watch": "node --experimental-vm-modules ./node_modules/jest/bin/jest.js --watch",
+    "test:ci": "node --experimental-vm-modules ./node_modules/jest/bin/jest.js --passWithNoTests --coverage --ci",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "format": "prettier --write \"**/*.{js,json,md}\" --ignore-path ../.prettierignore"

@@ -2,8 +2,8 @@ import { useAuth } from "../../hooks/useAuth";
 import { useNavigate } from "react-router-dom";
 import "./TeacherDashboard.css";
 import { useEffect, useState } from "react";
-import { getTADashboardData } from "../../services/ta";
-import type { TADashboardData } from "../../services/ta";
+import { getTADashboardData } from "../../features/ta/api/ta";
+import type { TADashboardData } from "../../features/ta/api/ta";
 import TAAgentChat from "../../components/TAAgentChat";
 
 function LoadingSkeleton() {
@@ -107,6 +107,8 @@ export default function TADashboard() {
               <button className="btn btn-secondary" onClick={() => navigate('/profile')}>
                 👤 Profile
               </button>
+              <button className="btn btn-outline" onClick={() => navigate('/planner/ta')}>Planner</button>
+              <button className="btn btn-outline" onClick={() => navigate('/staff/review-queue')}>Review queue</button>
               <button className="btn btn-primary" onClick={() => setShowAgentChat(true)}>
                 🤖 AI Assistant
               </button>
@@ -321,7 +323,7 @@ export default function TADashboard() {
                     <li
                       key={course.id}
                       className="list-item list-item-clickable"
-                      onClick={() => navigate(`/courses/${course.id}`, { state: { courseTitle: course.course_title } })}
+                      onClick={() => navigate(`/courses/${course.id}/hub`, { state: { courseTitle: course.course_title } })}
                     >
                       <div className="list-item-content">
                         <span className="list-item-title">
@@ -335,7 +337,7 @@ export default function TADashboard() {
                         className="btn btn-sm btn-secondary"
                         onClick={(e) => {
                           e.stopPropagation();
-                          navigate(`/courses/${course.id}`, { state: { courseTitle: course.course_title } });
+                          navigate(`/courses/${course.id}/hub`, { state: { courseTitle: course.course_title } });
                         }}
                       >
                         Manage
@@ -357,3 +359,4 @@ export default function TADashboard() {
     </div>
   );
 }
+

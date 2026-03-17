@@ -14,7 +14,7 @@ import {
   createAssignment,
   createQuiz,
   listEnrollments, createEnrollment, deleteEnrollment
-} from '../../services/admin'
+} from '../../features/admin/api/admin'
 import { useToast } from '../../components/ToastProvider'
 import SupportTicketList from '../../components/SupportTicketList'
 import Reports from '../../components/Reports'
@@ -674,7 +674,7 @@ const paginatedDepartments = filteredDepartments.slice((deptCurrentPage - 1) * d
           </div>
           <div className="grid grid-cards">
             {courses.map((c) => (
-              <CourseCard key={c.id} course={c} onClick={() => navigate(`/courses/${c.id}`)} />
+              <CourseCard key={c.id} course={c} onClick={() => navigate(`/courses/${c.id}/hub`)} />
             ))}
           </div>
         </div>
@@ -693,6 +693,7 @@ const paginatedDepartments = filteredDepartments.slice((deptCurrentPage - 1) * d
           <button className="btn btn-secondary" onClick={() => navigate('/profile')} style={{ fontWeight: '500', padding: '8px 16px', borderRadius: '6px', border: '1px solid var(--border)', backgroundColor: 'var(--surface)', color: 'var(--text)', transition: 'all 0.2s ease' }}>
             <span style={{ fontSize: '1.1em', marginRight: '6px' }}>👤</span> Profile
           </button>
+          <button className="btn btn-outline" onClick={() => navigate('/planner/admin')}>Planner</button>
         </div>
       </div>
 
@@ -3094,3 +3095,4 @@ const paginatedDepartments = filteredDepartments.slice((deptCurrentPage - 1) * d
   )
 }
            
+

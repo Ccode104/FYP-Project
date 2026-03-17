@@ -2,8 +2,8 @@ import { useAuth } from "../../context/AuthContext";
 import { useNavigate } from "react-router-dom";
 import "./TeacherDashboard.css";
 import { useEffect, useState } from "react";
-import { listMyOfferings } from "../../services/courses";
-import { getPendingRequests, respondToRequest, type AccessRequest } from "../../services/quizPermissions";
+import { listMyOfferings } from "../../features/courses/api/courses";
+import { getPendingRequests, respondToRequest, type AccessRequest } from "../../features/quiz-permissions/api/quizPermissions";
 
 function LoadingSkeleton() {
   return (
@@ -106,6 +106,8 @@ export default function TeacherDashboard() {
           <button className="btn btn-secondary" onClick={() => navigate('/profile')}>
             👤 Profile
           </button>
+          <button className="btn btn-outline" onClick={() => navigate('/planner/teacher')}>Planner</button>
+          <button className="btn btn-outline" onClick={() => navigate('/staff/review-queue')}>Review queue</button>
           <button className="btn btn-primary" onClick={() => navigate('/teacher/suspended-quizzes')}>
             🚫 Suspended Quizzes
           </button>
@@ -158,7 +160,7 @@ export default function TeacherDashboard() {
                   <li
                     key={o.id}
                     className="list-item list-item-clickable"
-                    onClick={() => navigate(`/courses/${o.id}`, { state: { courseTitle: o.course_title } })}
+                    onClick={() => navigate(`/courses/${o.id}/hub`, { state: { courseTitle: o.course_title } })}
                   >
                     <div className="list-item-content">
                       <span className="list-item-title">
@@ -173,7 +175,7 @@ export default function TeacherDashboard() {
                       className="btn btn-sm btn-secondary"
                       onClick={(e) => {
                         e.stopPropagation();
-                        navigate(`/courses/${o.id}`, { state: { courseTitle: o.course_title } });
+                        navigate(`/courses/${o.id}/hub`, { state: { courseTitle: o.course_title } });
                       }}
                     >
                       Manage
@@ -257,3 +259,4 @@ export default function TeacherDashboard() {
     </div>
   );
 }
+

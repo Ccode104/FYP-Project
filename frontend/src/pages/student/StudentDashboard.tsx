@@ -5,8 +5,8 @@ import { useAuth } from '../../context/AuthContext'
 import { useEffect, useState } from 'react'
 import './StudentDashboard.css'
 import Modal from '../../components/Modal'
-import { enrollSelf, getLiveLecturesForCourses } from '../../services/student'
-import { enrollStudent, unenrollStudent } from '../../services/courses'
+import { enrollSelf, getLiveLecturesForCourses } from '../../features/student/api/student'
+import { enrollStudent, unenrollStudent } from '../../features/courses/api/courses'
 import { useToast } from '../../components/ToastProvider'
 import { apiFetch } from '../../services/api'
 
@@ -270,7 +270,7 @@ export default function StudentDashboard() {
     }
   }, [user])
 
-  const goToOffering = (id: number | string) => navigate(`/courses/${id}`)
+  const goToOffering = (id: number | string) => navigate(`/courses/${id}/hub`)
 
   // TA/Teacher enroll form (optional)
   const [enrOpen, setEnrOpen] = useState(false)
@@ -303,6 +303,9 @@ export default function StudentDashboard() {
         <div className="dashboard-actions">
           <button className="btn btn-secondary" onClick={() => navigate('/planner')}>
             Open Planner
+          </button>
+          <button className="btn btn-outline" onClick={() => navigate('/success-center')}>
+            Success Center
           </button>
           <button className="btn btn-primary" onClick={() => setEnrOpen(true)}>
             {(user?.role === 'ta' || user?.role === 'teacher') ? ' Enroll Student' : ' Enroll Course '}

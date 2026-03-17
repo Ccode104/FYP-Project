@@ -40,6 +40,7 @@ import contestsRoutes from './routes/contests.js';
 import courseOfferingsRoutes from './routes/courseOfferings.js';
 import aiEditorRoutes from './routes/aiEditorRoutes.js';
 import plannerRoutes from './routes/planner.js';
+import staffRoutes from './routes/staff.js';
 import { createAnalysisTables } from './controllers/codeAnalysisController.js';
 import { createAILogTables } from './controllers/aiAssistantController.js';
 import { createPlannerTables } from './controllers/plannerController.js';
@@ -192,6 +193,7 @@ export async function startServer(port = 4000) {
   app.use('/api/code-analysis', aiEditorRoutes);
   app.use('/api/ai-assistant', aiEditorRoutes);
   app.use('/api/planner', plannerRoutes);
+  app.use('/api/staff', staffRoutes);
 
   app.get('/health', (req, res) => res.json({ ok: true }));
 
