@@ -19,7 +19,7 @@
 }
 
 .planner-subtitle {
-  color: var(--text-secondary, #667085);
+  color: var(--text-secondary);
 }
 
 .planner-actions {
@@ -35,10 +35,11 @@
 }
 
 .planner-panel {
-  background: var(--card-bg, #ffffff);
+  background: var(--surface);
   border-radius: 16px;
   padding: 20px;
-  box-shadow: 0 10px 30px rgba(15, 23, 42, 0.08);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-lg);
 }
 
 .planner-panel h3 {
@@ -47,14 +48,14 @@
 
 .progress-bar {
   height: 10px;
-  background: #e4e7ec;
+  background: var(--bg-secondary);
   border-radius: 999px;
   overflow: hidden;
 }
 
 .progress-fill {
   height: 100%;
-  background: linear-gradient(90deg, #0ea5e9, #2563eb);
+  background: linear-gradient(90deg, var(--secondary), var(--primary));
   border-radius: inherit;
 }
 
@@ -80,7 +81,9 @@
 .planner-preferences select {
   padding: 8px 10px;
   border-radius: 8px;
-  border: 1px solid #d0d5dd;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
 }
 
 .reminder-list {
@@ -96,9 +99,46 @@
   flex-direction: column;
   gap: 4px;
   padding: 10px;
-  background: #f8fafc;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
   border-radius: 10px;
   font-size: 0.9rem;
+}
+
+.reminder-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+
+.reminder-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.reminder-main {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.reminder-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.reminder-main strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .planner-tasks .planner-task-header {
@@ -119,27 +159,151 @@
 .planner-view-controls button {
   padding: 6px 12px;
   border-radius: 999px;
-  border: 1px solid #d0d5dd;
+  border: 1px solid var(--border);
   background: transparent;
   cursor: pointer;
+  color: var(--text);
 }
 
 .planner-view-controls button.active {
-  background: #111827;
-  color: #fff;
-  border-color: #111827;
+  background: var(--text);
+  color: var(--bg);
+  border-color: var(--text);
 }
 
 .planner-view-controls input[type='date'] {
   padding: 6px 10px;
   border-radius: 8px;
-  border: 1px solid #d0d5dd;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
 }
 
 .planner-task-list {
   display: grid;
   gap: 12px;
   margin-top: 16px;
+}
+
+.planner-board {
+  display: grid;
+  gap: 16px;
+  margin-top: 16px;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+}
+
+.planner-calendar {
+  display: grid;
+  gap: 16px;
+  margin-top: 16px;
+}
+
+.planner-calendar-row {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+}
+
+.planner-calendar-day {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 12px;
+  display: grid;
+  gap: 12px;
+}
+
+.planner-calendar-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.planner-calendar-badge {
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  border: 1px solid var(--border);
+  background: var(--bg-secondary);
+}
+
+.planner-calendar-badge.danger {
+  border-color: var(--danger);
+  color: var(--danger);
+}
+
+.planner-calendar-cards {
+  display: grid;
+  gap: 10px;
+}
+
+.planner-calendar-unscheduled {
+  background: var(--bg-secondary);
+  border: 1px dashed var(--border);
+  border-radius: 14px;
+  padding: 12px;
+  display: grid;
+  gap: 10px;
+}
+
+.planner-board-column {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.planner-board-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.planner-board-cards {
+  display: grid;
+  gap: 12px;
+}
+
+.planner-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 12px;
+  display: grid;
+  gap: 10px;
+}
+
+.planner-card.done {
+  opacity: 0.7;
+}
+
+.planner-card-title {
+  font-weight: 600;
+}
+
+.planner-card-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+}
+
+.planner-card-meta span {
+  padding: 2px 8px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+}
+
+.planner-card-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
 }
 
 .planner-task {
@@ -149,8 +313,8 @@
   gap: 12px;
   padding: 16px;
   border-radius: 12px;
-  border: 1px solid #e4e7ec;
-  background: #ffffff;
+  border: 1px solid var(--border);
+  background: var(--surface);
 }
 
 .planner-task.done {
@@ -176,7 +340,7 @@
   flex-wrap: wrap;
   gap: 12px;
   font-size: 0.85rem;
-  color: #667085;
+  color: var(--text-secondary);
 }
 
 .task-actions {
@@ -202,7 +366,9 @@
 .planner-form select {
   padding: 10px 12px;
   border-radius: 8px;
-  border: 1px solid #d0d5dd;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
 }
 
 .planner-form textarea {
@@ -216,15 +382,52 @@
 }
 
 .planner-ai-tips {
-  background: #0f172a;
-  color: #e2e8f0;
+  background: var(--bg);
+  color: var(--text);
+  border: 1px solid var(--border);
   padding: 12px;
   border-radius: 10px;
   white-space: pre-wrap;
   font-size: 0.85rem;
 }
 
-.muted {
-  color: #98a2b3;
+.planner-recommendations {
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px solid var(--border);
 }
 
+.planner-recommendations h4 {
+  margin: 0 0 10px 0;
+  font-size: 1rem;
+}
+
+.planner-recommendations .reminder-list li {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+}
+
+.planner-task .task-main {
+  min-width: 0;
+}
+
+.planner-task .task-check span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.planner-task .task-meta span {
+  padding: 2px 10px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+}
+
+.planner-task.done .task-meta span {
+  background: transparent;
+}
+
+.muted {
+  color: var(--muted);
+}

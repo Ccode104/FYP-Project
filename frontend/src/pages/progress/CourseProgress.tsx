@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { getCourseProgress, type ProgressRow } from '../../features/progress/api/progress'
 import { useToast } from '../../components/ToastProvider'
+import { useAuth } from '../../hooks/useAuth'
 
 function groupBy<T, K extends string | number | symbol>(list: T[], getKey: (item: T) => K): Record<K, T[]> {
   return list.reduce((acc, item) => {

@@ -144,6 +144,7 @@ export async function getCourseCardData(req, res) {
   if (!userId) {return res.status(401).json({ error: 'Unauthorized' });}
 
   try {
+    const now = new Date();
     // Get all enrolled course offerings for the student
     const enrolledOfferingsQuery = `
       SELECT
@@ -247,36 +248,106 @@ export async function getCourseCardData(req, res) {
     const discussions = await pool.query(discussionsQuery, [offeringIds]);
 
     // Process the data to create course card data
+    const latestSubmissionByAssignment = new Map();
+    submissions.rows.forEach((submission) => {
+      if (!submission.assignment_id) return;
+      const key = String(submission.assignment_id);
+      const existing = latestSubmissionByAssignment.get(key);
+      if (!existing) {
+        latestSubmissionByAssignment.set(key, submission);
+        return;
+      }
+      const existingAt = existing.submitted_at ? new Date(existing.submitted_at).getTime() : 0;
+      const nextAt = submission.submitted_at ? new Date(submission.submitted_at).getTime() : 0;
+      if (nextAt >= existingAt) {
+        latestSubmissionByAssignment.set(key, submission);
+      }
+    });
+
+    const latestAttemptByQuiz = new Map();
+    quizAttempts.rows.forEach((attempt) => {
+      if (!attempt.quiz_id) return;
+      const key = String(attempt.quiz_id);
+      const existing = latestAttemptByQuiz.get(key);
+      if (!existing) {
+        latestAttemptByQuiz.set(key, attempt);
+        return;
+      }
+      const existingAt = existing.finished_at ? new Date(existing.finished_at).getTime() : 0;
+      const nextAt = attempt.finished_at ? new Date(attempt.finished_at).getTime() : 0;
+      if (nextAt >= existingAt) {
+        latestAttemptByQuiz.set(key, attempt);
+      }
+    });
+
     const courseCardData = enrolledOfferings.rows.map(offering => {
       const offeringAssignments = assignments.rows.filter(a => a.course_offering_id === offering.id);
       const offeringQuizzes = quizzes.rows.filter(q => q.course_offering_id === offering.id);
       const offeringDiscussions = discussions.rows.find(d => d.course_offering_id === offering.id);
 
-      // Count pending assignments (not submitted and valid types)
       const submittedAssignmentIds = new Set(
-        submissions.rows
-          .filter(s => s.assignment_id)
-          .map(s => String(s.assignment_id))
+        offeringAssignments
+          .map((assignment) => String(assignment.id))
+          .filter((id) => latestSubmissionByAssignment.has(id))
       );
 
       const pendingAssignments = offeringAssignments.filter(a => {
         const assignmentId = String(a.id);
         const notSubmitted = !submittedAssignmentIds.has(assignmentId);
-        const isValidType = true; // All assignments are now valid since code assignments are contests
-        return notSubmitted && isValidType;
+        return notSubmitted && (!a.due_at || new Date(a.due_at) >= now);
       }).length;
+
+      const overdueAssignments = offeringAssignments.filter(a => {
+        const assignmentId = String(a.id);
+        const notSubmitted = !submittedAssignmentIds.has(assignmentId);
+        return notSubmitted && a.due_at && new Date(a.due_at) < now;
+      }).length;
+
+      const completedAssignments = submittedAssignmentIds.size;
+
+      let assignmentScoreSum = 0;
+      let assignmentScoreCount = 0;
+      offeringAssignments.forEach((assignment) => {
+        const submission = latestSubmissionByAssignment.get(String(assignment.id));
+        if (!submission) return;
+        if (submission.final_score === null || submission.final_score === undefined) return;
+        if (!assignment.max_score) return;
+        assignmentScoreSum += (Number(submission.final_score) / Number(assignment.max_score)) * 100;
+        assignmentScoreCount += 1;
+      });
 
       // Count pending quizzes (not attempted)
       const attemptedQuizIds = new Set(
-        quizAttempts.rows
-          .filter(qa => qa.quiz_id)
-          .map(qa => String(qa.quiz_id))
+        offeringQuizzes
+          .map((quiz) => String(quiz.id))
+          .filter((id) => latestAttemptByQuiz.has(id))
       );
 
       const pendingQuizzes = offeringQuizzes.filter(q => {
         const quizId = String(q.id);
-        return !attemptedQuizIds.has(quizId);
+        const notAttempted = !attemptedQuizIds.has(quizId);
+        const stillOpen = !q.end_at || new Date(q.end_at) >= now;
+        return notAttempted && stillOpen;
       }).length;
+
+      const missedQuizzes = offeringQuizzes.filter(q => {
+        const quizId = String(q.id);
+        const notAttempted = !attemptedQuizIds.has(quizId);
+        return notAttempted && q.end_at && new Date(q.end_at) < now;
+      }).length;
+
+      const completedQuizzes = attemptedQuizIds.size;
+
+      let quizScoreSum = 0;
+      let quizScoreCount = 0;
+      offeringQuizzes.forEach((quiz) => {
+        const attempt = latestAttemptByQuiz.get(String(quiz.id));
+        if (!attempt) return;
+        if (attempt.score === null || attempt.score === undefined) return;
+        if (!quiz.max_score) return;
+        quizScoreSum += (Number(attempt.score) / Number(quiz.max_score)) * 100;
+        quizScoreCount += 1;
+      });
 
       // Get unread discussion count
       const unreadNotifications = offeringDiscussions ? parseInt(offeringDiscussions.unread_count) || 0 : 0;
@@ -292,11 +363,76 @@ export async function getCourseCardData(req, res) {
         faculty_email: offering.faculty_email,
         pending_assignments: pendingAssignments,
         pending_quizzes: pendingQuizzes,
+        overdue_assignments: overdueAssignments,
+        missed_quizzes: missedQuizzes,
+        completed_assignments: completedAssignments,
+        completed_quizzes: completedQuizzes,
+        assignment_average: assignmentScoreCount ? Math.round(assignmentScoreSum / assignmentScoreCount) : null,
+        quiz_average: quizScoreCount ? Math.round(quizScoreSum / quizScoreCount) : null,
         unread_notifications: unreadNotifications
       };
     });
 
-    res.json({ courses: courseCardData });
+    const summary = courseCardData.reduce(
+      (acc, course) => {
+        acc.pending_assignments += course.pending_assignments || 0;
+        acc.pending_quizzes += course.pending_quizzes || 0;
+        acc.overdue_assignments += course.overdue_assignments || 0;
+        acc.missed_quizzes += course.missed_quizzes || 0;
+        acc.completed_assignments += course.completed_assignments || 0;
+        acc.completed_quizzes += course.completed_quizzes || 0;
+        acc.unread_notifications += course.unread_notifications || 0;
+        if (course.assignment_average !== null && course.assignment_average !== undefined) {
+          acc.assignment_average_sum += course.assignment_average;
+          acc.assignment_average_count += 1;
+        }
+        if (course.quiz_average !== null && course.quiz_average !== undefined) {
+          acc.quiz_average_sum += course.quiz_average;
+          acc.quiz_average_count += 1;
+        }
+        return acc;
+      },
+      {
+        pending_assignments: 0,
+        pending_quizzes: 0,
+        overdue_assignments: 0,
+        missed_quizzes: 0,
+        completed_assignments: 0,
+        completed_quizzes: 0,
+        unread_notifications: 0,
+        assignment_average_sum: 0,
+        assignment_average_count: 0,
+        quiz_average_sum: 0,
+        quiz_average_count: 0
+      }
+    );
+
+    const overall_assignment_average = summary.assignment_average_count
+      ? Math.round(summary.assignment_average_sum / summary.assignment_average_count)
+      : null;
+    const overall_quiz_average = summary.quiz_average_count
+      ? Math.round(summary.quiz_average_sum / summary.quiz_average_count)
+      : null;
+    const overall_average =
+      overall_assignment_average !== null && overall_quiz_average !== null
+        ? Math.round((overall_assignment_average + overall_quiz_average) / 2)
+        : overall_assignment_average ?? overall_quiz_average ?? null;
+
+    res.json({
+      courses: courseCardData,
+      summary: {
+        pending_assignments: summary.pending_assignments,
+        pending_quizzes: summary.pending_quizzes,
+        overdue_assignments: summary.overdue_assignments,
+        missed_quizzes: summary.missed_quizzes,
+        completed_assignments: summary.completed_assignments,
+        completed_quizzes: summary.completed_quizzes,
+        unread_notifications: summary.unread_notifications,
+        assignment_average: overall_assignment_average,
+        quiz_average: overall_quiz_average,
+        overall_average
+      }
+    });
 
   } catch (error) {
     console.error('Error fetching course card data:', error);

@@ -10,7 +10,9 @@ import {
   getPlannerPreferences,
   getPlannerRecommendations,
   getPlannerTasks,
+  logPlannerTaskTime,
   reorderPlannerTasks,
+  reschedulePlannerTasks,
   updatePlannerPreferences,
   updatePlannerTask
 } from '../controllers/plannerController.js';
@@ -22,8 +24,10 @@ router.use(requireAuth);
 router.get('/tasks', getPlannerTasks);
 router.post('/tasks', createPlannerTask);
 router.patch('/tasks/:taskId', updatePlannerTask);
+router.post('/tasks/:taskId/time', logPlannerTaskTime);
 router.delete('/tasks/:taskId', deletePlannerTask);
 router.post('/tasks/reorder', reorderPlannerTasks);
+router.post('/reschedule', reschedulePlannerTasks);
 
 router.get('/preferences', getPlannerPreferences);
 router.put('/preferences', updatePlannerPreferences);

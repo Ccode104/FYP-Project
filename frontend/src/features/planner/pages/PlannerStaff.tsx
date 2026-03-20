@@ -8,6 +8,7 @@ import {
   generateAdminPlanner,
   generateTAPlanner,
   generateTeacherPlanner,
+  logPlannerTaskTime,
   reorderPlannerTasks,
   updatePlannerTask,
   type PlannerTask,
@@ -23,7 +24,6 @@ export default function PlannerStaff() {
   const [tasks, setTasks] = useState<PlannerTask[]>([]);
   const [loading, setLoading] = useState(true);
   const [recommendations, setRecommendations] = useState<Array<{ best_hours: string[]; reason: string }>>([]);
-  const [aiTips, setAiTips] = useState<string | null>(null);
   const [dragId, setDragId] = useState<number | null>(null);
 
   const loadPlanner = async () => {
@@ -32,7 +32,6 @@ export default function PlannerStaff() {
       const [taskData, recData] = await Promise.all([fetchPlannerTasks(), fetchPlannerRecommendations()]);
       setTasks(taskData.tasks || []);
       setRecommendations(recData.recommendations || []);
-      setAiTips(recData.aiTips || null);
     } catch (error: unknown) {
       push({ kind: 'error', message: error instanceof Error ? error.message : 'Failed to load planner' });
     } finally {
@@ -56,7 +55,6 @@ export default function PlannerStaff() {
       const response =
         role === 'teacher' ? await generateTeacherPlanner() : role === 'ta' ? await generateTAPlanner() : await generateAdminPlanner();
       setTasks(response.tasks || []);
-      setAiTips(response.aiTips || null);
       push({ kind: 'success', message: 'Planner generated' });
     } catch (error: unknown) {
       push({ kind: 'error', message: error instanceof Error ? error.message : 'Failed to generate plan' });
@@ -105,6 +103,16 @@ export default function PlannerStaff() {
       await reorderPlannerTasks(reordered.map((task, index) => ({ id: task.id, order_index: index })));
     } catch (error: unknown) {
       push({ kind: 'error', message: error instanceof Error ? error.message : 'Failed to reorder tasks' });
+    }
+  };
+
+  const handleLogTime = async (taskId: number, minutes: number) => {
+    try {
+      const response = await logPlannerTaskTime(taskId, { minutes });
+      setTasks((prev) => prev.map((item) => (item.id === taskId ? response.task : item)));
+      push({ kind: 'success', message: `Logged ${minutes} minutes` });
+    } catch (error: unknown) {
+      push({ kind: 'error', message: error instanceof Error ? error.message : 'Failed to log time' });
     }
   };
 
@@ -160,12 +168,6 @@ export default function PlannerStaff() {
               ))}
             </ul>
           )}
-          {aiTips && (
-            <div className="planner-recommendations">
-              <h4>AI Tips</h4>
-              <pre className="planner-ai-tips">{aiTips}</pre>
-            </div>
-          )}
         </section>
       </div>
 
@@ -199,12 +201,21 @@ export default function PlannerStaff() {
                     <span>{task.title}</span>
                   </label>
                   <div className="task-meta">
+                    <span>{task.category || 'custom'}</span>
+                    <span>{task.priority || 'medium'} priority</span>
                     <span>{task.estimated_minutes || 30} min</span>
                     <span>{task.difficulty || 'medium'}</span>
                     <span>{task.due_at ? new Date(task.due_at).toLocaleString('en-US') : 'No due date'}</span>
+                    <span>{task.time_spent_minutes || 0} min logged</span>
                   </div>
                 </div>
                 <div className="task-actions">
+                  <button className="btn btn-ghost" onClick={() => handleLogTime(task.id, 15)}>
+                    +15m
+                  </button>
+                  <button className="btn btn-ghost" onClick={() => handleLogTime(task.id, 30)}>
+                    +30m
+                  </button>
                   <button className="btn btn-ghost" onClick={() => handleDelete(task.id)}>
                     Remove
                   </button>
@@ -217,4 +228,3 @@ export default function PlannerStaff() {
     </div>
   );
 }
-

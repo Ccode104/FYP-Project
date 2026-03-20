@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
 import '../styles/Planner.css';
 import Modal from '../../../components/Modal';
+import Calendar from '../../../components/Calendar';
 import { useToast } from '../../../components/ToastProvider';
+import { useAuth } from '../../../hooks/useAuth';
 import {
   createPlannerTask,
   deletePlannerTask,
@@ -9,6 +11,8 @@ import {
   fetchPlannerTasks,
   fetchPlannerRecommendations,
   generatePlanner,
+  logPlannerTaskTime,
+  reschedulePlanner,
   reorderPlannerTasks,
   updatePlannerPreferences,
   updatePlannerTask,
@@ -17,18 +21,23 @@ import {
 } from '../api/planner';
 
 type ViewMode = 'daily' | 'weekly' | 'all';
+type LayoutMode = 'list' | 'board' | 'calendar';
 
 const difficultyOptions = ['easy', 'medium', 'hard'];
+const categoryOptions = ['assignment', 'quiz', 'lecture', 'self-study', 'custom'];
+const priorityOptions = ['low', 'medium', 'high'];
 
 export default function PlannerStudent() {
   const { push } = useToast();
+  const { user } = useAuth();
   const [tasks, setTasks] = useState<PlannerTask[]>([]);
   const [preferences, setPreferences] = useState<PlannerPreferences | null>(null);
   const [loading, setLoading] = useState(true);
   const [recommendations, setRecommendations] = useState<Array<{ best_hours: string[]; reason: string }>>([]);
-  const [aiTips, setAiTips] = useState<string | null>(null);
   const [view, setView] = useState<ViewMode>('weekly');
+  const [layout, setLayout] = useState<LayoutMode>('list');
   const [selectedDate, setSelectedDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [showDismissedReminders, setShowDismissedReminders] = useState(false);
   const [showModal, setShowModal] = useState(false);
   const [dragId, setDragId] = useState<number | null>(null);
   const [form, setForm] = useState({
@@ -37,6 +46,8 @@ export default function PlannerStudent() {
     due_at: '',
     estimated_minutes: 90,
     difficulty: 'medium',
+    category: 'custom',
+    priority: 'medium',
     scheduled_for: '',
   });
 
@@ -51,7 +62,6 @@ export default function PlannerStudent() {
       setTasks(taskData.tasks || []);
       setPreferences(prefData);
       setRecommendations(recData.recommendations || []);
-      setAiTips(recData.aiTips || null);
     } catch (error: unknown) {
       push({ kind: 'error', message: error instanceof Error ? error.message : 'Failed to load planner' });
     } finally {
@@ -66,14 +76,19 @@ export default function PlannerStudent() {
   const filteredTasks = useMemo(() => {
     if (view === 'all') return tasks;
     const start = new Date(selectedDate);
+    start.setHours(0, 0, 0, 0);
     const end = new Date(selectedDate);
     if (view === 'weekly') {
       end.setDate(end.getDate() + 6);
     }
+    end.setHours(23, 59, 59, 999);
     return tasks.filter((task) => {
-      if (!task.scheduled_for) return false;
-      const scheduled = new Date(task.scheduled_for);
-      return scheduled >= start && scheduled <= end;
+      // Prefer explicit scheduled_for; fallback to due_at to avoid "missing" tasks in daily/weekly view.
+      const anchor = task.scheduled_for || task.due_at;
+      if (!anchor) return false;
+      const when = new Date(anchor);
+      if (Number.isNaN(when.getTime())) return false;
+      return when >= start && when <= end;
     });
   }, [tasks, view, selectedDate]);
 
@@ -90,19 +105,58 @@ export default function PlannerStudent() {
     return tasks
       .filter((task) => {
         if (!task.due_at || task.status === 'done') return false;
+        if (task.reminder_dismissed_until) {
+          const until = new Date(task.reminder_dismissed_until);
+          if (!Number.isNaN(until.getTime()) && until > now) return false;
+        }
         const due = new Date(task.due_at);
         return due <= soon && due >= now;
       })
       .slice(0, 5);
   }, [tasks]);
 
+  const dismissedReminders = useMemo(() => {
+    const now = new Date();
+    const soon = new Date();
+    soon.setDate(soon.getDate() + 2);
+    return tasks
+      .filter((task) => {
+        if (!task.due_at || task.status === 'done') return false;
+        if (!task.reminder_dismissed_until) return false;
+        const until = new Date(task.reminder_dismissed_until);
+        if (Number.isNaN(until.getTime()) || until <= now) return false;
+        const due = new Date(task.due_at);
+        return due <= soon && due >= now;
+      })
+      .slice(0, 10);
+  }, [tasks]);
+
+  const setReminderDismissUntil = async (task: PlannerTask, until: Date | null) => {
+    try {
+      const payload = { reminder_dismissed_until: until ? until.toISOString() : null };
+      const response = await updatePlannerTask(task.id, payload);
+      setTasks((prev) => prev.map((t) => (t.id === task.id ? response.task : t)));
+    } catch (error: unknown) {
+      push({ kind: 'error', message: error instanceof Error ? error.message : 'Failed to update reminder' });
+    }
+  };
+
   const handleGenerate = async () => {
     try {
       setLoading(true);
       const response = await generatePlanner();
-      setTasks(response.tasks || []);
-      setAiTips(response.aiTips || null);
-      push({ kind: 'success', message: 'Planner generated' });
+      // Never wipe tasks on an empty generate response.
+      if ((response.tasks || []).length > 0) {
+        setTasks(response.tasks || []);
+      }
+      if ((response.tasks || []).length === 0) {
+        push({
+          kind: 'success',
+          message: 'Planner generated (no upcoming items found). Make sure you are enrolled and your assignments/quizzes have future due dates.',
+        });
+      } else {
+        push({ kind: 'success', message: 'Planner generated' });
+      }
     } catch (error: unknown) {
       push({ kind: 'error', message: error instanceof Error ? error.message : 'Failed to generate plan' });
     } finally {
@@ -116,13 +170,18 @@ export default function PlannerStudent() {
       return;
     }
     try {
+      // If user didn't set scheduled_for, default it from due_at (keeps the task visible in daily/weekly).
+      const scheduledFallback =
+        form.scheduled_for || (form.due_at ? new Date(form.due_at).toISOString().slice(0, 10) : '');
       const response = await createPlannerTask({
         title: form.title,
         description: form.description,
         due_at: form.due_at || null,
         estimated_minutes: Number(form.estimated_minutes) || 90,
         difficulty: form.difficulty,
-        scheduled_for: form.scheduled_for || null,
+        category: form.category,
+        priority: form.priority,
+        scheduled_for: scheduledFallback || null,
       });
       setTasks((prev) => [response.task, ...prev]);
       setShowModal(false);
@@ -132,6 +191,8 @@ export default function PlannerStudent() {
         due_at: '',
         estimated_minutes: 90,
         difficulty: 'medium',
+        category: 'custom',
+        priority: 'medium',
         scheduled_for: '',
       });
     } catch (error: unknown) {
@@ -167,16 +228,23 @@ export default function PlannerStudent() {
     const [moved] = reordered.splice(dragIndex, 1);
     reordered.splice(targetIndex, 0, moved);
 
+    // Avoid clobbering global ordering when reordering inside a filtered view.
+    const viewTaskIds = new Set(reordered.map((t) => t.id));
+    const baseOrder = Math.min(
+      ...tasks.filter((t) => viewTaskIds.has(t.id)).map((t) => (typeof t.order_index === 'number' ? t.order_index : 0)),
+      0,
+    );
+
     const updatedTasks = tasks.map((task) => {
       const newIndex = reordered.findIndex((item) => item.id === task.id);
       if (newIndex === -1) return task;
-      return { ...task, order_index: newIndex };
+      return { ...task, order_index: baseOrder + newIndex };
     });
     setTasks(updatedTasks);
     setDragId(null);
 
     try {
-      await reorderPlannerTasks(reordered.map((task, index) => ({ id: task.id, order_index: index })));
+      await reorderPlannerTasks(reordered.map((task, index) => ({ id: task.id, order_index: baseOrder + index })));
     } catch (error: unknown) {
       push({ kind: 'error', message: error instanceof Error ? error.message : 'Failed to reorder tasks' });
     }
@@ -193,11 +261,80 @@ export default function PlannerStudent() {
     }
   };
 
+  const handleReschedule = async () => {
+    try {
+      setLoading(true);
+      const response = await reschedulePlanner();
+      setTasks(response.tasks || []);
+      push({ kind: 'success', message: 'Schedule updated' });
+    } catch (error: unknown) {
+      push({ kind: 'error', message: error instanceof Error ? error.message : 'Failed to reschedule' });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleLogTime = async (taskId: number, minutes: number) => {
+    try {
+      const response = await logPlannerTaskTime(taskId, { minutes });
+      setTasks((prev) => prev.map((item) => (item.id === taskId ? response.task : item)));
+      push({ kind: 'success', message: `Logged ${minutes} minutes` });
+    } catch (error: unknown) {
+      push({ kind: 'error', message: error instanceof Error ? error.message : 'Failed to log time' });
+    }
+  };
+
+  const boardColumns: Array<{ id: PlannerTask['status']; label: string }> = [
+    { id: 'pending', label: 'Pending' },
+    { id: 'in_progress', label: 'In Progress' },
+    { id: 'done', label: 'Completed' },
+  ];
+
+  const tasksByStatus = useMemo(() => {
+    const groups = new Map<PlannerTask['status'], PlannerTask[]>();
+    boardColumns.forEach((col) => groups.set(col.id, []));
+    filteredTasks.forEach((task) => {
+      const status = task.status || 'pending';
+      if (!groups.has(status)) {
+        groups.set(status, []);
+      }
+      groups.get(status)?.push(task);
+    });
+    return groups;
+  }, [filteredTasks]);
+
+  const calendarEvents = useMemo(() => {
+    const blockTimeMap: Record<string, string> = {
+      morning: '09:00',
+      afternoon: '13:00',
+      evening: '18:00',
+      'late-night': '22:00',
+    };
+
+    return tasks
+      .filter((task) => task.scheduled_for || task.due_at)
+      .map((task) => {
+        let scheduledAt = task.due_at || '';
+        if (task.scheduled_for) {
+          const time = blockTimeMap[task.scheduled_block || ''] || '09:00';
+          scheduledAt = `${task.scheduled_for}T${time}:00`;
+        }
+        const type = task.category && ['assignment', 'quiz', 'lecture'].includes(task.category) ? 'deadline' : 'lecture';
+        return {
+          id: task.id,
+          title: task.title,
+          scheduled_at: scheduledAt,
+          course_offering_id: task.course_offering_id ?? 0,
+          type,
+        };
+      });
+  }, [tasks]);
+
   return (
     <div className="container container-wide planner-page">
       <div className="planner-header">
         <div>
-          <h1 className="planner-title">AI Academic Planner</h1>
+          <h1 className="planner-title">Coursework Planner{user?.name ? ` — ${user.name}` : ''}</h1>
           <p className="planner-subtitle">A focused timeline built from your coursework and habits.</p>
         </div>
         <div className="planner-actions">
@@ -206,6 +343,12 @@ export default function PlannerStudent() {
           </button>
           <button className="btn btn-primary" onClick={handleGenerate} disabled={loading}>
             Auto-Generate Plan
+          </button>
+          <button className="btn btn-outline" onClick={handleReschedule} disabled={loading}>
+            Auto-Reschedule
+          </button>
+          <button className="btn btn-outline" onClick={loadPlanner} disabled={loading}>
+            Refresh
           </button>
         </div>
       </div>
@@ -244,18 +387,83 @@ export default function PlannerStudent() {
         </section>
 
         <section className="planner-panel planner-reminders">
-          <h3>Smart Reminders</h3>
+          <div className="reminder-header">
+            <h3>Smart Reminders</h3>
+            <button className="btn btn-ghost btn-sm" onClick={() => setShowDismissedReminders((v) => !v)}>
+              {showDismissedReminders ? 'Hide dismissed' : `Dismissed (${dismissedReminders.length})`}
+            </button>
+          </div>
           {reminders.length === 0 ? (
             <p className="muted">No urgent deadlines in the next 48 hours.</p>
           ) : (
             <ul className="reminder-list">
               {reminders.map((task) => (
                 <li key={task.id}>
-                  <strong>{task.title}</strong>
-                  <span>{task.due_at ? new Date(task.due_at).toLocaleString('en-US') : 'No due date'}</span>
+                  <div className="reminder-row">
+                    <div className="reminder-main">
+                      <strong>{task.title}</strong>
+                      <span>{task.due_at ? new Date(task.due_at).toLocaleString('en-US') : 'No due date'}</span>
+                    </div>
+                    <div className="reminder-actions">
+                      <button className="btn btn-ghost btn-sm" onClick={() => updateStatus(task, 'done')}>
+                        Done
+                      </button>
+                      <button
+                        className="btn btn-ghost btn-sm"
+                        onClick={() => setReminderDismissUntil(task, new Date(Date.now() + 6 * 60 * 60 * 1000))}
+                        title="Hide this reminder for 6 hours"
+                      >
+                        Dismiss
+                      </button>
+                      <button
+                        className="btn btn-ghost btn-sm"
+                        onClick={() => setReminderDismissUntil(task, new Date(Date.now() + 24 * 60 * 60 * 1000))}
+                        title="Snooze 1 day"
+                      >
+                        Snooze 1d
+                      </button>
+                      <button
+                        className="btn btn-ghost btn-sm"
+                        onClick={() => setReminderDismissUntil(task, new Date(Date.now() + 3 * 24 * 60 * 60 * 1000))}
+                        title="Snooze 3 days"
+                      >
+                        Snooze 3d
+                      </button>
+                    </div>
+                  </div>
                 </li>
               ))}
             </ul>
+          )}
+
+          {showDismissedReminders && (
+            <div className="planner-recommendations">
+              <h4>Dismissed reminders</h4>
+              {dismissedReminders.length === 0 ? (
+                <p className="muted">No dismissed reminders.</p>
+              ) : (
+                <ul className="reminder-list">
+                  {dismissedReminders.map((task) => (
+                    <li key={`dismissed-${task.id}`}>
+                      <div className="reminder-row">
+                        <div className="reminder-main">
+                          <strong>{task.title}</strong>
+                          <span>
+                            Due: {task.due_at ? new Date(task.due_at).toLocaleString('en-US') : '—'} • Hidden until:{' '}
+                            {task.reminder_dismissed_until ? new Date(task.reminder_dismissed_until).toLocaleString('en-US') : '—'}
+                          </span>
+                        </div>
+                        <div className="reminder-actions">
+                          <button className="btn btn-ghost btn-sm" onClick={() => setReminderDismissUntil(task, null)}>
+                            Undo
+                          </button>
+                        </div>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
           )}
         </section>
       </div>
@@ -276,6 +484,15 @@ export default function PlannerStudent() {
             {view !== 'all' && (
               <input type="date" value={selectedDate} onChange={(event) => setSelectedDate(event.target.value)} />
             )}
+            <button className={layout === 'list' ? 'active' : ''} onClick={() => setLayout('list')}>
+              List
+            </button>
+            <button className={layout === 'board' ? 'active' : ''} onClick={() => setLayout('board')}>
+              Board
+            </button>
+            <button className={layout === 'calendar' ? 'active' : ''} onClick={() => setLayout('calendar')}>
+              Calendar
+            </button>
           </div>
         </div>
 
@@ -283,6 +500,115 @@ export default function PlannerStudent() {
           <p className="muted">Loading planner...</p>
         ) : filteredTasks.length === 0 ? (
           <p className="muted">No tasks scheduled for this view yet.</p>
+        ) : layout === 'calendar' ? (
+          <div className="planner-calendar">
+            <div className="planner-calendar-row">
+              {calendarWeek.map((date) => {
+                const key = date.toISOString().slice(0, 10);
+                const items = tasksByDay.get(key) || [];
+                const isOverloaded = overloadDays.has(key);
+                return (
+                  <div key={key} className="planner-calendar-day">
+                    <div className="planner-calendar-header">
+                      <div>
+                        <strong>{date.toLocaleDateString('en-US', { weekday: 'short' })}</strong>
+                        <div className="muted">{date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</div>
+                      </div>
+                      <span className={isOverloaded ? 'planner-calendar-badge danger' : 'planner-calendar-badge'}>
+                        {items.reduce((sum, t) => sum + (t.estimated_minutes || 0), 0)} min
+                      </span>
+                    </div>
+                    <div className="planner-calendar-cards">
+                      {items.length === 0 ? (
+                        <div className="muted">No tasks</div>
+                      ) : (
+                        items.map((task) => (
+                          <div key={task.id} className={`planner-card ${task.status === 'done' ? 'done' : ''}`}>
+                            <div className="planner-card-title">{task.title}</div>
+                            <div className="planner-card-meta">
+                              <span>{task.category || 'custom'}</span>
+                              <span>{task.priority || 'medium'} priority</span>
+                              <span>{task.estimated_minutes || 90} min</span>
+                            </div>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+            {(tasksByDay.get('unscheduled') || []).length > 0 && (
+              <div className="planner-calendar-unscheduled">
+                <h4>Unscheduled</h4>
+                <div className="planner-calendar-cards">
+                  {(tasksByDay.get('unscheduled') || []).map((task) => (
+                    <div key={task.id} className={`planner-card ${task.status === 'done' ? 'done' : ''}`}>
+                      <div className="planner-card-title">{task.title}</div>
+                      <div className="planner-card-meta">
+                        <span>{task.category || 'custom'}</span>
+                        <span>{task.priority || 'medium'} priority</span>
+                        <span>{task.estimated_minutes || 90} min</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        ) : layout === 'board' ? (
+          <div className="planner-board">
+            {boardColumns.map((column) => (
+              <div key={column.id} className="planner-board-column">
+                <div className="planner-board-header">
+                  <h4>{column.label}</h4>
+                  <span className="muted">{tasksByStatus.get(column.id)?.length ?? 0}</span>
+                </div>
+                <div className="planner-board-cards">
+                  {(tasksByStatus.get(column.id) || []).map((task) => (
+                    <div key={task.id} className={`planner-card ${task.status === 'done' ? 'done' : ''}`}>
+                      <div className="planner-card-title">{task.title}</div>
+                      <div className="planner-card-meta">
+                        <span>{task.category || 'custom'}</span>
+                        <span>{task.priority || 'medium'} priority</span>
+                        <span>{task.estimated_minutes || 90} min</span>
+                        <span>{task.time_spent_minutes || 0} min logged</span>
+                        <span>{task.due_at ? new Date(task.due_at).toLocaleString('en-US') : 'No due date'}</span>
+                      </div>
+                      <div className="planner-card-actions">
+                        {task.status !== 'done' ? (
+                          <button
+                            className="btn btn-ghost btn-sm"
+                            onClick={() => updateStatus(task, task.status === 'in_progress' ? 'pending' : 'in_progress')}
+                          >
+                            {task.status === 'in_progress' ? 'Pause' : 'Start'}
+                          </button>
+                        ) : (
+                          <button className="btn btn-ghost btn-sm" onClick={() => updateStatus(task, 'pending')}>
+                            Reopen
+                          </button>
+                        )}
+                        {task.status !== 'done' && (
+                          <button className="btn btn-ghost btn-sm" onClick={() => updateStatus(task, 'done')}>
+                            Complete
+                          </button>
+                        )}
+                        <button className="btn btn-ghost btn-sm" onClick={() => handleLogTime(task.id, 15)}>
+                          +15m
+                        </button>
+                        <button className="btn btn-ghost btn-sm" onClick={() => handleLogTime(task.id, 30)}>
+                          +30m
+                        </button>
+                        <button className="btn btn-ghost btn-sm" onClick={() => handleDelete(task.id)}>
+                          Remove
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
         ) : (
           <div className="planner-task-list">
             {filteredTasks.map((task) => (
@@ -304,10 +630,14 @@ export default function PlannerStudent() {
                     <span>{task.title}</span>
                   </label>
                   <div className="task-meta">
+                    <span>{task.category || 'custom'}</span>
+                    <span>{task.priority || 'medium'} priority</span>
                     <span>{task.estimated_minutes || 90} min</span>
                     <span>{task.difficulty || 'medium'}</span>
+                    {task.scheduled_block ? <span>{task.scheduled_block}</span> : null}
                     <span>{task.scheduled_for || 'Unscheduled'}</span>
                     <span>{task.due_at ? new Date(task.due_at).toLocaleString('en-US') : 'No due date'}</span>
+                    <span>{task.time_spent_minutes || 0} min logged</span>
                   </div>
                 </div>
                 <div className="task-actions">
@@ -316,6 +646,12 @@ export default function PlannerStudent() {
                     onClick={() => updateStatus(task, task.status === 'in_progress' ? 'pending' : 'in_progress')}
                   >
                     {task.status === 'in_progress' ? 'Pause' : 'Start'}
+                  </button>
+                  <button className="btn btn-ghost" onClick={() => handleLogTime(task.id, 15)}>
+                    +15m
+                  </button>
+                  <button className="btn btn-ghost" onClick={() => handleLogTime(task.id, 30)}>
+                    +30m
                   </button>
                   <button className="btn btn-ghost" onClick={() => handleDelete(task.id)}>
                     Remove
@@ -336,12 +672,6 @@ export default function PlannerStudent() {
                 </li>
               ))}
             </ul>
-          </div>
-        )}
-        {aiTips && (
-          <div className="planner-recommendations">
-            <h4>AI Tips</h4>
-            <pre className="planner-ai-tips">{aiTips}</pre>
           </div>
         )}
       </section>
@@ -378,6 +708,32 @@ export default function PlannerStudent() {
             />
           </label>
           <div className="planner-form-grid">
+            <label>
+              Category
+              <select
+                value={form.category}
+                onChange={(event) => setForm((prev) => ({ ...prev, category: event.target.value }))}
+              >
+                {categoryOptions.map((option) => (
+                  <option key={option} value={option}>
+                    {option}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label>
+              Priority
+              <select
+                value={form.priority}
+                onChange={(event) => setForm((prev) => ({ ...prev, priority: event.target.value }))}
+              >
+                {priorityOptions.map((option) => (
+                  <option key={option} value={option}>
+                    {option}
+                  </option>
+                ))}
+              </select>
+            </label>
             <label>
               Due date
               <input
@@ -422,4 +778,3 @@ export default function PlannerStudent() {
     </div>
   );
 }
-

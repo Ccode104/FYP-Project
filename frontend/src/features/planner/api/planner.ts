@@ -6,13 +6,20 @@ export interface PlannerTask {
   course_offering_id: number | null;
   source_type: string;
   source_id: number | null;
+  category?: string | null;
+  priority?: 'low' | 'medium' | 'high' | string;
   title: string;
   description?: string | null;
   due_at?: string | null;
   estimated_minutes?: number;
   difficulty?: string;
   status?: 'pending' | 'in_progress' | 'done' | 'skipped';
+  completed_at?: string | null;
+  last_status_at?: string | null;
+  time_spent_minutes?: number;
   scheduled_for?: string | null;
+  scheduled_block?: string | null;
+  reminder_dismissed_until?: string | null;
   order_index?: number;
 }
 
@@ -61,27 +68,40 @@ export async function reorderPlannerTasks(order: { id: number; order_index: numb
   });
 }
 
+export async function logPlannerTaskTime(taskId: number, payload: { minutes: number; note?: string }) {
+  return apiFetch<{ task: PlannerTask }>(`/api/planner/tasks/${taskId}/time`, {
+    method: 'POST',
+    body: payload,
+  });
+}
+
 export async function generatePlanner(courseIds?: number[]) {
-  return apiFetch<{ success: boolean; tasks: PlannerTask[]; aiTips?: string | null }>('/api/planner/generate', {
+  return apiFetch<{ success: boolean; tasks: PlannerTask[] }>('/api/planner/generate', {
     method: 'POST',
     body: { courseIds: courseIds || [] },
   });
 }
 
 export async function generateTeacherPlanner() {
-  return apiFetch<{ success: boolean; tasks: PlannerTask[]; aiTips?: string | null }>('/api/planner/generate/teacher', {
+  return apiFetch<{ success: boolean; tasks: PlannerTask[] }>('/api/planner/generate/teacher', {
     method: 'POST',
   });
 }
 
 export async function generateTAPlanner() {
-  return apiFetch<{ success: boolean; tasks: PlannerTask[]; aiTips?: string | null }>('/api/planner/generate/ta', {
+  return apiFetch<{ success: boolean; tasks: PlannerTask[] }>('/api/planner/generate/ta', {
     method: 'POST',
   });
 }
 
 export async function generateAdminPlanner() {
-  return apiFetch<{ success: boolean; tasks: PlannerTask[]; aiTips?: string | null }>('/api/planner/generate/admin', {
+  return apiFetch<{ success: boolean; tasks: PlannerTask[] }>('/api/planner/generate/admin', {
+    method: 'POST',
+  });
+}
+
+export async function reschedulePlanner() {
+  return apiFetch<{ success: boolean; tasks: PlannerTask[] }>('/api/planner/reschedule', {
     method: 'POST',
   });
 }
@@ -98,8 +118,7 @@ export async function updatePlannerPreferences(prefs: Partial<PlannerPreferences
 }
 
 export async function fetchPlannerRecommendations() {
-  return apiFetch<{ recommendations: Array<{ best_hours: string[]; reason: string }>; aiTips?: string | null }>(
+  return apiFetch<{ recommendations: Array<{ best_hours: string[]; reason: string }> }>(
     '/api/planner/recommendations',
   );
 }
-
