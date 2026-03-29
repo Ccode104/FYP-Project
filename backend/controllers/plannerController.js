@@ -4,6 +4,23 @@ import { logger } from '../utils/logger.js';
 const DEFAULT_DAILY_MINUTES = 120;
 const CATEGORY_OPTIONS = ['assignment', 'quiz', 'lecture', 'self-study', 'custom', 'grading', 'admin'];
 const PRIORITY_OPTIONS = ['low', 'medium', 'high'];
+const DEFAULT_SCHEDULE_BUFFER_MINUTES = 10;
+
+function roundToFiveMinutes(value, minimum = 5) {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric) || numeric <= 0) return minimum;
+  return Math.max(minimum, Math.ceil(numeric / 5) * 5);
+}
+
+function roundToFiveOrZero(value) {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric) || numeric <= 0) return 0;
+  return Math.ceil(numeric / 5) * 5;
+}
+
+function applyPlanningBuffer(value) {
+  return roundToFiveMinutes(Number(value || 0) + DEFAULT_SCHEDULE_BUFFER_MINUTES, 15);
+}
 
 function parseDateOnly(value) {
   if (!value) return null;
@@ -25,7 +42,7 @@ function estimateMinutes({ type, description, timeLimit }) {
   }
   if (description && description.length > 500) base += 30;
   if (description && description.length > 1200) base += 30;
-  return base;
+  return applyPlanningBuffer(base);
 }
 
 function normalizeDifficulty(value) {
@@ -83,7 +100,7 @@ function buildDailyBuckets(startDate, endDate) {
 }
 
 function scheduleTasks(tasks, preferences) {
-  const dailyMinutes = preferences?.daily_minutes || DEFAULT_DAILY_MINUTES;
+  const dailyMinutes = roundToFiveMinutes(preferences?.daily_minutes || DEFAULT_DAILY_MINUTES, 30);
   const today = new Date();
   const preferredBlock = preferences?.preferred_hours || null;
 
@@ -101,7 +118,7 @@ function scheduleTasks(tasks, preferences) {
     const dueDate = new Date(task.due_at);
     const availableBuckets = buckets.filter(bucket => new Date(bucket.date) <= dueDate);
     if (!availableBuckets.length) continue;
-    const minutes = Number(task.estimated_minutes) || 0;
+    const minutes = roundToFiveMinutes(task.estimated_minutes || 0, 15);
 
     // Prefer buckets that stay within daily focus minutes; fallback to least-allocated if all overflow.
     const withinCap = availableBuckets.filter((b) => b.allocated + minutes <= dailyMinutes);
@@ -626,7 +643,7 @@ export async function updatePlannerPreferences(req, res) {
            updated_at = now()`,
       [
         userId,
-        daily_minutes ?? DEFAULT_DAILY_MINUTES,
+        roundToFiveMinutes(daily_minutes ?? DEFAULT_DAILY_MINUTES, 30),
         timezone || 'UTC',
         preferred_hours || 'morning'
       ]
@@ -722,17 +739,34 @@ export async function createPlannerTask(req, res) {
         title,
         description || null,
         due_at || null,
-        estimated_minutes || 90,
+        roundToFiveMinutes(estimated_minutes || 90, 15),
         normalizeDifficulty(difficulty),
         scheduled_for || null
       ]
     );
+
+    if (result.rows[0]?.estimated_minutes !== undefined) {
+      result.rows[0].estimated_minutes = roundToFiveMinutes(result.rows[0].estimated_minutes, 15);
+    }
 
     res.json({ task: result.rows[0] });
   } catch (error) {
     console.error('createPlannerTask error:', error);
     res.status(500).json({ error: 'Failed to create planner task' });
   }
+}
+
+function normalizePlannerField(key, value) {
+  if (key === 'difficulty') return normalizeDifficulty(value);
+  if (key === 'category') return normalizeCategory(value);
+  if (key === 'priority') return normalizePriority(value);
+  if (key === 'estimated_minutes') {
+    return roundToFiveMinutes(value, 5);
+  }
+  if (key === 'time_spent_minutes') {
+    return roundToFiveOrZero(value);
+  }
+  return value;
 }
 
 export async function updatePlannerTask(req, res) {
@@ -776,10 +810,7 @@ export async function updatePlannerTask(req, res) {
 
     for (const key of allowed) {
       if (req.body[key] !== undefined) {
-        let value = req.body[key];
-        if (key === 'difficulty') value = normalizeDifficulty(value);
-        if (key === 'category') value = normalizeCategory(value);
-        if (key === 'priority') value = normalizePriority(value);
+        const value = normalizePlannerField(key, req.body[key]);
         fields.push(`${key} = $${index++}`);
         values.push(value);
       }
@@ -822,7 +853,7 @@ export async function updatePlannerTask(req, res) {
     }
 
     if (req.body.time_spent_minutes !== undefined) {
-      const nextTime = Number(req.body.time_spent_minutes || 0);
+      const nextTime = roundToFiveMinutes(req.body.time_spent_minutes || 0, 5);
       const prevTime = Number(current.time_spent_minutes || 0);
       const delta = nextTime - prevTime;
       if (delta > 0) {
@@ -848,7 +879,7 @@ export async function logPlannerTaskTime(req, res) {
 
     const { taskId } = req.params;
     const { minutes, note } = req.body;
-    const increment = Number(minutes);
+    const increment = roundToFiveMinutes(minutes, 5);
     if (!increment || increment <= 0) {
       return res.status(400).json({ error: 'Minutes must be a positive number' });
     }

@@ -2,11 +2,12 @@ import { useNavigate } from 'react-router-dom'
 import CourseCard from '../../components/CourseCard'
 import Calendar from '../../components/Calendar'
 import { useAuth } from '../../context/AuthContext'
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import './StudentDashboard.css'
 import Modal from '../../components/Modal'
 import { enrollSelf, getLiveLecturesForCourses } from '../../features/student/api/student'
-import { enrollStudent, unenrollStudent } from '../../features/courses/api/courses'
+import { enrollStudent, listOfferings, type CourseOfferingOption, unenrollStudent } from '../../features/courses/api/courses'
+import { fetchPlannerTasks } from '../../features/planner/api/planner'
 import { useToast } from '../../components/ToastProvider'
 import { apiFetch } from '../../services/api'
 
@@ -71,7 +72,42 @@ export default function StudentDashboard() {
   const [courseCounts, setCourseCounts] = useState<Record<number, { pendingAssignments: number; pendingQuizzes: number; unreadNotifications: number }>>({})
   const [assignments, setAssignments] = useState<unknown[]>([])
   const [events, setEvents] = useState<unknown[]>([])
-  const [lectures, setLectures] = useState<unknown[]>([])
+
+  const plannerTaskEvents = (tasks: Array<{
+    id: number
+    title: string
+    due_at?: string | null
+    scheduled_for?: string | null
+    scheduled_block?: string | null
+    course_offering_id?: number | null
+    category?: string | null
+    status?: string | null
+  }>) => {
+    const blockTimeMap: Record<string, string> = {
+      morning: '09:00',
+      afternoon: '13:00',
+      evening: '18:00',
+      'late-night': '22:00'
+    }
+
+    return tasks
+      .filter((task) => task.status !== 'done' && (task.scheduled_for || task.due_at))
+      .map((task) => {
+        let scheduledAt = task.due_at || ''
+        if (task.scheduled_for) {
+          const time = blockTimeMap[task.scheduled_block || ''] || '09:00'
+          scheduledAt = `${String(task.scheduled_for).slice(0, 10)}T${time}:00`
+        }
+        return {
+          id: `planner_${task.id}`,
+          title: task.title,
+          scheduled_at: scheduledAt,
+          course_offering_id: task.course_offering_id || 0,
+          course_title: task.category ? `Planner • ${task.category}` : 'Planner task',
+          type: 'task' as const
+        }
+      })
+  }
 
   // Cache for course data to prevent unnecessary API calls
   const [lastFetchTime, setLastFetchTime] = useState<number>(0)
@@ -136,13 +172,10 @@ export default function StudentDashboard() {
               ...lecture,
               course_title: response.courses.find((c: unknown) => c.id === lecture.course_offering_id)?.course_title
             }))
-            setLectures(lecturesWithTitles)
           } catch (error) {
             console.error('Failed to fetch lectures:', error)
-            setLectures([])
           }
         } else {
-          setLectures([])
         }
 
         // Fetch assignments and contests for calendar deadlines
@@ -191,7 +224,7 @@ export default function StudentDashboard() {
                     }))
                   console.log(`Created contest deadline events for course ${courseId}:`, contestDeadlineEvents)
                   allAssignments.push(...contestDeadlineEvents)
-                } catch (contestErr) {
+                } catch {
                   // Contests endpoint might not be available, skip silently
                   console.log(`No contests available for course ${courseId}`)
                 }
@@ -210,15 +243,32 @@ export default function StudentDashboard() {
           }
         }
 
-        // Merge lectures and assignments into events
+        let plannerEvents: Array<{
+          id: string
+          title: string
+          scheduled_at: string
+          course_offering_id: number
+          course_title: string
+          type: 'task'
+        }> = []
+        try {
+          const plannerResponse = await fetchPlannerTasks()
+          plannerEvents = plannerTaskEvents(plannerResponse.tasks || [])
+        } catch (error) {
+          console.error('Failed to fetch planner tasks for dashboard calendar:', error)
+        }
+
+        // Merge lectures, deadlines, and planner tasks into events
         const lectureEvents = lecturesWithTitles.map((lecture: unknown) => ({ ...lecture, type: 'lecture' as const }))
         const allEvents = [
           ...lectureEvents,
-          ...currentAssignments
+          ...currentAssignments,
+          ...plannerEvents
         ]
         console.log('Merging events:', {
           lectureEvents: lectureEvents.length,
           assignmentEvents: currentAssignments.length,
+          plannerEvents: plannerEvents.length,
           totalEvents: allEvents.length,
           assignments: currentAssignments,
           allEvents
@@ -276,6 +326,43 @@ export default function StudentDashboard() {
   const [enrOpen, setEnrOpen] = useState(false)
   const [offId, setOffId] = useState('')
   const [stuId, setStuId] = useState('')
+  const [offeringSearch, setOfferingSearch] = useState('')
+  const [availableOfferings, setAvailableOfferings] = useState<CourseOfferingOption[]>([])
+  const [loadingOfferings, setLoadingOfferings] = useState(false)
+
+  const filteredAvailableOfferings = useMemo(() => {
+    const term = offeringSearch.trim().toLowerCase()
+    if (!term) return availableOfferings
+    return availableOfferings.filter((offering) => {
+      const haystack = [
+        offering.course_code,
+        offering.course_title,
+        offering.term,
+        offering.section,
+        offering.faculty_name,
+        String(offering.id)
+      ].filter(Boolean).join(' ').toLowerCase()
+      return haystack.includes(term)
+    })
+  }, [availableOfferings, offeringSearch])
+
+  const loadAvailableOfferings = async (search = '') => {
+    try {
+      setLoadingOfferings(true)
+      const response = await listOfferings(search)
+      setAvailableOfferings(response.offerings || [])
+    } catch (e: unknown) {
+      push({ kind: 'error', message: e?.message || 'Failed to load offerings' })
+    } finally {
+      setLoadingOfferings(false)
+    }
+  }
+
+  useEffect(() => {
+    if (!enrOpen || user?.role !== 'student') return
+    void loadAvailableOfferings()
+  }, [enrOpen, user?.role])
+
   const enrollNow = async () => {
     try {
       if (user?.role === 'student') {
@@ -286,7 +373,7 @@ export default function StudentDashboard() {
       // Refresh course data after enrollment (force refresh to bypass cache)
       await refreshCourseCounts(true)
       push({ kind: 'success', message: 'Enrolled' })
-      setEnrOpen(false); setOffId(''); setStuId('')
+      setEnrOpen(false); setOffId(''); setStuId(''); setOfferingSearch('')
     } catch (e: unknown) {
       push({ kind: 'error', message: e?.message || 'Enroll failed' })
     }
@@ -396,10 +483,70 @@ export default function StudentDashboard() {
         </>
       )}>
         <div className="form">
-          <label className="field">
-            <span className="label"></span>
-            <input className="input" value={offId} onChange={(e) => setOffId(e.target.value)} placeholder="e.g., 101 (Offering ID)" />
-          </label>
+          {user?.role === 'student' ? (
+            <>
+              <label className="field">
+                <span className="label">Search course or offering</span>
+                <input
+                  className="input"
+                  value={offeringSearch}
+                  onChange={(e) => setOfferingSearch(e.target.value)}
+                  placeholder="Search by code, title, term, section, faculty, or offering ID"
+                />
+              </label>
+              <div className="enroll-offering-list">
+                {loadingOfferings ? (
+                  <div className="enroll-offering-empty">Loading offerings...</div>
+                ) : filteredAvailableOfferings.length === 0 ? (
+                  <div className="enroll-offering-empty">No offerings match your search.</div>
+                ) : (
+                  filteredAvailableOfferings.map((offering) => {
+                    const selected = offId === String(offering.id)
+                    const full = typeof offering.max_capacity === 'number' && offering.enrolled_count !== undefined
+                      ? offering.enrolled_count >= offering.max_capacity
+                      : false
+                    return (
+                      <button
+                        key={offering.id}
+                        type="button"
+                        className={`enroll-offering-item ${selected ? 'selected' : ''}`}
+                        onClick={() => setOffId(String(offering.id))}
+                        disabled={Boolean(offering.is_enrolled)}
+                      >
+                        <div className="enroll-offering-main">
+                          <strong>{offering.course_code || 'Course'} {offering.course_title ? `• ${offering.course_title}` : ''}</strong>
+                          <span>
+                            Offering #{offering.id}
+                            {offering.term ? ` • ${offering.term}` : ''}
+                            {offering.section ? ` • Section ${offering.section}` : ''}
+                          </span>
+                          <span>
+                            {offering.faculty_name ? `Faculty: ${offering.faculty_name}` : 'Faculty not assigned'}
+                            {typeof offering.enrolled_count === 'number'
+                              ? ` • Seats: ${offering.enrolled_count}${typeof offering.max_capacity === 'number' ? `/${offering.max_capacity}` : ''}`
+                              : ''}
+                            {full ? ' • Full' : ''}
+                          </span>
+                        </div>
+                        <span className="enroll-offering-state">
+                          {offering.is_enrolled ? 'Enrolled' : selected ? 'Selected' : 'Select'}
+                        </span>
+                      </button>
+                    )
+                  })
+                )}
+              </div>
+              <label className="field">
+                <span className="label">Selected offering ID</span>
+                <input className="input" value={offId} onChange={(e) => setOffId(e.target.value)} placeholder="Select an offering above or enter ID" />
+              </label>
+            </>
+          ) : (
+            <label className="field">
+              <span className="label">Offering ID</span>
+              <input className="input" value={offId} onChange={(e) => setOffId(e.target.value)} placeholder="e.g., 101 (Offering ID)" />
+            </label>
+          )}
           {(user?.role === 'ta' || user?.role === 'teacher') && (
             <label className="field">
               <span className="label">Student ID</span>

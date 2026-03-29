@@ -193,6 +193,83 @@
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
 }
 
+.enroll-offering-list {
+  display: grid;
+  gap: 10px;
+  max-height: 320px;
+  overflow-y: auto;
+  margin-top: 8px;
+}
+
+.enroll-offering-item {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  text-align: left;
+  padding: 14px 16px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  cursor: pointer;
+  transition: border-color 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.enroll-offering-item:hover:not(:disabled) {
+  border-color: var(--primary);
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-sm);
+}
+
+.enroll-offering-item.selected {
+  border-color: var(--primary);
+  background: var(--bg-secondary);
+}
+
+.enroll-offering-item:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
+.enroll-offering-main {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.enroll-offering-main strong,
+.enroll-offering-main span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.enroll-offering-main span {
+  color: var(--muted);
+  font-size: 0.9rem;
+  white-space: normal;
+}
+
+.enroll-offering-state {
+  white-space: nowrap;
+  align-self: flex-start;
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--bg-secondary);
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.enroll-offering-empty {
+  padding: 14px 16px;
+  border-radius: 12px;
+  border: 1px dashed var(--border);
+  color: var(--muted);
+  background: var(--bg-secondary);
+}
+
 .error-banner {
   display: flex;
   align-items: center;

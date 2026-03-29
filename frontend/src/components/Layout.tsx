@@ -132,7 +132,7 @@ export default function Layout({ children }: { children: ReactNode }) {
 
         <footer className={`site-footer ${isLoginPage ? 'login-transparent' : ''}`}>
           <p className="site-footer__text">
-            © 2025 Unified Academic Portal — Created by Shoyam Rai, Manas Jungade, Abhishek Chandurkar, and Tanmay Sharnagat
+            © 2025 Unified Academic Portal — Created by Abhishek Chandurkar, Shoyam Rai, Manas Jungader, and Tanmay Sharnagat
           </p>
         </footer>
       </div>

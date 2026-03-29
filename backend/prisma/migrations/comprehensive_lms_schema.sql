@@ -3,7 +3,6 @@
 
 -- Create schemas if they don't exist
 CREATE SCHEMA IF NOT EXISTS "public";
-CREATE SCHEMA IF NOT EXISTS "neon_auth";
 
 -- Create enums if they don't exist
 DO $$ BEGIN
@@ -293,6 +292,10 @@ CREATE TABLE IF NOT EXISTS code_questions (
     max_points INTEGER DEFAULT 100
 );
 
+ALTER TABLE code_questions ADD COLUMN IF NOT EXISTS difficulty difficulty_level DEFAULT 'medium';
+ALTER TABLE code_questions ADD COLUMN IF NOT EXISTS time_limit_seconds INTEGER DEFAULT 1800;
+ALTER TABLE code_questions ADD COLUMN IF NOT EXISTS max_points INTEGER DEFAULT 100;
+
 CREATE TABLE IF NOT EXISTS code_question_testcases (
     id BIGSERIAL PRIMARY KEY,
     question_id BIGINT NOT NULL REFERENCES code_questions(id) ON DELETE CASCADE,
@@ -331,6 +334,23 @@ CREATE TABLE IF NOT EXISTS code_submissions (
     efficiency_score NUMERIC(5,2) DEFAULT 0
 );
 
+ALTER TABLE code_submissions ADD COLUMN IF NOT EXISTS started_at TIMESTAMPTZ;
+ALTER TABLE code_submissions ADD COLUMN IF NOT EXISTS completed_at TIMESTAMPTZ;
+ALTER TABLE code_submissions ADD COLUMN IF NOT EXISTS time_spent_seconds INTEGER;
+ALTER TABLE code_submissions ADD COLUMN IF NOT EXISTS gamified_score INTEGER DEFAULT 0;
+ALTER TABLE code_submissions ADD COLUMN IF NOT EXISTS attempts_count INTEGER DEFAULT 1;
+ALTER TABLE code_submissions ADD COLUMN IF NOT EXISTS efficiency_score NUMERIC(5,2) DEFAULT 0;
+
+-- Assignment testcases
+CREATE TABLE IF NOT EXISTS assignment_testcases (
+    id BIGSERIAL PRIMARY KEY,
+    assignment_id BIGINT NOT NULL REFERENCES assignments(id) ON DELETE CASCADE,
+    input TEXT NOT NULL,
+    expected_output TEXT NOT NULL,
+    is_hidden BOOLEAN DEFAULT true,
+    created_at TIMESTAMPTZ DEFAULT now()
+);
+
 CREATE TABLE IF NOT EXISTS code_submission_results (
     id BIGSERIAL PRIMARY KEY,
     code_submission_id BIGINT NOT NULL REFERENCES code_submissions(id) ON DELETE CASCADE,
@@ -342,16 +362,6 @@ CREATE TABLE IF NOT EXISTS code_submission_results (
     created_at TIMESTAMPTZ DEFAULT now(),
     code_testcase_id BIGINT REFERENCES code_question_testcases(id),
     UNIQUE(code_submission_id, code_testcase_id)
-);
-
--- Assignment testcases
-CREATE TABLE IF NOT EXISTS assignment_testcases (
-    id BIGSERIAL PRIMARY KEY,
-    assignment_id BIGINT NOT NULL REFERENCES assignments(id) ON DELETE CASCADE,
-    input TEXT NOT NULL,
-    expected_output TEXT NOT NULL,
-    is_hidden BOOLEAN DEFAULT true,
-    created_at TIMESTAMPTZ DEFAULT now()
 );
 
 -- Video and video quiz tables
@@ -534,19 +544,6 @@ CREATE INDEX IF NOT EXISTS idx_settings_updated_at ON settings(updated_at);
 CREATE INDEX IF NOT EXISTS idx_admin_activities_admin_id ON admin_activities(admin_id);
 CREATE INDEX IF NOT EXISTS idx_admin_activities_created_at ON admin_activities(created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_admin_activities_entity ON admin_activities(entity_type, entity_id);
-
--- Create neon_auth schema table
-CREATE TABLE IF NOT EXISTS neon_auth.users_sync (
-    raw_json JSONB NOT NULL,
-    id TEXT PRIMARY KEY GENERATED ALWAYS AS ((raw_json ->> 'id'::text)) STORED,
-    name TEXT GENERATED ALWAYS AS ((raw_json ->> 'display_name'::text)) STORED,
-    email TEXT GENERATED ALWAYS AS ((raw_json ->> 'primary_email'::text)) STORED,
-    created_at TIMESTAMPTZ GENERATED ALWAYS AS (to_timestamp((trunc((((raw_json ->> 'signed_up_at_millis'::text))::bigint)::double precision) / (1000)::double precision))) STORED,
-    updated_at TIMESTAMPTZ,
-    deleted_at TIMESTAMPTZ
-);
-
-CREATE INDEX IF NOT EXISTS users_sync_deleted_at_idx ON neon_auth.users_sync(deleted_at);
 
 -- Create view for student detailed progress
 CREATE OR REPLACE VIEW student_detailed_progress AS

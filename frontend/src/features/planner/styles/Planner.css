@@ -192,61 +192,6 @@
   grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
 }
 
-.planner-calendar {
-  display: grid;
-  gap: 16px;
-  margin-top: 16px;
-}
-
-.planner-calendar-row {
-  display: grid;
-  gap: 12px;
-  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-}
-
-.planner-calendar-day {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 14px;
-  padding: 12px;
-  display: grid;
-  gap: 12px;
-}
-
-.planner-calendar-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  gap: 8px;
-}
-
-.planner-calendar-badge {
-  padding: 2px 8px;
-  border-radius: 999px;
-  font-size: 0.75rem;
-  border: 1px solid var(--border);
-  background: var(--bg-secondary);
-}
-
-.planner-calendar-badge.danger {
-  border-color: var(--danger);
-  color: var(--danger);
-}
-
-.planner-calendar-cards {
-  display: grid;
-  gap: 10px;
-}
-
-.planner-calendar-unscheduled {
-  background: var(--bg-secondary);
-  border: 1px dashed var(--border);
-  border-radius: 14px;
-  padding: 12px;
-  display: grid;
-  gap: 10px;
-}
-
 .planner-board-column {
   background: var(--bg-secondary);
   border: 1px solid var(--border);

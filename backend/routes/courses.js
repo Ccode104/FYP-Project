@@ -1,6 +1,6 @@
 import express from 'express';
 import { requireAuth, requireRole } from '../middleware/auth.js';
-import { createCourse, createOffering, enroll, listCourses, listMyCourses, listMyOfferings, unenroll, deleteCourse } from '../controllers/coursesController.js';
+import { createCourse, createOffering, enroll, listCourses, listOfferings, listMyCourses, listMyOfferings, unenroll, deleteCourse } from '../controllers/coursesController.js';
 import {
   getCourseResources,
   getCoursePYQs,
@@ -69,6 +69,7 @@ router.use(requireAuth);
 router.get('/card-data', requireAuth, getCourseCardData);
 
 router.get('/', requireAuth, listCourses);
+router.get('/offerings', requireAuth, listOfferings);
 
 // Get all resources (PYQs, notes, assignments) for a course offering
 /**
