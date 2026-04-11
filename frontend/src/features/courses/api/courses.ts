@@ -28,28 +28,6 @@ export async function listCourses() {
   return apiFetch(`/api/courses`);
 }
 
-export interface CourseOfferingOption {
-  id: number;
-  course_id: number;
-  term?: string;
-  section?: string;
-  max_capacity?: number | null;
-  start_date?: string | null;
-  end_date?: string | null;
-  course_code?: string;
-  course_title?: string;
-  course_description?: string;
-  faculty_name?: string;
-  enrolled_count?: number;
-  is_enrolled?: boolean;
-}
-
-export async function listOfferings(q = '') {
-  const sp = new URLSearchParams();
-  if (q.trim()) sp.set('q', q.trim());
-  return apiFetch<{ offerings: CourseOfferingOption[] }>(`/api/courses/offerings${sp.toString() ? `?${sp.toString()}` : ''}`);
-}
-
 export async function listMyOfferings() {
   return apiFetch(`/api/courses/mine/offerings`);
 }

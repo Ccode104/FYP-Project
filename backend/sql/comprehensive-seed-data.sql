@@ -110,7 +110,7 @@ INSERT INTO enrollments (course_offering_id, student_id, enrolled_at, status) VA
 (4, 11, NOW(), 'active'),
 -- EC201-A
 (6, 14, NOW(), 'active'),
-(6, 15, NOW(), 'active')
+(6, 15, NOW(), 'active'),
 -- No enrollments for ME101 since we removed that course offering
 ON CONFLICT (course_offering_id, student_id) DO NOTHING;
 

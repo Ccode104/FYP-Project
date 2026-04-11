@@ -188,7 +188,6 @@ export async function startServer(port = 4000) {
   app.use('/api/support', supportRoutes);
   app.use('/api/quiz-permissions', quizPermissionsRoutes);
   app.use('/api/github', githubRoutes);
-  app.use('/api/contests', contestsRoutes);
   app.use('/api/course-offerings', courseOfferingsRoutes);
   app.use('/api/code-analysis', aiEditorRoutes);
   app.use('/api/ai-assistant', aiEditorRoutes);
@@ -216,16 +215,6 @@ export async function startServer(port = 4000) {
     res.status(err.status || 500).json({
       error: err.message || 'Internal server error',
       details: process.env.NODE_ENV === 'development' ? err.stack : undefined,
-    });
-  });
-
-  // Global error handler
-  // eslint-disable-next-line no-unused-vars
-  app.use((err, req, res, _next) => {
-    logger.error('Unhandled error:', err);
-    res.status(500).json({
-      error: 'Internal server error',
-      message: process.env.NODE_ENV === 'development' ? err.message : undefined,
     });
   });
 

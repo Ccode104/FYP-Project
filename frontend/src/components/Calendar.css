@@ -93,10 +93,6 @@
   background: #dc3545;
 }
 
-.calendar-day-indicator-task {
-  background: #f59e0b;
-}
-
 .calendar-events {
   border-top: 1px solid var(--border);
   padding-top: 12px;
@@ -159,14 +155,6 @@
 
 .calendar-event-deadline .calendar-event-title {
   color: #dc3545;
-}
-
-.calendar-event-task {
-  border-left: 4px solid #f59e0b;
-}
-
-.calendar-event-task .calendar-event-title {
-  color: #b45309;
 }
 
 /* Responsive */

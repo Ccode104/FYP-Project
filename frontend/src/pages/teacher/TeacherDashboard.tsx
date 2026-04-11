@@ -4,7 +4,6 @@ import "./TeacherDashboard.css";
 import { useEffect, useState } from "react";
 import { listMyOfferings } from "../../features/courses/api/courses";
 import { getPendingRequests, respondToRequest, type AccessRequest } from "../../features/quiz-permissions/api/quizPermissions";
-import { getCourseSupportInsights, type CourseSupportInsights } from "../../features/progress/api/progress";
 
 function LoadingSkeleton() {
   return (
@@ -53,22 +52,6 @@ export default function TeacherDashboard() {
   const [loading, setLoading] = useState(true);
   const [quizRequests, setQuizRequests] = useState<AccessRequest[]>([]);
   const [loadingRequests, setLoadingRequests] = useState(false);
-  const [selectedOfferingId, setSelectedOfferingId] = useState<number | null>(null);
-  const [supportInsights, setSupportInsights] = useState<CourseSupportInsights | null>(null);
-  const [loadingSupportInsights, setLoadingSupportInsights] = useState(false);
-
-  const loadSupportInsights = async (offeringId: number) => {
-    try {
-      setLoadingSupportInsights(true);
-      const data = await getCourseSupportInsights(offeringId);
-      setSupportInsights(data);
-    } catch (error) {
-      console.error('Failed to load support insights:', error);
-      setSupportInsights(null);
-    } finally {
-      setLoadingSupportInsights(false);
-    }
-  };
 
   const loadQuizRequests = async () => {
     try {
@@ -98,12 +81,7 @@ export default function TeacherDashboard() {
   useEffect(() => {
     (async () => {
       try {
-        const nextOfferings = await listMyOfferings();
-        setOfferings(nextOfferings);
-        if (nextOfferings.length > 0) {
-          setSelectedOfferingId(nextOfferings[0].id);
-          loadSupportInsights(nextOfferings[0].id);
-        }
+        setOfferings(await listMyOfferings());
         loadQuizRequests();
       } catch (e) {
         console.error("Failed to load data:", e);
@@ -206,121 +184,6 @@ export default function TeacherDashboard() {
                 ))}
               </ul>
             )}
-        </div>
-      </div>
-
-      <div className="section-container">
-        <div className="section-header">
-          <h3 className="section-title h3">Student Support Insights</h3>
-          <span className="courses-count text-sm font-medium text-secondary">
-            {supportInsights?.students?.length ?? 0} students
-          </span>
-        </div>
-
-        <div className="card list-card support-insights-card">
-          <div className="card-header-mini support-insights-header">
-            <div>
-              <h4 className="card-subtitle">Weak Student Detection</h4>
-              <p className="support-insights-formula">
-                Overall score = 50% marks + 30% task consistency + 20% attendance
-              </p>
-            </div>
-            <div className="support-insights-controls">
-              <select
-                className="input select support-insights-select"
-                value={selectedOfferingId ?? ''}
-                onChange={(event) => {
-                  const nextId = Number(event.target.value);
-                  setSelectedOfferingId(nextId);
-                  if (nextId) {
-                    loadSupportInsights(nextId);
-                  }
-                }}
-                disabled={offerings.length === 0}
-              >
-                {offerings.length === 0 ? <option value="">No offerings</option> : null}
-                {offerings.map((offering) => (
-                  <option key={offering.id} value={offering.id}>
-                    {offering.course_code} - {offering.course_title} ({offering.term}{offering.section ? ` / ${offering.section}` : ''})
-                  </option>
-                ))}
-              </select>
-            </div>
-          </div>
-
-          {loadingSupportInsights ? (
-            <div style={{ padding: '20px', textAlign: 'center' }}>
-              <p>Loading student support insights...</p>
-            </div>
-          ) : !supportInsights || supportInsights.students.length === 0 ? (
-            <EmptyState
-              icon={<span>📉</span>}
-              title="No support data yet"
-              description="This offering does not have enough enrollment or assessment data yet."
-            />
-          ) : (
-            <div className="support-student-list">
-              {supportInsights.students.map((student) => (
-                <article key={student.student_id} className={`support-student-card support-${student.supportLevel}`}>
-                  <div className="support-student-top">
-                    <div>
-                      <h4 className="support-student-name">{student.student_name || student.student_email || `Student #${student.student_id}`}</h4>
-                      <p className="support-student-email">{student.student_email}</p>
-                    </div>
-                    <div className={`support-badge support-badge-${student.supportLevel}`}>
-                      {student.supportLevel === 'high_priority'
-                        ? 'High Priority'
-                        : student.supportLevel === 'watchlist'
-                          ? 'Watchlist'
-                          : 'On Track'}
-                    </div>
-                  </div>
-
-                  <div className="support-student-label">{student.profileLabel}</div>
-
-                  <div className="support-score-grid">
-                    <div>
-                      <span className="support-score-label">Overall</span>
-                      <strong>{student.overall_score}%</strong>
-                    </div>
-                    <div>
-                      <span className="support-score-label">Marks</span>
-                      <strong>{student.marks_pct}%</strong>
-                    </div>
-                    <div>
-                      <span className="support-score-label">Consistency</span>
-                      <strong>{student.consistency_pct}%</strong>
-                    </div>
-                    <div>
-                      <span className="support-score-label">Attendance</span>
-                      <strong>{student.attendance_pct}%</strong>
-                    </div>
-                  </div>
-
-                  <div className="support-chip-row">
-                    {student.labels.map((label) => (
-                      <span key={`${student.student_id}-${label}`} className="support-chip">
-                        {label}
-                      </span>
-                    ))}
-                  </div>
-
-                  <div className="support-metrics">
-                    <span>
-                      Tasks completed: {student.metrics.submitted_assignments + student.metrics.attempted_quizzes}/
-                      {student.metrics.total_assignments + student.metrics.total_quizzes}
-                    </span>
-                    <span>
-                      Attendance: {student.metrics.attended_lectures}/{student.metrics.total_lectures || 0} lectures
-                    </span>
-                    <span>
-                      Marks: {student.metrics.total_points_scored}/{student.metrics.total_points_possible}
-                    </span>
-                  </div>
-                </article>
-              ))}
-            </div>
-          )}
         </div>
       </div>
 

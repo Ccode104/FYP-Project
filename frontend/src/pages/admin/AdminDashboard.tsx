@@ -98,7 +98,9 @@ export default function AdminDashboard() {
   const checkSuperAdminStatus = async () => {
     if (!user?.id) return
     try {
-      setIsSuperAdmin(['admin@gmail.com', 'superadmin@lms.edu'].includes(user.email || ''))
+      // We'll need to add a backend endpoint to check super admin status
+      // For now, we'll check if the user email is admin@gmail.com (the known super admin)
+      setIsSuperAdmin(user.email === 'admin@gmail.com')
     } catch (error) {
       console.error('Error checking super admin status:', error)
       setIsSuperAdmin(false)
@@ -338,10 +340,6 @@ const paginatedUsers = filteredUsers.slice((currentPage - 1) * itemsPerPage, cur
   // Admin Courses state
   const [adminCourses, setAdminCourses] = useState<Course[]>([])
   const [loadingCourses, setLoadingCourses] = useState(false)
-  const offerings = useMemo(
-    () => adminCourses.flatMap((course) => Array.isArray(course.offerings) ? course.offerings : []),
-    [adminCourses]
-  )
 
 // Department filtering and pagination
 const filteredDepartments = useMemo(() =>
@@ -436,36 +434,6 @@ const paginatedDepartments = filteredDepartments.slice((deptCurrentPage - 1) * d
   const [showDeleteEnrollmentConfirm, setShowDeleteEnrollmentConfirm] = useState(false)
   const [enrollmentToDelete, setEnrollmentToDelete] = useState<Enrollment | null>(null)
   const [deletingEnrollment, setDeletingEnrollment] = useState(false)
-  const [showCreateEnrollment, setShowCreateEnrollment] = useState(false)
-  const [newEnrollment, setNewEnrollment] = useState({ course_offering_id: '', student_id: '' })
-  const [creatingEnrollment, setCreatingEnrollment] = useState(false)
-  const [enrollmentFromManage, setEnrollmentFromManage] = useState(false)
-  const [showCreateAssignment, setShowCreateAssignment] = useState(false)
-  const [newAssignment, setNewAssignment] = useState({
-    course_offering_id: '',
-    title: '',
-    description: '',
-    allow_github_repo: false,
-    release_at: '',
-    due_at: '',
-    max_score: '100',
-    allow_multiple_submissions: false,
-    file_size_limit_mb: ''
-  })
-  const [creatingAssignment, setCreatingAssignment] = useState(false)
-  const [showCreateQuiz, setShowCreateQuiz] = useState(false)
-  const [newQuiz, setNewQuiz] = useState({
-    course_offering_id: '',
-    title: '',
-    max_score: '100',
-    start_at: '',
-    end_at: '',
-    time_limit: '',
-    is_proctored: false,
-    allow_suspension_resume: false,
-    proctoring_config_id: ''
-  })
-  const [creatingQuiz, setCreatingQuiz] = useState(false)
 
   // Create department modal
   const [showCreateDept, setShowCreateDept] = useState(false)
@@ -2328,7 +2296,10 @@ const paginatedDepartments = filteredDepartments.slice((deptCurrentPage - 1) * d
                     setShowCreateOffering(false)
                     setNewOffering({ course_id: '', term: 'W25', section: 'A', faculty_id: '', max_capacity: '', start_date: '', end_date: '' })
                     push({ kind: 'success', message: 'Offering created successfully' })
-                    void loadAdminCourses()
+                    loadOfferings()
+                    if (showManageOfferings && selectedCourse) {
+                      loadAdminCourses() // Refresh the course offerings
+                    }
                   } catch (e: unknown) {
                     push({ kind: 'error', message: e?.message || 'Failed to create offering' })
                   } finally {
@@ -2384,9 +2355,9 @@ const paginatedDepartments = filteredDepartments.slice((deptCurrentPage - 1) * d
                     setEnrollmentFromManage(false)
                     setNewEnrollment({ course_offering_id: '', student_id: '' })
                     push({ kind: 'success', message: 'Enrollment created successfully' })
-                    void loadAdminCourses()
+                    loadEnrollments()
                     if (enrollmentFromManage && selectedCourse) {
-                      void loadCourseEnrollments(selectedCourse.id)
+                      loadCourseEnrollments(selectedCourse.id)
                     }
                   } catch (e: unknown) {
                     push({ kind: 'error', message: e?.message || 'Failed to create enrollment' })
@@ -2471,7 +2442,7 @@ const paginatedDepartments = filteredDepartments.slice((deptCurrentPage - 1) * d
                       file_size_limit_mb: ''
                     })
                     push({ kind: 'success', message: 'Assignment created successfully' })
-                    void loadAdminCourses()
+                    loadAssignments()
                   } catch (e: unknown) {
                     push({ kind: 'error', message: e?.message || 'Failed to create assignment' })
                   } finally {
@@ -2554,7 +2525,7 @@ const paginatedDepartments = filteredDepartments.slice((deptCurrentPage - 1) * d
                       proctoring_config_id: ''
                     })
                     push({ kind: 'success', message: 'Quiz created successfully' })
-                    void loadAdminCourses()
+                    loadQuizzes()
                   } catch (e: unknown) {
                     push({ kind: 'error', message: e?.message || 'Failed to create quiz' })
                   } finally {

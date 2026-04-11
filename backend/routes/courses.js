@@ -1,6 +1,6 @@
 import express from 'express';
 import { requireAuth, requireRole } from '../middleware/auth.js';
-import { createCourse, createOffering, enroll, listCourses, listOfferings, listMyCourses, listMyOfferings, unenroll, deleteCourse } from '../controllers/coursesController.js';
+import { createCourse, createOffering, enroll, listCourses, listMyCourses, listMyOfferings, listAvailableOfferings, unenroll, deleteCourse } from '../controllers/coursesController.js';
 import {
   getCourseResources,
   getCoursePYQs,
@@ -69,7 +69,6 @@ router.use(requireAuth);
 router.get('/card-data', requireAuth, getCourseCardData);
 
 router.get('/', requireAuth, listCourses);
-router.get('/offerings', requireAuth, listOfferings);
 
 // Get all resources (PYQs, notes, assignments) for a course offering
 /**
@@ -513,6 +512,9 @@ router.get('/mine/offerings', requireAuth, requireRole('faculty','admin'), listM
 
 // List distinct courses for the current faculty (assigned via any past or present offerings)
 router.get('/mine/courses', requireAuth, requireRole('faculty','admin'), listMyCourses);
+
+// List available offerings that a student can enroll in
+router.get('/available-offerings', requireAuth, requireRole('student'), listAvailableOfferings);
 
 /**
  * @swagger

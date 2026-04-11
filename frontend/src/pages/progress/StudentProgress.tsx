@@ -60,17 +60,9 @@ export default function StudentProgress() {
             const totalMax = items.reduce((s, r) => s + (r.max_score || 0), 0)
             const totalScore = items.reduce((s, r) => s + (r.score || 0), 0)
             const pct = totalMax > 0 ? Math.round((totalScore / totalMax) * 100) : 0
-            const course = items[0]
-            const heading = course?.course_code || course?.course_title
-              ? `${course.course_code || 'Course'}${course.course_title ? ` - ${course.course_title}` : ''}`
-              : `Offering #${offId}`
-            const subheading = [course?.term, course?.section ? `Section ${course.section}` : null].filter(Boolean).join(' • ')
             return (
               <section key={offId} className="card">
-                <h3>{heading}</h3>
-                <div className="muted" style={{ marginBottom: 4 }}>
-                  Offering #{offId}{subheading ? ` • ${subheading}` : ''}
-                </div>
+                <h3>Offering #{offId}</h3>
                 <div className="muted" style={{ marginBottom: 8 }}>Overall: {totalScore} / {totalMax} ({pct}%)</div>
                 <div style={{ overflowX: 'auto' }}>
                   <table className="table">

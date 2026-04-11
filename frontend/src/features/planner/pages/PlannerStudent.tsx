@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import '../styles/Planner.css';
 import Modal from '../../../components/Modal';
+import Calendar from '../../../components/Calendar';
 import { useToast } from '../../../components/ToastProvider';
 import { useAuth } from '../../../hooks/useAuth';
 import {
@@ -20,51 +21,11 @@ import {
 } from '../api/planner';
 
 type ViewMode = 'daily' | 'weekly' | 'all';
-type LayoutMode = 'list' | 'board';
+type LayoutMode = 'list' | 'board' | 'calendar';
 
 const difficultyOptions = ['easy', 'medium', 'hard'];
 const categoryOptions = ['assignment', 'quiz', 'lecture', 'self-study', 'custom'];
 const priorityOptions = ['low', 'medium', 'high'];
-
-function roundToFive(value: number) {
-  if (!Number.isFinite(value) || value <= 0) return 5;
-  return Math.max(5, Math.ceil(value / 5) * 5);
-}
-
-function roundToFiveOrZero(value: number) {
-  if (!Number.isFinite(value) || value <= 0) return 0;
-  return Math.ceil(value / 5) * 5;
-}
-
-function formatMinutes(value?: number | null, suffix = 'min') {
-  const rounded = roundToFiveOrZero(Number(value || 0));
-  return `${rounded} ${suffix}`;
-}
-
-function formatDateTime(value?: string | null) {
-  if (!value) return 'No due date';
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return 'No due date';
-  return date.toLocaleString('en-US', {
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric',
-    hour: 'numeric',
-    minute: '2-digit',
-    hour12: true
-  });
-}
-
-function formatDateOnly(value?: string | null) {
-  if (!value) return 'Unscheduled';
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return 'Unscheduled';
-  return date.toLocaleDateString('en-US', {
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric'
-  });
-}
 
 export default function PlannerStudent() {
   const { push } = useToast();
@@ -342,6 +303,33 @@ export default function PlannerStudent() {
     return groups;
   }, [filteredTasks]);
 
+  const calendarEvents = useMemo(() => {
+    const blockTimeMap: Record<string, string> = {
+      morning: '09:00',
+      afternoon: '13:00',
+      evening: '18:00',
+      'late-night': '22:00',
+    };
+
+    return tasks
+      .filter((task) => task.scheduled_for || task.due_at)
+      .map((task) => {
+        let scheduledAt = task.due_at || '';
+        if (task.scheduled_for) {
+          const time = blockTimeMap[task.scheduled_block || ''] || '09:00';
+          scheduledAt = `${task.scheduled_for}T${time}:00`;
+        }
+        const type = task.category && ['assignment', 'quiz', 'lecture'].includes(task.category) ? 'deadline' : 'lecture';
+        return {
+          id: task.id,
+          title: task.title,
+          scheduled_at: scheduledAt,
+          course_offering_id: task.course_offering_id ?? 0,
+          type,
+        };
+      });
+  }, [tasks]);
+
   return (
     <div className="container container-wide planner-page">
       <div className="planner-header">
@@ -380,8 +368,7 @@ export default function PlannerStudent() {
                 min={30}
                 max={600}
                 value={preferences?.daily_minutes ?? 120}
-                step={5}
-                onChange={(event) => handlePreferenceUpdate({ daily_minutes: roundToFive(Number(event.target.value)) })}
+                onChange={(event) => handlePreferenceUpdate({ daily_minutes: Number(event.target.value) })}
               />
             </label>
             <label>
@@ -415,7 +402,7 @@ export default function PlannerStudent() {
                   <div className="reminder-row">
                     <div className="reminder-main">
                       <strong>{task.title}</strong>
-                      <span>{formatDateTime(task.due_at)}</span>
+                      <span>{task.due_at ? new Date(task.due_at).toLocaleString('en-US') : 'No due date'}</span>
                     </div>
                     <div className="reminder-actions">
                       <button className="btn btn-ghost btn-sm" onClick={() => updateStatus(task, 'done')}>
@@ -462,8 +449,8 @@ export default function PlannerStudent() {
                         <div className="reminder-main">
                           <strong>{task.title}</strong>
                           <span>
-                            Due: {task.due_at ? formatDateTime(task.due_at) : '—'} • Hidden until:{' '}
-                            {task.reminder_dismissed_until ? formatDateTime(task.reminder_dismissed_until) : '—'}
+                            Due: {task.due_at ? new Date(task.due_at).toLocaleString('en-US') : '—'} • Hidden until:{' '}
+                            {task.reminder_dismissed_until ? new Date(task.reminder_dismissed_until).toLocaleString('en-US') : '—'}
                           </span>
                         </div>
                         <div className="reminder-actions">
@@ -503,6 +490,9 @@ export default function PlannerStudent() {
             <button className={layout === 'board' ? 'active' : ''} onClick={() => setLayout('board')}>
               Board
             </button>
+            <button className={layout === 'calendar' ? 'active' : ''} onClick={() => setLayout('calendar')}>
+              Calendar
+            </button>
           </div>
         </div>
 
@@ -510,6 +500,62 @@ export default function PlannerStudent() {
           <p className="muted">Loading planner...</p>
         ) : filteredTasks.length === 0 ? (
           <p className="muted">No tasks scheduled for this view yet.</p>
+        ) : layout === 'calendar' ? (
+          <div className="planner-calendar">
+            <div className="planner-calendar-row">
+              {calendarWeek.map((date) => {
+                const key = date.toISOString().slice(0, 10);
+                const items = tasksByDay.get(key) || [];
+                const isOverloaded = overloadDays.has(key);
+                return (
+                  <div key={key} className="planner-calendar-day">
+                    <div className="planner-calendar-header">
+                      <div>
+                        <strong>{date.toLocaleDateString('en-US', { weekday: 'short' })}</strong>
+                        <div className="muted">{date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</div>
+                      </div>
+                      <span className={isOverloaded ? 'planner-calendar-badge danger' : 'planner-calendar-badge'}>
+                        {items.reduce((sum, t) => sum + (t.estimated_minutes || 0), 0)} min
+                      </span>
+                    </div>
+                    <div className="planner-calendar-cards">
+                      {items.length === 0 ? (
+                        <div className="muted">No tasks</div>
+                      ) : (
+                        items.map((task) => (
+                          <div key={task.id} className={`planner-card ${task.status === 'done' ? 'done' : ''}`}>
+                            <div className="planner-card-title">{task.title}</div>
+                            <div className="planner-card-meta">
+                              <span>{task.category || 'custom'}</span>
+                              <span>{task.priority || 'medium'} priority</span>
+                              <span>{task.estimated_minutes || 90} min</span>
+                            </div>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+            {(tasksByDay.get('unscheduled') || []).length > 0 && (
+              <div className="planner-calendar-unscheduled">
+                <h4>Unscheduled</h4>
+                <div className="planner-calendar-cards">
+                  {(tasksByDay.get('unscheduled') || []).map((task) => (
+                    <div key={task.id} className={`planner-card ${task.status === 'done' ? 'done' : ''}`}>
+                      <div className="planner-card-title">{task.title}</div>
+                      <div className="planner-card-meta">
+                        <span>{task.category || 'custom'}</span>
+                        <span>{task.priority || 'medium'} priority</span>
+                        <span>{task.estimated_minutes || 90} min</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
         ) : layout === 'board' ? (
           <div className="planner-board">
             {boardColumns.map((column) => (
@@ -525,9 +571,9 @@ export default function PlannerStudent() {
                       <div className="planner-card-meta">
                         <span>{task.category || 'custom'}</span>
                         <span>{task.priority || 'medium'} priority</span>
-                        <span>{formatMinutes(task.estimated_minutes)}</span>
-                        <span>{formatMinutes(task.time_spent_minutes, 'min logged')}</span>
-                        <span>{formatDateTime(task.due_at)}</span>
+                        <span>{task.estimated_minutes || 90} min</span>
+                        <span>{task.time_spent_minutes || 0} min logged</span>
+                        <span>{task.due_at ? new Date(task.due_at).toLocaleString('en-US') : 'No due date'}</span>
                       </div>
                       <div className="planner-card-actions">
                         {task.status !== 'done' ? (
@@ -586,12 +632,12 @@ export default function PlannerStudent() {
                   <div className="task-meta">
                     <span>{task.category || 'custom'}</span>
                     <span>{task.priority || 'medium'} priority</span>
-                    <span>{formatMinutes(task.estimated_minutes)}</span>
+                    <span>{task.estimated_minutes || 90} min</span>
                     <span>{task.difficulty || 'medium'}</span>
                     {task.scheduled_block ? <span>{task.scheduled_block}</span> : null}
-                    <span>{formatDateOnly(task.scheduled_for)}</span>
-                    <span>{formatDateTime(task.due_at)}</span>
-                    <span>{formatMinutes(task.time_spent_minutes, 'min logged')}</span>
+                    <span>{task.scheduled_for || 'Unscheduled'}</span>
+                    <span>{task.due_at ? new Date(task.due_at).toLocaleString('en-US') : 'No due date'}</span>
+                    <span>{task.time_spent_minutes || 0} min logged</span>
                   </div>
                 </div>
                 <div className="task-actions">
@@ -710,8 +756,7 @@ export default function PlannerStudent() {
                 type="number"
                 min={15}
                 value={form.estimated_minutes}
-                step={5}
-                onChange={(event) => setForm((prev) => ({ ...prev, estimated_minutes: roundToFive(Number(event.target.value)) }))}
+                onChange={(event) => setForm((prev) => ({ ...prev, estimated_minutes: Number(event.target.value) }))}
               />
             </label>
             <label>

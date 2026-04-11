@@ -7,7 +7,7 @@ interface CalendarEvent {
   scheduled_at: string
   course_offering_id: number
   course_title?: string
-  type?: 'lecture' | 'deadline' | 'task'
+  type?: 'lecture' | 'deadline'
 }
 
 interface CalendarProps {
@@ -55,7 +55,6 @@ export default function Calendar({ events }: CalendarProps) {
 
   // Check if date has deadlines
   const hasDeadlines = (date: Date) => getEventsForDate(date).some(event => event.type === 'deadline')
-  const hasTasks = (date: Date) => getEventsForDate(date).some(event => event.type === 'task')
 
   // Navigation
   const prevMonth = () => {
@@ -71,16 +70,6 @@ export default function Calendar({ events }: CalendarProps) {
   }
 
   const selectedEvents = selectedDate ? getEventsForDate(selectedDate) : []
-
-  const formatEventTime = (value: string) => {
-    const date = new Date(value)
-    if (Number.isNaN(date.getTime())) return '--'
-    return date.toLocaleTimeString('en-US', {
-      hour: 'numeric',
-      minute: '2-digit',
-      hour12: true
-    })
-  }
 
   return (
     <div className="calendar">
@@ -114,7 +103,6 @@ export default function Calendar({ events }: CalendarProps) {
           const isSelected = selectedDate?.toDateString() === date.toDateString()
           const eventsOnDay = hasEvents(date)
           const deadlinesOnDay = hasDeadlines(date)
-          const tasksOnDay = hasTasks(date)
 
           return (
             <button
@@ -125,7 +113,7 @@ export default function Calendar({ events }: CalendarProps) {
               <span className="calendar-day-number">{date.getDate()}</span>
               {eventsOnDay && (
                 <div
-                  className={`calendar-day-indicator ${deadlinesOnDay ? 'calendar-day-indicator-deadline' : tasksOnDay ? 'calendar-day-indicator-task' : 'calendar-day-indicator-lecture'}`}
+                  className={`calendar-day-indicator ${deadlinesOnDay ? 'calendar-day-indicator-deadline' : 'calendar-day-indicator-lecture'}`}
                 />
               )}
             </button>
@@ -146,12 +134,15 @@ export default function Calendar({ events }: CalendarProps) {
               {selectedEvents.map(event => (
                 <div key={event.id} className={`calendar-event calendar-event-${event.type || 'lecture'}`}>
                   <div className="calendar-event-time">
-                    {formatEventTime(event.scheduled_at)}
+                    {new Date(event.scheduled_at).toLocaleTimeString('en-US', {
+                      hour: 'numeric',
+                      minute: '2-digit',
+                      hour12: true
+                    })}
                   </div>
                   <div className="calendar-event-details">
                     <div className="calendar-event-title">
-                      {event.type === 'deadline' && 'Deadline: '}
-                      {event.type === 'task' && 'Task: '}
+                      {event.type === 'deadline' && '📅 '}
                       {event.title}
                     </div>
                     {event.course_title && (

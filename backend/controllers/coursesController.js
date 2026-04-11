@@ -20,70 +20,6 @@ export async function listCourses(req, res) {
   res.json(r.rows);
 }
 
-export async function listOfferings(req, res) {
-  const userId = Number(req.user?.id);
-  const role = req.user?.role;
-  const q = String(req.query.q || '').trim();
-
-  const params = [];
-  let whereSql = '';
-
-  if (q) {
-    params.push(`%${q}%`);
-    const idx = params.length;
-    whereSql = `
-      WHERE (
-        c.code ILIKE $${idx}
-        OR c.title ILIKE $${idx}
-        OR COALESCE(o.term, '') ILIKE $${idx}
-        OR COALESCE(o.section, '') ILIKE $${idx}
-        OR COALESCE(u.name, '') ILIKE $${idx}
-      )
-    `;
-  }
-
-  const enrolledSql = role === 'student'
-    ? `EXISTS (
-         SELECT 1
-         FROM enrollments e
-         WHERE e.course_offering_id = o.id
-           AND e.student_id = ${Number.isFinite(userId) ? userId : 0}
-           AND e.status = 'active'
-       )`
-    : 'false';
-
-  const query = `
-    SELECT
-      o.id,
-      o.course_id,
-      o.term,
-      o.section,
-      o.max_capacity,
-      o.start_date,
-      o.end_date,
-      c.code AS course_code,
-      c.title AS course_title,
-      c.description AS course_description,
-      u.name AS faculty_name,
-      COALESCE(enr.enrolled_count, 0) AS enrolled_count,
-      ${enrolledSql} AS is_enrolled
-    FROM course_offerings o
-    JOIN courses c ON o.course_id = c.id
-    LEFT JOIN users u ON o.faculty_id = u.id
-    LEFT JOIN (
-      SELECT course_offering_id, COUNT(*)::int AS enrolled_count
-      FROM enrollments
-      WHERE status = 'active'
-      GROUP BY course_offering_id
-    ) enr ON enr.course_offering_id = o.id
-    ${whereSql}
-    ORDER BY c.code ASC, o.term DESC, o.section ASC NULLS LAST, o.id DESC
-  `;
-
-  const result = await pool.query(query, params);
-  res.json({ offerings: result.rows });
-}
-
 export async function listMyCourses(req, res) {
   const facultyId = Number(req.user?.id);
   if (!facultyId) {return res.status(401).json({ error: 'Unauthorized' });}
@@ -181,6 +117,31 @@ export async function listMyOfferings(req, res) {
              WHERE o.faculty_id = $1
              ORDER BY o.id DESC`;
   const r = await pool.query(q, [facultyId]);
+  res.json(r.rows);
+}
+
+export async function listAvailableOfferings(req, res) {
+  const userId = Number(req.user?.id);
+  if (!userId) {return res.status(401).json({ error: 'Unauthorized' });}
+
+  // Get all offerings that the student is not already enrolled in
+  const q = `
+    SELECT o.id, o.term, o.section, c.code as course_code, c.title as course_title, 
+           c.id as course_id, o.faculty_id, o.max_capacity,
+           COUNT(ce.id)::int as enrolled_count,
+           (o.max_capacity - COUNT(ce.id))::int as available_seats
+    FROM course_offerings o
+    JOIN courses c ON o.course_id = c.id
+    LEFT JOIN course_enrollments ce ON o.id = ce.course_offering_id
+    WHERE o.id NOT IN (
+      SELECT course_offering_id FROM course_enrollments WHERE user_id = $1
+    )
+    AND o.start_date <= NOW() AND o.end_date >= NOW()
+    GROUP BY o.id, o.term, o.section, c.code, c.title, c.id, o.faculty_id, o.max_capacity
+    ORDER BY c.code, o.term DESC, o.section
+  `;
+  
+  const r = await pool.query(q, [userId]);
   res.json(r.rows);
 }
 
