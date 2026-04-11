@@ -24,6 +24,7 @@ export default function Layout({ children }: { children: ReactNode }) {
   const isLoginPage = pathname === '/login'
   const isLiveLecture = pathname.includes('/live-lectures/')
   const isVideoPlayer = pathname.includes('/videos/')
+  const isStudentDashboard = pathname === '/dashboard/student'
   const isPublicPage = isLanding || isAuth
   const isFullscreenPage = isLiveLecture || isVideoPlayer
 
@@ -144,6 +145,16 @@ export default function Layout({ children }: { children: ReactNode }) {
     return (
       <div className="site-layout fullscreen-layout">
         <main className="site-main fullscreen-main">
+          {children}
+        </main>
+      </div>
+    )
+  }
+
+  if (isStudentDashboard) {
+    return (
+      <div className="site-layout">
+        <main className="site-main">
           {children}
         </main>
       </div>

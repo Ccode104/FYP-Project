@@ -15,6 +15,7 @@ import {
   submitRegradeRequest,
   submitResumeRequest,
   getStudentResumeRequests,
+  getUpcomingEvents,
 } from '../controllers/studentController.js';
 
 const router = express.Router();
@@ -390,5 +391,21 @@ router.post('/resume-request', submitResumeRequest);
  *         description: Unauthorized
  */
 router.get('/resume-requests', getStudentResumeRequests);
+
+/**
+ * @swagger
+ * /api/student/upcoming-events:
+ *   get:
+ *     summary: Get upcoming events (assignments, quizzes, lectures) for student dashboard
+ *     tags: [Student]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: List of upcoming events sorted by date
+ *       401:
+ *         description: Unauthorized
+ */
+router.get('/upcoming-events', getUpcomingEvents);
 
 export default router;

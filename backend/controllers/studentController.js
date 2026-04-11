@@ -393,3 +393,89 @@ export async function getStudentResumeRequests(req, res) {
     res.status(500).json({ error: 'Internal server error' });
   }
 }
+
+// Get student's upcoming events (assignments, quizzes, lectures) for dashboard
+export async function getUpcomingEvents(req, res) {
+  try {
+    const studentId = req.user.id;
+    const today = new Date();
+
+    // Fetch upcoming assignments due in the next 30 days
+    const assignmentsQuery = `
+      SELECT 
+        a.id,
+        a.title,
+        a.due_at,
+        'assignment' AS event_type,
+        c.code AS course_code,
+        c.title AS course_title,
+        co.id AS course_offering_id
+      FROM assignments a
+      JOIN course_offerings co ON a.course_offering_id = co.id
+      JOIN courses c ON co.course_id = c.id
+      JOIN enrollments e ON e.course_offering_id = co.id
+      WHERE e.student_id = $1
+        AND a.due_at > NOW()
+        AND a.due_at <= NOW() + INTERVAL '30 days'
+      ORDER BY a.due_at ASC
+    `;
+
+    // Fetch upcoming quizzes
+    const quizzesQuery = `
+      SELECT 
+        q.id,
+        q.title,
+        q.end_at AS due_at,
+        'quiz' AS event_type,
+        c.code AS course_code,
+        c.title AS course_title,
+        co.id AS course_offering_id
+      FROM quizzes q
+      JOIN course_offerings co ON q.course_offering_id = co.id
+      JOIN courses c ON co.course_id = c.id
+      JOIN enrollments e ON e.course_offering_id = co.id
+      WHERE e.student_id = $1
+        AND q.end_at > NOW()
+        AND q.end_at <= NOW() + INTERVAL '30 days'
+      ORDER BY q.end_at ASC
+    `;
+
+    // Fetch upcoming live lectures
+    const lecturesQuery = `
+      SELECT 
+        ll.id,
+        ll.title,
+        ll.scheduled_at AS due_at,
+        'lecture' AS event_type,
+        c.code AS course_code,
+        c.title AS course_title,
+        co.id AS course_offering_id,
+        ll.room AS location
+      FROM live_lectures ll
+      JOIN course_offerings co ON ll.course_offering_id = co.id
+      JOIN courses c ON co.course_id = c.id
+      JOIN enrollments e ON e.course_offering_id = co.id
+      WHERE e.student_id = $1
+        AND ll.scheduled_at > NOW()
+        AND ll.scheduled_at <= NOW() + INTERVAL '30 days'
+      ORDER BY ll.scheduled_at ASC
+    `;
+
+    const [assignmentsResult, quizzesResult, lecturesResult] = await Promise.all([
+      pool.query(assignmentsQuery, [studentId]),
+      pool.query(quizzesQuery, [studentId]),
+      pool.query(lecturesQuery, [studentId])
+    ]);
+
+    const allEvents = [
+      ...assignmentsResult.rows,
+      ...quizzesResult.rows,
+      ...lecturesResult.rows
+    ].sort((a, b) => new Date(a.due_at).getTime() - new Date(b.due_at).getTime());
+
+    res.json({ events: allEvents });
+  } catch (err) {
+    console.error('getUpcomingEvents error:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+}
