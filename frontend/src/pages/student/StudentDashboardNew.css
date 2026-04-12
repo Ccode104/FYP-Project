@@ -39,7 +39,7 @@ body {
   top: 72px;
   left: 0;
   bottom: 0;
-  width: 168px;
+  width: 196px;
   background: rgba(255, 255, 255, 0.74);
   border-right: 1px solid var(--student-border);
   backdrop-filter: blur(20px);
@@ -88,10 +88,10 @@ body {
 }
 
 .student-shell__content {
-  margin-left: 168px;
+  margin-left: 196px;
   padding: 26px 22px 36px 28px;
   position: relative;
-  width: calc(100% - 168px);
+  width: calc(100% - 196px);
 }
 
 .student-shell-panel {

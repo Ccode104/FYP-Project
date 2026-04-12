@@ -1,194 +1,332 @@
-import { useEffect, useMemo, useState } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
-import { apiFetch } from '../../services/api'
+import { useEffect, useMemo, useState } from 'react';
+import { useNavigate, useParams } from 'react-router-dom';
+import { apiFetch } from '../../services/api';
+import { useAuth } from '../../context/AuthContext';
+import { getLiveLecturesByCourse } from '../../features/live-lecture/api/liveLectures';
+
+type LiveLectureSummary = {
+  id: number | string;
+  status?: 'scheduled' | 'live' | 'ended';
+};
 
 type OfferingSummary = {
-  id: number | string
-  course_code?: string
-  course_title?: string
-  term?: string
-  section?: string
-}
+  id: number | string;
+  course_code?: string;
+  course_title?: string;
+  term?: string;
+  section?: string;
+};
 
 type AssignmentSummary = {
-  id: number | string
-  title?: string
-  due_at?: string | null
-}
+  id: number | string;
+  title?: string;
+  due_at?: string | null;
+  submission_count?: number;
+  max_score?: number;
+};
 
 type QuizSummary = {
-  id: number | string
-  title?: string
-  end_at?: string | null
-}
+  id: number | string;
+  title?: string;
+  end_at?: string | null;
+  start_at?: string | null;
+  status?: 'scheduled' | 'draft' | 'active';
+};
 
-function fmtDate(value?: string | null) {
-  if (!value) return '—'
-  const d = new Date(value)
-  if (Number.isNaN(d.getTime())) return '—'
-  return d.toLocaleString()
+function fmtDateShort(value?: string | null) {
+  if (!value) return '—';
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return '—';
+  return d.toLocaleString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+  });
 }
 
 export default function CourseHub() {
-  const { courseId } = useParams()
-  const navigate = useNavigate()
+  const { courseId } = useParams();
+  const navigate = useNavigate();
+  const { user } = useAuth();
 
-  const [offering, setOffering] = useState<OfferingSummary | null>(null)
-  const [assignments, setAssignments] = useState<AssignmentSummary[]>([])
-  const [quizzes, setQuizzes] = useState<QuizSummary[]>([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
+  const [offering, setOffering] = useState<OfferingSummary | null>(null);
+  const [assignments, setAssignments] = useState<AssignmentSummary[]>([]);
+  const [quizzes, setQuizzes] = useState<QuizSummary[]>([]);
+  const [liveLectures, setLiveLectures] = useState<LiveLectureSummary[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  const id = courseId || ''
-  const isBackendOfferingId = useMemo(() => /^\d+$/.test(id), [id])
+  const id = courseId || '';
+  const isBackendOfferingId = useMemo(() => /^\d+$/.test(id), [id]);
 
   useEffect(() => {
-    let cancelled = false
+    let cancelled = false;
     async function load() {
-      if (!id) return
-      setLoading(true)
-      setError(null)
+      if (!id) return;
+      setLoading(true);
+      setError(null);
 
       try {
-        // Backend offering mode (numeric IDs) is the common case for dashboards.
         if (isBackendOfferingId) {
-          const [o, a, q] = await Promise.all([
+          const [o, a, q, l] = await Promise.all([
             apiFetch<OfferingSummary>(`/api/student/courses/${id}`),
             apiFetch<AssignmentSummary[]>(`/api/student/courses/${id}/assignments`).catch(() => []),
             apiFetch<QuizSummary[]>(`/api/student/courses/${id}/quizzes`).catch(() => []),
-          ])
+            getLiveLecturesByCourse(Number(id)).catch(() => ({ lectures: [] })),
+          ]);
           if (!cancelled) {
-            setOffering(o)
-            setAssignments(Array.isArray(a) ? a : [])
-            setQuizzes(Array.isArray(q) ? q : [])
+            setOffering(o);
+            setAssignments(Array.isArray(a) ? a : []);
+            setQuizzes(Array.isArray(q) ? q : []);
+            setLiveLectures(Array.isArray((l as any).lectures) ? (l as any).lectures : []);
           }
         } else {
-          // Local/mock course mode fallback: just forward to the existing page.
-          navigate(`/courses/${id}`)
-          return
+          navigate(`/courses/${id}`);
+          return;
         }
       } catch (e) {
-        console.error(e)
-        if (!cancelled) setError('Failed to load course hub')
+        console.error(e);
+        if (!cancelled) setError('Failed to load course hub');
       } finally {
-        if (!cancelled) setLoading(false)
+        if (!cancelled) setLoading(false);
       }
     }
-    void load()
+    void load();
     return () => {
-      cancelled = true
-    }
-  }, [id, isBackendOfferingId, navigate])
+      cancelled = true;
+    };
+  }, [id, isBackendOfferingId, navigate]);
 
   const upcomingAssignments = useMemo(() => {
-    const items = [...assignments]
-    items.sort((x, y) => (new Date(x.due_at || 0).getTime() || 0) - (new Date(y.due_at || 0).getTime() || 0))
-    return items.slice(0, 3)
-  }, [assignments])
+    const items = [...assignments];
+    items.sort(
+      (x, y) => (new Date(x.due_at || 0).getTime() || 0) - (new Date(y.due_at || 0).getTime() || 0)
+    );
+    return items.slice(0, 3);
+  }, [assignments]);
 
   const upcomingQuizzes = useMemo(() => {
-    const items = [...quizzes]
-    items.sort((x, y) => (new Date(x.end_at || 0).getTime() || 0) - (new Date(y.end_at || 0).getTime() || 0))
-    return items.slice(0, 3)
-  }, [quizzes])
+    const items = [...quizzes];
+    items.sort(
+      (x, y) => (new Date(x.end_at || 0).getTime() || 0) - (new Date(y.end_at || 0).getTime() || 0)
+    );
+    return items.slice(0, 3);
+  }, [quizzes]);
+
+  const userRole =
+    user?.role === 'teacher' || user?.role === 'ta'
+      ? 'Teacher'
+      : user?.role === 'student'
+        ? 'Student'
+        : '';
 
   return (
-    <div className="container container-wide dashboard-page student-theme">
-      <div className="dashboard-header">
-        <div className="welcome-section">
-          <h1 className="dashboard-title h2 text-primary">
-            {offering?.course_code ? `${offering.course_code} — ` : ''}{offering?.course_title || `Course #${id}`}
-          </h1>
-          <p className="dashboard-subtitle text-lg text-secondary leading-relaxed">
-            {offering?.term ? offering.term : 'Course hub'}{offering?.section ? ` • ${offering.section}` : ''} • Offering #{id}
-          </p>
+    <div className="course-hub-page">
+      {/* Header Section */}
+      <header className="course-hub-header">
+        <div className="course-hub-header-meta">
+          <span className="course-hub-role-badge">{userRole}</span>
+          <span className="course-hub-divider">•</span>
+          <span className="course-hub-term">{offering?.term || 'Spring 2024 Semester'}</span>
         </div>
-        <div className="dashboard-actions">
-          <button className="btn btn-secondary" onClick={() => navigate(`/courses/${id}`)}>Open full course</button>
-          <button className="btn btn-outline" onClick={() => navigate('/planner')}>Planner</button>
-        </div>
-      </div>
+        <h1 className="course-hub-title">
+          {offering?.course_code ? `Course Hub: ${offering.course_code}` : `Course Hub`}{' '}
+          {offering?.course_title ? `— ${offering.course_title}` : ''}
+        </h1>
+        <p className="course-hub-description">
+          Central command for lecture management, student tracking, and curriculum deployment for
+          advanced algorithmic theory.
+        </p>
+      </header>
 
       {error && (
-        <div className="card" style={{ padding: 16, marginBottom: 16 }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'center' }}>
-            <div>
-              <div className="h4" style={{ marginBottom: 6 }}>Couldn’t load course hub</div>
-              <div className="text-sm text-secondary">{error}</div>
-            </div>
-            <button className="btn btn-secondary" onClick={() => window.location.reload()}>Retry</button>
+        <div className="course-hub-error">
+          <div className="course-hub-error-content">
+            <div className="course-hub-error-title">Couldn't load course hub</div>
+            <div className="course-hub-error-message">{error}</div>
           </div>
+          <button className="course-hub-error-btn" onClick={() => window.location.reload()}>
+            Retry
+          </button>
         </div>
       )}
 
-      <div className="grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 16 }}>
-        <div className="card" style={{ padding: 16 }}>
-          <div className="card-header-mini" style={{ marginBottom: 12 }}>
-            <h3 className="card-subtitle">Quick actions</h3>
+      {/* Quick Actions Bento Grid */}
+      <section className="course-hub-quick-actions">
+        <div className="course-hub-action-card" onClick={() => navigate(`/courses/${id}/present`)}>
+          <div className="course-hub-action-bg">
+            <span className="material-symbols-outlined">assignment</span>
           </div>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
-            <button className="btn btn-primary" onClick={() => navigate(`/courses/${id}/present`)}>Assignments</button>
-            <button className="btn btn-secondary" onClick={() => navigate(`/courses/${id}/quizzes`)}>Quizzes</button>
-            <button className="btn btn-secondary" onClick={() => navigate(`/courses/${id}/discussion`)}>Discussion</button>
-            <button className="btn btn-secondary" onClick={() => navigate(`/courses/${id}/videos`)}>Videos</button>
-            <button className="btn btn-secondary" onClick={() => navigate(`/courses/${id}/live-lectures`)}>Live lectures</button>
-            <button className="btn btn-outline" onClick={() => navigate(`/courses/${id}/progress`)}>Progress</button>
+          <span className="material-symbols-outlined course-hub-action-icon">assignment</span>
+          <h3 className="course-hub-action-title">Assignments</h3>
+          <p className="course-hub-action-desc">Review submissions and publish new problem sets.</p>
+        </div>
+
+        <div className="course-hub-action-card" onClick={() => navigate(`/courses/${id}/quizzes`)}>
+          <div className="course-hub-action-bg">
+            <span className="material-symbols-outlined">quiz</span>
+          </div>
+          <span className="material-symbols-outlined course-hub-action-icon secondary">quiz</span>
+          <h3 className="course-hub-action-title">Quizzes</h3>
+          <p className="course-hub-action-desc">
+            Configure automated assessments and exam schedules.
+          </p>
+        </div>
+
+        <div
+          className="course-hub-action-card"
+          onClick={() => navigate(`/courses/${id}/discussion`)}
+        >
+          <div className="course-hub-action-bg">
+            <span className="material-symbols-outlined">forum</span>
+          </div>
+          <span className="material-symbols-outlined course-hub-action-icon tertiary">forum</span>
+          <h3 className="course-hub-action-title">Discussion</h3>
+          <p className="course-hub-action-desc">
+            Engage with students on theoretical clarifications.
+          </p>
+        </div>
+
+        <div className="course-hub-action-card" onClick={() => navigate(`/courses/${id}/videos`)}>
+          <div className="course-hub-action-bg">
+            <span className="material-symbols-outlined">video_library</span>
+          </div>
+          <span className="material-symbols-outlined course-hub-action-icon error">
+            video_library
+          </span>
+          <h3 className="course-hub-action-title">Videos</h3>
+          <p className="course-hub-action-desc">
+            Upload recorded lectures and supplementary media.
+          </p>
+        </div>
+
+        <div
+          className="course-hub-action-card course-hub-action-card-primary"
+          onClick={() => {
+            const activeLecture = liveLectures.find((lecture) => lecture.status === 'live');
+            const nextLecture = liveLectures.find((lecture) => lecture.status === 'scheduled');
+            if (activeLecture) {
+              navigate(`/courses/${id}/live-lectures/${activeLecture.id}`);
+            } else if (nextLecture) {
+              navigate(`/courses/${id}/live-lectures/${nextLecture.id}`);
+            } else {
+              navigate(`/courses/${id}/live-lectures`);
+            }
+          }}
+        >
+          <div className="course-hub-action-bg">
+            <span className="material-symbols-outlined">sensors</span>
+          </div>
+          <span className="material-symbols-outlined course-hub-action-icon white">sensors</span>
+          <h3 className="course-hub-action-title white">Live Lectures</h3>
+          <p className="course-hub-action-desc white">
+            Start session or schedule a future virtual classroom.
+          </p>
+        </div>
+
+        <div className="course-hub-action-card" onClick={() => navigate(`/courses/${id}/progress`)}>
+          <div className="course-hub-action-bg">
+            <span className="material-symbols-outlined">trending_up</span>
+          </div>
+          <span className="material-symbols-outlined course-hub-action-icon">trending_up</span>
+          <h3 className="course-hub-action-title">Progress</h3>
+          <p className="course-hub-action-desc">Analyze class performance and retention metrics.</p>
+        </div>
+      </section>
+
+      {/* Upcoming Section */}
+      <section className="course-hub-upcoming">
+        {/* Left Column: Upcoming Assignments */}
+        <div className="course-hub-upcoming-col">
+          <div className="course-hub-upcoming-header">
+            <h2 className="course-hub-upcoming-title">Upcoming Assignments</h2>
+            <span className="material-symbols-outlined course-hub-more-icon">more_horiz</span>
+          </div>
+          <div className="course-hub-upcoming-list">
+            {loading ? (
+              <div className="course-hub-upcoming-loading">Loading assignments...</div>
+            ) : upcomingAssignments.length === 0 ? (
+              <div className="course-hub-upcoming-empty">No upcoming assignments</div>
+            ) : (
+              upcomingAssignments.map(a => (
+                <div
+                  key={String(a.id)}
+                  className="course-hub-upcoming-item"
+                  onClick={() => navigate(`/courses/${id}/assignments/${a.id}`)}
+                >
+                  <div className="course-hub-upcoming-icon">
+                    <span
+                      className="material-symbols-outlined"
+                      style={{ fontVariationSettings: 'FILL 1' }}
+                    >
+                      description
+                    </span>
+                  </div>
+                  <div className="course-hub-upcoming-info">
+                    <h4 className="course-hub-upcoming-item-title">
+                      {a.title || `Assignment #${a.id}`}
+                    </h4>
+                    <p className="course-hub-upcoming-item-date">Due: {fmtDateShort(a.due_at)}</p>
+                  </div>
+                  <div className="course-hub-upcoming-badge">
+                    {a.submission_count !== undefined && a.submission_count > 0 ? (
+                      <span className="course-hub-upcoming-badge-primary">
+                        {a.submission_count} Submissions
+                      </span>
+                    ) : (
+                      <span className="course-hub-upcoming-badge-muted">0 Submissions</span>
+                    )}
+                  </div>
+                </div>
+              ))
+            )}
           </div>
         </div>
 
-        <div className="card" style={{ padding: 16 }}>
-          <div className="card-header-mini" style={{ marginBottom: 12 }}>
-            <h3 className="card-subtitle">Upcoming</h3>
+        {/* Right Column: Upcoming Quizzes */}
+        <div className="course-hub-upcoming-col">
+          <div className="course-hub-upcoming-header">
+            <h2 className="course-hub-upcoming-title">Upcoming Quizzes</h2>
+            <span className="material-symbols-outlined course-hub-more-icon">more_horiz</span>
           </div>
-
-          {loading ? (
-            <div className="text-sm text-secondary">Loading…</div>
-          ) : (
-            <div style={{ display: 'grid', gap: 10 }}>
-              <div>
-                <div className="text-sm" style={{ fontWeight: 600, marginBottom: 6 }}>Assignments</div>
-                {upcomingAssignments.length === 0 ? (
-                  <div className="text-sm text-secondary">No upcoming assignments</div>
-                ) : (
-                  <ul className="list" style={{ margin: 0, paddingLeft: 16 }}>
-                    {upcomingAssignments.map((a) => (
-                      <li key={String(a.id)}>
-                        <button
-                          className="btn btn-link"
-                          onClick={() => navigate(`/courses/${id}/assignments/${a.id}`)}
-                          style={{ padding: 0, height: 'auto' as unknown as number }}
-                        >
-                          {a.title || `Assignment #${a.id}`}
-                        </button>
-                        <div className="text-sm text-secondary">Due: {fmtDate(a.due_at)}</div>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </div>
-
-              <div>
-                <div className="text-sm" style={{ fontWeight: 600, marginBottom: 6 }}>Quizzes</div>
-                {upcomingQuizzes.length === 0 ? (
-                  <div className="text-sm text-secondary">No upcoming quizzes</div>
-                ) : (
-                  <ul className="list" style={{ margin: 0, paddingLeft: 16 }}>
-                    {upcomingQuizzes.map((q) => (
-                      <li key={String(q.id)}>
-                        <button className="btn btn-link" onClick={() => navigate(`/quizzes/${q.id}`)} style={{ padding: 0, height: 'auto' as unknown as number }}>
-                          {q.title || `Quiz #${q.id}`}
-                        </button>
-                        <div className="text-sm text-secondary">Ends: {fmtDate(q.end_at)}</div>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </div>
-            </div>
-          )}
+          <div className="course-hub-upcoming-list">
+            {loading ? (
+              <div className="course-hub-upcoming-loading">Loading quizzes...</div>
+            ) : upcomingQuizzes.length === 0 ? (
+              <div className="course-hub-upcoming-empty">No upcoming quizzes</div>
+            ) : (
+              upcomingQuizzes.map(q => (
+                <div
+                  key={String(q.id)}
+                  className="course-hub-upcoming-item"
+                  onClick={() => navigate(`/quizzes/${q.id}`)}
+                >
+                  <div className="course-hub-upcoming-icon quiz">
+                    <span
+                      className="material-symbols-outlined"
+                      style={{ fontVariationSettings: 'FILL 1' }}
+                    >
+                      timer
+                    </span>
+                  </div>
+                  <div className="course-hub-upcoming-info">
+                    <h4 className="course-hub-upcoming-item-title">{q.title || `Quiz #${q.id}`}</h4>
+                    <p className="course-hub-upcoming-item-date">
+                      Starts: {fmtDateShort(q.start_at || q.end_at)}
+                    </p>
+                  </div>
+                  <div className="course-hub-upcoming-badge">
+                    <span className={`course-hub-upcoming-badge-quiz ${q.status || 'scheduled'}`}>
+                      {q.status === 'draft' ? 'Draft' : 'Scheduled'}
+                    </span>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
         </div>
-      </div>
+      </section>
     </div>
-  )
+  );
 }
-

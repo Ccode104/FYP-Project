@@ -329,6 +329,7 @@ export default function StudentDashboardNew() {
   const [error, setError] = useState<string | null>(null)
   const [searchValue, setSearchValue] = useState('')
   const [activePanel, setActivePanel] = useState<'notifications' | 'actions' | null>(null)
+  const [activeNav, setActiveNav] = useState('dashboard')
 
   const [enrollModalOpen, setEnrollModalOpen] = useState(false)
   const [selectedOfferingId, setSelectedOfferingId] = useState('')
@@ -497,7 +498,12 @@ export default function StudentDashboardNew() {
       id: 'courses',
       label: 'My Courses',
       icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" /><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2Z" /></svg>,
-      action: () => scrollToSection(coursesSectionRef),
+      action: () => {
+        scrollToSection(coursesSectionRef)
+        if (filteredCourses.length === 1) {
+          navigate(`/courses/${filteredCourses[0].id}/hub`)
+        }
+      },
     },
     {
       id: 'schedule',
@@ -538,11 +544,15 @@ export default function StudentDashboardNew() {
       <div className="student-shell">
         <aside className="student-sidebar">
           <nav className="student-sidebar__nav" aria-label="Student dashboard navigation">
-            {navItems.map((item, index) => (
+            {navItems.map((item) => (
               <button
                 key={item.id}
-                className={`student-sidebar__link${index === 0 ? ' student-sidebar__link--active' : ''}`}
-                onClick={item.action}
+                type="button"
+                className={`student-sidebar__link${activeNav === item.id ? ' student-sidebar__link--active' : ''}`}
+                onClick={() => {
+                  setActiveNav(item.id)
+                  item.action()
+                }}
               >
                 <span className="student-sidebar__icon">{item.icon}</span>
                 <span>{item.label}</span>

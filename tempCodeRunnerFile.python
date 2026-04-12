@@ -1,0 +1,64 @@
+from selenium import webdriver
+from selenium.webdriver.common.by import By
+from selenium.webdriver.chrome.options import Options
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
+import time
+
+options = Options()
+
+options.add_argument("user-data-dir=C:\\Users\\HP\\AppData\\Local\\Google\\Chrome\\User Data")
+options.add_argument("profile-directory=Default")
+
+driver = webdriver.Chrome(options=options)
+
+driver.get("https://www.geeksforgeeks.org/batch/gate-rank-booster-cse?tab=Live")
+
+wait = WebDriverWait(driver, 20)
+
+# Wait until lectures load
+wait.until(EC.presence_of_element_located((By.TAG_NAME, "body")))
+
+print("Page loaded")
+
+# 🔥 Scroll to load all lectures (important)
+last_height = driver.execute_script("return document.body.scrollHeight")
+
+while True:
+    driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
+    time.sleep(2)
+    new_height = driver.execute_script("return document.body.scrollHeight")
+    if new_height == last_height:
+        break
+    last_height = new_height
+
+print("All lectures loaded")
+
+# 🔥 Find all "Class Notes" buttons
+class_notes_buttons = driver.find_elements(By.XPATH, "//a[contains(text(),'Class Notes')]")
+
+print(f"Found {len(class_notes_buttons)} Class Notes buttons")
+
+for i, btn in enumerate(class_notes_buttons):
+    try:
+        print(f"Processing {i+1}")
+
+        driver.execute_script("arguments[0].scrollIntoView();", btn)
+        time.sleep(1)
+
+        driver.execute_script("arguments[0].click();", btn)
+
+        # Wait for download popup
+        download_btn = wait.until(
+            EC.element_to_be_clickable((By.XPATH, "//button[contains(text(),'Download')]"))
+        )
+
+        download_btn.click()
+        print("Downloaded")
+
+        time.sleep(2)
+
+    except Exception as e:
+        print("Error:", e)
+
+print("Done!")
