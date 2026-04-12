@@ -55,12 +55,17 @@ export async function executeCode(req, res) {
       const driverResult = await pool.query(driverQuery, [question_id]);
       if (driverResult.rows.length > 0) {
         const driverCode = driverResult.rows[0].driver_code;
-        if (driverCode && typeof driverCode === 'string') {
+        if (driverCode) {
           try {
-            const driverObj = JSON.parse(driverCode);
+            // Handle both JSONB (already object) and JSON string payloads gracefully
+            const driverObj = typeof driverCode === 'string' ? JSON.parse(driverCode) : driverCode;
             const langDriver = driverObj[language.toLowerCase()];
             if (langDriver) {
-              finalSourceCode = langDriver + '\n' + source_code;
+              if (['python', 'python3', 'javascript', 'js'].includes(language.toLowerCase())) {
+                finalSourceCode = source_code + '\n' + langDriver;
+              } else {
+                finalSourceCode = langDriver + '\n' + source_code;
+              }
             }
           } catch (e) {
             // If parsing fails, ignore driver code

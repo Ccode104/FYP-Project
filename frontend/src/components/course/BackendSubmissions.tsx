@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useNavigate, useParams } from 'react-router-dom'
 import { apiFetch } from '../../services/api'
 
 interface Submission {
@@ -17,6 +18,8 @@ interface Assignment {
 }
 
 function BackendSubmissions({ assignments, onViewCode }: { assignments: Assignment[]; onViewCode?: (submission: Submission) => void }) {
+  const { courseId } = useParams()
+  const navigate = useNavigate()
   const [assignmentId, setAssignmentId] = useState<string>('')
   const [items, setItems] = useState<Submission[]>([])
   const [selectedAssignment, setSelectedAssignment] = useState<Assignment | null>(null)
@@ -42,11 +45,21 @@ function BackendSubmissions({ assignments, onViewCode }: { assignments: Assignme
               <span style={{ flex: 1 }}>
                 {selectedAssignment?.assignment_type === 'code' ? '💻 Code submission' : (s.files?.[0]?.filename || 'file')} — {s.student_name || s.student_email}
               </span>
-              {selectedAssignment?.assignment_type === 'code' && onViewCode && (
-                <button className="btn btn-primary" onClick={async () => {
-                  const detail = await apiFetch<{ submission: unknown }>(`/api/submissions/${s.id}`)
-                  onViewCode(detail.submission)
-                }}>View Code</button>
+              {selectedAssignment?.assignment_type === 'code' && (
+                <button className="btn btn-primary" onClick={() => {
+                  if (courseId && selectedAssignment?.id && s.id) {
+                    navigate(`/courses/${courseId}/assignments/${selectedAssignment.id}/submissions/${s.id}`)
+                    return
+                  }
+                  if (onViewCode) {
+                    void (async () => {
+                      const detail = await apiFetch<{ submission: unknown }>(`/api/submissions/${s.id}`)
+                      onViewCode(detail.submission)
+                    })()
+                  }
+                }}>
+                  View Code
+                </button>
               )}
             </li>
           ))}

@@ -661,14 +661,61 @@ export async function submitGitHubRepoAssignment(req, res) {
 }
 
 export async function gradeSubmission(req, res) {
-  const { submission_id, score, feedback } = req.body;
+  const { submission_id, score, feedback, rubricGrades, overall_feedback } = req.body;
   const grader_id = req.user?.id;
-  if (!submission_id || score === undefined) {return res.status(400).json({ error: 'Missing' });}
+  if (!submission_id || (score === undefined && !(Array.isArray(rubricGrades) && rubricGrades.length > 0))) {
+    return res.status(400).json({ error: 'Missing submission_id or grading data' });
+  }
 
-  await pool.query('INSERT INTO submission_grades (submission_id, grader_id, score, feedback) VALUES ($1,$2,$3,$4)', [submission_id, grader_id, score, feedback || null]);
-  await pool.query('UPDATE assignment_submissions SET final_score=$1, grader_id=$2, graded_at=now(), status=\'graded\' WHERE id=$3', [score, grader_id, submission_id]);
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
 
-  res.json({ success: true });
+    let finalScore = score;
+    const comments = feedback || overall_feedback || null;
+
+    if (Array.isArray(rubricGrades) && rubricGrades.length > 0) {
+      for (const grade of rubricGrades) {
+        await client.query(`
+          INSERT INTO rubric_grades (submission_id, criterion_id, score, feedback, graded_by, graded_at)
+          VALUES ($1, $2, $3, $4, $5, NOW())
+          ON CONFLICT (submission_id, criterion_id)
+          DO UPDATE SET score = EXCLUDED.score, feedback = EXCLUDED.feedback, graded_by = EXCLUDED.graded_by, graded_at = NOW()
+        `, [submission_id, grade.criterionId, grade.score, grade.feedback || null, grader_id]);
+      }
+
+      const totalResult = await client.query(`
+        SELECT COALESCE(SUM(score), 0) AS total_score
+        FROM rubric_grades
+        WHERE submission_id = $1
+      `, [submission_id]);
+
+      finalScore = parseFloat(totalResult.rows[0]?.total_score) || 0;
+    }
+
+    if (finalScore === undefined) {
+      finalScore = 0;
+    }
+
+    await client.query(
+      'INSERT INTO submission_grades (submission_id, grader_id, score, feedback) VALUES ($1,$2,$3,$4)',
+      [submission_id, grader_id, finalScore, comments]
+    );
+
+    await client.query(
+      'UPDATE assignment_submissions SET final_score=$1, grader_id=$2, graded_at=now(), status=\'graded\' WHERE id=$3',
+      [finalScore, grader_id, submission_id]
+    );
+
+    await client.query('COMMIT');
+    res.json({ success: true, score: finalScore });
+  } catch (err) {
+    await client.query('ROLLBACK');
+    console.error('Error grading submission:', err);
+    res.status(500).json({ error: err.message || 'Failed to grade submission' });
+  } finally {
+    client.release();
+  }
 }
 
 export async function getSubmissionById(req, res) {
@@ -678,7 +725,10 @@ export async function getSubmissionById(req, res) {
 
     // Fetch submission with assignment and offering info
     const q = `
-      SELECT s.*, a.id AS assignment_id, a.course_offering_id, o.faculty_id, u.name as student_name, u.email as student_email
+      SELECT s.*, a.id AS assignment_id, a.title AS assignment_title, a.description AS assignment_description,
+             a.due_at, a.max_score AS total_points, a.allow_multiple_submissions, a.assignment_type,
+             a.submission_requirements, a.grading_config, a.course_offering_id, o.faculty_id,
+             u.name as student_name, u.email as student_email
       FROM assignment_submissions s
       JOIN assignments a ON s.assignment_id = a.id
       JOIN course_offerings o ON a.course_offering_id = o.id
@@ -691,6 +741,22 @@ export async function getSubmissionById(req, res) {
 
     const submission = r.rows[0];
     console.log(`[DEBUG] getSubmissionById: submission id=${submission.id}, assignment_type=${submission.assignment_type}`);
+
+    if (submission.submission_requirements && typeof submission.submission_requirements === 'string') {
+      try {
+        submission.submission_requirements = JSON.parse(submission.submission_requirements);
+      } catch (parseErr) {
+        submission.submission_requirements = submission.submission_requirements;
+      }
+    }
+
+    if (submission.grading_config && typeof submission.grading_config === 'string') {
+      try {
+        submission.grading_config = JSON.parse(submission.grading_config);
+      } catch (parseErr) {
+        submission.grading_config = submission.grading_config;
+      }
+    }
 
     // Authorization: faculty can only view submissions for their own offerings
     if (req.user?.role === 'faculty' && req.user.id !== submission.faculty_id) {
@@ -747,19 +813,44 @@ export async function getSubmissionById(req, res) {
         `;
         const testResultsR = await pool.query(testResultsQ, [codeSub.id]);
 
-        return {
-          ...codeSub,
-          test_case_results: testResultsR.rows || [],
-          // Parse test_results JSONB if it exists
-          test_results: codeSub.test_results ? (typeof codeSub.test_results === 'string' ? JSON.parse(codeSub.test_results) : codeSub.test_results) : null
-        };
+          let parsedTestResults = null;
+          if (codeSub.test_results) {
+            if (typeof codeSub.test_results === 'string') {
+              try {
+                parsedTestResults = JSON.parse(codeSub.test_results);
+              } catch (e) {
+                console.warn('Failed to parse test_results JSON for code_submission', codeSub.id);
+                parsedTestResults = null; // or codeSub.test_results, but null is safer
+              }
+            } else {
+              parsedTestResults = codeSub.test_results;
+            }
+          }
+
+          return {
+            ...codeSub,
+            test_case_results: testResultsR.rows || [],
+            // Parse test_results JSONB if it exists safely
+            test_results: parsedTestResults
+          };
       })
     );
+
+    const rubricGradesQ = `
+      SELECT rg.*, rc.title AS criterion_title, rc.description AS criterion_description,
+             rc.max_points, rc.weight
+      FROM rubric_grades rg
+      LEFT JOIN rubric_criteria rc ON rg.criterion_id = rc.id
+      WHERE rg.submission_id = $1
+      ORDER BY rc.position ASC
+    `;
+    const rubricGradesR = await pool.query(rubricGradesQ, [submissionId]);
 
     const result = Object.assign({}, submission, {
       files: filesR.rows || [],
       code: codeWithTestResults,
       grades: gradesR.rows || [],
+      rubric_grades: rubricGradesR.rows || [],
       ...typeSpecificData
     });
 

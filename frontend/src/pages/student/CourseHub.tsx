@@ -154,7 +154,7 @@ export default function CourseHub() {
 
       {/* Quick Actions Bento Grid */}
       <section className="course-hub-quick-actions">
-        <div className="course-hub-action-card" onClick={() => navigate(`/courses/${id}/present`)}>
+        <div className="course-hub-action-card" onClick={() => navigate(`/courses/${id}/assignments`)}>
           <div className="course-hub-action-bg">
             <span className="material-symbols-outlined">assignment</span>
           </div>

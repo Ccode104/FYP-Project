@@ -16,7 +16,9 @@ const TADashboard = lazy(() => import('./pages/teacher/TADashboard'));
 const AdminDashboard = lazy(() => import('./pages/admin/AdminDashboard'));
 const CourseDetails = lazy(() => import('./pages/student/CourseDetails'));
 const CourseHub = lazy(() => import('./pages/student/CourseHub'));
+const AssignmentsLanding = lazy(() => import('./pages/student/AssignmentsLanding'));
 const AssignmentDetails = lazy(() => import('./pages/student/AssignmentDetails'));
+const SubmissionReview = lazy(() => import('./pages/student/SubmissionReview'));
 const CodeEditorPage = lazy(() => import('./pages/student/CodeEditorPage'));
 const ContestEditorPage = lazy(() => import('./pages/student/ContestEditorPage'));
 const LiveLecturePage = lazy(() => import('./pages/student/LiveLecturePage'));
@@ -172,6 +174,16 @@ function App() {
               }
             />
 
+            {/* Assignments landing route for course hub navigation */}
+            <Route
+              path="/courses/:courseId/assignments"
+              element={
+                <ProtectedRoute roles={['student', 'teacher', 'ta']}>
+                  <AssignmentsLanding />
+                </ProtectedRoute>
+              }
+            />
+
             {/* Course details (accessible by student, teacher, TA) */}
             <Route
               path="/courses/:courseId/:tab?"
@@ -188,6 +200,16 @@ function App() {
               element={
                 <ProtectedRoute roles={['student', 'teacher', 'ta']}>
                   <AssignmentDetails />
+                </ProtectedRoute>
+              }
+            />
+
+            {/* Submission review page for code submissions */}
+            <Route
+              path="/courses/:courseId/assignments/:assignmentId/submissions/:submissionId"
+              element={
+                <ProtectedRoute roles={['teacher', 'ta', 'admin']}>
+                  <SubmissionReview />
                 </ProtectedRoute>
               }
             />

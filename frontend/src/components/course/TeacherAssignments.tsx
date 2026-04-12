@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useNavigate, useParams } from 'react-router-dom';
 import { apiFetch } from '../../services/api';
 import {
   getPlagiarismChecks,
@@ -140,6 +141,9 @@ export default function TeacherAssignments({
   const handlePageChange = (page: number) => {
     setCurrentPage(page);
   };
+
+  const { courseId } = useParams()
+  const navigate = useNavigate()
 
   return (
     <div className="assignment-management">
@@ -356,14 +360,22 @@ export default function TeacherAssignments({
                         </div>
                       </td>
                       <td className="action-cell">
-                        {selected?.assignment_type === 'code' && onViewCode ? (
+                        {selected?.assignment_type === 'code' ? (
                           <button
                             className="action-view-btn"
-                            onClick={async () => {
-                              const detail = await apiFetch<{ submission: unknown }>(
-                                `/api/submissions/${submission.id}`
-                              );
-                              onViewCode(detail.submission as Submission);
+                            onClick={() => {
+                              if (courseId && selected?.id && submission.id) {
+                                navigate(`/courses/${courseId}/assignments/${selected.id}/submissions/${submission.id}`)
+                                return
+                              }
+                              if (onViewCode) {
+                                void (async () => {
+                                  const detail = await apiFetch<{ submission: unknown }>(
+                                    `/api/submissions/${submission.id}`
+                                  );
+                                  onViewCode(detail.submission as Submission);
+                                })()
+                              }
                             }}
                           >
                             View Code

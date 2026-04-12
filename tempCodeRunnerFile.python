@@ -1,64 +1,42 @@
-from selenium import webdriver
-from selenium.webdriver.common.by import By
-from selenium.webdriver.chrome.options import Options
-from selenium.webdriver.support.ui import WebDriverWait
-from selenium.webdriver.support import expected_conditions as EC
-import time
+import requests
+import os
+import base64
+from urllib.parse import urlparse, parse_qs
 
-options = Options()
+cookies = {
+    "oauthToken": "google$d6b5e00b-f9ab-4ca9-a540-cf8eb8d39b11",
+    "gfguserName": "PASTE_FULL_VALUE",
+    "gfg_e": "49fefc4d874d600831d4a3a0ac6cc3a1e9e4388498a327897b8df37d3d1ec6ae"
+}
 
-options.add_argument("user-data-dir=C:\\Users\\HP\\AppData\\Local\\Google\\Chrome\\User Data")
-options.add_argument("profile-directory=Default")
+headers = {
+    "User-Agent": "Mozilla/5.0",
+    "Referer": "https://www.geeksforgeeks.org/"
+}
 
-driver = webdriver.Chrome(options=options)
+urls = [
+    # paste all your content-download links here
+]
 
-driver.get("https://www.geeksforgeeks.org/batch/gate-rank-booster-cse?tab=Live")
+os.makedirs("downloads", exist_ok=True)
 
-wait = WebDriverWait(driver, 20)
-
-# Wait until lectures load
-wait.until(EC.presence_of_element_located((By.TAG_NAME, "body")))
-
-print("Page loaded")
-
-# 🔥 Scroll to load all lectures (important)
-last_height = driver.execute_script("return document.body.scrollHeight")
-
-while True:
-    driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
-    time.sleep(2)
-    new_height = driver.execute_script("return document.body.scrollHeight")
-    if new_height == last_height:
-        break
-    last_height = new_height
-
-print("All lectures loaded")
-
-# 🔥 Find all "Class Notes" buttons
-class_notes_buttons = driver.find_elements(By.XPATH, "//a[contains(text(),'Class Notes')]")
-
-print(f"Found {len(class_notes_buttons)} Class Notes buttons")
-
-for i, btn in enumerate(class_notes_buttons):
+for url in urls:
     try:
-        print(f"Processing {i+1}")
+        res = requests.get(url, cookies=cookies, headers=headers)
 
-        driver.execute_script("arguments[0].scrollIntoView();", btn)
-        time.sleep(1)
+        if res.status_code == 200:
+            parsed = urlparse(url)
+            params = parse_qs(parsed.query)
 
-        driver.execute_script("arguments[0].click();", btn)
+            encoded_name = params.get("file_name", ["file.pdf"])[0]
+            filename = base64.b64decode(encoded_name).decode()
 
-        # Wait for download popup
-        download_btn = wait.until(
-            EC.element_to_be_clickable((By.XPATH, "//button[contains(text(),'Download')]"))
-        )
+            with open(f"downloads/{filename}", "wb") as f:
+                f.write(res.content)
 
-        download_btn.click()
-        print("Downloaded")
-
-        time.sleep(2)
+            print(f"Downloaded: {filename}")
+        else:
+            print(f"Failed: {res.status_code}")
 
     except Exception as e:
         print("Error:", e)
-
-print("Done!")

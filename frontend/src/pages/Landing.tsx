@@ -239,7 +239,7 @@ export default function Landing() {
                         id="glow-blue"
                         cx="0"
                         cy="0"
-                        gradientTransform="translate(100 150) rotate(90 scale(40)"
+                        gradientTransform="translate(100 150) rotate(90) scale(40)"
                         gradientUnits="userSpaceOnUse"
                         r="1"
                       >
@@ -250,7 +250,7 @@ export default function Landing() {
                         id="glow-purple"
                         cx="0"
                         cy="0"
-                        gradientTransform="translate(300 120) rotate(90 scale(40)"
+                        gradientTransform="translate(300 120) rotate(90) scale(40)"
                         gradientUnits="userSpaceOnUse"
                         r="1"
                       >

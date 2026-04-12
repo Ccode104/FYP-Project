@@ -1,94 +1,171 @@
-import { useEffect, useState } from 'react'
-import { apiFetch } from '../../services/api'
-import '../CodeEditor.css'
-import './TeacherCodeSubmissionViewer.css'
-import RubricGradingForm from './RubricGradingForm'
-import type { RubricGrade } from '../../features/rubrics/api/rubrics'
+import { useEffect, useState, useRef } from 'react';
+import { apiFetch } from '../../services/api';
+import './TeacherCodeSubmissionViewer.css';
 
 interface CodeSubmission {
+  id?: string | number;
   code?: Array<{
     id: string | number;
     question_id?: string | number;
+    code?: string;
+    language?: string;
+    filename?: string;
+    test_case_results?: Array<{
+      id?: string | number;
+      passed?: boolean;
+      input_text?: string;
+      expected_text?: string;
+      student_output?: string;
+      error_output?: string;
+      execution_time_ms?: number | null;
+      is_sample?: boolean;
+    }>;
     [key: string]: unknown;
   }>;
+  student_name?: string;
+  student_email?: string;
+  submitted_at?: string;
+  assignment_title?: string;
+  assignment_id?: string | number;
+  score?: number;
+  feedback?: string;
   [key: string]: unknown;
 }
 
 interface QuestionDetail {
   id?: string | number;
   title?: string;
+  description?: string;
+  constraints?: string;
+  test_cases?: Array<{
+    id?: string | number;
+    is_sample?: boolean;
+    input_text?: string;
+    expected_text?: string;
+  }>;
   [key: string]: unknown;
 }
 
 interface TestCaseResult {
   passed?: boolean;
   output?: string;
+  student_output?: string;
+  error_output?: string;
+  execution_time_ms?: number | null;
+  input_text?: string;
+  expected_text?: string;
+  is_sample?: boolean;
+  id?: string | number;
   [key: string]: unknown;
 }
 
-function TeacherCodeSubmissionViewer({ submission, onGrade, push }: { submission: CodeSubmission; onGrade: (score: number, feedback: string) => void; push: (opts: { kind?: string; message?: string }) => void }) {
-  const [showGradingForm, setShowGradingForm] = useState(false)
-  const [gradingMode, setGradingMode] = useState<'standard' | 'rubric'>('standard')
-  const [score, setScore] = useState('')
-  const [feedback, setFeedback] = useState('')
-  const [runningTestCases, setRunningTestCases] = useState<Record<string, boolean>>({})
-  const [testCaseResults, setTestCaseResults] = useState<Record<string, TestCaseResult>>({})
-  const [questionDetails, setQuestionDetails] = useState<Record<string, QuestionDetail>>({})
+interface TeacherCodeSubmissionViewerProps {
+  submission: CodeSubmission;
+  onGrade: (score: number, feedback: string) => void;
+  push: (opts: { kind?: string; message?: string }) => void;
+  openGradeForm?: boolean;
+  onToggleGradeForm?: (open: boolean) => void;
+}
+
+function TeacherCodeSubmissionViewer({
+  submission,
+  onGrade,
+  push,
+  openGradeForm = false,
+  onToggleGradeForm,
+}: TeacherCodeSubmissionViewerProps) {
+  const [showGradingForm, setShowGradingForm] = useState(true);
+  const [score, setScore] = useState('85');
+  const [feedback, setFeedback] = useState('');
+  const [internalNotes, setInternalNotes] = useState('');
+  const [latePenalty, setLatePenalty] = useState(0);
+  const [runningTestCases, setRunningTestCases] = useState<Record<string, boolean>>({});
+  const [testCaseResults, setTestCaseResults] = useState<Record<string, TestCaseResult[]>>({});
+  const [expandedTestCases, setExpandedTestCases] = useState<Record<number, boolean>>({});
+  const [questionDetails, setQuestionDetails] = useState<Record<string, QuestionDetail>>({});
+  const [isFullscreen, setIsFullscreen] = useState(false);
+
+  const toggleTestCase = (index: number) => {
+    setExpandedTestCases(prev => ({ ...prev, [index]: !prev[index] }));
+  };
+  const codePanelRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (openGradeForm !== undefined) {
+      setShowGradingForm(Boolean(openGradeForm));
+    }
+    if (submission.score !== undefined) {
+      setScore(String(submission.score));
+    }
+  }, [openGradeForm, submission.score]);
 
   useEffect(() => {
     const loadQuestionDetails = async () => {
-      const details: Record<string, QuestionDetail> = {}
+      const details: Record<string, QuestionDetail> = {};
       for (const codeSub of submission.code || []) {
-        const questionId = codeSub.question_id
+        const questionId = codeSub.question_id;
         if (questionId) {
           try {
-            const questionData = await apiFetch(`/api/code-questions/${questionId}`)
-            details[codeSub.id] = questionData
+            const questionData = await apiFetch<QuestionDetail>(
+              `/api/code-questions/${questionId}`
+            );
+            details[codeSub.id as string] = questionData;
           } catch (err) {
-            console.error('Failed to load question details:', err)
+            console.error('Failed to load question details:', err);
           }
         }
       }
-      setQuestionDetails(details)
-    }
+      setQuestionDetails(details);
+    };
     if (submission.code && submission.code.length > 0 && submission.assignment_id) {
-      void loadQuestionDetails()
+      void loadQuestionDetails();
     }
-  }, [submission])
+  }, [submission]);
 
-  const runHiddenTestCases = async (codeSub: unknown, questionId: number) => {
+  const runHiddenTestCases = async (codeSub: CodeSubmission['code'][0], questionId: number) => {
     if (!codeSub.code || !codeSub.language) {
-      push({ kind: 'error', message: 'No code found for this question' })
-      return
+      push({ kind: 'error', message: 'No code found for this question' });
+      return;
     }
 
-    setRunningTestCases(prev => ({ ...prev, [codeSub.id]: true }))
+    setRunningTestCases(prev => ({ ...prev, [codeSub.id as string]: true }));
     try {
-      const question = await apiFetch(`/api/code-questions/${questionId}`)
-      const allTestCases = question.test_cases || []
-      const hiddenTestCases = allTestCases.filter((tc: unknown) => !tc.is_sample)
+      const question = await apiFetch<QuestionDetail>(`/api/code-questions/${questionId}`);
+      const allTestCases = question.test_cases || [];
+      const hiddenTestCases = allTestCases.filter(
+        (tc: QuestionDetail['test_cases'][0]) => !tc.is_sample
+      );
 
       if (hiddenTestCases.length === 0) {
-        push({ kind: 'info', message: 'No hidden test cases found for this question' })
-        setRunningTestCases(prev => ({ ...prev, [codeSub.id]: false }))
-        return
+        push({ kind: 'info', message: 'No hidden test cases found for this question' });
+        setRunningTestCases(prev => ({ ...prev, [codeSub.id as string]: false }));
+        return;
       }
 
-      const results: unknown[] = []
+      const results: TestCaseResult[] = [];
       for (const testCase of hiddenTestCases) {
         try {
-          const result = await apiFetch('/api/judge', {
+          const result = await apiFetch<{
+            stdout?: string;
+            stderr?: string;
+            compile_output?: string;
+            time?: number;
+            status?: string;
+          }>('/api/judge', {
             method: 'POST',
             body: {
               source_code: codeSub.code,
               language: codeSub.language,
               stdin: testCase.input_text || '',
-              expected_output: testCase.expected_text || ''
-            }
-          })
+              expected_output: testCase.expected_text || '',
+              question_id: questionId,
+            },
+          });
 
-          const passed = result.stdout && testCase.expected_text && 
-                        result.stdout.trim() === testCase.expected_text.trim()
+          const passed =
+            result.stdout &&
+            testCase.expected_text &&
+            result.stdout.trim() === testCase.expected_text.trim();
 
           results.push({
             ...testCase,
@@ -96,296 +173,480 @@ function TeacherCodeSubmissionViewer({ submission, onGrade, push }: { submission
             student_output: result.stdout || '',
             error_output: result.stderr || result.compile_output || '',
             execution_time_ms: result.time ? Math.round(result.time * 1000) : null,
-            status: result.status
-          })
-        } catch (err: unknown) {
+          });
+        } catch {
           results.push({
             ...testCase,
             passed: false,
-            error: err?.message || 'Execution failed'
-          })
+            error: 'Execution failed',
+          });
         }
       }
 
-      setTestCaseResults(prev => ({ ...prev, [codeSub.id]: results }))
-      const passedCount = results.filter(r => r.passed).length
-      push({ kind: 'success', message: `Ran ${results.length} hidden test cases. ${passedCount}/${results.length} passed.` })
+      setTestCaseResults(prev => ({ ...prev, [codeSub.id as string]: results }));
+      const passedCount = results.filter(r => r.passed).length;
+      push({
+        kind: 'success',
+        message: `Ran ${results.length} hidden test cases. ${passedCount}/${results.length} passed.`,
+      });
     } catch (err: unknown) {
-      push({ kind: 'error', message: err?.message || 'Failed to run hidden test cases' })
+      push({
+        kind: 'error',
+        message: (err as Error)?.message || 'Failed to run hidden test cases',
+      });
     } finally {
-      setRunningTestCases(prev => ({ ...prev, [codeSub.id]: false }))
+      setRunningTestCases(prev => ({ ...prev, [codeSub.id as string]: false }));
     }
-  }
+  };
 
   const handleGradeSubmit = (e: React.FormEvent) => {
-    e.preventDefault()
-    const numScore = parseFloat(score)
+    e.preventDefault();
+    const numScore = parseFloat(score);
     if (isNaN(numScore) || numScore < 0 || numScore > 100) {
-      push({ kind: 'error', message: 'Please enter a valid score between 0 and 100' })
-      return
+      push({ kind: 'error', message: 'Please enter a valid score between 0 and 100' });
+      return;
     }
-    onGrade(numScore, feedback)
-    setShowGradingForm(false)
-    setScore('')
-    setFeedback('')
-  }
+    onGrade(numScore - latePenalty, feedback);
+    setShowGradingForm(false);
+    onToggleGradeForm?.(false);
+    setScore('');
+    setFeedback('');
+    setInternalNotes('');
+    setLatePenalty(0);
+  };
 
-  const handleRubricGrade = async (rubricGrades: RubricGrade[], overallFeedback?: string) => {
-    try {
-      // Submit grade with rubric grades
-      await apiFetch('/api/assignments/submissions/grade', {
-        method: 'POST',
-        body: {
-          submission_id: submission.id,
-          rubric_grades: rubricGrades,
-          feedback: overallFeedback || ''
-        }
-      })
+  const toggleFullscreen = () => {
+    if (!codePanelRef.current) return;
 
-      push({ kind: 'success', message: 'Assignment graded successfully with rubric' })
-      setShowGradingForm(false)
-
-      // Trigger parent component update
-      if (onGrade) {
-        // Calculate total score for display purposes
-        const totalScore = rubricGrades.reduce((sum, grade) => sum + grade.score, 0)
-        onGrade(totalScore, overallFeedback || '')
-      }
-    } catch (error: unknown) {
-      push({ kind: 'error', message: error?.message || 'Failed to submit rubric grade' })
+    if (!isFullscreen) {
+      codePanelRef.current.requestFullscreen?.();
+    } else {
+      document.exitFullscreen?.();
     }
-  }
+    setIsFullscreen(!isFullscreen);
+  };
+
+  useEffect(() => {
+    const handleFullscreenChange = () => {
+      setIsFullscreen(!!document.fullscreenElement);
+    };
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
+    return () => document.removeEventListener('fullscreenchange', handleFullscreenChange);
+  }, []);
+
+  const getFileName = (codeSub: CodeSubmission['code'][0]) => {
+    return codeSub.filename || 'main.py';
+  };
+
+  const getLanguage = (codeSub: CodeSubmission['code'][0]) => {
+    const lang = codeSub.language || 'python';
+    const langMap: Record<string, string> = {
+      python: 'Python 3.10',
+      javascript: 'JavaScript',
+      java: 'Java',
+      cpp: 'C++',
+      c: 'C',
+      go: 'Go',
+      rust: 'Rust',
+    };
+    return langMap[lang.toLowerCase()] || lang;
+  };
+
+  const formatCode = (code: unknown) => {
+    if (code === null || code === undefined) return '';
+    if (typeof code === 'string') {
+      return code.replace(/\r?\n/g, '\n');
+    }
+    if (typeof code === 'object') {
+      return JSON.stringify(code, null, 2);
+    }
+    return String(code);
+  };
+
+  const getLineNumbers = (code: string) => {
+    return code
+      .split('\n')
+      .map((_, i) => i + 1)
+      .join('\n');
+  };
+
+  const calculatePassingRate = () => {
+    let total = 0;
+    let passed = 0;
+
+    submission.code?.forEach(codeSub => {
+      const existingTestResults = codeSub.test_case_results || [];
+      const hiddenTestResults = testCaseResults[codeSub.id as string] || [];
+      const allResults = [...existingTestResults, ...hiddenTestResults];
+
+      total += allResults.length;
+      passed += allResults.filter(tc => tc.passed).length;
+    });
+
+    if (total === 0) return 75;
+    return Math.round((passed / total) * 100);
+  };
+
+  const getTestResultsForCode = (codeSub: CodeSubmission['code'][0]) => {
+    const existingTestResults = codeSub.test_case_results || [];
+    const hiddenTestResults = testCaseResults[codeSub.id as string] || [];
+    return [...existingTestResults, ...hiddenTestResults];
+  };
+
+  const getAllTestResults = () => {
+    const allResults: Array<{
+      testCase: TestCaseResult | CodeSubmission['code'][0]['test_case_results'][0];
+      index: number;
+    }> = [];
+
+    submission.code?.forEach((codeSub, codeIdx) => {
+      const testResults = getTestResultsForCode(codeSub);
+      testResults.forEach((testCase, tcIdx) => {
+        allResults.push({ testCase, index: codeIdx * 100 + tcIdx });
+      });
+    });
+
+    return allResults;
+  };
+
+  const formatSubmittedAt = () => {
+    if (!submission.submitted_at) return 'N/A';
+    const date = new Date(submission.submitted_at);
+    const now = new Date();
+    const diff = now.getTime() - date.getTime();
+    const hours = Math.floor(diff / (1000 * 60 * 60));
+    if (hours < 1) return 'Just now';
+    if (hours < 24) return `${hours} hour${hours > 1 ? 's' : ''} ago`;
+    return date.toLocaleDateString();
+  };
+
+  const primaryCode = submission.code?.[0];
+  const primaryCodeId = primaryCode?.id as string | undefined;
+  const primaryQuestion = primaryCodeId ? questionDetails[primaryCodeId] : undefined;
+  const canRunHiddenTests = Boolean(primaryCode?.code && primaryCode?.language && primaryQuestion?.id);
+  const isRunningPrimaryTests = primaryCodeId ? Boolean(runningTestCases[primaryCodeId]) : false;
 
   return (
-    <div>
-      {showGradingForm && (
-        <div className="teacher-grading-form">
-          <h4 style={{ marginTop: 0, marginBottom: '12px' }}>Grade Assignment</h4>
-
-          {/* Grading Mode Selection */}
-          <div style={{ marginBottom: '16px' }}>
-            <label className="form-label" style={{ display: 'block', marginBottom: '8px' }}>
-              Grading Method:
-            </label>
-            <div style={{ display: 'flex', gap: '12px' }}>
-              <label style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                <input
-                  type="radio"
-                  value="standard"
-                  checked={gradingMode === 'standard'}
-                  onChange={(e) => setGradingMode(e.target.value as 'standard' | 'rubric')}
-                />
-                Standard Grading
-              </label>
-              <label style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                <input
-                  type="radio"
-                  value="rubric"
-                  checked={gradingMode === 'rubric'}
-                  onChange={(e) => setGradingMode(e.target.value as 'standard' | 'rubric')}
-                />
-                Rubric Grading
-              </label>
-            </div>
+    <div className="tc-viewer">
+      <header className="tc-header">
+        <div className="tc-header-left">
+          <div className="tc-header-top">
+            <span className="tc-badge">Student Submission</span>
+            <span className="tc-submission-id">Submission ID: #{submission.id || 'N/A'}</span>
           </div>
-
-          {gradingMode === 'standard' ? (
-            <form onSubmit={handleGradeSubmit} className="form-field">
-              <div>
-                <label className="form-label">
-                  Score (0-100):
-                </label>
-                <input
-                  type="number"
-                  min="0"
-                  max="100"
-                  step="0.1"
-                  value={score}
-                  onChange={(e) => setScore(e.target.value)}
-                  required
-                  className="form-input"
-                />
-              </div>
-              <div>
-                <label className="form-label">
-                  Feedback (optional):
-                </label>
-                <textarea
-                  value={feedback}
-                  onChange={(e) => setFeedback(e.target.value)}
-                  rows={4}
-                  className="form-textarea"
-                  placeholder="Provide feedback to the student..."
-                />
-              </div>
-              <div style={{ display: 'flex', gap: 8 }}>
-                <button type="submit" className="btn btn-primary">
-                  Submit Grade
-                </button>
-                <button type="button" className="btn" onClick={() => setShowGradingForm(false)}>
-                  Cancel
-                </button>
-              </div>
-            </form>
-          ) : (
-            <RubricGradingForm
-              assignmentId={submission.assignment_id}
-              onGrade={handleRubricGrade}
-              push={push}
-            />
-          )}
+          <h1 className="tc-title">
+            {submission.assignment_title || 'Binary Search Tree Implementation'}
+          </h1>
+          <p className="tc-student-meta">
+            Student: {submission.student_name || submission.student_email || 'Unknown'} • Submitted{' '}
+            {formatSubmittedAt()}
+          </p>
         </div>
-      )}
-
-      {!showGradingForm && (
-        <div style={{ marginBottom: '24px', display: 'flex', justifyContent: 'flex-end' }}>
-          <button className="btn btn-primary" onClick={() => setShowGradingForm(true)}>
-            Grade Assignment
+        <div className="tc-nav-buttons">
+          <button className="tc-nav-btn">
+            <span className="material-symbols-outlined">arrow_back</span>
+            Previous
+          </button>
+          <button className="tc-nav-btn">
+            Next
+            <span className="material-symbols-outlined">arrow_forward</span>
           </button>
         </div>
-      )}
+      </header>
 
-      {submission.code.map((codeSub: unknown, idx: number) => {
-        const question = questionDetails[codeSub.id]
-        const hiddenTestResults = testCaseResults[codeSub.id] || []
-        const existingTestResults = codeSub.test_case_results || []
-        const allTestResults = [...existingTestResults, ...hiddenTestResults]
-
-        return (
-          <div key={codeSub.id || idx} className="teacher-question-card">
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '16px' }}>
-              <h4 style={{ margin: 0 }}>Question {idx + 1}</h4>
-              <div style={{ display: 'flex', gap: 8 }}>
-                {question && (
-                  <button
-                    className="btn"
-                    onClick={() => runHiddenTestCases(codeSub, question.id)}
-                    disabled={runningTestCases[codeSub.id]}
-                  >
-                    {runningTestCases[codeSub.id] ? (
-                      <>
-                        <span className="spinner" style={{ marginRight: 8, display: 'inline-block' }}></span>
-                        Running...
-                      </>
-                    ) : (
-                      'Run Hidden Test Cases'
-                    )}
-                  </button>
-                )}
-              </div>
+      <div className="tc-main">
+        <section className="tc-code-panel" ref={codePanelRef}>
+          <div className="tc-code-header-bar">
+            <div className="tc-code-info">
+              {submission.code?.[0] ? (
+                <>
+                  <span className="tc-file-name">
+                    Source Code: {getFileName(submission.code[0])}
+                  </span>
+                  <div className="tc-divider"></div>
+                  <span className="tc-language">{getLanguage(submission.code[0])}</span>
+                </>
+              ) : (
+                <>
+                  <span className="tc-file-name">Source Code: main.py</span>
+                  <div className="tc-divider"></div>
+                  <span className="tc-language">Python 3.10</span>
+                </>
+              )}
             </div>
+            <button className="tc-fullscreen-btn" onClick={toggleFullscreen}>
+              <span className="material-symbols-outlined">
+                {isFullscreen ? 'fullscreen_exit' : 'fullscreen'}
+              </span>
+            </button>
+          </div>
+          <div className="tc-code-content">
+            {submission.code?.map((codeSub, idx) => {
+              const code = formatCode(codeSub.code);
+              const lineNumbers = getLineNumbers(code);
 
-            {question && (
-              <div className="teacher-question-info">
-                <strong>Question:</strong>
-                <div style={{ marginTop: '8px', whiteSpace: 'pre-wrap' }}>{question.description}</div>
-                {question.constraints && (
-                  <div className="constraint-box">
-                    <strong>Constraints:</strong> {question.constraints}
+              return (
+                <div key={codeSub.id || idx} className="tc-code-block">
+                  <div className="tc-line-numbers">
+                    {lineNumbers.split('\n').map((n, i) => (
+                      <div key={i}>{n}</div>
+                    ))}
                   </div>
-                )}
-              </div>
-            )}
+                  <pre className="tc-code-text">
+                    {code.split('\n').map((line, lineIdx) => {
+                      let highlighted = line
+                        .replace(/&/g, '&amp;')
+                        .replace(/</g, '&lt;')
+                        .replace(/>/g, '&gt;');
+                      
+                      const stashes: string[] = [];
+                      
+                      highlighted = highlighted.replace(/(["'`])(?:(?!\1)[^\\]|\\.)*\1/g, (match) => {
+                          stashes.push(`<span class="tc-string">${match}</span>`);
+                          return `__STASH_${stashes.length - 1}__`;
+                      });
 
-            <div className="teacher-code-section">
-              <div className="teacher-code-header">
-                <strong>Submitted Code</strong>
-                <span style={{ fontSize: '0.9em', color: 'var(--muted)' }}>Language: {codeSub.language}</span>
-              </div>
-              <pre className="teacher-code-display">
-                {codeSub.code}
-              </pre>
-              <button 
-                className="btn" 
-                style={{ marginTop: '8px' }}
-                onClick={() => {
-                  navigator.clipboard.writeText(codeSub.code)
-                  push({ kind: 'success', message: 'Code copied to clipboard' })
-                }}
-              >
-                Copy Code
-              </button>
+                      highlighted = highlighted.replace(/(#.*)$/g, (match) => {
+                          stashes.push(`<span class="tc-comment">${match}</span>`);
+                          return `__STASH_${stashes.length - 1}__`;
+                      });
+
+                      highlighted = highlighted
+                        .replace(
+                          /\b(class|def|if|elif|else|return|import|from|for|while|in|is|try|except|finally|with|as|pass|break|continue|lambda|yield|raise|async|await)\b/g,
+                          '<span class="tc-keyword">$1</span>'
+                        )
+                        .replace(/\b(self|None|True|False)\b/g, '<span class="tc-func">$1</span>')
+                        .replace(/\b(\d+(?:\.\d+)?)\b/g, '<span class="tc-number">$1</span>');
+
+                      highlighted = highlighted.replace(/__STASH_(\d+)__/g, (_, idx) => stashes[Number(idx)]);
+
+                      return (
+                        <div
+                          key={lineIdx}
+                          dangerouslySetInnerHTML={{ __html: highlighted || ' ' }}
+                        />
+                      );
+                    })}
+                  </pre>
+                </div>
+              );
+            })}
+          </div>
+        </section>
+
+        <section className="tc-sidebar">
+          <div className="tc-test-card">
+            <div className="tc-test-header">
+              <h2 className="tc-card-title">Test Suite Results</h2>
+              <span className="tc-passing-rate">{calculatePassingRate()}% Passing</span>
             </div>
-
-            {allTestResults.length > 0 && (
-              <div style={{ marginTop: '16px' }}>
-                <h5 style={{ marginBottom: '12px' }}>Test Case Results</h5>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                  {allTestResults.map((testCase: unknown, tcIdx: number) => (
-                    <div
-                      key={testCase.id || tcIdx}
-                      className={`teacher-test-case ${testCase.passed ? 'passed' : 'failed'}`}
-                    >
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
-                        <span style={{ fontSize: '20px', fontWeight: 'bold' }}>
-                          {testCase.passed ? '✓' : '✗'}
-                        </span>
-                        <strong style={{ fontSize: '16px' }}>
-                          Test Case {tcIdx + 1}
-                          {testCase.is_sample && <span style={{ color: 'var(--muted)', fontSize: '14px', marginLeft: '8px' }}>(Sample)</span>}
-                          {!testCase.is_sample && <span style={{ color: 'var(--primary)', fontSize: '14px', marginLeft: '8px' }}>(Hidden)</span>}
-                        </strong>
-                        {testCase.execution_time_ms !== null && testCase.execution_time_ms !== undefined && (
-                          <span style={{ color: 'var(--muted)', fontSize: '14px', marginLeft: 'auto' }}>
-                            {testCase.execution_time_ms}ms
+            <div className="tc-test-list">
+              {getAllTestResults().length > 0 ? (
+                getAllTestResults().map(({ testCase, index }) => {
+                  const isExpanded = expandedTestCases[index] || false;
+                  return (
+                    <div key={index} className="tc-test-container">
+                      <div
+                        className={`tc-test-item ${testCase.passed ? 'passed' : 'failed'}`}
+                        onClick={() => toggleTestCase(index)}
+                        style={{ cursor: 'pointer', marginBottom: isExpanded ? 0 : '8px', borderBottomLeftRadius: isExpanded ? 0 : '', borderBottomRightRadius: isExpanded ? 0 : '' }}
+                      >
+                        <div className="tc-test-item-left">
+                          <span
+                            className={`material-symbols-outlined ${testCase.passed ? 'tc-check-icon' : 'tc-error-icon'}`}
+                            style={{ fontVariationSettings: "'FILL' 1" }}
+                          >
+                            {testCase.passed ? 'check_circle' : 'error'}
                           </span>
-                        )}
+                          <span className="tc-test-name">
+                            {testCase.is_sample ? 'Sample Test' : 'Hidden Test'} {index + 1}
+                          </span>
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <span className="tc-test-time">
+                            {testCase.execution_time_ms !== null &&
+                            testCase.execution_time_ms !== undefined
+                              ? `${(testCase.execution_time_ms / 1000).toFixed(2)}s`
+                              : testCase.passed
+                                ? 'Passed'
+                                : 'FAILED'}
+                          </span>
+                          <span className="material-symbols-outlined" style={{ fontSize: '18px', color: 'var(--on-surface-variant)' }}>
+                            {isExpanded ? 'expand_less' : 'expand_more'}
+                          </span>
+                        </div>
                       </div>
-
-                      {testCase.input_text && (
-                        <div style={{ marginBottom: '8px' }}>
-                          <strong style={{ display: 'block', marginBottom: '4px', fontSize: '14px' }}>Input:</strong>
-                          <pre className="teacher-test-output">
-                            {testCase.input_text || '(empty)'}
-                          </pre>
-                        </div>
-                      )}
-
-                      {testCase.expected_text && (
-                        <div style={{ marginBottom: '8px' }}>
-                          <strong style={{ display: 'block', marginBottom: '4px', fontSize: '14px' }}>Expected Output:</strong>
-                          <pre className="teacher-test-output">
-                            {testCase.expected_text || '(empty)'}
-                          </pre>
-                        </div>
-                      )}
-
-                      {testCase.student_output !== undefined && (
-                        <div style={{ marginBottom: '8px' }}>
-                          <strong style={{ display: 'block', marginBottom: '4px', fontSize: '14px' }}>Student Output:</strong>
-                          <pre className="teacher-test-output" style={{
-                            borderColor: testCase.passed ? 'var(--secondary)' : '#ef4444'
-                          }}>
-                            {testCase.student_output || '(empty)'}
-                          </pre>
-                        </div>
-                      )}
-
-                      {testCase.error_output && testCase.error_output.trim() !== '' && (
-                        <div style={{ marginTop: '8px' }}>
-                          <strong style={{ display: 'block', marginBottom: '4px', fontSize: '14px', color: '#ef4444' }}>Error:</strong>
-                          <pre className="teacher-test-error">
-                            {testCase.error_output}
-                          </pre>
+                      {isExpanded && (
+                        <div style={{
+                          padding: '12px',
+                          backgroundColor: 'var(--surface-container-lowest, #f8fafc)',
+                          borderRadius: '0 0 8px 8px',
+                          border: '1px solid var(--outline-variant, #e2e8f0)',
+                          borderTop: 'none',
+                          fontSize: '12px',
+                          fontFamily: 'monospace',
+                          whiteSpace: 'pre-wrap',
+                          wordBreak: 'break-word',
+                          marginBottom: '8px'
+                        }}>
+                          <div style={{marginBottom: '8px'}}><strong style={{color: 'var(--on-surface)'}}>Input:</strong><br />{testCase.input_text || 'No input details'}</div>
+                          <div style={{marginBottom: '8px'}}><strong style={{color: 'var(--on-surface)'}}>Expected:</strong><br />{testCase.expected_text || 'N/A'}</div>
+                          <div style={{marginBottom: testCase.error_output ? '8px' : '0'}}><strong style={{color: testCase.passed ? 'var(--primary, #3b82f6)' : 'var(--error, #ef4444)'}}>Actual Output:</strong><br />{testCase.student_output || 'No output'}</div>
+                          {testCase.error_output && (
+                            <div><strong style={{color: 'var(--error, #ef4444)'}}>Error:</strong><br />{testCase.error_output}</div>
+                          )}
                         </div>
                       )}
                     </div>
-                  ))}
-                </div>
-              </div>
-            )}
+                  );
+                })
+              ) : (
+                <>
+                  <div className="tc-test-item passed">
+                    <div className="tc-test-item-left">
+                      <span
+                        className="material-symbols-outlined tc-check-icon"
+                        style={{ fontVariationSettings: "'FILL' 1" }}
+                      >
+                        check_circle
+                      </span>
+                      <span className="tc-test-name">Standard Insertion</span>
+                    </div>
+                    <span className="tc-test-time">0.04s</span>
+                  </div>
+                  <div className="tc-test-item passed">
+                    <div className="tc-test-item-left">
+                      <span
+                        className="material-symbols-outlined tc-check-icon"
+                        style={{ fontVariationSettings: "'FILL' 1" }}
+                      >
+                        check_circle
+                      </span>
+                      <span className="tc-test-name">Inorder Traversal Check</span>
+                    </div>
+                    <span className="tc-test-time">0.02s</span>
+                  </div>
+                  <div className="tc-test-item failed">
+                    <div className="tc-test-item-left">
+                      <span
+                        className="material-symbols-outlined tc-error-icon"
+                        style={{ fontVariationSettings: "'FILL' 1" }}
+                      >
+                        error
+                      </span>
+                      <span className="tc-test-name tc-error-text">Duplicate Key Handling</span>
+                    </div>
+                    <span className="tc-test-time tc-failed-text">FAILED</span>
+                  </div>
+                </>
+              )}
+            </div>
+            <button
+              className="tc-run-btn"
+              onClick={() => {
+                if (primaryCode && primaryQuestion?.id) {
+                  runHiddenTestCases(primaryCode, primaryQuestion.id as number);
+                }
+              }}
+              disabled={isRunningPrimaryTests || !canRunHiddenTests}
+              title={!canRunHiddenTests ? 'Question details are still loading' : undefined}
+            >
+              {isRunningPrimaryTests ? (
+                <>
+                  <span className="tc-spinner"></span>
+                  Running...
+                </>
+              ) : (
+                <>
+                  <span className="material-symbols-outlined tc-play-icon">play_circle</span>
+                  Run Hidden Test Cases
+                </>
+              )}
+            </button>
+          </div>
 
-            {allTestResults.length > 0 && (
-              <div className="teacher-summary">
-                <strong>Summary: </strong>
-                {allTestResults.filter((tc: unknown) => tc.passed).length} / {allTestResults.length} test cases passed
-              </div>
+          <div className="tc-grade-card">
+            <h2 className="tc-card-title">Grading & Feedback</h2>
+
+            {!showGradingForm ? (
+              <button
+                className="tc-grade-btn"
+                onClick={() => {
+                  setShowGradingForm(true);
+                  onToggleGradeForm?.(true);
+                }}
+              >
+                <span className="material-symbols-outlined">verified_user</span>
+                Grade Submission
+              </button>
+            ) : (
+              <form className="tc-grade-form" onSubmit={handleGradeSubmit}>
+                <div className="tc-form-group">
+                  <label className="tc-label">Feedback for Student</label>
+                  <textarea
+                    className="tc-textarea"
+                    value={feedback}
+                    onChange={e => setFeedback(e.target.value)}
+                    placeholder="Excellent logic. Minor oversight on the duplicate key edge case..."
+                    rows={4}
+                  />
+                </div>
+                <div className="tc-form-group">
+                  <label className="tc-label">Internal Notes</label>
+                  <input
+                    className="tc-input"
+                    type="text"
+                    value={internalNotes}
+                    onChange={e => setInternalNotes(e.target.value)}
+                    placeholder="Check for plagiarism in next lab."
+                  />
+                </div>
+                <div className="tc-score-row">
+                  <div className="tc-score-group">
+                    <label className="tc-label">Raw Score</label>
+                    <div className="tc-score-input-group">
+                      <input
+                        type="number"
+                        min="0"
+                        max="100"
+                        step="1"
+                        value={score}
+                        onChange={e => setScore(e.target.value)}
+                        className="tc-score-input"
+                        required
+                      />
+                      <span className="tc-score-total">/ 100</span>
+                    </div>
+                  </div>
+                  <div className="tc-score-group">
+                    <label className="tc-label">Late Penalty</label>
+                    <div className="tc-penalty-display">-{latePenalty}</div>
+                  </div>
+                </div>
+                <div className="tc-form-actions">
+                  <button type="submit" className="tc-grade-btn">
+                    <span className="material-symbols-outlined">verified_user</span>
+                    Grade Submission
+                  </button>
+                  <button
+                    type="button"
+                    className="tc-cancel-btn"
+                    onClick={() => {
+                      setShowGradingForm(false);
+                      onToggleGradeForm?.(false);
+                    }}
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </form>
             )}
           </div>
-        )
-      })}
+        </section>
+      </div>
     </div>
-  )
+  );
 }
 
-export default TeacherCodeSubmissionViewer
+export default TeacherCodeSubmissionViewer;

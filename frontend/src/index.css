@@ -62,6 +62,31 @@
   color-scheme: dark;
 }
 
+/* Light Mode Overrides */
+html.light,
+body.light {
+  --bg: #f0f0f0;
+  --bg-secondary: #e8e8e8;
+  --surface: #ffffff;
+  --surface-elevated: #f8f8f8;
+  --text: #000000;
+  --text-secondary: #333333;
+  --muted: #666666;
+  --muted-light: #999999;
+  --border: #cccccc;
+  --border-strong: #aaaaaa;
+  --primary: #2563eb;
+  --primary-hover: #1d4ed8;
+  --primary-light: #e8e8e8;
+  --secondary: #10b981;
+  --secondary-hover: #059669;
+  --accent: #f59e0b;
+  --ring: rgba(37, 99, 235, 0.2);
+  --ring-focus: rgba(37, 99, 235, 0.4);
+
+  color-scheme: light;
+}
+
 /* Dark Mode Button Improvements */
 .dark .btn {
   background: #2a2a2a;
