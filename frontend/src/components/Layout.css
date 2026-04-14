@@ -1,3 +1,64 @@
+/* ===== Student Layout ===== */
+
+/* Force light theme colors to match student dashboard - Override dark theme */
+.student-layout,
+.student-layout *,
+.student-layout::before,
+.student-layout::after,
+.student-sidebar,
+.student-sidebar *,
+.student-sidebar::before,
+.student-sidebar::after,
+.student-layout__main,
+.student-layout__main *,
+.student-layout__main::before,
+.student-layout__main::after,
+.dashboard-header,
+.dashboard-header *,
+.dashboard-header::before,
+.dashboard-header::after,
+.container.container-wide.dashboard-page.student-theme,
+.container.container-wide.dashboard-page.student-theme *,
+.container.container-wide.dashboard-page.student-theme::before,
+.container.container-wide.dashboard-page.student-theme::after {
+  --bg: #f0f0f0 !important;
+  --bg-secondary: #e8e8e8 !important;
+  --surface: #ffffff !important;
+  --surface-elevated: #f8f8f8 !important;
+  --text: #000000 !important;
+  --text-secondary: #333333 !important;
+  --muted: #666666 !important;
+  --muted-light: #999999 !important;
+  --border: #cccccc !important;
+  --border-strong: #aaaaaa !important;
+  --primary: #2563eb !important;
+  --primary-hover: #1d4ed8 !important;
+  --primary-light: #e8e8e8 !important;
+  --secondary: #10b981 !important;
+  --secondary-hover: #059669 !important;
+  --accent: #f59e0b !important;
+  --ring: rgba(37, 99, 235, 0.2) !important;
+  --ring-focus: rgba(37, 99, 235, 0.4) !important;
+}
+
+.student-layout {
+  display: flex;
+  min-height: 100vh;
+  background: var(--bg);
+}
+
+.student-layout__main {
+  flex: 1;
+  margin-left: 280px;
+  display: flex;
+  flex-direction: column;
+}
+
+.student-layout__content {
+  flex: 1;
+  padding: 0 2rem 2rem;
+}
+
 /* ===== Dashboard Shell Layout ===== */
 .dashboard-shell {
   display: flex;

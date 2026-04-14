@@ -1,6 +1,6 @@
-import { useState } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
-import { apiFetch } from '../../services/api'
+import { useState } from 'react';
+import { useNavigate, useParams } from 'react-router-dom';
+import { apiFetch } from '../../services/api';
 
 interface Submission {
   id: string | number;
@@ -17,48 +17,107 @@ interface Assignment {
   [key: string]: unknown;
 }
 
-function BackendSubmissions({ assignments, onViewCode }: { assignments: Assignment[]; onViewCode?: (submission: Submission) => void }) {
-  const { courseId } = useParams()
-  const navigate = useNavigate()
-  const [assignmentId, setAssignmentId] = useState<string>('')
-  const [items, setItems] = useState<Submission[]>([])
-  const [selectedAssignment, setSelectedAssignment] = useState<Assignment | null>(null)
+function BackendSubmissions({
+  assignments,
+  onViewCode,
+}: {
+  assignments: Assignment[];
+  onViewCode?: (submission: Submission) => void;
+}) {
+  const { courseId } = useParams();
+  const navigate = useNavigate();
+  const [assignmentId, setAssignmentId] = useState<string>('');
+  const [items, setItems] = useState<Submission[]>([]);
+  const [selectedAssignment, setSelectedAssignment] = useState<Assignment | null>(null);
   const load = async (id: string) => {
-    if (!id) { setItems([]); setSelectedAssignment(null); return }
-    const data = await apiFetch<{ submissions: unknown[] }>(`/api/assignments/${id}/submissions`)
-    setItems(data.submissions || [])
-    const assn = assignments.find((a: unknown) => String(a.id) === String(id))
-    setSelectedAssignment(assn)
-  }
+    if (!id) {
+      setItems([]);
+      setSelectedAssignment(null);
+      return;
+    }
+    const data = await apiFetch<{ submissions: unknown[] }>(`/api/assignments/${id}/submissions`);
+    setItems(data.submissions || []);
+    const assn = assignments.find((a: unknown) => String(a.id) === String(id));
+    setSelectedAssignment(assn);
+  };
   return (
     <div>
       <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 8 }}>
-        <select className="select" value={assignmentId} onChange={(e) => { setAssignmentId(e.target.value); void load(e.target.value) }}>
+        <select
+          className="select"
+          value={assignmentId}
+          onChange={e => {
+            setAssignmentId(e.target.value);
+            void load(e.target.value);
+          }}
+        >
           <option value="">Select assignment</option>
-          {assignments.map((a: unknown) => (<option key={a.id} value={a.id}>{a.title} ({a.assignment_type || 'file'})</option>))}
+          {assignments.map((a: unknown) => (
+            <option key={a.id} value={a.id}>
+              {a.title} ({a.assignment_type || 'file'})
+            </option>
+          ))}
         </select>
       </div>
-      {items.length === 0 ? <p className="muted">No submissions yet.</p> : (
+      {items.length === 0 ? (
+        <p className="muted">No submissions yet.</p>
+      ) : (
         <ul className="list">
-          {items.map((s) => (
+          {items.map(s => (
             <li key={s.id} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               <span style={{ flex: 1 }}>
-                {selectedAssignment?.assignment_type === 'code' ? '💻 Code submission' : (s.files?.[0]?.filename || 'file')} — {s.student_name || s.student_email}
+                {selectedAssignment?.assignment_type === 'code'
+                  ? '💻 Code submission'
+                  : s.files?.[0]?.filename || 'file'}{' '}
+                — {s.student_name || s.student_email}
               </span>
               {selectedAssignment?.assignment_type === 'code' && (
-                <button className="btn btn-primary" onClick={() => {
-                  if (courseId && selectedAssignment?.id && s.id) {
-                    navigate(`/courses/${courseId}/assignments/${selectedAssignment.id}/submissions/${s.id}`)
-                    return
-                  }
-                  if (onViewCode) {
-                    void (async () => {
-                      const detail = await apiFetch<{ submission: unknown }>(`/api/submissions/${s.id}`)
-                      onViewCode(detail.submission)
-                    })()
-                  }
-                }}>
+                <button
+                  className="btn btn-primary"
+                  onClick={() => {
+                    if (courseId && selectedAssignment?.id && s.id) {
+                      navigate(
+                        `/courses/${courseId}/assignments/${selectedAssignment.id}/submissions/${s.id}`
+                      );
+                      return;
+                    }
+                    if (onViewCode) {
+                      void (async () => {
+                        const detail = await apiFetch<{ submission: unknown }>(
+                          `/api/submissions/${s.id}`
+                        );
+                        onViewCode(detail.submission);
+                      })();
+                    }
+                  }}
+                >
                   View Code
+                </button>
+              )}
+              {selectedAssignment?.assignment_type === 'github' && (
+                <button
+                  className="btn btn-primary"
+                  onClick={() => {
+                    if (courseId && selectedAssignment?.id) {
+                      navigate(`/courses/${courseId}/assignments/${selectedAssignment.id}/grading`);
+                    }
+                  }}
+                >
+                  View Project
+                </button>
+              )}
+              {(selectedAssignment?.assignment_type === 'mixed' ||
+                selectedAssignment?.assignment_type === 'file' ||
+                selectedAssignment?.assignment_type === 'pdf') && (
+                <button
+                  className="btn btn-primary"
+                  onClick={() => {
+                    if (courseId && selectedAssignment?.id) {
+                      navigate(`/courses/${courseId}/assignments/${selectedAssignment.id}/grading`);
+                    }
+                  }}
+                >
+                  View File
                 </button>
               )}
             </li>
@@ -66,7 +125,7 @@ function BackendSubmissions({ assignments, onViewCode }: { assignments: Assignme
         </ul>
       )}
     </div>
-  )
+  );
 }
 
-export default BackendSubmissions
+export default BackendSubmissions;

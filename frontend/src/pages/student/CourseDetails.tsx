@@ -1142,7 +1142,13 @@ export default function CourseDetails() {
                   {isBackend && (
                     <button
                       className={`tab-button ${tab === 'videos' ? 'active' : ''}`}
-                      onClick={() => setTab('videos')}
+                      onClick={() => {
+                        if (user?.role === 'teacher' || user?.role === 'faculty') {
+                          navigate(`/courses/${courseId}/videos`);
+                        } else {
+                          setTab('videos');
+                        }
+                      }}
                       aria-pressed={tab === 'videos'}
                     >
                       <span className="tab-icon">🎥</span>

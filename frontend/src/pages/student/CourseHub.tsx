@@ -3,6 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { apiFetch } from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
 import { getLiveLecturesByCourse } from '../../features/live-lecture/api/liveLectures';
+import './CourseHub.css';
 
 type LiveLectureSummary = {
   id: number | string;
@@ -15,6 +16,9 @@ type OfferingSummary = {
   course_title?: string;
   term?: string;
   section?: string;
+  progress?: number;
+  instructor_name?: string;
+  instructor_avatar?: string;
 };
 
 type AssignmentSummary = {
@@ -31,6 +35,14 @@ type QuizSummary = {
   end_at?: string | null;
   start_at?: string | null;
   status?: 'scheduled' | 'draft' | 'active';
+};
+
+type ActivityItem = {
+  id: number;
+  type: 'submission' | 'comment' | 'video';
+  title: string;
+  description: string;
+  time: string;
 };
 
 function fmtDateShort(value?: string | null) {
@@ -56,6 +68,7 @@ export default function CourseHub() {
   const [liveLectures, setLiveLectures] = useState<LiveLectureSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [activeNav, setActiveNav] = useState('courses');
 
   const id = courseId || '';
   const isBackendOfferingId = useMemo(() => /^\d+$/.test(id), [id]);
@@ -98,235 +111,440 @@ export default function CourseHub() {
     };
   }, [id, isBackendOfferingId, navigate]);
 
-  const upcomingAssignments = useMemo(() => {
-    const items = [...assignments];
-    items.sort(
-      (x, y) => (new Date(x.due_at || 0).getTime() || 0) - (new Date(y.due_at || 0).getTime() || 0)
-    );
-    return items.slice(0, 3);
-  }, [assignments]);
+  const pendingAssignments = assignments.filter(
+    a => a.due_at && new Date(a.due_at) > new Date()
+  ).length;
+  const nextQuiz = quizzes.find(q => q.status === 'scheduled');
 
-  const upcomingQuizzes = useMemo(() => {
-    const items = [...quizzes];
-    items.sort(
-      (x, y) => (new Date(x.end_at || 0).getTime() || 0) - (new Date(y.end_at || 0).getTime() || 0)
-    );
-    return items.slice(0, 3);
-  }, [quizzes]);
+  const recentActivity: ActivityItem[] = [
+    {
+      id: 1,
+      type: 'submission',
+      title: 'Assignment 4 Submitted',
+      description: "You submitted 'Complexity Analysis Paper' successfully.",
+      time: '2 hours ago',
+    },
+    {
+      id: 2,
+      type: 'comment',
+      title: 'Feedback Received',
+      description: 'Dr. Mitchell left a comment on your Quiz 3 results.',
+      time: 'Yesterday',
+    },
+    {
+      id: 3,
+      type: 'video',
+      title: 'Lecture Video Uploaded',
+      description: "Recording for 'Dynamic Programming' is now available.",
+      time: 'Oct 24, 2023',
+    },
+  ];
 
-  const userRole =
-    user?.role === 'teacher' || user?.role === 'ta'
-      ? 'Teacher'
-      : user?.role === 'student'
-        ? 'Student'
-        : '';
+  const upcomingDeadlines = [
+    {
+      id: 1,
+      title: 'Greedy Algorithms Problem Set',
+      course: offering?.course_code || 'CS-402',
+      type: 'assignment',
+      date: 'Oct 26, 23:59',
+      color: 'amber',
+    },
+    {
+      id: 2,
+      title: 'Midterm Project Proposal',
+      course: offering?.course_code || 'CS-402',
+      type: 'project',
+      date: 'Oct 28, 14:00',
+      color: 'rose',
+    },
+    {
+      id: 3,
+      title: 'Guest Lecture: P vs NP',
+      course: offering?.course_code || 'CS-402',
+      type: 'live',
+      date: 'Nov 02, 10:00',
+      color: 'indigo',
+    },
+  ];
+
+  const navItems = [
+    { id: 'dashboard', label: 'Dashboard', icon: 'dashboard' },
+    { id: 'courses', label: 'My Courses', icon: 'school' },
+    { id: 'calendar', label: 'Calendar', icon: 'calendar_month' },
+    { id: 'assignments', label: 'Assignments', icon: 'assignment' },
+    { id: 'grades', label: 'Grades', icon: 'grade' },
+    { id: 'library', label: 'Library', icon: 'menu_book' },
+  ];
+
+  const actionCards = [
+    {
+      id: 'assignments',
+      title: 'Assignments',
+      desc: 'Review, manage, and submit your weekly coursework.',
+      badge: `${pendingAssignments} Pending`,
+      color: 'blue',
+      icon: 'assignment',
+    },
+    {
+      id: 'quizzes',
+      title: 'Quizzes',
+      desc: 'Take mid-term assessments and practice quizzes.',
+      badge: nextQuiz ? `Next: ${fmtDateShort(nextQuiz.end_at)?.split(',')[0]}` : 'None',
+      color: 'amber',
+      icon: 'quiz',
+    },
+    {
+      id: 'discussion',
+      title: 'Discussion',
+      desc: 'Engage with peers and instructors on course topics.',
+      badge: '12 New Posts',
+      color: 'purple',
+      icon: 'forum',
+    },
+    {
+      id: 'videos',
+      title: 'Videos',
+      desc: 'Catch up with previous lecture recordings anytime.',
+      badge: '24 Modules',
+      color: 'rose',
+      icon: 'movie',
+    },
+    {
+      id: 'live',
+      title: 'Live Lectures',
+      desc: 'Join active sessions or view upcoming schedules.',
+      badge: 'Join Now',
+      color: 'emerald',
+      icon: 'live_tv',
+    },
+    {
+      id: 'progress',
+      title: 'Progress',
+      desc: 'Detailed analytics of your academic performance.',
+      badge: 'Top 5%',
+      color: 'indigo',
+      icon: 'analytics',
+    },
+  ];
+
+  const handleActionClick = (cardId: string) => {
+    switch (cardId) {
+      case 'assignments':
+        navigate(`/courses/${id}/assignments`);
+        break;
+      case 'quizzes':
+        navigate(`/courses/${id}/quizzes`);
+        break;
+      case 'discussion':
+        navigate(`/courses/${id}/discussion`);
+        break;
+      case 'videos':
+        navigate(`/courses/${id}/videos`);
+        break;
+      case 'live':
+        navigate(`/courses/${id}/live`);
+        break;
+      case 'progress':
+        navigate(`/courses/${id}/progress`);
+        break;
+    }
+  };
+
+  if (loading) {
+    return (
+      <div
+        className="course-hub-page"
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          minHeight: '100vh',
+        }}
+      >
+        <p>Loading course hub...</p>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div
+        className="course-hub-page"
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          minHeight: '100vh',
+        }}
+      >
+        <div style={{ textAlign: 'center' }}>
+          <h2>Couldn't load course hub</h2>
+          <p>{error}</p>
+          <button onClick={() => window.location.reload()}>Retry</button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="course-hub-page">
-      {/* Header Section */}
-      <header className="course-hub-header">
-        <div className="course-hub-header-meta">
-          <span className="course-hub-role-badge">{userRole}</span>
-          <span className="course-hub-divider">•</span>
-          <span className="course-hub-term">{offering?.term || 'Spring 2024 Semester'}</span>
-        </div>
-        <h1 className="course-hub-title">
-          {offering?.course_code ? `Course Hub: ${offering.course_code}` : `Course Hub`}{' '}
-          {offering?.course_title ? `— ${offering.course_title}` : ''}
-        </h1>
-        <p className="course-hub-description">
-          Central command for lecture management, student tracking, and curriculum deployment for
-          advanced algorithmic theory.
-        </p>
-      </header>
-
-      {error && (
-        <div className="course-hub-error">
-          <div className="course-hub-error-content">
-            <div className="course-hub-error-title">Couldn't load course hub</div>
-            <div className="course-hub-error-message">{error}</div>
+      {/* Left Sidebar */}
+      <aside className="course-hub-sidebar">
+        <div className="course-hub-sidebar__brand">
+          <div className="course-hub-sidebar__logo">
+            <div className="course-hub-sidebar__icon">
+              <span className="material-symbols-outlined">school</span>
+            </div>
+            <div>
+              <h1 className="course-hub-sidebar__title">Scholaris</h1>
+              <p className="course-hub-sidebar__subtitle">Academic Portal</p>
+            </div>
           </div>
-          <button className="course-hub-error-btn" onClick={() => window.location.reload()}>
-            Retry
+        </div>
+
+        <nav className="course-hub-sidebar__nav">
+          {navItems.map(item => (
+            <button
+              key={item.id}
+              className={`course-hub-sidebar__link ${activeNav === item.id ? 'course-hub-sidebar__link--active' : ''}`}
+              onClick={() => setActiveNav(item.id)}
+            >
+              <span className="material-symbols-outlined">{item.icon}</span>
+              <span>{item.label}</span>
+            </button>
+          ))}
+        </nav>
+
+        <div className="course-hub-sidebar__cta">
+          <button className="course-hub-sidebar__btn">
+            <span className="material-symbols-outlined">video_call</span>
+            Join Live Class
           </button>
         </div>
-      )}
+      </aside>
 
-      {/* Quick Actions Bento Grid */}
-      <section className="course-hub-quick-actions">
-        <div className="course-hub-action-card" onClick={() => navigate(`/courses/${id}/assignments`)}>
-          <div className="course-hub-action-bg">
-            <span className="material-symbols-outlined">assignment</span>
+      {/* Main Content */}
+      <main className="course-hub-content">
+        {/* Header */}
+        <header className="course-hub-header">
+          <div className="course-hub-header__left">
+            <span className="course-hub-header__title">Course Hub</span>
+            <div className="course-hub-header__divider"></div>
+            <div className="course-hub-header__breadcrumbs">
+              <a href="#">Home</a>
+              <span className="material-symbols-outlined">chevron_right</span>
+              <a href="#">My Courses</a>
+              <span className="material-symbols-outlined">chevron_right</span>
+              <span className="course-hub-header__breadcrumbs-current">
+                {offering?.course_code || 'Course'}
+              </span>
+            </div>
           </div>
-          <span className="material-symbols-outlined course-hub-action-icon">assignment</span>
-          <h3 className="course-hub-action-title">Assignments</h3>
-          <p className="course-hub-action-desc">Review submissions and publish new problem sets.</p>
-        </div>
 
-        <div className="course-hub-action-card" onClick={() => navigate(`/courses/${id}/quizzes`)}>
-          <div className="course-hub-action-bg">
-            <span className="material-symbols-outlined">quiz</span>
+          <div className="course-hub-header__right">
+            <div className="course-hub-header__search">
+              <span className="material-symbols-outlined">search</span>
+              <input type="text" placeholder="Search resources..." />
+            </div>
+            <div className="course-hub-header__actions">
+              <button>
+                <span className="material-symbols-outlined">notifications</span>
+              </button>
+              <button>
+                <span className="material-symbols-outlined">help_outline</span>
+              </button>
+              <div className="course-hub-header__user">
+                <div className="course-hub-header__user-info">
+                  <p className="course-hub-header__user-name">{user?.name || 'Student'}</p>
+                  <p className="course-hub-header__user-role">Computer Science Senior</p>
+                </div>
+                <div className="course-hub-header__avatar">
+                  {(user?.name || 'S').charAt(0).toUpperCase()}
+                </div>
+              </div>
+            </div>
           </div>
-          <span className="material-symbols-outlined course-hub-action-icon secondary">quiz</span>
-          <h3 className="course-hub-action-title">Quizzes</h3>
-          <p className="course-hub-action-desc">
-            Configure automated assessments and exam schedules.
-          </p>
-        </div>
+        </header>
 
-        <div
-          className="course-hub-action-card"
-          onClick={() => navigate(`/courses/${id}/discussion`)}
-        >
-          <div className="course-hub-action-bg">
-            <span className="material-symbols-outlined">forum</span>
-          </div>
-          <span className="material-symbols-outlined course-hub-action-icon tertiary">forum</span>
-          <h3 className="course-hub-action-title">Discussion</h3>
-          <p className="course-hub-action-desc">
-            Engage with students on theoretical clarifications.
-          </p>
-        </div>
-
-        <div className="course-hub-action-card" onClick={() => navigate(`/courses/${id}/videos`)}>
-          <div className="course-hub-action-bg">
-            <span className="material-symbols-outlined">video_library</span>
-          </div>
-          <span className="material-symbols-outlined course-hub-action-icon error">
-            video_library
-          </span>
-          <h3 className="course-hub-action-title">Videos</h3>
-          <p className="course-hub-action-desc">
-            Upload recorded lectures and supplementary media.
-          </p>
-        </div>
-
-        <div
-          className="course-hub-action-card course-hub-action-card-primary"
-          onClick={() => {
-            const activeLecture = liveLectures.find((lecture) => lecture.status === 'live');
-            const nextLecture = liveLectures.find((lecture) => lecture.status === 'scheduled');
-            if (activeLecture) {
-              navigate(`/courses/${id}/live-lectures/${activeLecture.id}`);
-            } else if (nextLecture) {
-              navigate(`/courses/${id}/live-lectures/${nextLecture.id}`);
-            } else {
-              navigate(`/courses/${id}/live-lectures`);
-            }
-          }}
-        >
-          <div className="course-hub-action-bg">
-            <span className="material-symbols-outlined">sensors</span>
-          </div>
-          <span className="material-symbols-outlined course-hub-action-icon white">sensors</span>
-          <h3 className="course-hub-action-title white">Live Lectures</h3>
-          <p className="course-hub-action-desc white">
-            Start session or schedule a future virtual classroom.
-          </p>
-        </div>
-
-        <div className="course-hub-action-card" onClick={() => navigate(`/courses/${id}/progress`)}>
-          <div className="course-hub-action-bg">
-            <span className="material-symbols-outlined">trending_up</span>
-          </div>
-          <span className="material-symbols-outlined course-hub-action-icon">trending_up</span>
-          <h3 className="course-hub-action-title">Progress</h3>
-          <p className="course-hub-action-desc">Analyze class performance and retention metrics.</p>
-        </div>
-      </section>
-
-      {/* Upcoming Section */}
-      <section className="course-hub-upcoming">
-        {/* Left Column: Upcoming Assignments */}
-        <div className="course-hub-upcoming-col">
-          <div className="course-hub-upcoming-header">
-            <h2 className="course-hub-upcoming-title">Upcoming Assignments</h2>
-            <span className="material-symbols-outlined course-hub-more-icon">more_horiz</span>
-          </div>
-          <div className="course-hub-upcoming-list">
-            {loading ? (
-              <div className="course-hub-upcoming-loading">Loading assignments...</div>
-            ) : upcomingAssignments.length === 0 ? (
-              <div className="course-hub-upcoming-empty">No upcoming assignments</div>
-            ) : (
-              upcomingAssignments.map(a => (
-                <div
-                  key={String(a.id)}
-                  className="course-hub-upcoming-item"
-                  onClick={() => navigate(`/courses/${id}/assignments/${a.id}`)}
-                >
-                  <div className="course-hub-upcoming-icon">
-                    <span
-                      className="material-symbols-outlined"
-                      style={{ fontVariationSettings: 'FILL 1' }}
-                    >
-                      description
-                    </span>
+        {/* Content Area */}
+        <div className="course-hub-content">
+          <div className="course-hub-content__main">
+            {/* Course Hero */}
+            <section className="course-hub-hero">
+              <div className="course-hub-hero__content">
+                <div className="course-hub-hero__badges">
+                  <span className="course-hub-hero__badge">
+                    {offering?.course_code || 'CS-402'}
+                  </span>
+                  <span className="course-hub-hero__badge course-hub-hero__badge--active">
+                    Active Semester
+                  </span>
+                </div>
+                <h2 className="course-hub-hero__title">
+                  {offering?.course_title || 'Advanced Algorithm Analysis'}
+                </h2>
+                <div className="course-hub-hero__meta">
+                  <div className="course-hub-hero__instructor">
+                    <img
+                      className="course-hub-hero__instructor-img"
+                      src="https://via.placeholder.com/48"
+                      alt="Instructor"
+                    />
+                    <div className="course-hub-hero__instructor-info">
+                      <p className="course-hub-hero__instructor-label">Instructor</p>
+                      <p className="course-hub-hero__instructor-name">
+                        {offering?.instructor_name || 'Dr. Sarah Mitchell'}
+                      </p>
+                    </div>
                   </div>
-                  <div className="course-hub-upcoming-info">
-                    <h4 className="course-hub-upcoming-item-title">
-                      {a.title || `Assignment #${a.id}`}
-                    </h4>
-                    <p className="course-hub-upcoming-item-date">Due: {fmtDateShort(a.due_at)}</p>
-                  </div>
-                  <div className="course-hub-upcoming-badge">
-                    {a.submission_count !== undefined && a.submission_count > 0 ? (
-                      <span className="course-hub-upcoming-badge-primary">
-                        {a.submission_count} Submissions
-                      </span>
-                    ) : (
-                      <span className="course-hub-upcoming-badge-muted">0 Submissions</span>
-                    )}
+                  <div className="course-hub-hero__divider"></div>
+                  <div className="course-hub-hero__progress">
+                    <div className="course-hub-hero__progress-label">
+                      <span>Course Progress</span>
+                      <span>{offering?.progress || 78}%</span>
+                    </div>
+                    <div className="course-hub-hero__progress-track">
+                      <div
+                        className="course-hub-hero__progress-fill"
+                        style={{ width: `${offering?.progress || 78}%` }}
+                      ></div>
+                    </div>
                   </div>
                 </div>
-              ))
-            )}
-          </div>
-        </div>
-
-        {/* Right Column: Upcoming Quizzes */}
-        <div className="course-hub-upcoming-col">
-          <div className="course-hub-upcoming-header">
-            <h2 className="course-hub-upcoming-title">Upcoming Quizzes</h2>
-            <span className="material-symbols-outlined course-hub-more-icon">more_horiz</span>
-          </div>
-          <div className="course-hub-upcoming-list">
-            {loading ? (
-              <div className="course-hub-upcoming-loading">Loading quizzes...</div>
-            ) : upcomingQuizzes.length === 0 ? (
-              <div className="course-hub-upcoming-empty">No upcoming quizzes</div>
-            ) : (
-              upcomingQuizzes.map(q => (
-                <div
-                  key={String(q.id)}
-                  className="course-hub-upcoming-item"
-                  onClick={() => navigate(`/quizzes/${q.id}`)}
+              </div>
+              <div className="course-hub-hero__bg">
+                <svg
+                  preserveAspectRatio="none"
+                  viewBox="0 0 100 100"
+                  style={{ width: '100%', height: '100%' }}
                 >
-                  <div className="course-hub-upcoming-icon quiz">
+                  <path d="M0 0 L100 100 L100 0 Z" fill="white"></path>
+                </svg>
+              </div>
+            </section>
+
+            {/* Quick Action Cards */}
+            <section className="course-hub-actions">
+              {actionCards.map(card => (
+                <div
+                  key={card.id}
+                  className="course-hub-action-card"
+                  onClick={() => handleActionClick(card.id)}
+                >
+                  <div
+                    className={`course-hub-action-card__icon course-hub-action-card__icon--${card.color}`}
+                  >
+                    <span className="material-symbols-outlined font-filled">{card.icon}</span>
+                  </div>
+                  <h3 className="course-hub-action-card__title">{card.title}</h3>
+                  <p className="course-hub-action-card__desc">{card.desc}</p>
+                  <div className="course-hub-action-card__footer">
                     <span
-                      className="material-symbols-outlined"
-                      style={{ fontVariationSettings: 'FILL 1' }}
+                      className={`course-hub-action-card__badge course-hub-action-card__badge--${card.color}`}
                     >
-                      timer
+                      {card.badge}
+                    </span>
+                    <span className="material-symbols-outlined course-hub-action-card__arrow">
+                      arrow_forward_ios
                     </span>
                   </div>
-                  <div className="course-hub-upcoming-info">
-                    <h4 className="course-hub-upcoming-item-title">{q.title || `Quiz #${q.id}`}</h4>
-                    <p className="course-hub-upcoming-item-date">
-                      Starts: {fmtDateShort(q.start_at || q.end_at)}
+                </div>
+              ))}
+            </section>
+
+            {/* Recent Activity */}
+            <section className="course-hub-activity">
+              <div className="course-hub-activity__header">
+                <h3 className="course-hub-activity__title">Recent Activity</h3>
+                <button className="course-hub-activity__viewall">View All</button>
+              </div>
+              <div className="course-hub-activity__list">
+                {recentActivity.map(item => (
+                  <div key={item.id} className="course-hub-activity__item">
+                    <div className="course-hub-activity__icon">
+                      <span className="material-symbols-outlined">
+                        {item.type === 'submission'
+                          ? 'upload_file'
+                          : item.type === 'comment'
+                            ? 'comment'
+                            : 'play_circle'}
+                      </span>
+                    </div>
+                    <div className="course-hub-activity__info">
+                      <div className="course-hub-activity__item-header">
+                        <h4 className="course-hub-activity__item-title">{item.title}</h4>
+                        <span className="course-hub-activity__item-time">{item.time}</span>
+                      </div>
+                      <p className="course-hub-activity__item-desc">{item.description}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </section>
+          </div>
+
+          {/* Right Sidebar */}
+          <aside className="course-hub-sidebar__right">
+            <div className="course-hub-calendar">
+              <div className="course-hub-calendar__header">
+                <h3 className="course-hub-calendar__title">Calendar</h3>
+                <span className="course-hub-calendar__month">October 2023</span>
+              </div>
+              <div className="course-hub-calendar__weekdays">
+                <span>S</span>
+                <span>M</span>
+                <span>T</span>
+                <span>W</span>
+                <span>T</span>
+                <span>F</span>
+                <span>S</span>
+              </div>
+              <div className="course-hub-calendar__days">
+                <span className="course-hub-calendar__day course-hub-calendar__day--gray">22</span>
+                <span className="course-hub-calendar__day course-hub-calendar__day--gray">23</span>
+                <span className="course-hub-calendar__day course-hub-calendar__day--gray">24</span>
+                <span className="course-hub-calendar__day course-hub-calendar__day--today">25</span>
+                <span className="course-hub-calendar__day course-hub-calendar__day--event">26</span>
+                <span className="course-hub-calendar__day">27</span>
+                <span className="course-hub-calendar__day">28</span>
+              </div>
+            </div>
+
+            <div>
+              <h3 className="course-hub-deadlines__title">Upcoming Deadlines</h3>
+              <div className="course-hub-deadlines__list">
+                {upcomingDeadlines.map(deadline => (
+                  <div key={deadline.id} className="course-hub-deadline">
+                    <div className="course-hub-deadline__header">
+                      <div
+                        className={`course-hub-deadline__dot course-hub-deadline__dot--${deadline.color}`}
+                      ></div>
+                      <span className="course-hub-deadline__time">{deadline.date}</span>
+                    </div>
+                    <h4 className="course-hub-deadline__title">{deadline.title}</h4>
+                    <p className="course-hub-deadline__tag">
+                      {deadline.course} • {deadline.type}
                     </p>
                   </div>
-                  <div className="course-hub-upcoming-badge">
-                    <span className={`course-hub-upcoming-badge-quiz ${q.status || 'scheduled'}`}>
-                      {q.status === 'draft' ? 'Draft' : 'Scheduled'}
-                    </span>
-                  </div>
-                </div>
-              ))
-            )}
-          </div>
+                ))}
+              </div>
+              <button className="course-hub-deadlines__expand">Expand Schedule</button>
+            </div>
+
+            {/* Support Card */}
+            <div className="course-hub-support">
+              <span className="material-symbols-outlined course-hub-support__icon">info</span>
+              <h4 className="course-hub-support__title">Scholaris Support</h4>
+              <p className="course-hub-support__desc">
+                Need help with this course? Access the 24/7 student success center.
+              </p>
+              <a className="course-hub-support__link" href="#">
+                Contact Support
+              </a>
+            </div>
+          </aside>
         </div>
-      </section>
+      </main>
     </div>
   );
 }

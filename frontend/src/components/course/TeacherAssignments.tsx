@@ -142,8 +142,8 @@ export default function TeacherAssignments({
     setCurrentPage(page);
   };
 
-  const { courseId } = useParams()
-  const navigate = useNavigate()
+  const { courseId } = useParams();
+  const navigate = useNavigate();
 
   return (
     <div className="assignment-management">
@@ -365,8 +365,10 @@ export default function TeacherAssignments({
                             className="action-view-btn"
                             onClick={() => {
                               if (courseId && selected?.id && submission.id) {
-                                navigate(`/courses/${courseId}/assignments/${selected.id}/submissions/${submission.id}`)
-                                return
+                                navigate(
+                                  `/courses/${courseId}/assignments/${selected.id}/submissions/${submission.id}`
+                                );
+                                return;
                               }
                               if (onViewCode) {
                                 void (async () => {
@@ -374,11 +376,35 @@ export default function TeacherAssignments({
                                     `/api/submissions/${submission.id}`
                                   );
                                   onViewCode(detail.submission as Submission);
-                                })()
+                                })();
                               }
                             }}
                           >
                             View Code
+                          </button>
+                        ) : selected?.assignment_type === 'github' ? (
+                          <button
+                            className="action-view-btn"
+                            onClick={() => {
+                              if (courseId && selected?.id) {
+                                navigate(`/courses/${courseId}/assignments/${selected.id}/grading`);
+                              }
+                            }}
+                          >
+                            View Project
+                          </button>
+                        ) : selected?.assignment_type === 'mixed' ||
+                          selected?.assignment_type === 'file' ||
+                          selected?.assignment_type === 'pdf' ? (
+                          <button
+                            className="action-view-btn"
+                            onClick={() => {
+                              if (courseId && selected?.id) {
+                                navigate(`/courses/${courseId}/assignments/${selected.id}/grading`);
+                              }
+                            }}
+                          >
+                            View File
                           </button>
                         ) : (
                           <button className="action-grade-btn">Grade Now</button>

@@ -1,0 +1,107 @@
+/* Student Sidebar - Shared across all student pages */
+.student-sidebar {
+  width: 280px;
+  height: 100vh;
+  position: fixed;
+  left: 0;
+  top: 0;
+  background: var(--surface);
+  border-right: 1px solid var(--border);
+  z-index: 50;
+  display: flex;
+  flex-direction: column;
+  padding: 2rem 1.5rem;
+  gap: 2rem;
+  overflow-y: auto;
+  font-family: 'Public Sans', sans-serif;
+  font-size: 0.875rem;
+  font-weight: 500;
+}
+
+.student-sidebar__logo {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.student-sidebar__logo-icon {
+  width: 2.5rem;
+  height: 2.5rem;
+  background: var(--primary);
+  border-radius: 0.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--surface);
+  transform: translateY(-2px);
+}
+
+.student-sidebar__logo-text h1 {
+  font-size: 1.5rem;
+  font-weight: 700;
+  letter-spacing: -0.025em;
+  color: var(--text);
+  margin: 0;
+}
+
+.student-sidebar__logo-text p {
+  font-size: 0.75rem;
+  color: var(--muted);
+  font-weight: 400;
+  margin: 0;
+}
+
+.student-sidebar__nav {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.student-sidebar__nav-link {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.75rem 1rem;
+  border-radius: 0.5rem;
+  color: var(--text);
+  text-decoration: none;
+  transition: all 0.2s;
+  font-weight: 500;
+}
+
+.student-sidebar__nav-link:hover {
+  background: rgba(0, 0, 0, 0.05);
+}
+
+.student-sidebar__nav-link.active {
+  background: var(--primary);
+  color: var(--surface);
+  border-right: 4px solid var(--primary);
+  font-weight: 600;
+}
+
+.student-sidebar__cta {
+  padding: 0 1rem;
+  margin-top: auto;
+}
+
+.student-sidebar__cta-button {
+  width: 100%;
+  padding: 0.75rem 1rem;
+  background: var(--primary);
+  color: var(--surface);
+  border: none;
+  border-radius: 0.75rem;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  transition: background-color 0.2s;
+  cursor: pointer;
+}
+
+.student-sidebar__cta-button:hover {
+  background: var(--primary-hover);
+}

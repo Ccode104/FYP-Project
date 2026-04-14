@@ -30,18 +30,6 @@
   background: white;
 }
 
-.dark .sidebar-hamburger {
-  background: var(--surface);
-  border-color: var(--border);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
-}
-
-.dark .sidebar-hamburger:hover {
-  background: var(--primary);
-  border-color: var(--primary);
-  box-shadow: 0 4px 12px rgba(99, 102, 241, 0.5);
-}
-
 .sidebar-hamburger:active {
   transform: scale(0.95);
 }

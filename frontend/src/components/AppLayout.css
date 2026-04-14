@@ -1,0 +1,245 @@
+:root {
+  --shell-bg: #f8fafc;
+  --shell-surface: #ffffff;
+  --shell-border: #e2e8f0;
+  --shell-text: #0f172a;
+  --shell-muted: #64748b;
+  --shell-blue: #4f7cff;
+  --shell-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+}
+
+.material-symbols-outlined {
+  font-variation-settings:
+    'FILL' 0,
+    'wght' 400,
+    'GRAD' 0,
+    'opsz' 24;
+}
+
+/* Main Shell Layout */
+.app-shell {
+  min-height: 100vh;
+  display: flex;
+  background: linear-gradient(180deg, #fbfcff 0%, #f5f7fb 100%);
+}
+
+/* Fixed Left Sidebar */
+.app-sidebar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  width: 256px;
+  background: var(--shell-surface);
+  border-right: 1px solid var(--shell-border);
+  display: flex;
+  flex-direction: column;
+  z-index: 100;
+}
+
+.app-sidebar__brand {
+  padding: 24px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.app-sidebar__logo {
+  width: 40px;
+  height: 40px;
+  background: var(--shell-blue);
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+}
+
+.app-sidebar__title {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--shell-text);
+}
+
+.app-sidebar__subtitle {
+  margin: 0;
+  font-size: 12px;
+  color: var(--shell-muted);
+}
+
+.app-sidebar__nav {
+  flex: 1;
+  padding: 0 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  overflow-y: auto;
+}
+
+.app-sidebar__link {
+  border: none;
+  background: transparent;
+  color: var(--shell-muted);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 13px 16px;
+  border-radius: 14px;
+  cursor: pointer;
+  text-align: left;
+  font-size: 14px;
+  font-weight: 600;
+  transition: all 0.2s ease;
+  text-decoration: none;
+}
+
+.app-sidebar__link:hover {
+  background: rgba(77, 124, 255, 0.08);
+  color: var(--shell-text);
+}
+
+.app-sidebar__link--active {
+  background: rgba(77, 124, 255, 0.1);
+  color: var(--shell-blue);
+  border-right: 4px solid var(--shell-blue);
+}
+
+.app-sidebar__footer {
+  padding: 14px;
+  border-top: 1px solid var(--shell-border);
+}
+
+/* Main Content Area */
+.app-shell__main {
+  margin-left: 256px;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+}
+
+/* Header */
+.app-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0 24px;
+  height: 64px;
+  background: var(--shell-surface);
+  border-bottom: 1px solid var(--shell-border);
+  position: sticky;
+  top: 0;
+  z-index: 50;
+}
+
+.app-header__search {
+  position: relative;
+  width: 100%;
+  max-width: 400px;
+}
+
+.app-header__search .material-symbols-outlined {
+  position: absolute;
+  left: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--shell-muted);
+}
+
+.app-header__search input {
+  width: 100%;
+  padding: 10px 16px 10px 44px;
+  background: var(--shell-bg);
+  border: none;
+  border-radius: 12px;
+  font-size: 14px;
+  color: var(--shell-text);
+}
+
+.app-header__search input:focus {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--shell-blue);
+}
+
+.app-header__actions {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.app-header__icon-btn {
+  border: none;
+  background: transparent;
+  color: var(--shell-muted);
+  padding: 8px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.app-header__icon-btn:hover {
+  background: var(--shell-bg);
+  color: var(--shell-text);
+}
+
+.app-header__divider {
+  width: 1px;
+  height: 32px;
+  background: var(--shell-border);
+}
+
+.app-header__user {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 12px;
+  transition: background 0.2s ease;
+}
+
+.app-header__user:hover {
+  background: var(--shell-bg);
+}
+
+.app-header__name {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--shell-text);
+}
+
+.app-header__avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: var(--shell-blue);
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 14px;
+}
+
+/* User dropdown specifically for app-header */
+.app-header__user-dropdown {
+  position: relative;
+}
+
+/* Content Layout (Shared) */
+.app-content {
+  flex: 1;
+  display: flex;
+  overflow: hidden;
+}
+
+.app-main {
+  flex: 1;
+  padding: 32px;
+  overflow-y: auto;
+  max-width: 1200px;
+  margin: 0 auto;
+  width: 100%;
+}

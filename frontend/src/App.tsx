@@ -26,6 +26,7 @@ const LiveLecturesLanding = lazy(() => import('./pages/student/LiveLecturesLandi
 const LiveLectureDashboard = lazy(() => import('./pages/teacher/LiveLectureDashboard'));
 const VideoPlayerPage = lazy(() => import('./components/VideoPlayerPage'));
 const SuccessCenter = lazy(() => import('./pages/student/SuccessCenter'));
+const DiscussionForum = lazy(() => import('./pages/DiscussionForum'));
 
 // Import the protected route wrapper for role-based access
 const ProtectedRoute = lazy(() => import('./routes/ProtectedRoute'));
@@ -36,6 +37,9 @@ const Layout = lazy(() => import('./components/Layout'));
 // Quiz-related pages
 const QuizTake = lazy(() => import('./pages/student/QuizTake'));
 const QuizGrader = lazy(() => import('./pages/teacher/QuizGrader'));
+const QuizManagement = lazy(() => import('./pages/teacher/QuizManagement'));
+const AssignmentGrading = lazy(() => import('./pages/teacher/AssignmentGrading'));
+const VideoManagement = lazy(() => import('./pages/teacher/VideoManagement'));
 const SuspendedQuizzes = lazy(() => import('./pages/teacher/SuspendedQuizzes'));
 const ProctoringDashboard = lazy(() => import('./pages/teacher/ProctoringDashboard'));
 const ReviewQueue = lazy(() => import('./pages/teacher/ReviewQueue'));
@@ -184,6 +188,16 @@ function App() {
               }
             />
 
+            {/* Discussion forum (accessible by student, teacher, TA) */}
+            <Route
+              path="/courses/:courseId/discussion"
+              element={
+                <ProtectedRoute roles={['student', 'teacher', 'ta']}>
+                  <DiscussionForum />
+                </ProtectedRoute>
+              }
+            />
+
             {/* Course details (accessible by student, teacher, TA) */}
             <Route
               path="/courses/:courseId/:tab?"
@@ -194,12 +208,32 @@ function App() {
               }
             />
 
+            {/* Quiz management (teacher, faculty, or TA only) */}
+            <Route
+              path="/courses/:courseId/quizzes"
+              element={
+                <ProtectedRoute roles={['teacher', 'faculty', 'ta']}>
+                  <QuizManagement />
+                </ProtectedRoute>
+              }
+            />
+
             {/* Assignment details page (accessible by student, teacher, TA) */}
             <Route
               path="/courses/:courseId/assignments/:assignmentId"
               element={
                 <ProtectedRoute roles={['student', 'teacher', 'ta']}>
                   <AssignmentDetails />
+                </ProtectedRoute>
+              }
+            />
+
+            {/* Assignment grading page for GitHub/mixed assignments */}
+            <Route
+              path="/courses/:courseId/assignments/:assignmentId/grading"
+              element={
+                <ProtectedRoute roles={['teacher', 'faculty', 'ta']}>
+                  <AssignmentGrading />
                 </ProtectedRoute>
               }
             />
@@ -250,6 +284,16 @@ function App() {
               element={
                 <ProtectedRoute roles={['student', 'teacher', 'ta']}>
                   <VideoPlayerPage />
+                </ProtectedRoute>
+              }
+            />
+
+            {/* Video management page for teachers */}
+            <Route
+              path="/courses/:courseId/videos"
+              element={
+                <ProtectedRoute roles={['teacher', 'faculty', 'ta']}>
+                  <VideoManagement />
                 </ProtectedRoute>
               }
             />

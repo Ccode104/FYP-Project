@@ -4,7 +4,9 @@ import { pool } from '../db/index.js';
 export async function getEnrolledCourses(req, res) {
   try {
     const studentId = Number(req.user?.id);
-    if (!studentId) {return res.status(401).json({ error: 'Unauthorized' });}
+    if (!studentId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
     const q = `
       SELECT o.id, c.code AS course_code, c.title AS course_title, o.term, o.section
       FROM enrollments e
@@ -24,15 +26,20 @@ export async function getEnrolledCourses(req, res) {
 export async function getCourseDetails(req, res) {
   try {
     const { offeringId } = req.params;
-    const result = await pool.query(`
+    const result = await pool.query(
+      `
       SELECT co.*, c.code AS course_code, c.title, c.description, c.credits, d.name AS department, u.name AS faculty_name
       FROM course_offerings co
       JOIN courses c ON co.course_id = c.id
       LEFT JOIN departments d ON c.department_id = d.id
       LEFT JOIN users u ON co.faculty_id = u.id
       WHERE co.id = $1
-    `, [offeringId]);
-    if (result.rowCount === 0) {return res.status(404).json({ error: 'Course offering not found' });}
+    `,
+      [offeringId]
+    );
+    if (result.rowCount === 0) {
+      return res.status(404).json({ error: 'Course offering not found' });
+    }
     res.json(result.rows[0]);
   } catch (err) {
     console.error('getCourseDetails error:', err);
@@ -78,9 +85,12 @@ export async function getCourseSubmissions(req, res) {
     const studentId = req.user.id;
     const { offeringId } = req.params;
     const result = await pool.query(
-      `SELECT s.*, a.title AS assignment_title, a.due_at
+      `SELECT s.*, a.title AS assignment_title, a.due_at,
+              g.repo_url, g.repo_name, g.repo_description, g.repo_language,
+              g.repo_stars, g.repo_forks
        FROM assignment_submissions s
        JOIN assignments a ON s.assignment_id = a.id
+       LEFT JOIN github_submissions g ON s.id = g.submission_id
        WHERE s.student_id = $1 AND a.course_offering_id = $2
        ORDER BY s.submitted_at DESC`,
       [studentId, offeringId]
@@ -116,7 +126,16 @@ export async function getCourseQuizzes(req, res) {
   try {
     const { offeringId } = req.params;
     const result = await pool.query(
-      'SELECT * FROM quizzes WHERE course_offering_id = $1 ORDER BY start_at ASC',
+      `SELECT q.id, q.title, q.start_at, q.end_at, q.max_score, q.time_limit,
+              COALESCE((
+                SELECT COUNT(*)::int FROM quiz_attempts a WHERE a.quiz_id = q.id
+              ), 0) as total_submissions,
+              COALESCE((
+                SELECT AVG(a.score)::numeric(5,2) FROM quiz_attempts a WHERE a.quiz_id = q.id AND a.score IS NOT NULL
+              ), 0) as average_score
+       FROM quizzes q
+       WHERE q.course_offering_id = $1
+       ORDER BY q.start_at ASC`,
       [offeringId]
     );
     res.json(result.rows);
@@ -148,7 +167,9 @@ export async function enrollInCourse(req, res) {
   try {
     const studentId = req.user.id;
     const { offeringId } = req.body;
-    if (!offeringId) {return res.status(400).json({ error: 'offeringId is required' });}
+    if (!offeringId) {
+      return res.status(400).json({ error: 'offeringId is required' });
+    }
     // Check if already enrolled
     const exists = await pool.query(
       'SELECT id FROM enrollments WHERE course_offering_id = $1 AND student_id = $2',
@@ -196,7 +217,7 @@ export async function getStudentQuizAttempts(req, res) {
     const r = await pool.query(q, params);
     const attempts = r.rows.map(row => ({
       ...row,
-      answers: typeof row.answers === 'string' ? JSON.parse(row.answers) : row.answers
+      answers: typeof row.answers === 'string' ? JSON.parse(row.answers) : row.answers,
     }));
     res.json(attempts);
   } catch (err) {
@@ -241,10 +262,10 @@ export async function getGradedAssignment(req, res) {
     if ((finalScore === null || finalScore === undefined) && gradesResult.rows.length > 0) {
       finalScore = gradesResult.rows.reduce((sum, grade) => sum + (grade.score || 0), 0);
       // Update the submission with the calculated score
-      await pool.query(
-        'UPDATE assignment_submissions SET final_score = $1 WHERE id = $2',
-        [finalScore, submission.id]
-      );
+      await pool.query('UPDATE assignment_submissions SET final_score = $1 WHERE id = $2', [
+        finalScore,
+        submission.id,
+      ]);
       submission.final_score = finalScore;
     }
 
@@ -261,7 +282,7 @@ export async function getGradedAssignment(req, res) {
     res.json({
       submission,
       rubricGrades: gradesResult.rows,
-      regradeRequests: regradeResult.rows
+      regradeRequests: regradeResult.rows,
     });
   } catch (err) {
     console.error('getGradedAssignment error:', err);
@@ -299,12 +320,12 @@ export async function submitRegradeRequest(req, res) {
       submissionId,
       criterionId || null,
       reason,
-      studentId
+      studentId,
     ]);
 
     res.status(201).json({
       message: 'Regrade request submitted',
-      request: insertResult.rows[0]
+      request: insertResult.rows[0],
     });
   } catch (err) {
     console.error('submitRegradeRequest error:', err);
@@ -351,15 +372,11 @@ export async function submitResumeRequest(req, res) {
       VALUES ($1, $2, $3, 'pending', NOW())
       RETURNING *
     `;
-    const insertResult = await pool.query(insertQuery, [
-      studentId,
-      quizAttemptId,
-      reason
-    ]);
+    const insertResult = await pool.query(insertQuery, [studentId, quizAttemptId, reason]);
 
     res.status(201).json({
       message: 'Resume request submitted successfully',
-      request: insertResult.rows[0]
+      request: insertResult.rows[0],
     });
   } catch (err) {
     console.error('submitResumeRequest error:', err);
@@ -386,7 +403,7 @@ export async function getStudentResumeRequests(req, res) {
     const result = await pool.query(query, [studentId]);
 
     res.json({
-      requests: result.rows
+      requests: result.rows,
     });
   } catch (err) {
     console.error('getStudentResumeRequests error:', err);
@@ -450,7 +467,7 @@ export async function getUpcomingEvents(req, res) {
         c.code AS course_code,
         c.title AS course_title,
         co.id AS course_offering_id,
-        ll.room AS location
+        NULL AS location
       FROM live_lectures ll
       JOIN course_offerings co ON ll.course_offering_id = co.id
       JOIN courses c ON co.course_id = c.id
@@ -464,13 +481,13 @@ export async function getUpcomingEvents(req, res) {
     const [assignmentsResult, quizzesResult, lecturesResult] = await Promise.all([
       pool.query(assignmentsQuery, [studentId]),
       pool.query(quizzesQuery, [studentId]),
-      pool.query(lecturesQuery, [studentId])
+      pool.query(lecturesQuery, [studentId]),
     ]);
 
     const allEvents = [
       ...assignmentsResult.rows,
       ...quizzesResult.rows,
-      ...lecturesResult.rows
+      ...lecturesResult.rows,
     ].sort((a, b) => new Date(a.due_at).getTime() - new Date(b.due_at).getTime());
 
     res.json({ events: allEvents });
