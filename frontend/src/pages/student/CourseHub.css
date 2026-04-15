@@ -348,17 +348,6 @@
   object-fit: cover;
 }
 
-/* Main Content Area */
-.course-hub-content {
-  flex: 1;
-  display: flex;
-}
-
-.course-hub-content__main {
-  flex: 1;
-  padding: 24px;
-}
-
 /* Course Hero Section */
 .course-hub-hero {
   background: linear-gradient(135deg, var(--hub-indigo), #3730a3);

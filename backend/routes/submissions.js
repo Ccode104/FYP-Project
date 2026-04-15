@@ -1,7 +1,15 @@
 import express from 'express';
 import { requireAuth, requireRole } from '../middleware/auth.js';
 import { upload } from '../middleware/upload.js';
-import { submitFileAssignment, submitCodeAssignment, gradeSubmission, submitLinkAssignment, submitGitHubRepoAssignment, getSubmissionById } from '../controllers/submissionsController.js';
+import {
+  submitFileAssignment,
+  submitCodeAssignment,
+  gradeSubmission,
+  submitLinkAssignment,
+  submitGitHubRepoAssignment,
+  getSubmissionById,
+  deleteSubmission,
+} from '../controllers/submissionsController.js';
 
 const router = express.Router();
 
@@ -85,7 +93,7 @@ router.post(
  *       404:
  *         description: Assignment not found
  */
-router.post('/submit/code', requireAuth, requireRole('student','faculty'), submitCodeAssignment);
+router.post('/submit/code', requireAuth, requireRole('student', 'faculty'), submitCodeAssignment);
 
 /**
  * @swagger
@@ -121,10 +129,10 @@ router.post('/submit/code', requireAuth, requireRole('student','faculty'), submi
  *       404:
  *         description: Submission not found
  */
-router.post('/grade', requireAuth, requireRole('ta','faculty','admin'), gradeSubmission);
+router.post('/grade', requireAuth, requireRole('ta', 'faculty', 'admin'), gradeSubmission);
 
 // Get a single submission by id (view by faculty/ta/admin)
-router.get('/:submissionId', requireAuth, requireRole('ta','faculty','admin'), getSubmissionById);
+router.get('/:submissionId', requireAuth, requireRole('ta', 'faculty', 'admin'), getSubmissionById);
 
 // /**
 //  * @swagger
@@ -213,5 +221,6 @@ router.post('/submit/link', requireAuth, requireRole('student'), submitLinkAssig
  *         description: Internal server error
  */
 router.post('/submit/github-repo', requireAuth, requireRole('student'), submitGitHubRepoAssignment);
+router.delete('/:id', requireAuth, deleteSubmission);
 
 export default router;

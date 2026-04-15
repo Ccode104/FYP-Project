@@ -1,7 +1,23 @@
 // src/routes/auth.js
 import express from 'express';
-import { registerUser, loginUser, loginWithGoogle, getCurrentUser, getUserDetails} from '../controllers/authController.js';
-import { initiateOAuth, handleOAuthCallback, disconnectGitHub } from '../controllers/githubController.js';
+import {
+  registerUser,
+  loginUser,
+  loginWithGoogle,
+  getCurrentUser,
+  getUserDetails,
+} from '../controllers/authController.js';
+import {
+  initiateOAuth,
+  handleOAuthCallback,
+  disconnectGitHub,
+} from '../controllers/githubController.js';
+import {
+  initiateGoogleOAuth,
+  handleGoogleOAuthCallback,
+  checkGoogleConnection,
+  disconnectGoogle,
+} from '../controllers/googleController.js';
 import { requireAuth } from '../middleware/auth.js';
 
 const router = express.Router();
@@ -315,6 +331,51 @@ router.delete('/github', requireAuth, disconnectGitHub);
 
 /**
  * @swagger
+ * /api/auth/google:
+ *   get:
+ *     summary: Initiate Google OAuth flow
+ *     tags: [Auth]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Google auth URL
+ */
+router.get('/google', requireAuth, initiateGoogleOAuth);
+
+/**
+ * @swagger
+ * /api/auth/google/callback:
+ *   get:
+ *     summary: Handle Google OAuth callback
+ *     tags: [Auth]
+ */
+router.get('/google/callback', handleGoogleOAuthCallback);
+
+/**
+ * @swagger
+ * /api/auth/google/status:
+ *   get:
+ *     summary: Check Google connection status
+ *     tags: [Auth]
+ *     security:
+ *       - bearerAuth: []
+ */
+router.get('/google/status', requireAuth, checkGoogleConnection);
+
+/**
+ * @swagger
+ * /api/auth/google:
+ *   post:
+ *     summary: Disconnect Google
+ *     tags: [Auth]
+ *     security:
+ *       - bearerAuth: []
+ */
+router.post('/google/disconnect', requireAuth, disconnectGoogle);
+
+/**
+ * @swagger
  * /api/auth/me:
  *   get:
  *     summary: Get current user details
@@ -424,6 +485,5 @@ router.get('/me', requireAuth, getCurrentUser);
  *                   example: "User not found"
  */
 router.get('/user/:id', requireAuth, getUserDetails);
-
 
 export default router;

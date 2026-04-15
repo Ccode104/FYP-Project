@@ -1,6 +1,6 @@
 // Import routing components from react-router-dom
-import { Navigate, Route, Routes } from 'react-router-dom';
-import { lazy, Suspense } from 'react';
+import { Route, Routes, useNavigate, useSearchParams } from 'react-router-dom';
+import { lazy, Suspense, useEffect } from 'react';
 
 // Lazy load all individual page components for code splitting
 const Landing = lazy(() => import('./pages/Landing'));
@@ -8,6 +8,7 @@ const Login = lazy(() => import('./pages/Login'));
 const Signup = lazy(() => import('./pages/Signup'));
 const Forgot = lazy(() => import('./pages/Forgot'));
 const Reset = lazy(() => import('./pages/Reset'));
+const GitHubAuthSuccess = lazy(() => import('./pages/GitHubAuthSuccess'));
 const StudentDashboard = lazy(() => import('./pages/student/StudentDashboardNew'));
 const PlannerStudent = lazy(() => import('./features/planner/pages/PlannerStudent'));
 const PlannerStaff = lazy(() => import('./features/planner/pages/PlannerStaff'));
@@ -17,14 +18,16 @@ const AdminDashboard = lazy(() => import('./pages/admin/AdminDashboard'));
 const CourseDetails = lazy(() => import('./pages/student/CourseDetails'));
 const CourseHub = lazy(() => import('./pages/student/CourseHub'));
 const AssignmentsLanding = lazy(() => import('./pages/student/AssignmentsLanding'));
-const AssignmentDetails = lazy(() => import('./pages/student/AssignmentDetails'));
+const AssignmentManagement = lazy(() => import('./pages/teacher/AssignmentManagement'));
+// AssignmentDetails removed
+
 const SubmissionReview = lazy(() => import('./pages/student/SubmissionReview'));
 const CodeEditorPage = lazy(() => import('./pages/student/CodeEditorPage'));
 const ContestEditorPage = lazy(() => import('./pages/student/ContestEditorPage'));
 const LiveLecturePage = lazy(() => import('./pages/student/LiveLecturePage'));
 const LiveLecturesLanding = lazy(() => import('./pages/student/LiveLecturesLanding'));
-const LiveLectureDashboard = lazy(() => import('./pages/teacher/LiveLectureDashboard'));
-const VideoPlayerPage = lazy(() => import('./components/VideoPlayerPage'));
+const StudentVideoLibrary = lazy(() => import('./pages/student/StudentVideoLibrary'));
+const VideoPlayerPage = lazy(() => import('./pages/student/VideoPlayerPage'));
 const SuccessCenter = lazy(() => import('./pages/student/SuccessCenter'));
 const DiscussionForum = lazy(() => import('./pages/DiscussionForum'));
 
@@ -38,6 +41,7 @@ const Layout = lazy(() => import('./components/Layout'));
 const QuizTake = lazy(() => import('./pages/student/QuizTake'));
 const QuizGrader = lazy(() => import('./pages/teacher/QuizGrader'));
 const QuizManagement = lazy(() => import('./pages/teacher/QuizManagement'));
+const AssignmentGitHubSubmit = lazy(() => import('./pages/student/AssignmentGitHubSubmit'));
 const AssignmentGrading = lazy(() => import('./pages/teacher/AssignmentGrading'));
 const VideoManagement = lazy(() => import('./pages/teacher/VideoManagement'));
 const SuspendedQuizzes = lazy(() => import('./pages/teacher/SuspendedQuizzes'));
@@ -55,6 +59,21 @@ const CourseProvider = lazy(() =>
 );
 
 function App() {
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+
+  useEffect(() => {
+    if (searchParams.get('google_connected') === 'true') {
+      const returnUrl = sessionStorage.getItem('google_oauth_return_url');
+      sessionStorage.removeItem('google_oauth_return_url');
+      if (returnUrl) {
+        navigate(returnUrl, { replace: true });
+      } else {
+        navigate(window.location.pathname + window.location.hash, { replace: true });
+      }
+    }
+  }, [searchParams, navigate]);
+
   return (
     // Provide course-related global state to the entire app
     <CourseProvider>
@@ -71,6 +90,7 @@ function App() {
             <Route path="/signup" element={<Signup />} />
             <Route path="/forgot" element={<Forgot />} />
             <Route path="/reset" element={<Reset />} />
+            <Route path="/auth/github/success" element={<GitHubAuthSuccess />} />
 
             {/* Student dashboard (restricted to student role) */}
             <Route
@@ -188,62 +208,72 @@ function App() {
               }
             />
 
-            {/* Discussion forum (accessible by student, teacher, TA) */}
+            {/* Assignment management for teachers (more specific route) */}
             <Route
-              path="/courses/:courseId/discussion"
+              path="/courses/:courseId/assignments/:assignmentId/submissions/:submissionId"
               element={
-                <ProtectedRoute roles={['student', 'teacher', 'ta']}>
-                  <DiscussionForum />
+                <ProtectedRoute roles={['teacher', 'ta']}>
+                  <SubmissionReview />
                 </ProtectedRoute>
               }
             />
 
-            {/* Course details (accessible by student, teacher, TA) */}
+            {/* Assignment management for teachers */}
             <Route
-              path="/courses/:courseId/:tab?"
+              path="/courses/:courseId/assignments/:assignmentId"
               element={
-                <ProtectedRoute roles={['student', 'teacher', 'ta']}>
-                  <CourseDetails />
+                <ProtectedRoute roles={['teacher', 'ta']}>
+                  <AssignmentManagement />
                 </ProtectedRoute>
               }
             />
 
-            {/* Quiz management (teacher, faculty, or TA only) */}
-            <Route
-              path="/courses/:courseId/quizzes"
-              element={
-                <ProtectedRoute roles={['teacher', 'faculty', 'ta']}>
-                  <QuizManagement />
-                </ProtectedRoute>
-              }
-            />
-
-            {/* Assignment details page (accessible by student, teacher, TA) */}
+            {/* Code editor for students and teachers */}
             <Route
               path="/courses/:courseId/assignments/:assignmentId"
               element={
                 <ProtectedRoute roles={['student', 'teacher', 'ta']}>
-                  <AssignmentDetails />
+                  <CodeEditorPage />
                 </ProtectedRoute>
               }
             />
 
-            {/* Assignment grading page for GitHub/mixed assignments */}
+            {/* Code editor page (accessible by student, teacher, TA) */}
             <Route
-              path="/courses/:courseId/assignments/:assignmentId/grading"
+              path="/courses/:courseId/assignments/:assignmentId/editor"
               element={
-                <ProtectedRoute roles={['teacher', 'faculty', 'ta']}>
-                  <AssignmentGrading />
+                <ProtectedRoute roles={['student', 'teacher', 'ta']}>
+                  <CodeEditorPage />
                 </ProtectedRoute>
               }
             />
 
-            {/* Submission review page for code submissions */}
+            {/* Assignment management for teachers - show submissions list */}
+            <Route
+              path="/courses/:courseId/assignments/:assignmentId/submissions"
+              element={
+                <ProtectedRoute roles={['teacher', 'ta']}>
+                  <AssignmentManagement />
+                </ProtectedRoute>
+              }
+            />
+
+            {/* Submission review for teachers */}
             <Route
               path="/courses/:courseId/assignments/:assignmentId/submissions/:submissionId"
               element={
-                <ProtectedRoute roles={['teacher', 'ta', 'admin']}>
+                <ProtectedRoute roles={['teacher', 'ta']}>
                   <SubmissionReview />
+                </ProtectedRoute>
+              }
+            />
+
+            {/* Assignment management for teachers */}
+            <Route
+              path="/courses/:courseId/assignments/:assignmentId"
+              element={
+                <ProtectedRoute roles={['teacher', 'ta']}>
+                  <AssignmentManagement />
                 </ProtectedRoute>
               }
             />
@@ -288,11 +318,21 @@ function App() {
               }
             />
 
-            {/* Video management page for teachers */}
+            {/* Video library for students */}
             <Route
               path="/courses/:courseId/videos"
               element={
-                <ProtectedRoute roles={['teacher', 'faculty', 'ta']}>
+                <ProtectedRoute roles={['student', 'teacher', 'ta']}>
+                  <StudentVideoLibrary />
+                </ProtectedRoute>
+              }
+            />
+
+            {/* Video management page for teachers */}
+            <Route
+              path="/courses/:courseId/videos/manage"
+              element={
+                <ProtectedRoute roles={['teacher', 'ta']}>
                   <VideoManagement />
                 </ProtectedRoute>
               }

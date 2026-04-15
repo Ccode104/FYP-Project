@@ -1,37 +1,43 @@
-import { useParams, useNavigate } from 'react-router-dom'
-import { useEffect, useMemo, useState, useRef } from 'react'
-import { useCourse } from '../../context/CourseContext'
-import './CodeSubmissionView.css'
-import { useToast } from '../../components/ToastProvider'
-import { apiFetch } from '../../services/api'
-import CodeEditor from '../../components/CodeEditor'
-import Leaderboard from '../../components/Leaderboard'
-import AchievementBadge from '../../components/AchievementBadge'
-import UserStats from '../../components/UserStats'
+import { useParams, useNavigate } from 'react-router-dom';
+import { useEffect, useMemo, useState, useRef } from 'react';
+import { useCourse } from '../../context/CourseContext';
+import './CodeSubmissionView.css';
+import { useToast } from '../../components/ToastProvider';
+import { apiFetch } from '../../services/api';
+import CodeEditor from '../../components/CodeEditor';
+import Leaderboard from '../../components/Leaderboard';
+import AchievementBadge from '../../components/AchievementBadge';
+import UserStats from '../../components/UserStats';
 
 // Add CodeQuestion type for frontend usage
 interface CodeQuestion {
-  id: string | number
-  title?: string
-  description?: string
-  constraints?: string
-  sample_input?: string
-  sample_output?: string
-  test_input?: string
-  expected_output?: string
+  id: string | number;
+  title?: string;
+  description?: string;
+  constraints?: string;
+  sample_input?: string;
+  sample_output?: string;
+  test_input?: string;
+  expected_output?: string;
   test_cases?: Array<{
-    id?: number
-    is_sample?: boolean
-    input_text?: string
-    expected_text?: string
-    input_path?: string
-    expected_path?: string
-  }>
+    id?: number;
+    is_sample?: boolean;
+    input_text?: string;
+    expected_text?: string;
+    input_path?: string;
+    expected_path?: string;
+  }>;
 }
 
 interface CodeAssignment {
   id: string | number;
   title?: string;
+  description?: string;
+  due_at?: string;
+  max_score?: number;
+  assignment_type?: string;
+  attempt_limit?: number;
+  course_code?: string;
   questions?: Array<{
     id: string | number;
     [key: string]: unknown;
@@ -58,81 +64,91 @@ interface GamificationData {
 }
 
 export default function CodeEditorPage() {
-  const { courseId, assignmentId } = useParams()
-  const navigate = useNavigate()
-  const { setCourseTitle } = useCourse()
-  const toast = useToast()
+  const { courseId, assignmentId } = useParams();
+  const navigate = useNavigate();
+  const { setCourseTitle } = useCourse();
+  const toast = useToast();
   const push = (opts: { kind?: 'success' | 'error' | string; message?: string }) => {
     if (toast && typeof (toast as unknown).push === 'function') {
-      (toast as unknown).push(opts)
+      (toast as unknown).push(opts);
     } else {
-      console.log(opts)
+      console.log(opts);
     }
-  }
+  };
 
-  const [selectedCodeAssignment, setSelectedCodeAssignment] = useState<CodeAssignment | null>(null)
-  const [codeEditor, setCodeEditor] = useState<Record<string, string>>({})
-  const [codeLang, setCodeLang] = useState<Record<string, string>>({})
-  const [isRunningCode, setIsRunningCode] = useState<Record<string, boolean>>({})
-  const [savedQuestions, setSavedQuestions] = useState<Record<string, boolean>>({}) // Track which questions have been saved
-  const [isSavingCode, setIsSavingCode] = useState<Record<string, boolean>>({}) // Track saving state per question
-  const [currentQuestionIndex, setCurrentQuestionIndex] = useState<number>(0)
-  const [consoleExpanded, setConsoleExpanded] = useState<boolean>(false) // Console section collapsed by default
-  const [activeConsoleTab, setActiveConsoleTab] = useState<'test-cases' | 'test-results'>('test-cases')
-  const [customTestCases, setCustomTestCases] = useState<Record<string, Array<{ id: string, input: string, expected: string, result?: unknown }>>>({})
+  const [selectedCodeAssignment, setSelectedCodeAssignment] = useState<CodeAssignment | null>(null);
+  const [codeEditor, setCodeEditor] = useState<Record<string, string>>({});
+  const [codeLang, setCodeLang] = useState<Record<string, string>>({});
+  const [isRunningCode, setIsRunningCode] = useState<Record<string, boolean>>({});
+  const [savedQuestions, setSavedQuestions] = useState<Record<string, boolean>>({}); // Track which questions have been saved
+  const [isSavingCode, setIsSavingCode] = useState<Record<string, boolean>>({}); // Track saving state per question
+  const [currentQuestionIndex, setCurrentQuestionIndex] = useState<number>(0);
+  const [consoleExpanded, setConsoleExpanded] = useState<boolean>(false); // Console section collapsed by default
+  const [activeConsoleTab, setActiveConsoleTab] = useState<'test-cases' | 'test-results'>(
+    'test-cases'
+  );
+  const [customTestCases, setCustomTestCases] = useState<
+    Record<string, Array<{ id: string; input: string; expected: string; result?: unknown }>>
+  >({});
   // testCaseResults is set but not directly read - results are computed inline
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const [testCaseResults, setTestCaseResults] = useState<Record<string, Record<string, TestCaseResult>>>({})
-  const [questionTimers, setQuestionTimers] = useState<Record<string, { startTime: number, elapsedTime: number }>>({})
-  const [currentQuestionStartTime, setCurrentQuestionStartTime] = useState<number>(Date.now())
-  const [currentQuestionElapsedTime, setCurrentQuestionElapsedTime] = useState<number>(0)
-  const [showGamification, setShowGamification] = useState<boolean>(false)
-  const [, setRunResults] = useState<Record<string, RunResult>>({})
-  const [, setGamificationData] = useState<GamificationData | null>(null)
-  const previousQuestionRef = useRef<string | null>(null)
+  const [testCaseResults, setTestCaseResults] = useState<
+    Record<string, Record<string, TestCaseResult>>
+  >({});
+  const [questionTimers, setQuestionTimers] = useState<
+    Record<string, { startTime: number; elapsedTime: number }>
+  >({});
+  const [currentQuestionStartTime, setCurrentQuestionStartTime] = useState<number>(Date.now());
+  const [currentQuestionElapsedTime, setCurrentQuestionElapsedTime] = useState<number>(0);
+  const [showGamification, setShowGamification] = useState<boolean>(false);
+  const [, setRunResults] = useState<Record<string, RunResult>>({});
+  const [, setGamificationData] = useState<GamificationData | null>(null);
+  const previousQuestionRef = useRef<string | null>(null);
 
   // Get current question based on index
   const currentQuestion = useMemo(() => {
-    return selectedCodeAssignment?.questions?.[currentQuestionIndex] || null
-  }, [selectedCodeAssignment, currentQuestionIndex])
+    return selectedCodeAssignment?.questions?.[currentQuestionIndex] || null;
+  }, [selectedCodeAssignment, currentQuestionIndex]);
 
   // Format elapsed time as HH:MM:SS
   const formatElapsedTime = (milliseconds: number): string => {
-    const totalSeconds = Math.floor(milliseconds / 1000)
-    const hours = Math.floor(totalSeconds / 3600)
-    const minutes = Math.floor((totalSeconds % 3600) / 60)
-    const seconds = totalSeconds % 60
+    const totalSeconds = Math.floor(milliseconds / 1000);
+    const hours = Math.floor(totalSeconds / 3600);
+    const minutes = Math.floor((totalSeconds % 3600) / 60);
+    const seconds = totalSeconds % 60;
 
     if (hours > 0) {
-      return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`
+      return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
     }
-    return `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`
-  }
+    return `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+  };
 
   // Set course title in navbar and clear it on unmount
   useEffect(() => {
-    const title = selectedCodeAssignment ? `${selectedCodeAssignment.title} - Code Editor` : 'Code Editor'
-    setCourseTitle(title)
+    const title = selectedCodeAssignment
+      ? `${selectedCodeAssignment.title} - Code Editor`
+      : 'Code Editor';
+    setCourseTitle(title);
 
     return () => {
-      setCourseTitle(null)
-    }
-  }, [selectedCodeAssignment, setCourseTitle])
+      setCourseTitle(null);
+    };
+  }, [selectedCodeAssignment, setCourseTitle]);
 
   // Timer effect - update current question elapsed time every second
   useEffect(() => {
     const timer = setInterval(() => {
-      setCurrentQuestionElapsedTime(Date.now() - currentQuestionStartTime)
-    }, 1000)
+      setCurrentQuestionElapsedTime(Date.now() - currentQuestionStartTime);
+    }, 1000);
 
-    return () => clearInterval(timer)
-  }, [currentQuestionStartTime])
+    return () => clearInterval(timer);
+  }, [currentQuestionStartTime]);
 
   // Handle question switching - save previous question time and start/restore timer for new question
   useEffect(() => {
     if (currentQuestion) {
-      const currentQuestionId = currentQuestion.id.toString()
-      const previousQuestionId = previousQuestionRef.current
+      const currentQuestionId = currentQuestion.id.toString();
+      const previousQuestionId = previousQuestionRef.current;
 
       // Save time for the previous question before switching
       if (previousQuestionId && previousQuestionId !== currentQuestionId) {
@@ -140,42 +156,42 @@ export default function CodeEditorPage() {
           ...prev,
           [previousQuestionId]: {
             ...prev[previousQuestionId],
-            elapsedTime: currentQuestionElapsedTime
-          }
-        }))
+            elapsedTime: currentQuestionElapsedTime,
+          },
+        }));
       }
 
       // Handle timer for current question
-      const existingTimer = questionTimers[currentQuestionId]
-      const now = Date.now()
+      const existingTimer = questionTimers[currentQuestionId];
+      const now = Date.now();
 
       if (existingTimer) {
         // Restore saved time for this question
-        setCurrentQuestionStartTime(now - existingTimer.elapsedTime)
-        setCurrentQuestionElapsedTime(existingTimer.elapsedTime)
+        setCurrentQuestionStartTime(now - existingTimer.elapsedTime);
+        setCurrentQuestionElapsedTime(existingTimer.elapsedTime);
       } else {
         // Start fresh timer for new question
-        setCurrentQuestionStartTime(now)
-        setCurrentQuestionElapsedTime(0)
+        setCurrentQuestionStartTime(now);
+        setCurrentQuestionElapsedTime(0);
 
         // Initialize timer record
         setQuestionTimers(prev => ({
           ...prev,
           [currentQuestionId]: {
             startTime: now,
-            elapsedTime: 0
-          }
-        }))
+            elapsedTime: 0,
+          },
+        }));
       }
 
       // Update previous question ref
-      previousQuestionRef.current = currentQuestionId
+      previousQuestionRef.current = currentQuestionId;
     }
-  }, [currentQuestion?.id])
+  }, [currentQuestion?.id]);
 
   // Load assignment data
   useEffect(() => {
-    if (!courseId || !assignmentId) return
+    if (!courseId || !assignmentId) return;
 
     const loadAssignment = async () => {
       try {
@@ -193,70 +209,83 @@ export default function CodeEditorPage() {
         }
 
         // Load course/offering details for breadcrumb
-        const courseDetails = await apiFetch<CourseDetails>(`/api/student/courses/${courseId}`)
+        const courseDetails = await apiFetch<CourseDetails>(`/api/student/courses/${courseId}`);
 
         // Load assignment details
-        const assignment = await apiFetch<AssignmentDetails>(`/api/assignments/${assignmentId}`)
+        const assignment = await apiFetch<AssignmentDetails>(`/api/assignments/${assignmentId}`);
 
         // Load questions for this assignment
-        const questions = await apiFetch<CodeQuestion[]>(`/api/assignments/${assignmentId}/questions`)
+        const questions = await apiFetch<CodeQuestion[]>(
+          `/api/assignments/${assignmentId}/questions`
+        );
 
-        setSelectedCodeAssignment({ ...assignment, questions })
+        setSelectedCodeAssignment({ ...assignment, questions });
 
         // Set breadcrumb title: Dashboard > Course Name > Assignment Name > Code Editor
-        const courseName = courseDetails?.title || courseDetails?.course_code || `Course ${courseId}`
-        const breadcrumbTitle = `Dashboard > ${courseName} > ${assignment.title} > Code Editor`
-        setCourseTitle(breadcrumbTitle)
+        const courseName =
+          courseDetails?.title || courseDetails?.course_code || `Course ${courseId}`;
+        const breadcrumbTitle = `Dashboard > ${courseName} > ${assignment.title} > Code Editor`;
+        setCourseTitle(breadcrumbTitle);
 
         // Initialize editors and languages
-        const editors: Record<string, string> = {}
-        const langs: Record<string, string> = {}
-        const testCases: Record<string, Array<{ id: string, input: string, expected: string, result?: unknown }>> = {}
+        const editors: Record<string, string> = {};
+        const langs: Record<string, string> = {};
+        const testCases: Record<
+          string,
+          Array<{ id: string; input: string; expected: string; result?: unknown }>
+        > = {};
         questions.forEach(q => {
-          editors[q.id] = ''
-          langs[q.id] = 'python'
+          editors[q.id] = '';
+          langs[q.id] = 'python';
 
           // Initialize test cases for each question
-          const questionTestCases: Array<{ id: string, input: string, expected: string, result?: unknown }> = []
+          const questionTestCases: Array<{
+            id: string;
+            input: string;
+            expected: string;
+            result?: unknown;
+          }> = [];
 
           // Add sample test cases from the question
           if (q.test_cases && Array.isArray(q.test_cases)) {
-            q.test_cases.filter((tc: unknown) => tc.is_sample === true).forEach((tc: unknown, idx: number) => {
-              questionTestCases.push({
-                id: `sample-${idx}`,
-                input: tc.input_text || '',
-                expected: tc.expected_text || '',
-                result: undefined
-              })
-            })
+            q.test_cases
+              .filter((tc: unknown) => tc.is_sample === true)
+              .forEach((tc: unknown, idx: number) => {
+                questionTestCases.push({
+                  id: `sample-${idx}`,
+                  input: tc.input_text || '',
+                  expected: tc.expected_text || '',
+                  result: undefined,
+                });
+              });
           } else if (q.sample_input && q.sample_output) {
             questionTestCases.push({
               id: 'sample-0',
               input: q.sample_input,
               expected: q.sample_output,
-              result: undefined
-            })
+              result: undefined,
+            });
           }
 
-          testCases[q.id] = questionTestCases
-        })
-        setCodeEditor(editors)
-        setCodeLang(langs)
-        setCustomTestCases(testCases)
-        setRunResults({})
-        setSavedQuestions({})
+          testCases[q.id] = questionTestCases;
+        });
+        setCodeEditor(editors);
+        setCodeLang(langs);
+        setCustomTestCases(testCases);
+        setRunResults({});
+        setSavedQuestions({});
       } catch (err: unknown) {
-        push({ kind: 'error', message: err?.message || 'Failed to load assignment' })
-        navigate(`/course/${courseId}`)
+        push({ kind: 'error', message: err?.message || 'Failed to load assignment' });
+        navigate(`/course/${courseId}`);
       }
-    }
+    };
 
-    loadAssignment()
-  }, [courseId, assignmentId, navigate])
+    loadAssignment();
+  }, [courseId, assignmentId, navigate]);
 
   // Add a new custom test case
   const addTestCase = (questionId: string | number) => {
-    const questionIdStr = String(questionId)
+    const questionIdStr = String(questionId);
     setCustomTestCases(prev => ({
       ...prev,
       [questionIdStr]: [
@@ -265,56 +294,61 @@ export default function CodeEditorPage() {
           id: `custom-${Date.now()}`,
           input: '',
           expected: '',
-          result: undefined
-        }
-      ]
-    }))
-  }
+          result: undefined,
+        },
+      ],
+    }));
+  };
 
   // Update a test case
-  const updateTestCase = (questionId: string | number, testCaseId: string, field: 'input' | 'expected', value: string) => {
-    const questionIdStr = String(questionId)
+  const updateTestCase = (
+    questionId: string | number,
+    testCaseId: string,
+    field: 'input' | 'expected',
+    value: string
+  ) => {
+    const questionIdStr = String(questionId);
     setCustomTestCases(prev => ({
       ...prev,
       [questionIdStr]: (prev[questionIdStr] || []).map(tc =>
         tc.id === testCaseId ? { ...tc, [field]: value } : tc
-      )
-    }))
-  }
+      ),
+    }));
+  };
 
   // Remove a test case
   const removeTestCase = (questionId: string | number, testCaseId: string) => {
-    const questionIdStr = String(questionId)
+    const questionIdStr = String(questionId);
     setCustomTestCases(prev => ({
       ...prev,
-      [questionIdStr]: (prev[questionIdStr] || []).filter(tc => tc.id !== testCaseId)
-    }))
-  }
+      [questionIdStr]: (prev[questionIdStr] || []).filter(tc => tc.id !== testCaseId),
+    }));
+  };
 
   // Run code against all test cases for a question
   const runCodeForQuestion = async (q: CodeQuestion) => {
-    const src = codeEditor[q.id] ?? ''
-    const lang = codeLang[q.id] ?? 'python'
-    if (!src.trim()) return push({ kind: 'error', message: 'Write your code first' })
+    const src = codeEditor[q.id] ?? '';
+    const lang = codeLang[q.id] ?? 'python';
+    if (!src.trim()) return push({ kind: 'error', message: 'Write your code first' });
 
-    const questionIdStr = String(q.id)
-    const testCases = customTestCases[questionIdStr] || []
+    const questionIdStr = String(q.id);
+    const testCases = customTestCases[questionIdStr] || [];
 
     if (testCases.length === 0) {
-      push({ kind: 'error', message: 'No test cases available for this question' })
-      return
+      push({ kind: 'error', message: 'No test cases available for this question' });
+      return;
     }
 
     // Set loading state for this question
-    setIsRunningCode(prev => ({ ...prev, [q.id]: true }))
+    setIsRunningCode(prev => ({ ...prev, [q.id]: true }));
 
     // Clear previous results
     setTestCaseResults(prev => ({
       ...prev,
-      [questionIdStr]: {}
-    }))
+      [questionIdStr]: {},
+    }));
 
-    const results: Record<string, TestCaseResult> = {}
+    const results: Record<string, TestCaseResult> = {};
 
     // Run code against each test case
     for (const testCase of testCases) {
@@ -322,31 +356,31 @@ export default function CodeEditorPage() {
         const payload = {
           source_code: src,
           language: lang,
-          stdin: testCase.input
-        }
-        const res = await apiFetch('/api/judge', { method: 'POST', body: payload })
-        const stdout = (res.stdout ?? '').toString().trim()
-        const stderr = (res.stderr ?? '').toString()
-        const compileOutput = (res.compile_output ?? '').toString()
+          stdin: testCase.input,
+        };
+        const res = await apiFetch('/api/judge', { method: 'POST', body: payload });
+        const stdout = (res.stdout ?? '').toString().trim();
+        const stderr = (res.stderr ?? '').toString();
+        const compileOutput = (res.compile_output ?? '').toString();
 
-        const expected = testCase.expected.trim()
-        const ok = stdout === expected
+        const expected = testCase.expected.trim();
+        const ok = stdout === expected;
 
         // Determine status message
-        let message = 'Failed'
+        let message = 'Failed';
         if (res.status) {
           if (res.status.id === 3) {
-            message = ok ? 'Passed' : 'Failed - Output mismatch'
+            message = ok ? 'Passed' : 'Failed - Output mismatch';
           } else if (res.status.id === 4) {
-            message = 'Failed - Wrong Answer'
+            message = 'Failed - Wrong Answer';
           } else if (res.status.id === 5) {
-            message = 'Failed - Time Limit Exceeded'
+            message = 'Failed - Time Limit Exceeded';
           } else if (res.status.id === 6) {
-            message = 'Failed - Compilation Error'
+            message = 'Failed - Compilation Error';
           } else if (res.status.id === 7) {
-            message = 'Failed - Runtime Error'
+            message = 'Failed - Runtime Error';
           } else {
-            message = res.status.description || 'Failed'
+            message = res.status.description || 'Failed';
           }
         }
 
@@ -357,62 +391,116 @@ export default function CodeEditorPage() {
           message,
           status: res.status,
           expected,
-          actual: stdout
-        }
+          actual: stdout,
+        };
       } catch (err: unknown) {
         results[testCase.id] = {
           ok: false,
           message: err?.message || 'Judge failed',
-          error: err?.message || 'Execution error'
-        }
+          error: err?.message || 'Execution error',
+        };
       }
     }
 
     // Update test case results
     setTestCaseResults(prev => ({
       ...prev,
-      [questionIdStr]: results
-    }))
+      [questionIdStr]: results,
+    }));
 
     // Update custom test cases with results
     setCustomTestCases(prev => ({
       ...prev,
       [questionIdStr]: testCases.map(tc => ({
         ...tc,
-        result: results[tc.id]
-      }))
-    }))
+        result: results[tc.id],
+      })),
+    }));
 
     // Clear loading state
-    setIsRunningCode(prev => ({ ...prev, [q.id]: false }))
+    setIsRunningCode(prev => ({ ...prev, [q.id]: false }));
 
     // Show summary
-    const passedCount = Object.values(results).filter((r: unknown) => r.ok).length
-    const totalCount = testCases.length
+    const passedCount = Object.values(results).filter((r: unknown) => r.ok).length;
+    const totalCount = testCases.length;
 
     if (passedCount === totalCount) {
-      push({ kind: 'success', message: `All ${totalCount} test cases passed!` })
+      push({ kind: 'success', message: `All ${totalCount} test cases passed!` });
     } else {
-      push({ kind: 'error', message: `${passedCount}/${totalCount} test cases passed` })
+      push({ kind: 'error', message: `${passedCount}/${totalCount} test cases passed` });
     }
-  }
+  };
 
   if (!selectedCodeAssignment) {
     return (
-      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}>
+      <div
+        style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}
+      >
         <div>Loading assignment...</div>
       </div>
-    )
+    );
   }
 
   return (
     <div className="code-editor-fullscreen">
+      {/* Assignment Header - Full width with details */}
+      {selectedCodeAssignment && (
+        <div className="assignment-detail-header">
+          <div className="assignment-detail-left">
+            <div className="assignment-course-badge">
+              <span className="material-symbols-outlined">code</span>
+              {selectedCodeAssignment.course_code || `Course ${courseId}`}
+            </div>
+            <h2 className="assignment-detail-title">{selectedCodeAssignment.title}</h2>
+            <div className="assignment-detail-meta">
+              {selectedCodeAssignment.due_at && (
+                <div className="meta-item">
+                  <span className="material-symbols-outlined">event</span>
+                  Due: {new Date(selectedCodeAssignment.due_at).toLocaleDateString()}
+                </div>
+              )}
+              {selectedCodeAssignment.max_score && (
+                <div className="meta-item">
+                  <span className="material-symbols-outlined">military_tech</span>
+                  Points: {selectedCodeAssignment.max_score}
+                </div>
+              )}
+              {selectedCodeAssignment.attempt_limit && (
+                <div className="meta-item">
+                  <span className="material-symbols-outlined">history_edu</span>
+                  Attempts: {selectedCodeAssignment.attempt_limit}
+                </div>
+              )}
+            </div>
+          </div>
+          <div className="assignment-detail-right">
+            <button
+              className="btn-open-editor"
+              onClick={() => {
+                const editorEl = document.querySelector('.code-editor-main-content');
+                editorEl?.scrollIntoView({ behavior: 'smooth' });
+              }}
+            >
+              <span className="material-symbols-outlined">terminal</span>
+              Open Code Editor
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Merged Top Header with Back Button, Assignment Title, Question Navigation, and Controls */}
       <div className="code-editor-merged-header">
         {/* Left section: Back button and Assignment title */}
         <div className="header-left-section">
           <button className="btn-back-compact" onClick={() => navigate(-1)}>
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <svg
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+            >
               <path d="M19 12H5M12 19l-7-7 7-7" />
             </svg>
             Back
@@ -440,7 +528,14 @@ export default function CodeEditorPage() {
         <div className="header-right-section">
           {/* Timer Display - moved adjacent to language selector */}
           <div className="session-timer">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <svg
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+            >
               <circle cx="12" cy="12" r="10" />
               <polyline points="12,6 12,12 16,14" />
             </svg>
@@ -451,9 +546,9 @@ export default function CodeEditorPage() {
             <select
               className="language-select"
               value={currentQuestion ? codeLang[currentQuestion.id] || 'python' : 'python'}
-              onChange={(e) => {
+              onChange={e => {
                 if (currentQuestion) {
-                  setCodeLang(prev => ({ ...prev, [currentQuestion.id]: e.target.value }))
+                  setCodeLang(prev => ({ ...prev, [currentQuestion.id]: e.target.value }));
                 }
               }}
             >
@@ -472,7 +567,14 @@ export default function CodeEditorPage() {
               onClick={() => setShowGamification(!showGamification)}
               title={showGamification ? 'Hide gamification' : 'Show gamification'}
             >
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+              >
                 <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
               </svg>
               {showGamification ? 'Hide Stats' : 'Show Stats'}
@@ -482,7 +584,14 @@ export default function CodeEditorPage() {
               onClick={() => setConsoleExpanded(!consoleExpanded)}
               title={consoleExpanded ? 'Hide console' : 'Show console'}
             >
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+              >
                 <polyline points="6 9 12 15 18 9" />
               </svg>
               {consoleExpanded ? 'Hide Console' : 'Show Console'}
@@ -490,7 +599,11 @@ export default function CodeEditorPage() {
             <button
               className="btn-run"
               onClick={() => currentQuestion && void runCodeForQuestion(currentQuestion)}
-              disabled={!currentQuestion || !codeEditor[currentQuestion.id]?.trim() || isRunningCode[currentQuestion.id]}
+              disabled={
+                !currentQuestion ||
+                !codeEditor[currentQuestion.id]?.trim() ||
+                isRunningCode[currentQuestion.id]
+              }
             >
               {currentQuestion && isRunningCode[currentQuestion.id] ? (
                 <>
@@ -499,7 +612,14 @@ export default function CodeEditorPage() {
                 </>
               ) : (
                 <>
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <svg
+                    width="16"
+                    height="16"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                  >
                     <polygon points="5 3 19 12 5 21 5 3" />
                   </svg>
                   Run
@@ -509,12 +629,12 @@ export default function CodeEditorPage() {
             <button
               className={`btn-submit ${currentQuestion && savedQuestions[currentQuestion.id] ? 'saved' : ''}`}
               onClick={async () => {
-                if (!currentQuestion) return
+                if (!currentQuestion) return;
                 if (!codeEditor[currentQuestion.id]?.trim()) {
-                  push({ kind: 'error', message: 'Write your code first' })
-                  return
+                  push({ kind: 'error', message: 'Write your code first' });
+                  return;
                 }
-                setIsSavingCode(prev => ({ ...prev, [currentQuestion.id]: true }))
+                setIsSavingCode(prev => ({ ...prev, [currentQuestion.id]: true }));
                 try {
                   const submissionResult = await apiFetch('/api/submissions/submit/code', {
                     method: 'POST',
@@ -523,44 +643,55 @@ export default function CodeEditorPage() {
                       question_id: Number(currentQuestion.id),
                       language: codeLang[currentQuestion.id] || 'python',
                       code: codeEditor[currentQuestion.id],
-                      started_at: questionTimers[currentQuestion.id]?.startTime ? new Date(questionTimers[currentQuestion.id].startTime).toISOString() : undefined,
-                      time_spent_seconds: Math.floor(currentQuestionElapsedTime / 1000)
-                    }
-                  })
+                      started_at: questionTimers[currentQuestion.id]?.startTime
+                        ? new Date(questionTimers[currentQuestion.id].startTime).toISOString()
+                        : undefined,
+                      time_spent_seconds: Math.floor(currentQuestionElapsedTime / 1000),
+                    },
+                  });
 
                   // Handle gamification data
                   if (submissionResult.gamification) {
-                    setGamificationData(submissionResult.gamification)
+                    setGamificationData(submissionResult.gamification);
 
                     // Show achievement notifications
                     if (submissionResult.gamification.unlocked_achievements?.length > 0) {
-                      submissionResult.gamification.unlocked_achievements.forEach((achievement: unknown) => {
-                        push({
-                          kind: 'success',
-                          message: `🏆 Achievement Unlocked: ${achievement.name}! +${achievement.points_reward} points`
-                        })
-                      })
+                      submissionResult.gamification.unlocked_achievements.forEach(
+                        (achievement: unknown) => {
+                          push({
+                            kind: 'success',
+                            message: `🏆 Achievement Unlocked: ${achievement.name}! +${achievement.points_reward} points`,
+                          });
+                        }
+                      );
                     }
 
                     // Show score feedback
-                    const score = submissionResult.gamification.score
+                    const score = submissionResult.gamification.score;
                     if (score > 0) {
                       push({
                         kind: 'success',
-                        message: `🎯 Scored ${score} points! ${submissionResult.gamification.all_tests_passed ? 'All tests passed!' : 'Keep trying!'}`
-                      })
+                        message: `🎯 Scored ${score} points! ${submissionResult.gamification.all_tests_passed ? 'All tests passed!' : 'Keep trying!'}`,
+                      });
                     }
                   }
 
-                  setSavedQuestions(prev => ({ ...prev, [currentQuestion.id]: true }))
-                  push({ kind: 'success', message: `Question ${currentQuestionIndex + 1} code saved successfully` })
+                  setSavedQuestions(prev => ({ ...prev, [currentQuestion.id]: true }));
+                  push({
+                    kind: 'success',
+                    message: `Question ${currentQuestionIndex + 1} code saved successfully`,
+                  });
                 } catch (err: unknown) {
-                  push({ kind: 'error', message: err?.message || 'Failed to save code' })
+                  push({ kind: 'error', message: err?.message || 'Failed to save code' });
                 } finally {
-                  setIsSavingCode(prev => ({ ...prev, [currentQuestion.id]: false }))
+                  setIsSavingCode(prev => ({ ...prev, [currentQuestion.id]: false }));
                 }
               }}
-              disabled={!currentQuestion || !codeEditor[currentQuestion.id]?.trim() || isSavingCode[currentQuestion.id]}
+              disabled={
+                !currentQuestion ||
+                !codeEditor[currentQuestion.id]?.trim() ||
+                isSavingCode[currentQuestion.id]
+              }
             >
               {currentQuestion && isSavingCode[currentQuestion.id] ? (
                 <>
@@ -569,7 +700,14 @@ export default function CodeEditorPage() {
                 </>
               ) : currentQuestion && savedQuestions[currentQuestion.id] ? (
                 <>
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <svg
+                    width="16"
+                    height="16"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                  >
                     <polyline points="20 6 9 17 4 12" />
                   </svg>
                   Submitted
@@ -586,22 +724,27 @@ export default function CodeEditorPage() {
               onClick={async () => {
                 // Check if all questions have code
                 const allHaveCode = selectedCodeAssignment.questions.every((q: CodeQuestion) => {
-                  return codeEditor[q.id]?.trim()
-                })
+                  return codeEditor[q.id]?.trim();
+                });
 
                 if (!allHaveCode) {
-                  push({ kind: 'error', message: 'Please write code for all questions before final submission' })
-                  return
+                  push({
+                    kind: 'error',
+                    message: 'Please write code for all questions before final submission',
+                  });
+                  return;
                 }
 
                 // Check if all questions are saved
                 const allSaved = selectedCodeAssignment.questions.every((q: CodeQuestion) => {
-                  return savedQuestions[q.id]
-                })
+                  return savedQuestions[q.id];
+                });
 
                 if (!allSaved) {
-                  const confirmSave = confirm('Some questions are not saved. Do you want to save all questions and submit?')
-                  if (!confirmSave) return
+                  const confirmSave = confirm(
+                    'Some questions are not saved. Do you want to save all questions and submit?'
+                  );
+                  if (!confirmSave) return;
 
                   // Save all unsaved questions first
                   for (const q of selectedCodeAssignment.questions) {
@@ -613,13 +756,16 @@ export default function CodeEditorPage() {
                             assignment_id: Number(selectedCodeAssignment.id),
                             question_id: Number(q.id),
                             language: codeLang[q.id] || 'python',
-                            code: codeEditor[q.id]
-                          }
-                        })
-                        setSavedQuestions(prev => ({ ...prev, [q.id]: true }))
+                            code: codeEditor[q.id],
+                          },
+                        });
+                        setSavedQuestions(prev => ({ ...prev, [q.id]: true }));
                       } catch (err: unknown) {
-                        push({ kind: 'error', message: `Failed to save question ${q.id}: ${err?.message}` })
-                        return
+                        push({
+                          kind: 'error',
+                          message: `Failed to save question ${q.id}: ${err?.message}`,
+                        });
+                        return;
                       }
                     }
                   }
@@ -637,13 +783,16 @@ export default function CodeEditorPage() {
                             assignment_id: Number(selectedCodeAssignment.id),
                             question_id: Number(q.id),
                             language: codeLang[q.id] || 'python',
-                            code: codeEditor[q.id]
-                          }
-                        })
-                        setSavedQuestions(prev => ({ ...prev, [q.id]: true }))
+                            code: codeEditor[q.id],
+                          },
+                        });
+                        setSavedQuestions(prev => ({ ...prev, [q.id]: true }));
                       } catch (err: unknown) {
-                        push({ kind: 'error', message: `Failed to save question ${q.id}: ${err?.message}` })
-                        return
+                        push({
+                          kind: 'error',
+                          message: `Failed to save question ${q.id}: ${err?.message}`,
+                        });
+                        return;
                       }
                     }
                   }
@@ -652,17 +801,30 @@ export default function CodeEditorPage() {
                   // The backend creates/updates the submission when code is saved,
                   // so all questions are already stored in the database.
 
-                  push({ kind: 'success', message: 'Assignment submitted successfully! All questions have been saved and submitted.' })
+                  push({
+                    kind: 'success',
+                    message:
+                      'Assignment submitted successfully! All questions have been saved and submitted.',
+                  });
 
-                  // Navigate back to course
-                  navigate(`/course/${courseId}`)
+                  // Navigate back to assignments
+                  navigate(`/courses/${courseId}/assignments`);
                 } catch (err: unknown) {
-                  push({ kind: 'error', message: err?.message || 'Final submission failed' })
+                  push({ kind: 'error', message: err?.message || 'Final submission failed' });
                 }
               }}
-              disabled={selectedCodeAssignment.questions.some((q: CodeQuestion) => !codeEditor[q.id]?.trim())}
+              disabled={selectedCodeAssignment.questions.some(
+                (q: CodeQuestion) => !codeEditor[q.id]?.trim()
+              )}
             >
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+              >
                 <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
                 <polyline points="22 4 12 14.01 9 11.01" />
               </svg>
@@ -683,7 +845,14 @@ export default function CodeEditorPage() {
                 <div className="problem-meta">
                   {savedQuestions[currentQuestion.id] && (
                     <span className="saved-status">
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <svg
+                        width="14"
+                        height="14"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                      >
                         <polyline points="20 6 9 17 4 12" />
                       </svg>
                       Saved
@@ -693,27 +862,30 @@ export default function CodeEditorPage() {
               </div>
 
               <div className="problem-content">
-                <div className="problem-text">
-                  {currentQuestion.description}
-                </div>
+                <div className="problem-text">{currentQuestion.description}</div>
 
                 {currentQuestion.constraints && (
                   <div className="constraints-section">
                     <h4>Constraints</h4>
-                    <div className="constraints-content">
-                      {currentQuestion.constraints}
-                    </div>
+                    <div className="constraints-content">{currentQuestion.constraints}</div>
                   </div>
                 )}
 
                 {(() => {
                   // Get sample test cases from test_cases array (backend) or direct properties (local)
-                  let sampleCases: unknown[] = []
+                  let sampleCases: unknown[] = [];
                   if (currentQuestion.test_cases && Array.isArray(currentQuestion.test_cases)) {
-                    sampleCases = currentQuestion.test_cases.filter((tc: unknown) => tc.is_sample === true)
+                    sampleCases = currentQuestion.test_cases.filter(
+                      (tc: unknown) => tc.is_sample === true
+                    );
                   } else if (currentQuestion.sample_input && currentQuestion.sample_output) {
                     // Fallback to direct properties for local mode
-                    sampleCases = [{ input_text: currentQuestion.sample_input, expected_text: currentQuestion.sample_output }]
+                    sampleCases = [
+                      {
+                        input_text: currentQuestion.sample_input,
+                        expected_text: currentQuestion.sample_output,
+                      },
+                    ];
                   }
 
                   return sampleCases.length > 0 ? (
@@ -737,7 +909,7 @@ export default function CodeEditorPage() {
                         </div>
                       ))}
                     </div>
-                  ) : null
+                  ) : null;
                 })()}
               </div>
             </div>
@@ -754,10 +926,12 @@ export default function CodeEditorPage() {
                 {currentQuestion && (
                   <CodeEditor
                     value={codeEditor[currentQuestion.id] || ''}
-                    onChange={(code) => setCodeEditor(prev => ({ ...prev, [currentQuestion.id]: code }))}
-                    onSubmit={(code, lang) => {
+                    onChange={code =>
                       setCodeEditor(prev => ({ ...prev, [currentQuestion.id]: code }))
-                      setCodeLang(prev => ({ ...prev, [currentQuestion.id]: lang }))
+                    }
+                    onSubmit={(code, lang) => {
+                      setCodeEditor(prev => ({ ...prev, [currentQuestion.id]: code }));
+                      setCodeLang(prev => ({ ...prev, [currentQuestion.id]: lang }));
                     }}
                     defaultLanguage={codeLang[currentQuestion.id] || 'python'}
                   />
@@ -770,11 +944,19 @@ export default function CodeEditorPage() {
                     <span>Testcases and Results Bar</span>
                     {currentQuestion && customTestCases[String(currentQuestion.id)] && (
                       <span className="test-count">
-                        ({customTestCases[String(currentQuestion.id)].length} test case{customTestCases[String(currentQuestion.id)].length !== 1 ? 's' : ''})
+                        ({customTestCases[String(currentQuestion.id)].length} test case
+                        {customTestCases[String(currentQuestion.id)].length !== 1 ? 's' : ''})
                       </span>
                     )}
                     <button className="testcases-toggle expanded">
-                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <svg
+                        width="16"
+                        height="16"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                      >
                         <polyline points="6 9 12 15 18 9" />
                       </svg>
                     </button>
@@ -807,7 +989,14 @@ export default function CodeEditorPage() {
                                 onClick={() => addTestCase(currentQuestion.id)}
                                 title="Add new test case"
                               >
-                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                <svg
+                                  width="16"
+                                  height="16"
+                                  viewBox="0 0 24 24"
+                                  fill="none"
+                                  stroke="currentColor"
+                                  strokeWidth="2"
+                                >
                                   <line x1="12" y1="5" x2="12" y2="19" />
                                   <line x1="5" y1="12" x2="19" y2="12" />
                                 </svg>
@@ -816,73 +1005,104 @@ export default function CodeEditorPage() {
                             </div>
 
                             <div className="test-cases-list">
-                              {customTestCases[String(currentQuestion.id)]?.length ? customTestCases[String(currentQuestion.id)].map((testCase, idx) => (
-                                <div key={testCase.id} className="test-case-item">
-                                  <div className="test-case-header">
-                                    <span className="test-case-number">Test Case {idx + 1}</span>
-                                    {testCase.id.startsWith('custom-') && (
-                                      <button
-                                        className="remove-test-case-btn"
-                                        onClick={() => removeTestCase(currentQuestion.id, testCase.id)}
-                                        title="Remove test case"
-                                      >
-                                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                                          <line x1="18" y1="6" x2="6" y2="18" />
-                                          <line x1="6" y1="6" x2="18" y2="18" />
-                                        </svg>
-                                      </button>
-                                    )}
-                                    {testCase.result && (
-                                      <span className={`test-case-status ${testCase.result.ok ? 'passed' : 'failed'}`}>
-                                        {testCase.result.ok ? '✓ Passed' : '✗ Failed'}
-                                      </span>
-                                    )}
-                                  </div>
-
-                                  <div className="test-case-inputs">
-                                    <div className="test-case-field">
-                                      <label>Input:</label>
-                                      <textarea
-                                        value={testCase.input}
-                                        onChange={(e) => updateTestCase(currentQuestion.id, testCase.id, 'input', e.target.value)}
-                                        placeholder="Enter input for test case..."
-                                        rows={2}
-                                      />
-                                    </div>
-                                    <div className="test-case-field">
-                                      <label>Expected Output:</label>
-                                      <textarea
-                                        value={testCase.expected}
-                                        onChange={(e) => updateTestCase(currentQuestion.id, testCase.id, 'expected', e.target.value)}
-                                        placeholder="Enter expected output..."
-                                        rows={2}
-                                      />
-                                    </div>
-                                  </div>
-
-                                  {testCase.result && (
-                                    <div className="test-case-result">
-                                      <div className="result-summary">
-                                        <span className={`result-status ${testCase.result.ok ? 'success' : 'error'}`}>
-                                          {testCase.result.message}
+                              {customTestCases[String(currentQuestion.id)]?.length ? (
+                                customTestCases[String(currentQuestion.id)].map((testCase, idx) => (
+                                  <div key={testCase.id} className="test-case-item">
+                                    <div className="test-case-header">
+                                      <span className="test-case-number">Test Case {idx + 1}</span>
+                                      {testCase.id.startsWith('custom-') && (
+                                        <button
+                                          className="remove-test-case-btn"
+                                          onClick={() =>
+                                            removeTestCase(currentQuestion.id, testCase.id)
+                                          }
+                                          title="Remove test case"
+                                        >
+                                          <svg
+                                            width="14"
+                                            height="14"
+                                            viewBox="0 0 24 24"
+                                            fill="none"
+                                            stroke="currentColor"
+                                            strokeWidth="2"
+                                          >
+                                            <line x1="18" y1="6" x2="6" y2="18" />
+                                            <line x1="6" y1="6" x2="18" y2="18" />
+                                          </svg>
+                                        </button>
+                                      )}
+                                      {testCase.result && (
+                                        <span
+                                          className={`test-case-status ${testCase.result.ok ? 'passed' : 'failed'}`}
+                                        >
+                                          {testCase.result.ok ? '✓ Passed' : '✗ Failed'}
                                         </span>
-                                      </div>
-                                      {testCase.result.stdout !== undefined && testCase.result.stdout !== '' && (
-                                        <div className="result-detail">
-                                          <strong>Your Output:</strong>
-                                          <pre>{testCase.result.stdout}</pre>
-                                        </div>
-                                      )}
-                                      {testCase.result.stderr && testCase.result.stderr.trim() !== '' && (
-                                        <div className="result-detail error">
-                                          <strong>Error:</strong>
-                                          <pre>{testCase.result.stderr}</pre>
-                                        </div>
                                       )}
                                     </div>
-                                  )}
-                                </div>
-                              )) : (
+
+                                    <div className="test-case-inputs">
+                                      <div className="test-case-field">
+                                        <label>Input:</label>
+                                        <textarea
+                                          value={testCase.input}
+                                          onChange={e =>
+                                            updateTestCase(
+                                              currentQuestion.id,
+                                              testCase.id,
+                                              'input',
+                                              e.target.value
+                                            )
+                                          }
+                                          placeholder="Enter input for test case..."
+                                          rows={2}
+                                        />
+                                      </div>
+                                      <div className="test-case-field">
+                                        <label>Expected Output:</label>
+                                        <textarea
+                                          value={testCase.expected}
+                                          onChange={e =>
+                                            updateTestCase(
+                                              currentQuestion.id,
+                                              testCase.id,
+                                              'expected',
+                                              e.target.value
+                                            )
+                                          }
+                                          placeholder="Enter expected output..."
+                                          rows={2}
+                                        />
+                                      </div>
+                                    </div>
+
+                                    {testCase.result && (
+                                      <div className="test-case-result">
+                                        <div className="result-summary">
+                                          <span
+                                            className={`result-status ${testCase.result.ok ? 'success' : 'error'}`}
+                                          >
+                                            {testCase.result.message}
+                                          </span>
+                                        </div>
+                                        {testCase.result.stdout !== undefined &&
+                                          testCase.result.stdout !== '' && (
+                                            <div className="result-detail">
+                                              <strong>Your Output:</strong>
+                                              <pre>{testCase.result.stdout}</pre>
+                                            </div>
+                                          )}
+                                        {testCase.result.stderr &&
+                                          testCase.result.stderr.trim() !== '' && (
+                                            <div className="result-detail error">
+                                              <strong>Error:</strong>
+                                              <pre>{testCase.result.stderr}</pre>
+                                            </div>
+                                          )}
+                                      </div>
+                                    )}
+                                  </div>
+                                ))
+                              ) : (
                                 <div className="no-test-cases">
                                   No test cases available. Click "Add Test Case" to create one.
                                 </div>
@@ -894,9 +1114,9 @@ export default function CodeEditorPage() {
                         {activeConsoleTab === 'test-results' && (
                           <div className="test-results-content">
                             {(() => {
-                              const testCases = customTestCases[String(currentQuestion.id)] || []
-                              const passedCount = testCases.filter(tc => tc.result?.ok).length
-                              const totalCount = testCases.length
+                              const testCases = customTestCases[String(currentQuestion.id)] || [];
+                              const passedCount = testCases.filter(tc => tc.result?.ok).length;
+                              const totalCount = testCases.length;
 
                               return currentQuestion && isRunningCode[currentQuestion.id] ? (
                                 <div className="testcases-loading">
@@ -913,7 +1133,9 @@ export default function CodeEditorPage() {
                                     </div>
                                     <div className="stat-item">
                                       <span className="stat-label">Failed:</span>
-                                      <span className="stat-value error">{totalCount - passedCount}</span>
+                                      <span className="stat-value error">
+                                        {totalCount - passedCount}
+                                      </span>
                                     </div>
                                     <div className="stat-item">
                                       <span className="stat-label">Total:</span>
@@ -921,7 +1143,12 @@ export default function CodeEditorPage() {
                                     </div>
                                     <div className="stat-item">
                                       <span className="stat-label">Success Rate:</span>
-                                      <span className="stat-value">{totalCount > 0 ? Math.round((passedCount / totalCount) * 100) : 0}%</span>
+                                      <span className="stat-value">
+                                        {totalCount > 0
+                                          ? Math.round((passedCount / totalCount) * 100)
+                                          : 0}
+                                        %
+                                      </span>
                                     </div>
                                   </div>
                                 </div>
@@ -929,7 +1156,7 @@ export default function CodeEditorPage() {
                                 <div className="testcases-placeholder">
                                   Run your code to see test results here
                                 </div>
-                              )
+                              );
                             })()}
                           </div>
                         )}
@@ -940,9 +1167,7 @@ export default function CodeEditorPage() {
               )}
             </div>
           </div>
-
         </div>
-
       </div>
 
       {/* Gamification Sidebar */}
@@ -956,11 +1181,7 @@ export default function CodeEditorPage() {
 
             {/* Assignment Leaderboard */}
             <div className="gamification-section">
-              <Leaderboard
-                type="assignment"
-                referenceId={selectedCodeAssignment?.id}
-                limit={10}
-              />
+              <Leaderboard type="assignment" referenceId={selectedCodeAssignment?.id} limit={10} />
             </div>
 
             {/* Achievements */}
@@ -979,7 +1200,6 @@ export default function CodeEditorPage() {
           </div>
         </div>
       )}
-
     </div>
-  )
+  );
 }

@@ -1,15 +1,33 @@
-# TODO: UI Update for Assignments Portal
+# Video Player UI Polish - Student Side Only
 
-## Status: 5/5 COMPLETE ✅
+## Status
+✅ Step 2: Data props complete  
+✅ Step 3a: Navbar added  
+✅ Step 3b: Instructor avatar & info  
+✅ Step 3c: Video progress %  
+✅ Step 3d: Progress text  
+✅ Step 3e: Mobile FAB  
+⏳ Step 4: Test & complete
 
-**All steps done:**
-- [x] Tailwind setup (configs, index.css)
-- [x] JSX structure matching mockup exactly
-- [x] Demo resources/timeline
-- [x] Dynamic assignments/stats/badges/grades mapped
-- [x] Fixes for linter/TS errors
+## Detailed Steps
+1. **VideoPlayerPage.tsx** (fetch course data)
+   - Get courseOffering details for title/instructor  
+   - Add views count from API  
+   - Pass as props to player  
 
-**Next:** Run `cd frontend && npm run dev` to preview localhost:5173/courses/[id]/assignments
+2. **VideoPlayerNew.tsx** (UI fixes)  
+   - Add Scholaris navbar (copy from mockup HTML)  
+   - Dynamic video info with props (title, course, instructor avatar)  
+   - Exact mockup images & text  
+   - Progress: video watch % vs quiz  
+   - Mobile FAB for notes  
+   - Quiz overlay: Neural Plasticity example  
 
-UI now perfectly matches the provided mockup!
+## Test Commands
+```bash
+npm run dev
+# Visit /videos/1 (demo video)
+# Check: navbar, quiz @12:45, playlist nav, dark mode, mobile FAB
+```
 
+Last Updated: $(date)

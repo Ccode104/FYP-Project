@@ -288,262 +288,179 @@ export default function CourseHub() {
 
   return (
     <div className="course-hub-page">
-      {/* Left Sidebar */}
-      <aside className="course-hub-sidebar">
-        <div className="course-hub-sidebar__brand">
-          <div className="course-hub-sidebar__logo">
-            <div className="course-hub-sidebar__icon">
-              <span className="material-symbols-outlined">school</span>
-            </div>
-            <div>
-              <h1 className="course-hub-sidebar__title">Scholaris</h1>
-              <p className="course-hub-sidebar__subtitle">Academic Portal</p>
-            </div>
-          </div>
-        </div>
-
-        <nav className="course-hub-sidebar__nav">
-          {navItems.map(item => (
-            <button
-              key={item.id}
-              className={`course-hub-sidebar__link ${activeNav === item.id ? 'course-hub-sidebar__link--active' : ''}`}
-              onClick={() => setActiveNav(item.id)}
-            >
-              <span className="material-symbols-outlined">{item.icon}</span>
-              <span>{item.label}</span>
-            </button>
-          ))}
-        </nav>
-
-        <div className="course-hub-sidebar__cta">
-          <button className="course-hub-sidebar__btn">
-            <span className="material-symbols-outlined">video_call</span>
-            Join Live Class
-          </button>
-        </div>
-      </aside>
-
       {/* Main Content */}
       <main className="course-hub-content">
-        {/* Header */}
-        <header className="course-hub-header">
-          <div className="course-hub-header__left">
-            <span className="course-hub-header__title">Course Hub</span>
-            <div className="course-hub-header__divider"></div>
-            <div className="course-hub-header__breadcrumbs">
-              <a href="#">Home</a>
-              <span className="material-symbols-outlined">chevron_right</span>
-              <a href="#">My Courses</a>
-              <span className="material-symbols-outlined">chevron_right</span>
-              <span className="course-hub-header__breadcrumbs-current">
-                {offering?.course_code || 'Course'}
+        {/* Course Hero */}
+        <section className="course-hub-hero">
+          <div className="course-hub-hero__content">
+            <div className="course-hub-hero__badges">
+              <span className="course-hub-hero__badge">{offering?.course_code || 'CS-402'}</span>
+              <span className="course-hub-hero__badge course-hub-hero__badge--active">
+                Active Semester
               </span>
             </div>
-          </div>
-
-          <div className="course-hub-header__right">
-            <div className="course-hub-header__search">
-              <span className="material-symbols-outlined">search</span>
-              <input type="text" placeholder="Search resources..." />
-            </div>
-            <div className="course-hub-header__actions">
-              <button>
-                <span className="material-symbols-outlined">notifications</span>
-              </button>
-              <button>
-                <span className="material-symbols-outlined">help_outline</span>
-              </button>
-              <div className="course-hub-header__user">
-                <div className="course-hub-header__user-info">
-                  <p className="course-hub-header__user-name">{user?.name || 'Student'}</p>
-                  <p className="course-hub-header__user-role">Computer Science Senior</p>
-                </div>
-                <div className="course-hub-header__avatar">
-                  {(user?.name || 'S').charAt(0).toUpperCase()}
+            <h2 className="course-hub-hero__title">
+              {offering?.course_title || 'Advanced Algorithm Analysis'}
+            </h2>
+            <div className="course-hub-hero__meta">
+              <div className="course-hub-hero__instructor">
+                <img
+                  className="course-hub-hero__instructor-img"
+                  src="https://via.placeholder.com/48"
+                  alt="Instructor"
+                />
+                <div className="course-hub-hero__instructor-info">
+                  <p className="course-hub-hero__instructor-label">Instructor</p>
+                  <p className="course-hub-hero__instructor-name">
+                    {offering?.instructor_name || 'Dr. Sarah Mitchell'}
+                  </p>
                 </div>
               </div>
-            </div>
-          </div>
-        </header>
-
-        {/* Content Area */}
-        <div className="course-hub-content">
-          <div className="course-hub-content__main">
-            {/* Course Hero */}
-            <section className="course-hub-hero">
-              <div className="course-hub-hero__content">
-                <div className="course-hub-hero__badges">
-                  <span className="course-hub-hero__badge">
-                    {offering?.course_code || 'CS-402'}
-                  </span>
-                  <span className="course-hub-hero__badge course-hub-hero__badge--active">
-                    Active Semester
-                  </span>
+              <div className="course-hub-hero__divider"></div>
+              <div className="course-hub-hero__progress">
+                <div className="course-hub-hero__progress-label">
+                  <span>Course Progress</span>
+                  <span>{offering?.progress || 78}%</span>
                 </div>
-                <h2 className="course-hub-hero__title">
-                  {offering?.course_title || 'Advanced Algorithm Analysis'}
-                </h2>
-                <div className="course-hub-hero__meta">
-                  <div className="course-hub-hero__instructor">
-                    <img
-                      className="course-hub-hero__instructor-img"
-                      src="https://via.placeholder.com/48"
-                      alt="Instructor"
-                    />
-                    <div className="course-hub-hero__instructor-info">
-                      <p className="course-hub-hero__instructor-label">Instructor</p>
-                      <p className="course-hub-hero__instructor-name">
-                        {offering?.instructor_name || 'Dr. Sarah Mitchell'}
-                      </p>
-                    </div>
-                  </div>
-                  <div className="course-hub-hero__divider"></div>
-                  <div className="course-hub-hero__progress">
-                    <div className="course-hub-hero__progress-label">
-                      <span>Course Progress</span>
-                      <span>{offering?.progress || 78}%</span>
-                    </div>
-                    <div className="course-hub-hero__progress-track">
-                      <div
-                        className="course-hub-hero__progress-fill"
-                        style={{ width: `${offering?.progress || 78}%` }}
-                      ></div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-              <div className="course-hub-hero__bg">
-                <svg
-                  preserveAspectRatio="none"
-                  viewBox="0 0 100 100"
-                  style={{ width: '100%', height: '100%' }}
-                >
-                  <path d="M0 0 L100 100 L100 0 Z" fill="white"></path>
-                </svg>
-              </div>
-            </section>
-
-            {/* Quick Action Cards */}
-            <section className="course-hub-actions">
-              {actionCards.map(card => (
-                <div
-                  key={card.id}
-                  className="course-hub-action-card"
-                  onClick={() => handleActionClick(card.id)}
-                >
+                <div className="course-hub-hero__progress-track">
                   <div
-                    className={`course-hub-action-card__icon course-hub-action-card__icon--${card.color}`}
-                  >
-                    <span className="material-symbols-outlined font-filled">{card.icon}</span>
+                    className="course-hub-hero__progress-fill"
+                    style={{ width: `${offering?.progress || 78}%` }}
+                  ></div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div className="course-hub-hero__bg">
+            <svg
+              preserveAspectRatio="none"
+              viewBox="0 0 100 100"
+              style={{ width: '100%', height: '100%' }}
+            >
+              <path d="M0 0 L100 100 L100 0 Z" fill="white"></path>
+            </svg>
+          </div>
+        </section>
+
+        {/* Quick Action Cards */}
+        <section className="course-hub-actions">
+          {actionCards.map(card => (
+            <div
+              key={card.id}
+              className="course-hub-action-card"
+              onClick={() => handleActionClick(card.id)}
+            >
+              <div
+                className={`course-hub-action-card__icon course-hub-action-card__icon--${card.color}`}
+              >
+                <span className="material-symbols-outlined font-filled">{card.icon}</span>
+              </div>
+              <h3 className="course-hub-action-card__title">{card.title}</h3>
+              <p className="course-hub-action-card__desc">{card.desc}</p>
+              <div className="course-hub-action-card__footer">
+                <span
+                  className={`course-hub-action-card__badge course-hub-action-card__badge--${card.color}`}
+                >
+                  {card.badge}
+                </span>
+                <span className="material-symbols-outlined course-hub-action-card__arrow">
+                  arrow_forward_ios
+                </span>
+              </div>
+            </div>
+          ))}
+        </section>
+
+        {/* Recent Activity */}
+        <section className="course-hub-activity">
+          <div className="course-hub-activity__header">
+            <h3 className="course-hub-activity__title">Recent Activity</h3>
+            <button className="course-hub-activity__viewall">View All</button>
+          </div>
+          <div className="course-hub-activity__list">
+            {recentActivity.map(item => (
+              <div key={item.id} className="course-hub-activity__item">
+                <div className="course-hub-activity__icon">
+                  <span className="material-symbols-outlined">
+                    {item.type === 'submission'
+                      ? 'upload_file'
+                      : item.type === 'comment'
+                        ? 'comment'
+                        : 'play_circle'}
+                  </span>
+                </div>
+                <div className="course-hub-activity__info">
+                  <div className="course-hub-activity__item-header">
+                    <h4 className="course-hub-activity__item-title">{item.title}</h4>
+                    <span className="course-hub-activity__item-time">{item.time}</span>
                   </div>
-                  <h3 className="course-hub-action-card__title">{card.title}</h3>
-                  <p className="course-hub-action-card__desc">{card.desc}</p>
-                  <div className="course-hub-action-card__footer">
-                    <span
-                      className={`course-hub-action-card__badge course-hub-action-card__badge--${card.color}`}
-                    >
-                      {card.badge}
-                    </span>
-                    <span className="material-symbols-outlined course-hub-action-card__arrow">
-                      arrow_forward_ios
-                    </span>
+                  <p className="course-hub-activity__item-desc">{item.description}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        {/* Right Sidebar */}
+        <aside className="course-hub-sidebar__right">
+          <div className="course-hub-calendar">
+            <div className="course-hub-calendar__header">
+              <h3 className="course-hub-calendar__title">Calendar</h3>
+              <span className="course-hub-calendar__month">October 2023</span>
+            </div>
+            <div className="course-hub-calendar__weekdays">
+              <span>S</span>
+              <span>M</span>
+              <span>T</span>
+              <span>W</span>
+              <span>T</span>
+              <span>F</span>
+              <span>S</span>
+            </div>
+            <div className="course-hub-calendar__days">
+              <span className="course-hub-calendar__day course-hub-calendar__day--gray">22</span>
+              <span className="course-hub-calendar__day course-hub-calendar__day--gray">23</span>
+              <span className="course-hub-calendar__day course-hub-calendar__day--gray">24</span>
+              <span className="course-hub-calendar__day course-hub-calendar__day--today">25</span>
+              <span className="course-hub-calendar__day course-hub-calendar__day--event">26</span>
+              <span className="course-hub-calendar__day">27</span>
+              <span className="course-hub-calendar__day">28</span>
+            </div>
+          </div>
+
+          <div>
+            <h3 className="course-hub-deadlines__title">Upcoming Deadlines</h3>
+            <div className="course-hub-deadlines__list">
+              {upcomingDeadlines.map(deadline => (
+                <div key={deadline.id} className="course-hub-deadline">
+                  <div className="course-hub-deadline__header">
+                    <div
+                      className={`course-hub-deadline__dot course-hub-deadline__dot--${deadline.color}`}
+                    ></div>
+                    <span className="course-hub-deadline__time">{deadline.date}</span>
                   </div>
+                  <h4 className="course-hub-deadline__title">{deadline.title}</h4>
+                  <p className="course-hub-deadline__tag">
+                    {deadline.course} • {deadline.type}
+                  </p>
                 </div>
               ))}
-            </section>
-
-            {/* Recent Activity */}
-            <section className="course-hub-activity">
-              <div className="course-hub-activity__header">
-                <h3 className="course-hub-activity__title">Recent Activity</h3>
-                <button className="course-hub-activity__viewall">View All</button>
-              </div>
-              <div className="course-hub-activity__list">
-                {recentActivity.map(item => (
-                  <div key={item.id} className="course-hub-activity__item">
-                    <div className="course-hub-activity__icon">
-                      <span className="material-symbols-outlined">
-                        {item.type === 'submission'
-                          ? 'upload_file'
-                          : item.type === 'comment'
-                            ? 'comment'
-                            : 'play_circle'}
-                      </span>
-                    </div>
-                    <div className="course-hub-activity__info">
-                      <div className="course-hub-activity__item-header">
-                        <h4 className="course-hub-activity__item-title">{item.title}</h4>
-                        <span className="course-hub-activity__item-time">{item.time}</span>
-                      </div>
-                      <p className="course-hub-activity__item-desc">{item.description}</p>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </section>
+            </div>
+            <button className="course-hub-deadlines__expand">Expand Schedule</button>
           </div>
 
-          {/* Right Sidebar */}
-          <aside className="course-hub-sidebar__right">
-            <div className="course-hub-calendar">
-              <div className="course-hub-calendar__header">
-                <h3 className="course-hub-calendar__title">Calendar</h3>
-                <span className="course-hub-calendar__month">October 2023</span>
-              </div>
-              <div className="course-hub-calendar__weekdays">
-                <span>S</span>
-                <span>M</span>
-                <span>T</span>
-                <span>W</span>
-                <span>T</span>
-                <span>F</span>
-                <span>S</span>
-              </div>
-              <div className="course-hub-calendar__days">
-                <span className="course-hub-calendar__day course-hub-calendar__day--gray">22</span>
-                <span className="course-hub-calendar__day course-hub-calendar__day--gray">23</span>
-                <span className="course-hub-calendar__day course-hub-calendar__day--gray">24</span>
-                <span className="course-hub-calendar__day course-hub-calendar__day--today">25</span>
-                <span className="course-hub-calendar__day course-hub-calendar__day--event">26</span>
-                <span className="course-hub-calendar__day">27</span>
-                <span className="course-hub-calendar__day">28</span>
-              </div>
-            </div>
-
-            <div>
-              <h3 className="course-hub-deadlines__title">Upcoming Deadlines</h3>
-              <div className="course-hub-deadlines__list">
-                {upcomingDeadlines.map(deadline => (
-                  <div key={deadline.id} className="course-hub-deadline">
-                    <div className="course-hub-deadline__header">
-                      <div
-                        className={`course-hub-deadline__dot course-hub-deadline__dot--${deadline.color}`}
-                      ></div>
-                      <span className="course-hub-deadline__time">{deadline.date}</span>
-                    </div>
-                    <h4 className="course-hub-deadline__title">{deadline.title}</h4>
-                    <p className="course-hub-deadline__tag">
-                      {deadline.course} • {deadline.type}
-                    </p>
-                  </div>
-                ))}
-              </div>
-              <button className="course-hub-deadlines__expand">Expand Schedule</button>
-            </div>
-
-            {/* Support Card */}
-            <div className="course-hub-support">
-              <span className="material-symbols-outlined course-hub-support__icon">info</span>
-              <h4 className="course-hub-support__title">Scholaris Support</h4>
-              <p className="course-hub-support__desc">
-                Need help with this course? Access the 24/7 student success center.
-              </p>
-              <a className="course-hub-support__link" href="#">
-                Contact Support
-              </a>
-            </div>
-          </aside>
-        </div>
+          {/* Support Card */}
+          <div className="course-hub-support">
+            <span className="material-symbols-outlined course-hub-support__icon">info</span>
+            <h4 className="course-hub-support__title">Scholaris Support</h4>
+            <p className="course-hub-support__desc">
+              Need help with this course? Access the 24/7 student success center.
+            </p>
+            <a className="course-hub-support__link" href="#">
+              Contact Support
+            </a>
+          </div>
+        </aside>
       </main>
     </div>
   );

@@ -4,8 +4,10 @@ import {
   getEnrolledCourses,
   getCourseDetails,
   getCourseAssignments,
+  getCourseStats,
   submitAssignment,
   getCourseSubmissions,
+  getAssignmentSubmissions,
   getCourseGrades,
   getCourseQuizzes,
   attemptQuiz,
@@ -104,6 +106,28 @@ router.get('/courses/:offeringId/assignments', getCourseAssignments);
 
 /**
  * @swagger
+ * /api/student/courses/{offeringId}/stats:
+ *   get:
+ *     summary: Get stats for a specific course offering
+ *     tags: [Student]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: offeringId
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Course stats (pending, completed, avgGrade)
+ *       401:
+ *         description: Unauthorized
+ */
+router.get('/courses/:offeringId/stats', getCourseStats);
+
+/**
+ * @swagger
  * /api/student/assignments/{assignmentId}/submit:
  *   post:
  *     summary: Submit an assignment
@@ -135,6 +159,7 @@ router.get('/courses/:offeringId/assignments', getCourseAssignments);
  *         description: Assignment not found
  */
 router.post('/assignments/:assignmentId/submit', submitAssignment);
+router.get('/assignments/:assignmentId/submissions', getAssignmentSubmissions);
 
 /**
  * @swagger

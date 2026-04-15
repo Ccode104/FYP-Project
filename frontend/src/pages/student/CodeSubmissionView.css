@@ -267,7 +267,7 @@
 }
 
 .test-item.failed {
-  border-color: rgba(239, 68, 68, 0.20);
+  border-color: rgba(239, 68, 68, 0.2);
 }
 
 .feedback-block {
@@ -1001,7 +1001,6 @@
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-
 .console-header {
   display: flex;
   align-items: center;
@@ -1487,6 +1486,91 @@
   display: flex;
   flex-direction: column;
   overflow: auto;
+}
+
+/* Assignment Detail Header */
+.assignment-detail-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  padding: 24px 32px;
+  background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+  border-bottom: 1px solid var(--border);
+}
+
+.assignment-detail-left {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.assignment-course-badge {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #4f46e5;
+  font-weight: 600;
+  font-size: 14px;
+}
+
+.assignment-course-badge .material-symbols-outlined {
+  font-size: 18px;
+}
+
+.assignment-detail-title {
+  font-size: 28px;
+  font-weight: 800;
+  color: #0f172a;
+  margin: 0;
+  letter-spacing: -0.025em;
+}
+
+.assignment-detail-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  margin-top: 8px;
+}
+
+.meta-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: #64748b;
+  font-size: 14px;
+}
+
+.meta-item .material-symbols-outlined {
+  font-size: 18px;
+}
+
+.assignment-detail-right {
+  flex-shrink: 0;
+}
+
+.btn-open-editor {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 24px;
+  background: #4f46e5;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-weight: 700;
+  font-size: 14px;
+  cursor: pointer;
+  box-shadow: 0 4px 12px rgba(79, 70, 229, 0.3);
+  transition: all 0.2s ease;
+}
+
+.btn-open-editor:hover {
+  background: #4338ca;
+  transform: translateY(-1px);
+}
+
+.btn-open-editor .material-symbols-outlined {
+  font-size: 20px;
 }
 
 /* Merged Header Layout */
@@ -2376,4 +2460,142 @@
   .code-editor-fullscreen .gamification-sidebar {
     transform: translateY(0);
   }
+}
+
+/* GitHub Submission View */
+.github-submission-view {
+  padding: 32px;
+}
+
+.github-submission-header {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 32px;
+}
+
+.github-submission-header .github-icon {
+  color: #1e293b;
+}
+
+.github-submission-header h2 {
+  font-size: 24px;
+  font-weight: 700;
+  color: #1e293b;
+  margin: 0;
+}
+
+.github-repo-details {
+  background: white;
+  border-radius: 12px;
+  padding: 24px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.repo-field {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 16px 0;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.repo-field:last-child {
+  border-bottom: none;
+}
+
+.field-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.field-value {
+  font-size: 16px;
+  color: #1e293b;
+}
+
+.repo-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: #4f46e5;
+  text-decoration: none;
+  font-size: 16px;
+}
+
+.repo-link:hover {
+  text-decoration: underline;
+}
+
+.repo-link .material-symbols-outlined {
+  font-size: 18px;
+}
+
+.github-actions {
+  margin-top: 24px;
+}
+
+.btn-open-repo {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 24px;
+  background: #1e293b;
+  color: white;
+  border-radius: 8px;
+  text-decoration: none;
+  font-weight: 600;
+  transition: all 0.2s;
+}
+
+.btn-open-repo:hover {
+  background: #0f172a;
+}
+
+.btn-open-repo .material-symbols-outlined {
+  font-size: 20px;
+}
+
+.btn-sheet {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 24px;
+  background: #0f9b0f;
+  color: white;
+  border-radius: 8px;
+  text-decoration: none;
+  font-weight: 600;
+  border: none;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-sheet:hover:not(:disabled) {
+  background: #0d7d0d;
+}
+
+.btn-sheet:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.btn-sheet .material-symbols-outlined {
+  font-size: 20px;
+}
+
+.github-actions {
+  display: flex;
+  gap: 16px;
+  margin-top: 24px;
+}
+
+.submission-actions-bar {
+  padding: 16px 24px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  justify-content: flex-end;
 }

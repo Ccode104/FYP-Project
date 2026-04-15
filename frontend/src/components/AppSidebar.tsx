@@ -19,6 +19,10 @@ export default function AppSidebar() {
   const courseMatch = pathname.match(/\/courses\/(\d+)(?:\/(.*))?/);
   const currentCourseId = courseMatch ? courseMatch[1] : null;
   const inCourseContext = !!currentCourseId;
+  
+  // Determine if we are on a video player page
+  const videoMatch = pathname.match(/\/videos\/(\d+)/);
+  const inVideoPlayerContext = !!videoMatch;
 
   const handleLogout = () => {
     logout();
@@ -28,6 +32,15 @@ export default function AppSidebar() {
   const getNavItems = (): NavItem[] => {
     // Role based items
     if (user?.role === 'student') {
+      if (inVideoPlayerContext) {
+        return [
+          { id: 'dashboard', label: 'Back to Dashboard', icon: 'arrow_back', href: '/dashboard/student' },
+          { id: 'video-library', label: 'Video Library', icon: 'video_library', href: '/dashboard/student' },
+          { id: 'assignments', label: 'Assignments', icon: 'assignment', href: '/dashboard/student' },
+          { id: 'progress', label: 'Progress', icon: 'moving', href: '/progress' },
+          { id: 'success-center', label: 'Success Center', icon: 'psychology', href: '/success-center' },
+        ];
+      }
       if (inCourseContext) {
         return [
           { id: 'dashboard', label: 'Back to Dashboard', icon: 'arrow_back', href: '/dashboard/student' },
@@ -45,6 +58,15 @@ export default function AppSidebar() {
         { id: 'success-center', label: 'Success Center', icon: 'psychology', href: '/success-center' },
       ];
     } else if (user?.role === 'teacher' || user?.role === 'ta') {
+      if (inVideoPlayerContext) {
+        return [
+          { id: 'dashboard', label: 'Back to Dashboard', icon: 'arrow_back', href: `/dashboard/${user.role}` },
+          { id: 'video-library', label: 'Video Library', icon: 'video_library', href: `/dashboard/${user.role}` },
+          { id: 'assignments', label: 'Assignments', icon: 'assignment', href: `/dashboard/${user.role}` },
+          { id: 'quizzes', label: 'Quizzes', icon: 'quiz', href: `/dashboard/${user.role}` },
+          { id: 'lectures', label: 'Live Lectures', icon: 'video_camera_front', href: `/dashboard/${user.role}` },
+        ];
+      }
       if (inCourseContext) {
         return [
           { id: 'dashboard', label: 'Back to Dashboard', icon: 'arrow_back', href: `/dashboard/${user.role}` },

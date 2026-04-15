@@ -1,0 +1,370 @@
+.assignment-management {
+  padding: 24px;
+  max-width: 1400px;
+  margin: 0 auto;
+}
+
+.assignment-management-loading,
+.assignment-management-error {
+  text-align: center;
+  padding: 48px;
+  color: #64748b;
+}
+
+/* Header */
+.assignment-management-header {
+  margin-bottom: 24px;
+}
+
+.back-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  color: #475569;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.back-button:hover {
+  background: #f1f5f9;
+  color: #1e293b;
+}
+
+.back-button .material-symbols-outlined {
+  font-size: 20px;
+}
+
+/* Assignment Details Card */
+.assignment-details-card {
+  background: white;
+  border-radius: 16px;
+  padding: 24px;
+  margin-bottom: 24px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.assignment-details-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 20px;
+}
+
+.assignment-course-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: #4f46e5;
+  font-weight: 600;
+  font-size: 14px;
+  margin-bottom: 8px;
+}
+
+.assignment-title {
+  font-size: 24px;
+  font-weight: 700;
+  color: #1e293b;
+  margin: 0 0 12px;
+}
+
+.assignment-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+
+.meta-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: #64748b;
+  font-size: 14px;
+}
+
+.meta-item .material-symbols-outlined {
+  font-size: 18px;
+}
+
+.assignment-actions {
+  display: flex;
+  gap: 12px;
+}
+
+.btn-edit {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 16px;
+  background: #4f46e5;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-weight: 600;
+  font-size: 14px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-edit:hover {
+  background: #4338ca;
+}
+
+.btn-edit .material-symbols-outlined {
+  font-size: 18px;
+}
+
+/* Description Section */
+.assignment-description-section {
+  border-top: 1px solid #e2e8f0;
+  padding-top: 20px;
+}
+
+.assignment-description-section h3 {
+  font-size: 16px;
+  font-weight: 600;
+  color: #1e293b;
+  margin: 0 0 12px;
+}
+
+.description-display {
+  position: relative;
+  padding: 16px;
+  background: #f8fafc;
+  border-radius: 8px;
+}
+
+.description-display p {
+  margin: 0;
+  color: #475569;
+  line-height: 1.6;
+}
+
+.btn-edit-inline {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  padding: 6px;
+  background: white;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  color: #64748b;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-edit-inline:hover {
+  background: #f1f5f9;
+  color: #4f46e5;
+}
+
+.btn-edit-inline .material-symbols-outlined {
+  font-size: 18px;
+}
+
+.description-edit textarea {
+  width: 100%;
+  padding: 12px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  font-size: 14px;
+  font-family: inherit;
+  resize: vertical;
+}
+
+.description-edit textarea:focus {
+  outline: none;
+  border-color: #4f46e5;
+  box-shadow: 0 0 0 2px rgba(79, 70, 229, 0.1);
+}
+
+.description-edit-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.btn-cancel {
+  padding: 8px 16px;
+  background: white;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  color: #64748b;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.btn-save {
+  padding: 8px 16px;
+  background: #4f46e5;
+  border: none;
+  border-radius: 6px;
+  color: white;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.btn-save:hover {
+  background: #4338ca;
+}
+
+/* Submissions Section */
+.submissions-section {
+  background: white;
+  border-radius: 16px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  overflow: hidden;
+}
+
+.submissions-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 20px 24px;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.submissions-header h2 {
+  font-size: 18px;
+  font-weight: 600;
+  color: #1e293b;
+  margin: 0;
+}
+
+.submissions-count {
+  font-size: 14px;
+  color: #64748b;
+}
+
+/* Spreadsheet Table */
+.submissions-spreadsheet {
+  overflow-x: auto;
+}
+
+.spreadsheet-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.spreadsheet-table th {
+  text-align: left;
+  padding: 14px 16px;
+  background: #f8fafc;
+  font-size: 12px;
+  font-weight: 600;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.spreadsheet-table td {
+  padding: 14px 16px;
+  font-size: 14px;
+  color: #1e293b;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.spreadsheet-table tr:hover td {
+  background: #f8fafc;
+}
+
+.student-name {
+  font-weight: 500;
+}
+
+.student-email {
+  color: #64748b;
+}
+
+.submission-date {
+  color: #64748b;
+  font-size: 13px;
+}
+
+.status-badge {
+  display: inline-block;
+  padding: 4px 10px;
+  border-radius: 9999px;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.status-graded {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.status-submitted {
+  background: #dbeafe;
+  color: #1e40af;
+}
+
+.status-pending {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.status-draft {
+  background: #f1f5f9;
+  color: #475569;
+}
+
+.attempt-number {
+  color: #64748b;
+}
+
+.marks {
+  font-weight: 600;
+}
+
+.no-submissions {
+  text-align: center;
+  color: #64748b;
+  padding: 48px !important;
+}
+
+.btn-view-submission {
+  padding: 6px 12px;
+  background: white;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  color: #4f46e5;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-view-submission:hover {
+  background: #4f46e5;
+  color: white;
+  border-color: #4f46e5;
+}
+
+.btn-view-github {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 12px;
+  background: #1e293b;
+  border-radius: 6px;
+  color: white;
+  font-size: 13px;
+  font-weight: 500;
+  text-decoration: none;
+  transition: all 0.2s;
+}
+
+.btn-view-github:hover {
+  background: #0f172a;
+}
+
+.btn-view-github .material-symbols-outlined {
+  font-size: 16px;
+}

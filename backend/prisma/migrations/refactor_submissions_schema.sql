@@ -13,7 +13,7 @@ CREATE TABLE IF NOT EXISTS file_submissions (
 -- Create github_submissions table for GitHub repository assignments
 CREATE TABLE IF NOT EXISTS github_submissions (
   id BIGSERIAL PRIMARY KEY,
-  submission_id BIGINT NOT NULL REFERENCES assignment_submissions(id) ON DELETE CASCADE,
+  submission_id BIGINT NOT NULL UNIQUE REFERENCES assignment_submissions(id) ON DELETE CASCADE,
   repo_url TEXT NOT NULL,
   repo_name TEXT,
   repo_description TEXT,

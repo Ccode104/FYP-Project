@@ -17,14 +17,14 @@ export default function Layout({ children }: { children: ReactNode }) {
   const { user } = useAuth();
   const navigate = useNavigate();
   const { courseTitle, assignmentTitle } = useCourse();
-  
+
   const isAuth = pathname === '/login' || pathname === '/signup' || pathname.startsWith('/forgot');
   const isLanding = pathname === '/';
   const isLoginPage = pathname === '/login';
   const isLiveLecture = pathname.includes('/live-lectures/');
   const isVideoPlayer = pathname.includes('/videos/');
   const isPublicPage = isLanding || isAuth;
-  const isFullscreenPage = isVideoPlayer || (isLiveLecture && user?.role === 'student');
+  const isFullscreenPage = (isLiveLecture && user?.role === 'student'); // Remove video player from fullscreen
 
   // Get course ID from URL if on a course page
   const getCurrentCourseId = useCallback(() => {
@@ -40,9 +40,7 @@ export default function Layout({ children }: { children: ReactNode }) {
   if (isPublicPage) {
     return (
       <div className={`site-layout ${isLoginPage ? 'login-background' : ''}`}>
-        <header
-          className={`site-header public-header ${isLoginPage ? 'login-transparent' : ''}`}
-        >
+        <header className={`site-header public-header ${isLoginPage ? 'login-transparent' : ''}`}>
           <div className="site-header__inner">
             <div className="site-header__left">
               <button
@@ -102,41 +100,47 @@ export default function Layout({ children }: { children: ReactNode }) {
       <AppSidebar />
       <div className="app-shell__main">
         <AppHeader />
-        
+
         {/* Optional Breadcrumb for deep links inside App Shell */}
         {(courseTitle || assignmentTitle) && (
-           <div style={{ padding: '16px 24px', borderBottom: '1px solid var(--shell-border)', background: 'var(--shell-surface)' }}>
-             <nav className="breadcrumb-nav">
-                <button
-                  className="breadcrumb-link"
-                  onClick={() => navigate(getDashboardPathForRole(user?.role || 'student'))}
-                  aria-label="Dashboard"
-                >
-                  Dashboard
-                </button>
-                {courseTitle && (
-                  <>
-                    <span className="breadcrumb-separator">›</span>
-                    <button
-                      className="breadcrumb-link"
-                      onClick={() => {
-                        const courseId = window.location.pathname.split('/')[2];
-                        if (courseId) navigate(`/courses/${courseId}`);
-                      }}
-                      aria-label="Course"
-                    >
-                      {courseTitle}
-                    </button>
-                  </>
-                )}
-                {assignmentTitle && (
-                  <>
-                    <span className="breadcrumb-separator">›</span>
-                    <span className="breadcrumb-current">{assignmentTitle}</span>
-                  </>
-                )}
-              </nav>
-           </div>
+          <div
+            style={{
+              padding: '16px 24px',
+              borderBottom: '1px solid var(--shell-border)',
+              background: 'var(--shell-surface)',
+            }}
+          >
+            <nav className="breadcrumb-nav">
+              <button
+                className="breadcrumb-link"
+                onClick={() => navigate(getDashboardPathForRole(user?.role || 'student'))}
+                aria-label="Dashboard"
+              >
+                Dashboard
+              </button>
+              {courseTitle && (
+                <>
+                  <span className="breadcrumb-separator">›</span>
+                  <button
+                    className="breadcrumb-link"
+                    onClick={() => {
+                      const courseId = window.location.pathname.split('/')[2];
+                      if (courseId) navigate(`/courses/${courseId}`);
+                    }}
+                    aria-label="Course"
+                  >
+                    {courseTitle}
+                  </button>
+                </>
+              )}
+              {assignmentTitle && (
+                <>
+                  <span className="breadcrumb-separator">›</span>
+                  <span className="breadcrumb-current">{assignmentTitle}</span>
+                </>
+              )}
+            </nav>
+          </div>
         )}
 
         <main className="app-content app-main">{children}</main>
@@ -157,4 +161,3 @@ export default function Layout({ children }: { children: ReactNode }) {
     </div>
   );
 }
-

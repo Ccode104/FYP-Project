@@ -1,5 +1,53 @@
-// Student controller stubs
 import { pool } from '../db/index.js';
+
+export async function getCourseStats(req, res) {
+  try {
+    const studentId = Number(req.user?.id);
+    const { offeringId } = req.params;
+
+    if (!studentId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    // Get pending assignments count (not yet submitted)
+    const pendingResult = await pool.query(
+      `SELECT COUNT(*) as count FROM assignments a
+       WHERE a.course_offering_id = $1
+       AND a.id NOT IN (
+         SELECT assignment_id FROM assignment_submissions WHERE student_id = $2
+       )`,
+      [offeringId, studentId]
+    );
+
+    // Get completed assignments count (submitted)
+    const completedResult = await pool.query(
+      `SELECT COUNT(*) as count FROM assignments a
+       WHERE a.course_offering_id = $1
+       AND a.id IN (
+         SELECT assignment_id FROM assignment_submissions WHERE student_id = $2
+       )`,
+      [offeringId, studentId]
+    );
+
+    // Get average grade for this course
+    const gradeResult = await pool.query(
+      `SELECT AVG(s.final_score) as avg_grade 
+       FROM assignment_submissions s
+       JOIN assignments a ON s.assignment_id = a.id
+       WHERE a.course_offering_id = $1 AND s.student_id = $2 AND s.final_score IS NOT NULL`,
+      [offeringId, studentId]
+    );
+
+    const pending = parseInt(pendingResult.rows[0]?.count || 0);
+    const completed = parseInt(completedResult.rows[0]?.count || 0);
+    const avgGrade = parseFloat(gradeResult.rows[0]?.avg_grade || 0);
+
+    res.json({ pending, completed, avgGrade: Math.round(avgGrade * 100) / 100 });
+  } catch (err) {
+    console.error('getCourseStats error:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+}
 
 export async function getEnrolledCourses(req, res) {
   try {
@@ -98,6 +146,26 @@ export async function getCourseSubmissions(req, res) {
     res.json(result.rows);
   } catch (err) {
     console.error('getCourseSubmissions error:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+}
+
+export async function getAssignmentSubmissions(req, res) {
+  try {
+    const studentId = req.user.id;
+    const { assignmentId } = req.params;
+    const result = await pool.query(
+      `SELECT s.*, g.repo_url, g.repo_name, g.repo_description, g.repo_language,
+              g.repo_stars, g.repo_forks
+       FROM assignment_submissions s
+       LEFT JOIN github_submissions g ON s.id = g.submission_id
+       WHERE s.student_id = $1 AND s.assignment_id = $2
+       ORDER BY s.submitted_at DESC`,
+      [studentId, assignmentId]
+    );
+    res.json(result.rows);
+  } catch (err) {
+    console.error('getAssignmentSubmissions error:', err);
     res.status(500).json({ error: 'Internal server error' });
   }
 }

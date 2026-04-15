@@ -11,9 +11,13 @@ import {
   gradeSubmission,
   submitComponentAssignment,
   gradeComponentSubmission,
-  getComponentSubmissions
+  getComponentSubmissions,
 } from '../controllers/assignmentsController.js';
-import { runPlagiarismCheck, getPlagiarismChecks, getPlagiarismMatches } from '../utils/plagiarism.js';
+import {
+  runPlagiarismCheck,
+  getPlagiarismChecks,
+  getPlagiarismMatches,
+} from '../utils/plagiarism.js';
 
 const router = express.Router();
 
@@ -58,7 +62,90 @@ const router = express.Router();
  */
 router.get('/:id', requireAuth, getAssignment);
 
-router.post('/', requireAuth, requireRole('faculty','ta','admin'), createAssignment);
+/**
+ * @swagger
+ * /api/assignments/{id}:
+ *   put:
+ *     summary: Update an assignment
+ *     tags: [Assignments]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               title:
+ *                 type: string
+ *               description:
+ *                 type: string
+ *               due_at:
+ *                 type: string
+ *                 format: date-time
+ *               max_score:
+ *                 type: number
+ *     responses:
+ *       200:
+ *         description: Assignment updated
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Forbidden - Requires faculty, ta, or admin role
+ */
+router.put('/:id', requireAuth, requireRole('faculty', 'ta', 'admin'), async (req, res) => {
+  const { id } = req.params;
+  const { title, description, due_at, max_score } = req.body;
+
+  try {
+    const updates = [];
+    const values = [];
+    let paramIndex = 1;
+
+    if (title !== undefined) {
+      updates.push(`title = $${paramIndex++}`);
+      values.push(title);
+    }
+    if (description !== undefined) {
+      updates.push(`description = $${paramIndex++}`);
+      values.push(description);
+    }
+    if (due_at !== undefined) {
+      updates.push(`due_at = $${paramIndex++}`);
+      values.push(due_at);
+    }
+    if (max_score !== undefined) {
+      updates.push(`max_score = $${paramIndex++}`);
+      values.push(max_score);
+    }
+
+    if (updates.length === 0) {
+      return res.status(400).json({ error: 'No fields to update' });
+    }
+
+    values.push(id);
+    const q = `UPDATE assignments SET ${updates.join(', ')}, updated_at = NOW() WHERE id = $${paramIndex} RETURNING *`;
+    const result = await pool.query(q, values);
+
+    if (result.rowCount === 0) {
+      return res.status(404).json({ error: 'Assignment not found' });
+    }
+
+    res.json(result.rows[0]);
+  } catch (err) {
+    console.error('Error updating assignment:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+router.post('/', requireAuth, requireRole('faculty', 'ta', 'admin'), createAssignment);
 
 /**
  * @swagger
@@ -84,7 +171,7 @@ router.post('/', requireAuth, requireRole('faculty','ta','admin'), createAssignm
  *       404:
  *         description: Assignment not found
  */
-router.post('/:id/publish', requireAuth, requireRole('faculty','admin'), publishAssignment);
+router.post('/:id/publish', requireAuth, requireRole('faculty', 'admin'), publishAssignment);
 
 /**
  * @swagger
@@ -128,9 +215,19 @@ router.post('/:id/publish', requireAuth, requireRole('faculty','admin'), publish
  *       404:
  *         description: Assignment not found
  */
-router.get('/:id/submissions', requireAuth, requireRole('faculty','ta','admin'), listAssignmentSubmissions);
+router.get(
+  '/:id/submissions',
+  requireAuth,
+  requireRole('faculty', 'ta', 'admin'),
+  listAssignmentSubmissions
+);
 
-router.post('/submissions/:id/grade', requireAuth, requireRole('faculty','ta','admin'), gradeSubmission);
+router.post(
+  '/submissions/:id/grade',
+  requireAuth,
+  requireRole('faculty', 'ta', 'admin'),
+  gradeSubmission
+);
 
 /**
  * @swagger
@@ -181,16 +278,21 @@ router.post('/submissions/:id/grade', requireAuth, requireRole('faculty','ta','a
  *       500:
  *         description: Internal server error
  */
-router.get('/:id/plagiarism-checks', requireAuth, requireRole('faculty','admin'), async (req, res) => {
-  try {
-    const assignmentId = Number(req.params.id);
-    const checks = await getPlagiarismChecks(assignmentId);
-    res.json({ checks });
-  } catch (err) {
-    console.error('Error getting plagiarism checks:', err);
-    res.status(500).json({ error: 'Failed to get plagiarism checks' });
+router.get(
+  '/:id/plagiarism-checks',
+  requireAuth,
+  requireRole('faculty', 'admin'),
+  async (req, res) => {
+    try {
+      const assignmentId = Number(req.params.id);
+      const checks = await getPlagiarismChecks(assignmentId);
+      res.json({ checks });
+    } catch (err) {
+      console.error('Error getting plagiarism checks:', err);
+      res.status(500).json({ error: 'Failed to get plagiarism checks' });
+    }
   }
-});
+);
 
 /**
  * @swagger
@@ -235,16 +337,21 @@ router.get('/:id/plagiarism-checks', requireAuth, requireRole('faculty','admin')
  *       500:
  *         description: Internal server error
  */
-router.post('/:id/run-plagiarism-check', requireAuth, requireRole('faculty','admin'), async (req, res) => {
-  try {
-    const assignmentId = Number(req.params.id);
-    const result = await runPlagiarismCheck(assignmentId);
-    res.json(result);
-  } catch (err) {
-    console.error('Error running plagiarism check:', err);
-    res.status(500).json({ error: 'Failed to run plagiarism check' });
+router.post(
+  '/:id/run-plagiarism-check',
+  requireAuth,
+  requireRole('faculty', 'admin'),
+  async (req, res) => {
+    try {
+      const assignmentId = Number(req.params.id);
+      const result = await runPlagiarismCheck(assignmentId);
+      res.json(result);
+    } catch (err) {
+      console.error('Error running plagiarism check:', err);
+      res.status(500).json({ error: 'Failed to run plagiarism check' });
+    }
   }
-});
+);
 
 /**
  * @swagger
@@ -304,25 +411,35 @@ router.post('/:id/run-plagiarism-check', requireAuth, requireRole('faculty','adm
  *       500:
  *         description: Internal server error
  */
-router.get('/:id/plagiarism-matches/:checkId', requireAuth, requireRole('faculty','admin'), async (req, res) => {
-  try {
-    const checkId = Number(req.params.checkId);
-    const matches = await getPlagiarismMatches(checkId);
-    res.json({ matches });
-  } catch (err) {
-    console.error('Error getting plagiarism matches:', err);
-    res.status(500).json({ error: 'Failed to get plagiarism matches' });
+router.get(
+  '/:id/plagiarism-matches/:checkId',
+  requireAuth,
+  requireRole('faculty', 'admin'),
+  async (req, res) => {
+    try {
+      const checkId = Number(req.params.checkId);
+      const matches = await getPlagiarismMatches(checkId);
+      res.json({ matches });
+    } catch (err) {
+      console.error('Error getting plagiarism matches:', err);
+      res.status(500).json({ error: 'Failed to get plagiarism matches' });
+    }
   }
-});
+);
 
 router.get('/:id/questions', requireAuth, getAssignmentQuestions);
 
 // Component-based assignment routes
 router.post('/:id/submit-components', requireAuth, submitComponentAssignment);
-router.post('/submissions/:id/grade-components', requireAuth, requireRole('faculty','ta','admin'), gradeComponentSubmission);
+router.post(
+  '/submissions/:id/grade-components',
+  requireAuth,
+  requireRole('faculty', 'ta', 'admin'),
+  gradeComponentSubmission
+);
 router.get('/submissions/:id/components', requireAuth, getComponentSubmissions);
 
-router.delete('/:id', requireAuth, requireRole('faculty','admin'), deleteAssignment);
+router.delete('/:id', requireAuth, requireRole('faculty', 'admin'), deleteAssignment);
 
 /**
  * @swagger
@@ -353,26 +470,32 @@ router.get('/:id/comments', requireAuth, async (req, res) => {
     const userId = req.user.id;
 
     // Check if user has access to this assignment
-    const assignmentCheck = await pool.query(`
+    const assignmentCheck = await pool.query(
+      `
       SELECT a.id FROM assignments a
       JOIN course_offerings co ON a.course_offering_id = co.id
       JOIN enrollments e ON co.id = e.course_offering_id
       WHERE a.id = $1 AND (e.student_id = $2 OR co.faculty_id = $2 OR EXISTS(
         SELECT 1 FROM ta_assignments ta WHERE ta.course_offering_id = co.id AND ta.ta_id = $2
       ))
-    `, [assignmentId, userId]);
+    `,
+      [assignmentId, userId]
+    );
 
     if (assignmentCheck.rowCount === 0) {
       return res.status(403).json({ error: 'Access denied' });
     }
 
-    const comments = await pool.query(`
+    const comments = await pool.query(
+      `
       SELECT ac.*, u.name as author_name, u.role as author_role
       FROM assignment_comments ac
       JOIN users u ON ac.user_id = u.id
       WHERE ac.assignment_id = $1
       ORDER BY ac.created_at ASC
-    `, [assignmentId]);
+    `,
+      [assignmentId]
+    );
 
     res.json(comments.rows);
   } catch (err) {
@@ -431,14 +554,17 @@ router.post('/:id/comments', requireAuth, async (req, res) => {
     }
 
     // Check if user has access to this assignment
-    const assignmentCheck = await pool.query(`
+    const assignmentCheck = await pool.query(
+      `
       SELECT a.id FROM assignments a
       JOIN course_offerings co ON a.course_offering_id = co.id
       JOIN enrollments e ON co.id = e.course_offering_id
       WHERE a.id = $1 AND (e.student_id = $2 OR co.faculty_id = $2 OR EXISTS(
         SELECT 1 FROM ta_assignments ta WHERE ta.course_offering_id = co.id AND ta.ta_id = $2
       ))
-    `, [assignmentId, userId]);
+    `,
+      [assignmentId, userId]
+    );
 
     if (assignmentCheck.rowCount === 0) {
       return res.status(403).json({ error: 'Access denied' });
@@ -446,10 +572,13 @@ router.post('/:id/comments', requireAuth, async (req, res) => {
 
     // Check if parent comment exists and belongs to same assignment
     if (parentId) {
-      const parentCheck = await pool.query(`
+      const parentCheck = await pool.query(
+        `
         SELECT id FROM assignment_comments
         WHERE id = $1 AND assignment_id = $2
-      `, [parentId, assignmentId]);
+      `,
+        [parentId, assignmentId]
+      );
 
       if (parentCheck.rowCount === 0) {
         return res.status(400).json({ error: 'Invalid parent comment' });
@@ -460,7 +589,8 @@ router.post('/:id/comments', requireAuth, async (req, res) => {
     const userRole = await pool.query('SELECT role FROM users WHERE id = $1', [userId]);
     const isInstructorReply = ['faculty', 'ta', 'admin'].includes(userRole.rows[0].role);
 
-    const result = await pool.query(`
+    const result = await pool.query(
+      `
       INSERT INTO assignment_comments (assignment_id, user_id, parent_id, content, is_instructor_reply)
       VALUES ($1, $2, $3, $4, $5)
       RETURNING *, (
@@ -468,7 +598,9 @@ router.post('/:id/comments', requireAuth, async (req, res) => {
       ) as author_name, (
         SELECT role FROM users WHERE id = assignment_comments.user_id
       ) as author_role
-    `, [assignmentId, userId, parentId || null, content.trim(), isInstructorReply]);
+    `,
+      [assignmentId, userId, parentId || null, content.trim(), isInstructorReply]
+    );
 
     res.status(201).json(result.rows[0]);
   } catch (err) {

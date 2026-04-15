@@ -269,9 +269,20 @@ export async function listAssignmentSubmissions(req, res) {
       .json({ error: 'Not authorized - you can only view submissions in your own courses' });
   }
 
-  // Fetch submissions with student info
-  const q =
-    'SELECT s.*, u.name as student_name, u.email as student_email FROM assignment_submissions s JOIN users u ON s.student_id = u.id WHERE s.assignment_id=$1 ORDER BY s.submitted_at DESC';
+  // Fetch only the latest submission per student with student info
+  const q = `
+    SELECT s.*, u.name as student_name, u.email as student_email,
+           g.repo_url, g.repo_name
+    FROM assignment_submissions s 
+    JOIN users u ON s.student_id = u.id
+    LEFT JOIN github_submissions g ON s.id = g.submission_id
+    WHERE s.assignment_id = $1 
+    AND s.submitted_at = (
+      SELECT MAX(s2.submitted_at) 
+      FROM assignment_submissions s2 
+      WHERE s2.assignment_id = s.assignment_id AND s2.student_id = s.student_id
+    )
+    ORDER BY s.submitted_at DESC`;
   const r = await pool.query(q, [id]);
   const submissions = r.rows || [];
 
