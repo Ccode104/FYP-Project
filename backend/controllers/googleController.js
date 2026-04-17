@@ -117,7 +117,7 @@ export async function checkGoogleConnection(req, res) {
   }
 }
 
-async function getAuthenticatedClient(userId) {
+export async function getAuthenticatedClient(userId) {
   const result = await pool.query(
     `SELECT * FROM user_oauth_tokens WHERE user_id = $1 AND provider = 'google'`,
     [userId]

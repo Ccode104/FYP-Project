@@ -10,16 +10,66 @@
 .modal-card {
   position: relative;
   width: min(520px, 92vw);
-  background: rgba(15, 23, 42, 0.95);
+  background: #ffffff;
   border-radius: 14px;
-  box-shadow: 0 20px 60px rgba(0,0,0,0.25);
-  border: 1px solid rgba(71, 85, 105, 0.5);
-  padding: 16px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.15);
+  border: 1px solid #e2e8f0;
+  padding: 24px;
 }
-.modal-title { margin: 4px 0 12px; font-size: 20px; padding-right: 32px; color: #ffffff}
-.modal-body { padding: 8px 0; max-height: 60vh; overflow-y: auto; }
-.modal-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 12px; }
-.modal-close { position: absolute; top: 8px; right: 10px; border: none; background: transparent; font-size: 22px; cursor: pointer; color: #64748b; }
 
-.modal-body .field { display: flex; flex-direction: column; gap: 8px; }
-.modal-body .label { display: block; font-size: 14px; font-weight: 500; }
+.modal-title {
+  margin: 0 0 16px;
+  font-size: 20px;
+  font-weight: 700;
+  color: #1e293b;
+  padding-right: 32px;
+}
+
+.modal-body {
+  padding: 8px 0;
+  max-height: 60vh;
+  overflow-y: auto;
+}
+
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  margin-top: 20px;
+}
+
+.modal-close {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  border: none;
+  background: transparent;
+  font-size: 24px;
+  cursor: pointer;
+  color: #64748b;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  transition: all 0.15s ease;
+}
+
+.modal-close:hover {
+  background: #f1f5f9;
+  color: #1e293b;
+}
+
+.modal-body .field {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.modal-body .label {
+  display: block;
+  font-size: 14px;
+  font-weight: 600;
+  color: #475569;
+}

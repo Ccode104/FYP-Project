@@ -1,6 +1,9 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { apiFetch } from '../../services/api';
+import { useToast } from '../../components/ToastProvider';
+import Modal from '../../components/Modal';
+import DriveUpload from '../../components/DriveUpload';
 import './VideoManagement.css';
 
 interface Video {
@@ -9,10 +12,17 @@ interface Video {
   description?: string;
   thumbnail_url?: string;
   video_url: string;
+  drive_file_id?: string;
   duration: number;
   upload_timestamp: string;
   views?: number;
   module?: string;
+  uploaded_by_name?: string;
+}
+
+interface CourseInfo {
+  courseName: string;
+  instructorName: string;
 }
 
 interface VideoStats {
@@ -27,6 +37,10 @@ export default function VideoManagement() {
   const navigate = useNavigate();
 
   const [videos, setVideos] = useState<Video[]>([]);
+  const [courseInfo, setCourseInfo] = useState<CourseInfo>({
+    courseName: '',
+    instructorName: '',
+  });
   const [stats, setStats] = useState<VideoStats>({
     totalViews: 0,
     totalHours: 0,
@@ -36,10 +50,41 @@ export default function VideoManagement() {
   const [loading, setLoading] = useState(true);
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('list');
   const [currentPage, setCurrentPage] = useState(1);
+  const [showUploadModal, setShowUploadModal] = useState(false);
+  const [googleConnected, setGoogleConnected] = useState(false);
+  const [googleLoading, setGoogleLoading] = useState(false);
+  const [deletingVideoId, setDeletingVideoId] = useState<number | null>(null);
+  const [deleteConfirm, setDeleteConfirm] = useState<{
+    show: boolean;
+    videoId: number | null;
+    videoTitle: string;
+  }>({
+    show: false,
+    videoId: null,
+    videoTitle: '',
+  });
+  const [overlayInfo, setOverlayInfo] = useState<{
+    [key: number]: { courseName: string; videoName: string; instructorName: string };
+  }>({});
   const videosPerPage = 10;
+  const { push } = useToast();
 
   useEffect(() => {
     if (!courseId) return;
+
+    const loadCourseInfo = async () => {
+      try {
+        const data = await apiFetch<{ course_name: string; instructor_name: string }>(
+          `/api/courses/${courseId}`
+        );
+        setCourseInfo({
+          courseName: data.course_name || '',
+          instructorName: data.instructor_name || '',
+        });
+      } catch (err) {
+        console.error('Failed to load course info:', err);
+      }
+    };
 
     const loadVideos = async () => {
       setLoading(true);
@@ -49,6 +94,29 @@ export default function VideoManagement() {
 
         const videoList = data.videos || [];
         setVideos(videoList);
+
+        // Set course info from API response
+        if (data.course_name) {
+          setCourseInfo({
+            courseName: data.course_name,
+            instructorName: data.instructor_name || '',
+          });
+        }
+
+        // Build overlay info for each video
+        const overlayData: {
+          [key: number]: { courseName: string; videoName: string; instructorName: string };
+        } = {};
+        videoList.forEach((v: Video) => {
+          const courseName = data.course_name || '';
+          const instructorName = data.instructor_name || v.uploaded_by_name || '';
+          overlayData[v.id] = {
+            courseName,
+            videoName: v.title || '',
+            instructorName,
+          };
+        });
+        setOverlayInfo(overlayData);
 
         // Calculate mock stats based on video data
         const totalViews = videoList.reduce(
@@ -74,6 +142,7 @@ export default function VideoManagement() {
       }
     };
 
+    loadCourseInfo();
     loadVideos();
   }, [courseId]);
 
@@ -120,6 +189,63 @@ export default function VideoManagement() {
       'Web Architecture',
     ];
     return modules[index % modules.length];
+  };
+
+  const checkGoogleConnection = useCallback(async () => {
+    try {
+      const data = await apiFetch<{ connected: boolean }>('/api/auth/google/status');
+      setGoogleConnected(data.connected);
+    } catch {
+      setGoogleConnected(false);
+    }
+  }, []);
+
+  const handleAuthorizeGoogle = async () => {
+    try {
+      setGoogleLoading(true);
+      sessionStorage.setItem('google_oauth_return_url', window.location.href);
+      const data = await apiFetch<{ authUrl: string }>('/api/auth/google');
+      if (data.authUrl) {
+        window.location.href = data.authUrl;
+      }
+    } catch (err) {
+      push({ kind: 'error', message: 'Failed to authorize Google account' });
+    } finally {
+      setGoogleLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    void checkGoogleConnection();
+  }, [checkGoogleConnection]);
+
+  const handleDeleteClick = (e: React.MouseEvent, videoId: number, videoTitle: string) => {
+    e.stopPropagation();
+    setDeleteConfirm({ show: true, videoId, videoTitle });
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!deleteConfirm.videoId) return;
+
+    setDeletingVideoId(deleteConfirm.videoId);
+    setDeleteConfirm({ show: false, videoId: null, videoTitle: '' });
+
+    try {
+      const { deleteVideo } = await import('../../features/videos/api/videos');
+      await deleteVideo(deleteConfirm.videoId);
+
+      setVideos(prev => prev.filter(v => v.id !== deleteConfirm.videoId));
+      push({ kind: 'success', message: 'Video deleted successfully' });
+    } catch (err) {
+      console.error('Failed to delete video:', err);
+      push({ kind: 'error', message: 'Failed to delete video' });
+    } finally {
+      setDeletingVideoId(null);
+    }
+  };
+
+  const handleCancelDelete = () => {
+    setDeleteConfirm({ show: false, videoId: null, videoTitle: '' });
   };
 
   if (loading) {
@@ -174,7 +300,22 @@ export default function VideoManagement() {
               <span className="material-symbols-outlined">filter_list</span>
               Archive
             </button>
-            <button className="vm-btn-primary">
+            {googleConnected ? (
+              <button className="vm-btn-secondary" disabled>
+                <span className="material-symbols-outlined">cloud_done</span>
+                Drive Connected
+              </button>
+            ) : (
+              <button
+                className="vm-btn-secondary"
+                onClick={handleAuthorizeGoogle}
+                disabled={googleLoading}
+              >
+                <span className="material-symbols-outlined">cloud_upload</span>
+                {googleLoading ? 'Connecting...' : 'Connect Google Drive'}
+              </button>
+            )}
+            <button className="vm-btn-primary" onClick={() => setShowUploadModal(true)}>
               <span className="material-symbols-outlined">upload</span>
               Upload Lecture
             </button>
@@ -282,6 +423,20 @@ export default function VideoManagement() {
                     )}
                     <div className="vm-play-overlay">
                       <span className="material-symbols-outlined">play_circle</span>
+                      {overlayInfo[video.id] && (
+                        <div className="vm-overlay-info">
+                          <span className="vm-overlay-video-name">
+                            {overlayInfo[video.id].videoName.length > 30
+                              ? `${overlayInfo[video.id].videoName.slice(0, 30)}...`
+                              : overlayInfo[video.id].videoName}
+                          </span>
+                          <span className="vm-overlay-meta">
+                            {overlayInfo[video.id].instructorName
+                              ? `by ${overlayInfo[video.id].instructorName}`
+                              : ''}
+                          </span>
+                        </div>
+                      )}
                     </div>
                     <div className="vm-duration">{formatDuration(video.duration || 3600)}</div>
                   </div>
@@ -291,19 +446,34 @@ export default function VideoManagement() {
                       <h4 className="vm-video-title">{video.title || `Lecture ${idx + 1}`}</h4>
                       <div className="vm-video-actions">
                         <span className="material-symbols-outlined">analytics</span>
-                        <span className="material-symbols-outlined delete">delete</span>
+                        <span
+                          className="material-symbols-outlined edit"
+                          onClick={e => {
+                            e.stopPropagation();
+                            console.log('[DEBUG VideoManagement] Edit clicked:', {
+                              courseId,
+                              videoId: video.id,
+                              title: video.title,
+                            });
+                            navigate(`/courses/${courseId}/videos/${video.id}/edit`);
+                          }}
+                          title="Edit video details and questions"
+                        >
+                          edit
+                        </span>
+                        <span
+                          className="material-symbols-outlined delete"
+                          onClick={e => handleDeleteClick(e, video.id, video.title)}
+                          title="Delete video"
+                        >
+                          delete
+                        </span>
                       </div>
                     </div>
                     <p className="vm-video-meta">
-                      Uploaded{' '}
-                      {video.upload_timestamp
-                        ? new Date(video.upload_timestamp).toLocaleDateString('en-US', {
-                            month: 'short',
-                            day: 'numeric',
-                            year: 'numeric',
-                          })
-                        : 'Recently'}{' '}
-                      • {getModuleFromIndex(idx)}
+                      {video.description
+                        ? `${video.description.slice(0, 80)}${video.description.length > 80 ? '...' : ''}`
+                        : ''}
                     </p>
                     <div className="vm-video-stats">
                       <div className="vm-video-stat">
@@ -358,6 +528,68 @@ export default function VideoManagement() {
           <a href="#">Contact Support</a>
         </div>
       </footer>
+
+      {/* Upload Video Modal */}
+      <Modal
+        open={showUploadModal}
+        onClose={() => setShowUploadModal(false)}
+        title="Upload Lecture"
+      >
+        {!googleConnected ? (
+          <div className="upload-notice">
+            <p>
+              To upload lectures, please connect your Google account first using the button above.
+            </p>
+          </div>
+        ) : (
+          <DriveUpload
+            courseOfferingId={courseId || ''}
+            onUploadSuccess={() => {
+              setShowUploadModal(false);
+              if (courseId) {
+                const loadVideos = async () => {
+                  try {
+                    const { getVideosByCourseOffering } =
+                      await import('../../features/videos/api/videos');
+                    const data = await getVideosByCourseOffering(courseId);
+                    const videoList = (data as { videos?: unknown[] }).videos || [];
+                    setVideos(videoList as Video[]);
+                  } catch (err) {
+                    console.error('Failed to reload videos:', err);
+                  }
+                };
+                loadVideos();
+              }
+            }}
+            onClose={() => setShowUploadModal(false)}
+          />
+        )}
+      </Modal>
+
+      {/* Delete Confirmation Modal */}
+      <Modal open={deleteConfirm.show} onClose={handleCancelDelete} title="Delete Video">
+        <div className="delete-confirm-content">
+          <p>
+            Are you sure you want to delete <strong>"{deleteConfirm.videoTitle}"</strong>?
+          </p>
+          <p className="delete-warning">
+            This action cannot be undone. All quiz questions associated with this video will also be
+            deleted.
+          </p>
+          <div className="delete-confirm-actions">
+            <button className="vm-btn-secondary" onClick={handleCancelDelete}>
+              Cancel
+            </button>
+            <button
+              className="vm-btn-danger"
+              onClick={handleConfirmDelete}
+              disabled={deletingVideoId !== null}
+            >
+              {deletingVideoId ? 'Deleting...' : 'Delete'}
+            </button>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 }

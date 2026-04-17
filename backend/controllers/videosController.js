@@ -1,6 +1,8 @@
 import { pool } from '../db/index.js';
 import { cloudinary } from '../middleware/upload.js';
 import { logger } from '../utils/logger.js';
+import { google } from 'googleapis';
+import { getAuthenticatedClient } from './googleController.js';
 
 /**
  * Upload a video lecture to Cloudinary and store metadata in database
@@ -11,7 +13,7 @@ export async function uploadVideo(req, res) {
   try {
     console.log('Upload controller called, req.file:', req.file ? 'exists' : 'missing');
     console.log('req.body:', req.body);
-    
+
     // Check if file was uploaded
     if (!req.file) {
       logger.error('No file in req.file');
@@ -19,14 +21,22 @@ export async function uploadVideo(req, res) {
     }
 
     // Validate file type and size
-    const allowedMimeTypes = ['video/mp4', 'video/avi', 'video/mov', 'video/wmv', 'video/flv', 'video/webm', 'video/mkv'];
+    const allowedMimeTypes = [
+      'video/mp4',
+      'video/avi',
+      'video/mov',
+      'video/wmv',
+      'video/flv',
+      'video/webm',
+      'video/mkv',
+    ];
     const maxFileSize = 500 * 1024 * 1024; // 500MB
 
     if (req.file.mimetype && !allowedMimeTypes.includes(req.file.mimetype)) {
       logger.warn(`Invalid file type uploaded: ${req.file.mimetype}`);
       return res.status(400).json({
         error: 'Invalid file type',
-        details: `Allowed types: ${allowedMimeTypes.join(', ')}`
+        details: `Allowed types: ${allowedMimeTypes.join(', ')}`,
       });
     }
 
@@ -34,11 +44,13 @@ export async function uploadVideo(req, res) {
       logger.warn(`File too large: ${req.file.size} bytes`);
       return res.status(400).json({
         error: 'File too large',
-        details: `Maximum size: ${maxFileSize / (1024 * 1024)}MB`
+        details: `Maximum size: ${maxFileSize / (1024 * 1024)}MB`,
       });
     }
 
-    logger.info(`Video upload started: ${req.file.originalname || 'unknown'}, size: ${req.file.size || 'unknown'} bytes`);
+    logger.info(
+      `Video upload started: ${req.file.originalname || 'unknown'}, size: ${req.file.size || 'unknown'} bytes`
+    );
 
     // Extract form data
     const { title, description, course_offering_id } = req.body;
@@ -65,7 +77,7 @@ export async function uploadVideo(req, res) {
       logger.error('No Cloudinary result in req.file');
       return res.status(500).json({
         error: 'Video upload failed',
-        details: 'No upload result received from Cloudinary'
+        details: 'No upload result received from Cloudinary',
       });
     }
 
@@ -75,12 +87,19 @@ export async function uploadVideo(req, res) {
 
     try {
       // Try different possible keys for URL
-      videoUrl = cloudinaryResult.secure_url || cloudinaryResult.url || cloudinaryResult.path || cloudinaryResult.location;
-      publicId = cloudinaryResult.public_id || cloudinaryResult.publicId || cloudinaryResult.filename;
+      videoUrl =
+        cloudinaryResult.secure_url ||
+        cloudinaryResult.url ||
+        cloudinaryResult.path ||
+        cloudinaryResult.location;
+      publicId =
+        cloudinaryResult.public_id || cloudinaryResult.publicId || cloudinaryResult.filename;
 
       // If URL is still missing but we have publicId, try to fetch from Cloudinary
       if (!videoUrl && publicId) {
-        logger.warn('URL missing from upload result, attempting to fetch from Cloudinary API', { publicId });
+        logger.warn('URL missing from upload result, attempting to fetch from Cloudinary API', {
+          publicId,
+        });
         const videoResource = await cloudinary.api.resource(publicId, { resource_type: 'video' });
         videoUrl = videoResource.secure_url || videoResource.url;
       }
@@ -90,18 +109,18 @@ export async function uploadVideo(req, res) {
           hasUrl: !!videoUrl,
           hasPublicId: !!publicId,
           resultKeys: Object.keys(cloudinaryResult),
-          resultSample: JSON.stringify(cloudinaryResult).slice(0, 1000)
+          resultSample: JSON.stringify(cloudinaryResult).slice(0, 1000),
         });
         return res.status(500).json({
           error: 'Failed to process uploaded video',
-          details: 'Could not extract video URL or public ID from Cloudinary response'
+          details: 'Could not extract video URL or public ID from Cloudinary response',
         });
       }
     } catch (extractError) {
       logger.error('Error extracting Cloudinary data:', extractError);
       return res.status(500).json({
         error: 'Video processing failed',
-        details: 'Error processing Cloudinary upload result'
+        details: 'Error processing Cloudinary upload result',
       });
     }
 
@@ -154,23 +173,18 @@ export async function uploadVideo(req, res) {
 
     // Handle specific error types
     if (error.message && error.message.includes('foreign key constraint')) {
-      return res
-        .status(400)
-        .json({ error: 'Invalid user ID or course_offering_id' });
+      return res.status(400).json({ error: 'Invalid user ID or course_offering_id' });
     }
 
     // Ensure we always return JSON, not HTML
     const errorMessage = error.message || 'Failed to upload video';
-    res
-      .status(500)
-      .json({ 
-        error: 'Failed to upload video', 
-        message: errorMessage,
-        details: process.env.NODE_ENV === 'development' ? error.stack : undefined
-      });
+    res.status(500).json({
+      error: 'Failed to upload video',
+      message: errorMessage,
+      details: process.env.NODE_ENV === 'development' ? error.stack : undefined,
+    });
   }
 }
-
 
 /**
  * Get all videos uploaded by the current faculty user
@@ -187,6 +201,7 @@ export async function getMyVideos(req, res) {
         v.title,
         v.description,
         v.video_url,
+        v.drive_file_id,
         v.duration,
         v.upload_timestamp,
         v.created_at,
@@ -226,7 +241,7 @@ export async function getVideosByCourseOffering(req, res) {
 
     // Check if user has access to this course offering
     let hasAccess = false;
-    
+
     if (userRole === 'faculty' || userRole === 'admin' || userRole === 'ta') {
       // Faculty/Admin/TA can access any course offering
       hasAccess = true;
@@ -250,6 +265,7 @@ export async function getVideosByCourseOffering(req, res) {
         v.title,
         v.description,
         v.video_url,
+        v.drive_file_id,
         v.duration,
         v.upload_timestamp,
         v.created_at,
@@ -289,6 +305,7 @@ export async function getVideoById(req, res) {
         v.title,
         v.description,
         v.video_url,
+        v.drive_file_id,
         v.duration,
         v.upload_timestamp,
         v.created_at,
@@ -378,7 +395,15 @@ export async function deleteVideo(req, res) {
 export async function addVideoQuizQuestion(req, res) {
   try {
     const videoId = parseInt(req.params.videoId);
-    const { question_text, question_type, options, correct_answer, points, explanation, timestamp } = req.body;
+    const {
+      question_text,
+      question_type,
+      options,
+      correct_answer,
+      points,
+      explanation,
+      timestamp,
+    } = req.body;
 
     // Validate required fields
     if (!question_text || !correct_answer) {
@@ -477,7 +502,15 @@ export async function getVideoQuizQuestions(req, res) {
 export async function updateVideoQuizQuestion(req, res) {
   try {
     const questionId = parseInt(req.params.questionId);
-    const { question_text, question_type, options, correct_answer, points, explanation, timestamp } = req.body;
+    const {
+      question_text,
+      question_type,
+      options,
+      correct_answer,
+      points,
+      explanation,
+      timestamp,
+    } = req.body;
 
     if (isNaN(questionId)) {
       return res.status(400).json({ error: 'Invalid question ID' });
@@ -679,7 +712,8 @@ export async function submitVideoQuizAnswer(req, res) {
       isCorrect = answerBool === correctBool;
     } else if (question.question_type === 'short_answer') {
       // For short answer, do case-insensitive string comparison
-      isCorrect = String(answer).trim().toLowerCase() === String(correctAnswer).trim().toLowerCase();
+      isCorrect =
+        String(answer).trim().toLowerCase() === String(correctAnswer).trim().toLowerCase();
     }
 
     const pointsEarned = isCorrect ? points : 0;
@@ -791,9 +825,10 @@ export async function completeVideoQuizAttempt(req, res) {
       attempt: updateResult.rows[0],
       score: updateResult.rows[0].score,
       max_score: updateResult.rows[0].max_score,
-      percentage: updateResult.rows[0].max_score > 0
-        ? Math.round((updateResult.rows[0].score / updateResult.rows[0].max_score) * 100)
-        : 0,
+      percentage:
+        updateResult.rows[0].max_score > 0
+          ? Math.round((updateResult.rows[0].score / updateResult.rows[0].max_score) * 100)
+          : 0,
     });
   } catch (error) {
     logger.error('Error completing video quiz attempt:', error);
@@ -865,7 +900,7 @@ export async function getVideoQuizAttempts(req, res) {
 
     const attempts = attemptsResult.rows.map(row => ({
       ...row,
-      answers: typeof row.answers === 'string' ? JSON.parse(row.answers) : row.answers
+      answers: typeof row.answers === 'string' ? JSON.parse(row.answers) : row.answers,
     }));
 
     res.json({ attempts });
@@ -875,3 +910,90 @@ export async function getVideoQuizAttempts(req, res) {
   }
 }
 
+export async function uploadVideoToDrive(req, res) {
+  try {
+    console.log('uploadVideoToDrive controller called');
+    console.log('req.file:', req.file ? 'exists' : 'missing');
+    console.log('req.body:', req.body);
+
+    if (!req.file) {
+      return res.status(400).json({ error: 'No video file provided' });
+    }
+
+    const { course_offering_id, title, description } = req.body;
+    const uploadedBy = req.user.id;
+
+    if (!title) {
+      return res.status(400).json({ error: 'Title is required' });
+    }
+    if (!course_offering_id) {
+      return res.status(400).json({ error: 'course_offering_id is required' });
+    }
+
+    const courseOfferingIdNum = parseInt(course_offering_id);
+    if (isNaN(courseOfferingIdNum)) {
+      return res.status(400).json({ error: 'Invalid course_offering_id' });
+    }
+
+    logger.info(`Uploading video to Google Drive: ${title || req.file.originalname}`);
+
+    const auth = await getAuthenticatedClient(uploadedBy);
+    const drive = google.drive({ version: 'v3', auth });
+
+    const fileMetadata = {
+      name: title || req.file.originalname,
+      parents: ['appDataFolder'],
+    };
+
+    const media = {
+      mimeType: req.file.mimetype,
+      body: req.file.buffer,
+    };
+
+    const file = await drive.files.create({
+      requestBody: fileMetadata,
+      media: media,
+      fields: 'id, name',
+    });
+
+    const driveFileId = file.data.id;
+    const driveFileName = file.data.name;
+
+    await drive.permissions.create({
+      fileId: driveFileId,
+      requestBody: {
+        type: 'anyone',
+        role: 'reader',
+      },
+    });
+
+    const webContentLink = `https://drive.google.com/uc?id=${driveFileId}&export=download`;
+
+    const insertQuery = `
+      INSERT INTO videos (title, description, uploaded_by, video_url, duration, drive_file_id, upload_timestamp, course_offering_id)
+      VALUES ($1, $2, $3, $4, $5, $6, NOW(), $7)
+      RETURNING *;
+    `;
+
+    const result = await pool.query(insertQuery, [
+      title || driveFileName,
+      description || null,
+      uploadedBy,
+      webContentLink,
+      null,
+      driveFileId,
+      courseOfferingIdNum,
+    ]);
+
+    logger.info(`Video uploaded to Drive: ${driveFileId}`);
+
+    res.status(201).json({
+      success: true,
+      message: 'Video uploaded to Google Drive successfully',
+      video: result.rows[0],
+    });
+  } catch (error) {
+    logger.error('Error uploading video to Drive:', error);
+    res.status(500).json({ error: 'Failed to upload video to Drive', message: error.message });
+  }
+}

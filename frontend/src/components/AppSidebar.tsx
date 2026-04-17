@@ -169,12 +169,12 @@ export default function AppSidebar() {
             icon: 'video_camera_front',
             href: `/courses/${currentCourseId}/live-lectures`,
           },
-          {
-            id: 'videos',
-            label: 'Videos',
-            icon: 'play_circle',
-            href: `/courses/${currentCourseId}/videos/manage`,
-          },
+            {
+              id: 'videos',
+              label: 'Videos',
+              icon: 'play_circle',
+              href: `/courses/${currentCourseId}/videos`,
+            },
         ];
       }
       // Global teacher nav

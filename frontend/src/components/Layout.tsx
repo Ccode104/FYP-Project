@@ -23,8 +23,12 @@ export default function Layout({ children }: { children: ReactNode }) {
   const isLoginPage = pathname === '/login';
   const isLiveLecture = pathname.includes('/live-lectures/');
   const isVideoPlayer = pathname.includes('/videos/');
+  const isVideoQuizEditor = pathname.includes('/videos/') && pathname.includes('/edit');
   const isPublicPage = isLanding || isAuth;
-  const isFullscreenPage = (isLiveLecture && user?.role === 'student'); // Remove video player from fullscreen
+  const isFullscreenPage = isLiveLecture && user?.role === 'student'; // Remove video player from fullscreen
+
+  // Hide breadcrumb on video quiz editor
+  const hideBreadcrumb = isVideoQuizEditor;
 
   // Get course ID from URL if on a course page
   const getCurrentCourseId = useCallback(() => {
@@ -101,8 +105,7 @@ export default function Layout({ children }: { children: ReactNode }) {
       <div className="app-shell__main">
         <AppHeader />
 
-        {/* Optional Breadcrumb for deep links inside App Shell */}
-        {(courseTitle || assignmentTitle) && (
+        {user && !hideBreadcrumb && (
           <div
             style={{
               padding: '16px 24px',

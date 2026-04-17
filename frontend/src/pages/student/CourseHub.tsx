@@ -239,7 +239,7 @@ export default function CourseHub() {
         navigate(`/courses/${id}/discussion`);
         break;
       case 'videos':
-        navigate(`/courses/${id}/videos`);
+        navigate(`/courses/${id}/library`);
         break;
       case 'live':
         navigate(`/courses/${id}/live`);

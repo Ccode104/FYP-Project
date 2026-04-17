@@ -1,33 +1,27 @@
-# Video Player UI Polish - Student Side Only
+# Video Player Google Drive Integration Task
 
-## Status
-✅ Step 2: Data props complete  
-✅ Step 3a: Navbar added  
-✅ Step 3b: Instructor avatar & info  
-✅ Step 3c: Video progress %  
-✅ Step 3d: Progress text  
-✅ Step 3e: Mobile FAB  
-⏳ Step 4: Test & complete
+Current working directory: c:/Users/HP/Desktop/FYP/FYP-Project
 
-## Detailed Steps
-1. **VideoPlayerPage.tsx** (fetch course data)
-   - Get courseOffering details for title/instructor  
-   - Add views count from API  
-   - Pass as props to player  
+## Plan Steps
+- [x] Step 1: Read and analyze VideoQuizEditor.tsx content (read_file failed previously, will create based on context)
+- [x] Step 2: Create DriveEmbedPlayer component for reusable Google Drive iframe player
+- [ ] Step 3: Update VideoQuizEditor.tsx to use DriveEmbedPlayer instead of custom <video>
+- [ ] Step 4: Add backend endpoint for drive embed URL if needed
+- [ ] Step 5: Update CSS for iframe styling
+- [ ] Step 6: Test quiz timestamp syncing with Drive player API
+- [ ] Step 7: Verify in frontend dev server
+- [x] Step 0: Plan approved and TODO created
 
-2. **VideoPlayerNew.tsx** (UI fixes)  
-   - Add Scholaris navbar (copy from mockup HTML)  
-   - Dynamic video info with props (title, course, instructor avatar)  
-   - Exact mockup images & text  
-   - Progress: video watch % vs quiz  
-   - Mobile FAB for notes  
-   - Quiz overlay: Neural Plasticity example  
+## Next Action
+Update VideoQuizEditor.tsx to use DriveVideoPlayer component.
 
-## Test Commands
-```bash
-npm run dev
-# Visit /videos/1 (demo video)
-# Check: navbar, quiz @12:45, playlist nav, dark mode, mobile FAB
-```
+- [ ] Step 3: Update VideoQuizEditor.tsx to use DriveEmbedPlayer instead of custom <video>
+- [ ] Step 4: Add backend endpoint for drive embed URL if needed
+- [ ] Step 5: Update CSS for iframe styling
+- [ ] Step 6: Test quiz timestamp syncing with Drive player API
+- [ ] Step 7: Verify in frontend dev server
+- [x] Step 0: Plan approved and TODO created
 
-Last Updated: $(date)
+## Next Action
+Implement DriveEmbedPlayer component and update VideoQuizEditor.tsx with Google Drive iframe embed using postMessage API for time sync/quiz triggers.
+

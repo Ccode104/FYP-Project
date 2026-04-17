@@ -17,7 +17,9 @@ import {
   completeVideoQuizAttempt,
   getVideoQuizAttempt,
   getVideoQuizAttempts,
+  uploadVideoToDrive,
 } from '../controllers/videosController.js';
+import { uploadVideoMemory } from '../middleware/upload.js';
 
 const router = express.Router();
 
@@ -86,7 +88,7 @@ router.post(
     req.setTimeout(600000); // 10 minutes
     res.setTimeout(600000); // 10 minutes
 
-    uploadVideo.single('video')(req, res, (err) => {
+    uploadVideo.single('video')(req, res, err => {
       console.log('Multer processing completed, err:', err);
       if (err) {
         console.error('Multer error details:', err);
@@ -98,7 +100,6 @@ router.post(
   },
   uploadVideoController
 );
-
 
 /**
  * @swagger
@@ -454,5 +455,24 @@ router.get('/:videoId/quiz/attempt', getVideoQuizAttempt);
  */
 router.get('/:videoId/quiz/attempts', requireRole('faculty', 'admin', 'ta'), getVideoQuizAttempts);
 
-export default router;
+router.post(
+  '/upload',
+  requireRole('faculty', 'admin'),
+  (req, res, next) => {
+    console.log('Drive upload route hit');
+    console.log('Headers:', req.headers);
+    req.setTimeout(600000); // 10 minutes
+    res.setTimeout(600000);
 
+    uploadVideoMemory.single('video')(req, res, err => {
+      if (err) {
+        console.error('Multer error details:', err);
+        return res.status(400).json({ error: err.message });
+      }
+      next();
+    });
+  },
+  uploadVideoToDrive
+);
+
+export default router;
