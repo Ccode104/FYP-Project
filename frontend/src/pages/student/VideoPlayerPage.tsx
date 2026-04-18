@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+ import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
   getVideoById,
@@ -59,19 +59,23 @@ export default function VideoPlayerPage() {
 
   const getEmbedUrl = (v: Video | null) => {
     if (!v) return '';
-    if (v.cloudinary_public_id) {
-      const match = v.cloudinary_public_id.match(/\/d\/([a-zA-Z0-9-_]+)/);
-      if (match && match[1]) {
-        return `https://drive.google.com/file/d/${match[1]}/preview`;
-      }
+    // Use embed_url from backend if available
+    if (v.embed_url) {
+      console.log('Using backend embed_url:', v.embed_url);
+      return v.embed_url;
+    }
+    // Fallback to drive_file_id or cloudinary_public_id
+    const fileId = v.drive_file_id || v.cloudinary_public_id || v.cloudiary_public_id;
+    if (fileId) {
+      const embed = `https://drive.google.com/file/d/${fileId}/preview`;
+      console.log('Generated embed URL:', embed);
+      return embed;
     }
     if (v.video_url) {
-      const match = v.video_url.match(/\/d\/([a-zA-Z0-9-_]+)/);
-      if (match && match[1]) {
-        return `https://drive.google.com/file/d/${match[1]}/preview`;
-      }
+      console.log('Using video_url directly:', v.video_url);
       return v.video_url;
     }
+    console.log('No valid embed URL found for video:', v);
     return '';
   };
 
@@ -177,13 +181,17 @@ export default function VideoPlayerPage() {
           {/* Video Container */}
           <div className="video-container">
             {embedUrl ? (
-              <iframe
-                src={embedUrl}
-                className="video-iframe"
-                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share; fullscreen"
-                allowFullScreen
-                title={video.title}
-              />
+              <>
+                <iframe
+                  src={embedUrl}
+                  className="video-iframe"
+                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share; fullscreen"
+                  allowFullScreen
+                  title={video.title}
+                  onLoad={() => console.log('Iframe loaded:', embedUrl)}
+                  onError={(e) => console.error('Iframe error:', e)}
+                />
+              </>
             ) : (
               <div className="video-placeholder">
                 <span className="material-symbols-outlined">movie</span>

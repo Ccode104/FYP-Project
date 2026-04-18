@@ -1,7 +1,7 @@
 import express from 'express';
 import multer from 'multer';
 import { requireAuth, requireRole } from '../middleware/auth.js';
-import { uploadVideo } from '../middleware/upload.js';
+// import { uploadVideo } from '../middleware/upload.js'; // Fixed: export missing, use uploadVideoCloudinary instead
 import {
   uploadVideo as uploadVideoController,
   getMyVideos,
@@ -19,7 +19,7 @@ import {
   getVideoQuizAttempts,
   uploadVideoToDrive,
 } from '../controllers/videosController.js';
-import { uploadVideoMemory } from '../middleware/upload.js';
+import { uploadVideoMemory, uploadVideoCloudinary } from '../middleware/upload.js';
 
 const router = express.Router();
 
@@ -88,7 +88,7 @@ router.post(
     req.setTimeout(600000); // 10 minutes
     res.setTimeout(600000); // 10 minutes
 
-    uploadVideo.single('video')(req, res, err => {
+    uploadVideoCloudinary.single('video')(req, res, err => {
       console.log('Multer processing completed, err:', err);
       if (err) {
         console.error('Multer error details:', err);

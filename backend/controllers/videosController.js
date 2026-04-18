@@ -201,7 +201,7 @@ export async function getMyVideos(req, res) {
         v.title,
         v.description,
         v.video_url,
-        v.drive_file_id,
+        v.cloudinary_public_id as drive_file_id,
         v.duration,
         v.upload_timestamp,
         v.created_at,
@@ -264,8 +264,8 @@ export async function getVideosByCourseOffering(req, res) {
         v.id,
         v.title,
         v.description,
-        v.video_url,
-        v.drive_file_id,
+      v.video_url,
+        v.cloudinary_public_id as drive_file_id,
         v.duration,
         v.upload_timestamp,
         v.created_at,
@@ -305,6 +305,7 @@ export async function getVideoById(req, res) {
         v.title,
         v.description,
         v.video_url,
+        v.cloudinary_public_id,
         v.drive_file_id,
         v.duration,
         v.upload_timestamp,
@@ -323,7 +324,15 @@ export async function getVideoById(req, res) {
       return res.status(404).json({ error: 'Video not found' });
     }
 
-    res.json({ video: result.rows[0] });
+    const video = result.rows[0];
+
+    // Fix embed URL for Google Drive
+    if (video.drive_file_id || video.cloudinary_public_id) {
+      const fileId = video.drive_file_id || video.cloudinary_public_id;
+      video.embed_url = `https://drive.google.com/file/d/${fileId}/preview`;
+    }
+
+    res.json({ video });
   } catch (error) {
     logger.error('Error fetching video:', error);
     res.status(500).json({ error: 'Failed to fetch video', message: error.message });
@@ -968,10 +977,12 @@ export async function uploadVideoToDrive(req, res) {
     });
 
     const webContentLink = `https://drive.google.com/uc?id=${driveFileId}&export=download`;
+    const embedUrl = `https://drive.google.com/file/d/${driveFileId}/preview`;
+    const directVideoUrl = `https://drive.google.com/uc?id=${driveFileId}&export=video`;
 
     const insertQuery = `
-      INSERT INTO videos (title, description, uploaded_by, video_url, duration, drive_file_id, upload_timestamp, course_offering_id)
-      VALUES ($1, $2, $3, $4, $5, $6, NOW(), $7)
+      INSERT INTO videos (title, description, uploaded_by, video_url, embed_url, direct_video_url, duration, drive_file_id, upload_timestamp, course_offering_id)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW(), $9)
       RETURNING *;
     `;
 
@@ -980,6 +991,8 @@ export async function uploadVideoToDrive(req, res) {
       description || null,
       uploadedBy,
       webContentLink,
+      embedUrl,
+      directVideoUrl,
       null,
       driveFileId,
       courseOfferingIdNum,
