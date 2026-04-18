@@ -9,6 +9,7 @@ import {
   updateVideoQuizQuestion,
   deleteVideoQuizQuestion,
 } from '../../features/videos/api/videos';
+import { apiFetch } from '../../services/api';
 import './VideoQuizEditor.css';
 
 interface Video {
@@ -22,6 +23,15 @@ interface Video {
   upload_timestamp: string;
 }
 
+interface VideoSection {
+  id: number;
+  start_time: number;
+  end_time: number;
+  title: string;
+  summary?: string;
+  quiz_count?: number;
+}
+
 interface QuizQuestion {
   id: number;
   question_text: string;
@@ -31,6 +41,8 @@ interface QuizQuestion {
   points?: number;
   explanation?: string;
   timestamp?: number;
+  section_id?: number;
+  section?: VideoSection;
 }
 
 type QuestionType = 'multiple_choice' | 'true_false' | 'open_ended';
@@ -42,6 +54,7 @@ export default function VideoQuizEditor() {
 
   const [video, setVideo] = useState<Video | null>(null);
   const [questions, setQuestions] = useState<QuizQuestion[]>([]);
+  const [sections, setSections] = useState<VideoSection[]>([]);
   const [loading, setLoading] = useState(true);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
@@ -50,8 +63,7 @@ export default function VideoQuizEditor() {
   const [questionText, setQuestionText] = useState('');
   const [options, setOptions] = useState<string[]>(['', '']);
   const [correctAnswer, setCorrectAnswer] = useState<number>(1);
-  const [targetTimestamp, setTargetTimestamp] = useState('');
-
+  const [selectedSectionId, setSelectedSectionId] = useState<number | null>(null);
   const [editingQuestion, setEditingQuestion] = useState<QuizQuestion | null>(null);
 
   const getDriveEmbedUrl = (v: Video | null) => {
@@ -122,6 +134,10 @@ export default function VideoQuizEditor() {
 
         const questionsData = await getVideoQuizQuestions(Number(videoId));
         setQuestions(Array.isArray(questionsData) ? questionsData : []);
+
+        // Load sections
+        const sectionsResponse = await apiFetch(`/api/videos/${videoId}/sections`);
+        setSections(sectionsResponse.sections || []);
       } catch (err) {
         console.error('Failed to load video data:', err);
         push({ kind: 'error', message: 'Failed to load video data' });
@@ -182,7 +198,7 @@ export default function VideoQuizEditor() {
             ? 'true'
             : 'false'
           : options[correctAnswer] || '',
-      timestamp,
+      section_id: selectedSectionId,
     };
 
     try {
@@ -226,10 +242,10 @@ export default function VideoQuizEditor() {
       setCorrectAnswer(idx >= 0 ? idx : 0);
     }
 
-    if (question.timestamp) {
-      setTargetTimestamp(formatTimestamp(question.timestamp));
+    if (question.section_id) {
+      setSelectedSectionId(question.section_id);
     } else {
-      setTargetTimestamp('');
+      setSelectedSectionId(null);
     }
   };
 
@@ -304,16 +320,18 @@ export default function VideoQuizEditor() {
             <form onSubmit={handleSubmitQuestion}>
               <div className="form-grid">
                 <div className="form-group">
-                  <label>Target Timestamp</label>
-                  <div className="input-with-icon">
-                    <span className="material-symbols-outlined">schedule</span>
-                    <input
-                      type="text"
-                      placeholder="00:00"
-                      value={targetTimestamp}
-                      onChange={e => setTargetTimestamp(e.target.value)}
-                    />
-                  </div>
+                  <label>Section</label>
+                  <select 
+                    value={selectedSectionId || ''}
+                    onChange={e => setSelectedSectionId(e.target.value ? parseInt(e.target.value) : null)}
+                  >
+                    <option value="">Select section...</option>
+                    {sections.map(section => (
+                      <option key={section.id} value={section.id}>
+                        {formatTimestamp(section.start_time)} - {formatTimestamp(section.end_time)}: {section.title}
+                      </option>
+                    ))}
+                  </select>
                 </div>
                 <div className="form-group">
                   <label>Question Type</label>
@@ -417,7 +435,7 @@ export default function VideoQuizEditor() {
         <div className="right-column">
           <div className="questions-panel">
             <div className="questions-panel-header">
-              <h3>Timestamped Questions</h3>
+              <h3>Section Questions ({sections.length} sections)</h3>
               <span className="questions-count">{questions.length} Total</span>
             </div>
             <div className="questions-list">
@@ -435,12 +453,12 @@ export default function VideoQuizEditor() {
                       className={`question-card ${index === 0 ? 'question-card-highlighted' : ''}`}
                     >
                       <div className="question-card-header">
-                        <span
+                      <span
                           className={
                             index === 0 ? 'timestamp-badge-highlighted' : 'timestamp-badge'
                           }
                         >
-                          {question.timestamp ? formatTimestamp(question.timestamp) : '--:--'}
+                          {question.section ? formatTimestamp(question.section.start_time) : 'No section'}
                         </span>
                         <div className="question-actions">
                           <button

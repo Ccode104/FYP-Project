@@ -18,6 +18,8 @@ import {
   getVideoQuizAttempt,
   getVideoQuizAttempts,
   uploadVideoToDrive,
+  getVideoSections,
+  getVideoTranscript,
 } from '../controllers/videosController.js';
 import { uploadVideoMemory, uploadVideoCloudinary } from '../middleware/upload.js';
 
@@ -454,6 +456,9 @@ router.get('/:videoId/quiz/attempt', getVideoQuizAttempt);
  *         description: Forbidden - Only faculty can view all attempts
  */
 router.get('/:videoId/quiz/attempts', requireRole('faculty', 'admin', 'ta'), getVideoQuizAttempts);
+
+router.get('/:id/sections', getVideoSections);
+router.get('/:id/transcript', getVideoTranscript);
 
 router.post(
   '/upload',

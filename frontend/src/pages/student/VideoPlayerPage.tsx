@@ -20,6 +20,14 @@ interface Video {
   uploaded_by_name?: string;
 }
 
+interface VideoSection {
+  id: number;
+  start_time: number;
+  end_time: number;
+  title: string;
+  summary?: string;
+}
+
 interface QuizQuestion {
   id: number;
   question_text: string;
@@ -27,6 +35,8 @@ interface QuizQuestion {
   options?: string[];
   correct_answer: string;
   timestamp?: number;
+  section_id?: number;
+  section?: VideoSection;
 }
 
 interface PlaylistItem {
@@ -42,6 +52,7 @@ export default function VideoPlayerPage() {
 
   const [video, setVideo] = useState<Video | null>(null);
   const [questions, setQuestions] = useState<QuizQuestion[]>([]);
+  const [sections, setSections] = useState<VideoSection[]>([]);
   const [playlist, setPlaylist] = useState<PlaylistItem[]>([]);
   const [courseTitle, setCourseTitle] = useState('');
   const [instructorName, setInstructorName] = useState('');
@@ -49,7 +60,7 @@ export default function VideoPlayerPage() {
   const [views, setViews] = useState(0);
   const [loading, setLoading] = useState(true);
 
-  const [activeTab, setActiveTab] = useState<'playlist' | 'notes'>('playlist');
+  const [activeTab, setActiveTab] = useState<'playlist' | 'sections' | 'notes'>('playlist');
   const [notesExpanded, setNotesExpanded] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
@@ -93,6 +104,10 @@ export default function VideoPlayerPage() {
 
         const questionsData = await getVideoQuizQuestions(Number(videoId));
         setQuestions(Array.isArray(questionsData) ? questionsData : []);
+
+        // Load sections
+        const sectionsData = (await apiFetch(`/api/videos/${videoId}/sections`)) as { sections: VideoSection[] };
+        setSections(sectionsData.sections || []);
 
         if (videoData.video.course_offering_id) {
           const cid = videoData.video.course_offering_id;
@@ -150,8 +165,12 @@ export default function VideoPlayerPage() {
     });
   };
 
+  const currentSection = sections.find(
+    s => currentTime >= s.start_time && currentTime <= s.end_time
+  );
+
   const currentQuestion = questions.find(
-    q => q.timestamp && Math.abs((q.timestamp || 0) - currentTime) < 2
+    q => q.section_id === currentSection?.id
   );
 
   if (loading) {
@@ -296,6 +315,13 @@ export default function VideoPlayerPage() {
               Playlist
             </button>
             <button
+              className={`tab-btn ${activeTab === 'sections' ? 'active' : ''}`}
+              onClick={() => setActiveTab('sections')}
+            >
+              <span className="material-symbols-outlined">menu_book</span>
+              Sections
+            </button>
+            <button
               className={`tab-btn ${activeTab === 'notes' ? 'active' : ''}`}
               onClick={() => setActiveTab('notes')}
             >
@@ -331,6 +357,20 @@ export default function VideoPlayerPage() {
                         {item.id === Number(videoId) ? 'Playing Now' : `Module ${index + 1}`}
                       </span>
                       <h5 className="playlist-title">{item.title}</h5>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : activeTab === 'sections' ? (
+              <div className="sections">
+                {sections.map((section, index) => (
+                  <div key={section.id} className="section-item">
+                    <div className="section-time">{formatTime(section.start_time)} - {formatTime(section.end_time)}</div>
+                    <h5 className="section-title">{section.title}</h5>
+                    <div className="section-progress">
+                      <div className="progress-bar">
+                        <div className="progress-fill" style={{width: currentSection === section ? '100%' : '0%'}}></div>
+                      </div>
                     </div>
                   </div>
                 ))}

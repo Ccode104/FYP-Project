@@ -26,6 +26,7 @@ export async function initiateGoogleOAuth(req, res) {
     const scopes = [
       'https://www.googleapis.com/auth/spreadsheets',
       'https://www.googleapis.com/auth/drive.file',
+      'https://www.googleapis.com/auth/drive.appdata', // For Application Data folder
       'https://www.googleapis.com/auth/userinfo.email',
     ];
 

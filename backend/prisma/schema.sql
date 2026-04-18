@@ -316,3 +316,86 @@ CREATE INDEX IF NOT EXISTS idx_chat_sessions_user ON chat_sessions(user_id);
 CREATE INDEX IF NOT EXISTS idx_chat_sessions_course ON chat_sessions(course_id);
 CREATE INDEX IF NOT EXISTS idx_chat_messages_session ON chat_messages(chat_session_id);
 CREATE INDEX IF NOT EXISTS idx_chat_documents_session ON chat_documents(chat_session_id);
+
+-- Video Tables (from migrations)
+-- Videos table
+CREATE TABLE IF NOT EXISTS videos (
+  id BIGSERIAL PRIMARY KEY,
+  course_offering_id BIGINT NOT NULL REFERENCES course_offerings(id) ON DELETE CASCADE,
+  title TEXT NOT NULL,
+  description TEXT,
+  uploaded_by BIGINT REFERENCES users(id),
+  video_url TEXT,
+  embed_url TEXT,
+  direct_video_url TEXT,
+  duration NUMERIC(10,2),
+  cloudinary_public_id TEXT,
+  drive_file_id TEXT,
+  upload_timestamp TIMESTAMPTZ DEFAULT now(),
+  created_at TIMESTAMPTZ DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_videos_course ON videos(course_offering_id);
+CREATE INDEX IF NOT EXISTS idx_videos_uploaded_by ON videos(uploaded_by);
+
+-- Video quiz questions
+CREATE TABLE IF NOT EXISTS video_quiz_questions (
+  id BIGSERIAL PRIMARY KEY,
+  video_id BIGINT NOT NULL REFERENCES videos(id) ON DELETE CASCADE,
+  question_text TEXT NOT NULL,
+  question_type TEXT DEFAULT 'mcq',
+  options JSONB,
+  correct_answer TEXT,
+  points NUMERIC(4,2) DEFAULT 1.0,
+  explanation TEXT,
+  timestamp NUMERIC(10,2), -- Legacy, to be replaced
+  section_id BIGINT REFERENCES video_sections(id) ON DELETE SET NULL, -- New
+  created_at TIMESTAMPTZ DEFAULT now(),
+  updated_at TIMESTAMPTZ DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_video_quiz_questions_video ON video_quiz_questions(video_id);
+CREATE INDEX IF NOT EXISTS idx_video_quiz_questions_timestamp ON video_quiz_questions(timestamp);
+CREATE INDEX IF NOT EXISTS idx_video_quiz_questions_section ON video_quiz_questions(section_id);
+
+-- Video quiz attempts
+CREATE TABLE IF NOT EXISTS video_quiz_attempts (
+  id BIGSERIAL PRIMARY KEY,
+  video_id BIGINT NOT NULL REFERENCES videos(id) ON DELETE CASCADE,
+  student_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  started_at TIMESTAMPTZ DEFAULT now(),
+  completed_at TIMESTAMPTZ,
+  score NUMERIC(6,2),
+  max_score NUMERIC(6,2),
+  answers JSONB,
+  UNIQUE(video_id, student_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_video_quiz_attempts_video ON video_quiz_attempts(video_id);
+
+-- Video transcripts
+CREATE TABLE IF NOT EXISTS video_transcripts (
+  id BIGSERIAL PRIMARY KEY,
+  video_id BIGINT NOT NULL REFERENCES videos(id) ON DELETE CASCADE,
+  full_transcript TEXT,
+  word_timestamps JSONB,
+  language TEXT DEFAULT 'en',
+  processed_at TIMESTAMPTZ DEFAULT now(),
+  UNIQUE(video_id)
+);
+
+-- Video sections
+CREATE TABLE IF NOT EXISTS video_sections (
+  id BIGSERIAL PRIMARY KEY,
+  video_id BIGINT NOT NULL REFERENCES videos(id) ON DELETE CASCADE,
+  start_time NUMERIC(10,2) NOT NULL,
+  end_time NUMERIC(10,2) NOT NULL,
+  title TEXT NOT NULL,
+  summary TEXT,
+  transcript_snippet TEXT,
+  created_at TIMESTAMPTZ DEFAULT now(),
+  CHECK (start_time < end_time)
+);
+
+CREATE INDEX IF NOT EXISTS idx_video_sections_video ON video_sections(video_id);
+CREATE INDEX IF NOT EXISTS idx_video_sections_time ON video_sections(start_time, end_time);

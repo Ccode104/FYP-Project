@@ -2,6 +2,7 @@ import { pool } from '../db/index.js';
 import { cloudinary } from '../middleware/upload.js';
 import { logger } from '../utils/logger.js';
 import { google } from 'googleapis';
+import { Readable } from 'stream';
 import { getAuthenticatedClient } from './googleController.js';
 
 /**
@@ -201,7 +202,6 @@ export async function getMyVideos(req, res) {
         v.title,
         v.description,
         v.video_url,
-        v.cloudinary_public_id as drive_file_id,
         v.duration,
         v.upload_timestamp,
         v.created_at,
@@ -264,8 +264,7 @@ export async function getVideosByCourseOffering(req, res) {
         v.id,
         v.title,
         v.description,
-      v.video_url,
-        v.cloudinary_public_id as drive_file_id,
+        v.video_url,
         v.duration,
         v.upload_timestamp,
         v.created_at,
@@ -305,8 +304,6 @@ export async function getVideoById(req, res) {
         v.title,
         v.description,
         v.video_url,
-        v.cloudinary_public_id,
-        v.drive_file_id,
         v.duration,
         v.upload_timestamp,
         v.created_at,
@@ -324,15 +321,7 @@ export async function getVideoById(req, res) {
       return res.status(404).json({ error: 'Video not found' });
     }
 
-    const video = result.rows[0];
-
-    // Fix embed URL for Google Drive
-    if (video.drive_file_id || video.cloudinary_public_id) {
-      const fileId = video.drive_file_id || video.cloudinary_public_id;
-      video.embed_url = `https://drive.google.com/file/d/${fileId}/preview`;
-    }
-
-    res.json({ video });
+    res.json({ video: result.rows[0] });
   } catch (error) {
     logger.error('Error fetching video:', error);
     res.status(500).json({ error: 'Failed to fetch video', message: error.message });
@@ -919,6 +908,11 @@ export async function getVideoQuizAttempts(req, res) {
   }
 }
 
+/**
+ * Upload video to Google Drive
+ * @param {Object} req - Express request object
+ * @param {Object} res - Express response object
+ */
 export async function uploadVideoToDrive(req, res) {
   try {
     console.log('uploadVideoToDrive controller called');
@@ -944,19 +938,62 @@ export async function uploadVideoToDrive(req, res) {
       return res.status(400).json({ error: 'Invalid course_offering_id' });
     }
 
-    logger.info(`Uploading video to Google Drive: ${title || req.file.originalname}`);
+    // Get course offering details to find the course name
+    const courseResult = await pool.query(
+      `SELECT co.id, c.code, c.name as course_name, co.semester, co.year
+       FROM course_offerings co
+       JOIN courses c ON co.course_id = c.id
+       WHERE co.id = $1`,
+      [courseOfferingIdNum]
+    );
+
+    if (courseResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Course offering not found' });
+    }
+
+    const course = courseResult.rows[0];
+    const folderName = `${course.course_code} - ${course.course_name} (${course.semester} ${course.year})`;
+
+    logger.info(
+      `Uploading video to Google Drive: ${title || req.file.originalname} in folder: ${folderName}`
+    );
 
     const auth = await getAuthenticatedClient(uploadedBy);
     const drive = google.drive({ version: 'v3', auth });
 
+    // Create or find a folder for the specific course
+    let folderId = 'root';
+    try {
+      // Try to find the course folder in root
+      const findFolder = await drive.files.list({
+        q: `name='${folderName}' and mimeType='application/vnd.google-apps.folder' and parents in 'root'`,
+        fields: 'files(id, name)',
+      });
+      if (findFolder.data.files?.length > 0) {
+        folderId = findFolder.data.files[0].id;
+      } else {
+        // Create new course folder
+        const newFolder = await drive.files.create({
+          requestBody: {
+            name: folderName,
+            mimeType: 'application/vnd.google-apps.folder',
+          },
+          fields: 'id, name',
+        });
+        folderId = newFolder.data.id;
+      }
+    } catch (folderError) {
+      console.warn('Could not find/create course folder:', folderError.message);
+    }
+
     const fileMetadata = {
       name: title || req.file.originalname,
-      parents: ['appDataFolder'],
+      parents: [folderId],
     };
 
     const media = {
       mimeType: req.file.mimetype,
-      body: req.file.buffer,
+      body: Readable.from(req.file.buffer),
     };
 
     const file = await drive.files.create({
@@ -977,12 +1014,10 @@ export async function uploadVideoToDrive(req, res) {
     });
 
     const webContentLink = `https://drive.google.com/uc?id=${driveFileId}&export=download`;
-    const embedUrl = `https://drive.google.com/file/d/${driveFileId}/preview`;
-    const directVideoUrl = `https://drive.google.com/uc?id=${driveFileId}&export=video`;
 
     const insertQuery = `
-      INSERT INTO videos (title, description, uploaded_by, video_url, embed_url, direct_video_url, duration, drive_file_id, upload_timestamp, course_offering_id)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW(), $9)
+      INSERT INTO videos (title, description, uploaded_by, video_url, duration, cloudinary_public_id, upload_timestamp, course_offering_id)
+      VALUES ($1, $2, $3, $4, $5, $6, NOW(), $7)
       RETURNING *;
     `;
 
@@ -991,10 +1026,8 @@ export async function uploadVideoToDrive(req, res) {
       description || null,
       uploadedBy,
       webContentLink,
-      embedUrl,
-      directVideoUrl,
       null,
-      driveFileId,
+      driveFileId, // Store in cloudinary_public_id column
       courseOfferingIdNum,
     ]);
 
@@ -1009,4 +1042,206 @@ export async function uploadVideoToDrive(req, res) {
     logger.error('Error uploading video to Drive:', error);
     res.status(500).json({ error: 'Failed to upload video to Drive', message: error.message });
   }
+}
+
+// ========== NEW TRANSCRIPT AND SECTIONS FUNCTIONS ==========
+
+export async function processVideoTranscript(videoId) {
+  try {
+    logger.info(`Processing transcript for video ${videoId}`);
+
+    // Get video details
+    const videoResult = await pool.query(
+      'SELECT * FROM videos WHERE id = $1 AND drive_file_id IS NOT NULL',
+      [videoId]
+    );
+    if (videoResult.rows.length === 0) {
+      logger.warn(`No Drive video found for processing: ${videoId}`);
+      return;
+    }
+
+    const video = videoResult.rows[0];
+
+    // Check if already processed
+    const transcriptCheck = await pool.query(
+      'SELECT id FROM video_transcripts WHERE video_id = $1',
+      [videoId]
+    );
+    if (transcriptCheck.rows.length > 0) {
+      logger.info(`Video ${videoId} already processed`);
+      return;
+    }
+
+    // Step 1: Generate dummy transcript for demo (replace with real Whisper)
+    const duration = video.duration || 1800; // default 30min
+    const wordsPerMin = 150;
+    const totalWords = Math.floor((duration / 60) * wordsPerMin);
+    const dummyTranscript = generateDummyTranscript(totalWords, duration);
+
+    // Step 2: Use Groq to divide into sections
+    // Note: Groq is imported in the original file, but if not available, use fallback
+    let sections;
+    try {
+      const { Groq } = await import('groq');
+      const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
+
+      const prompt = `Divide this video transcript into 4-8 logical sections based on topics. Video duration: ${duration}s.
+
+Transcript:
+${dummyTranscript.substring(0, 4000)}...
+
+Output ONLY valid JSON array:
+[
+  {
+    "start_time": 0,
+    "end_time": 300,
+    "title": "Introduction",
+    "summary": "Brief summary..."
+  }
+]`;
+
+      const completion = await groq.chat.completions.create({
+        messages: [{ role: 'user', content: prompt }],
+        model: 'llama3-8b-8192',
+        temperature: 0.1,
+        max_tokens: 2000,
+      });
+
+      const response = completion.choices[0]?.message?.content || '[]';
+      try {
+        sections = JSON.parse(response);
+      } catch {
+        sections = generateDummySections(duration);
+      }
+    } catch (groqError) {
+      logger.warn('Groq not available, using dummy sections:', groqError.message);
+      sections = generateDummySections(duration);
+    }
+
+    // Step 3: Store transcript
+    await pool.query(
+      `INSERT INTO video_transcripts (video_id, full_transcript, language) 
+       VALUES ($1, $2, 'en')`,
+      [videoId, dummyTranscript]
+    );
+
+    // Step 4: Store sections
+    for (const sec of sections) {
+      await pool.query(
+        `INSERT INTO video_sections (video_id, start_time, end_time, title, summary, transcript_snippet)
+         VALUES ($1, $2, $3, $4, $5, $6)`,
+        [
+          videoId,
+          sec.start_time || 0,
+          sec.end_time || 60,
+          sec.title || 'Section',
+          sec.summary || '',
+          sec.transcript_snippet || '',
+        ]
+      );
+    }
+
+    logger.info(`Processed ${sections.length} sections for video ${videoId}`);
+  } catch (error) {
+    logger.error(`Transcript processing failed for video ${videoId}:`, error);
+  }
+}
+
+export async function getVideoSections(req, res) {
+  try {
+    const videoId = parseInt(req.params.id);
+    if (isNaN(videoId)) {
+      return res.status(400).json({ error: 'Invalid video ID' });
+    }
+
+    const result = await pool.query(
+      `
+      SELECT vs.*, 
+             (SELECT COUNT(*) FROM video_quiz_questions vqq WHERE vqq.section_id = vs.id) as quiz_count
+      FROM video_sections vs 
+      WHERE vs.video_id = $1 
+      ORDER BY vs.start_time ASC
+    `,
+      [videoId]
+    );
+
+    res.json({ sections: result.rows });
+  } catch (error) {
+    logger.error('Error fetching sections:', error);
+    res.status(500).json({ error: 'Failed to fetch sections' });
+  }
+}
+
+export async function getVideoTranscript(req, res) {
+  try {
+    const videoId = parseInt(req.params.id);
+    if (isNaN(videoId)) {
+      return res.status(400).json({ error: 'Invalid video ID' });
+    }
+
+    const result = await pool.query(
+      `
+      SELECT vt.full_transcript, vt.word_timestamps 
+      FROM video_transcripts vt 
+      WHERE vt.video_id = $1
+    `,
+      [videoId]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Transcript not found. Process video first.' });
+    }
+
+    res.json({ transcript: result.rows[0] });
+  } catch (error) {
+    logger.error('Error fetching transcript:', error);
+    res.status(500).json({ error: 'Failed to fetch transcript' });
+  }
+}
+
+function generateDummyTranscript(words, duration) {
+  const topics = [
+    'introduction to algorithms',
+    'time complexity analysis',
+    'sorting algorithms overview',
+    'bubble sort implementation',
+    'selection sort details',
+    'insertion sort example',
+    'merge sort recursive',
+    'quick sort partitioning',
+  ];
+  let transcript = '';
+  let time = 0;
+  const wordRate = (words / duration) * 60; // words per second
+  for (let i = 0; i < Math.min(topics.length, 8); i++) {
+    const secWords = Math.floor((duration / 8) * wordRate);
+    transcript += `[${Math.floor(time)}s] Discussing ${topics[i]}. `;
+    transcript += 'Lorem ipsum '.repeat(secWords / 10).trim() + '. ';
+    time += duration / 8;
+  }
+  return transcript.trim();
+}
+
+function generateDummySections(duration) {
+  const sections = [];
+  const numSections = 5 + Math.floor(Math.random() * 4);
+  const secDuration = duration / numSections;
+  const titles = [
+    'Introduction',
+    'Core Concepts',
+    'Examples',
+    'Advanced Topics',
+    'Conclusion',
+    'Q&A',
+  ];
+  for (let i = 0; i < numSections; i++) {
+    sections.push({
+      start_time: Math.floor(i * secDuration),
+      end_time: Math.floor((i + 1) * secDuration),
+      title: titles[i] || `Section ${i + 1}`,
+      summary: `Summary of section ${i + 1} covering key points in ${Math.floor(secDuration)} seconds.`,
+      transcript_snippet: 'Sample transcript snippet...',
+    });
+  }
+  return sections;
 }
