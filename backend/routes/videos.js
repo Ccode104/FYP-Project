@@ -20,6 +20,10 @@ import {
   uploadVideoToDrive,
   getVideoSections,
   getVideoTranscript,
+  createVideoSection,
+  updateVideoSection,
+  deleteVideoSection,
+  autoGenerateSections,
 } from '../controllers/videosController.js';
 import { uploadVideoMemory, uploadVideoCloudinary } from '../middleware/upload.js';
 
@@ -457,9 +461,6 @@ router.get('/:videoId/quiz/attempt', getVideoQuizAttempt);
  */
 router.get('/:videoId/quiz/attempts', requireRole('faculty', 'admin', 'ta'), getVideoQuizAttempts);
 
-router.get('/:id/sections', getVideoSections);
-router.get('/:id/transcript', getVideoTranscript);
-
 router.post(
   '/upload',
   requireRole('faculty', 'admin'),
@@ -479,5 +480,12 @@ router.post(
   },
   uploadVideoToDrive
 );
+
+router.get('/:id/sections', getVideoSections);
+router.get('/:id/transcript', getVideoTranscript);
+router.post('/:id/sections', requireRole('faculty', 'admin'), createVideoSection);
+router.put('/:id/sections/:sectionId', requireRole('faculty', 'admin'), updateVideoSection);
+router.delete('/:id/sections/:sectionId', requireRole('faculty', 'admin'), deleteVideoSection);
+router.post('/:id/sections/auto-generate', requireRole('faculty', 'admin'), autoGenerateSections);
 
 export default router;

@@ -388,13 +388,12 @@ CREATE TABLE IF NOT EXISTS video_transcripts (
 CREATE TABLE IF NOT EXISTS video_sections (
   id BIGSERIAL PRIMARY KEY,
   video_id BIGINT NOT NULL REFERENCES videos(id) ON DELETE CASCADE,
-  start_time NUMERIC(10,2) NOT NULL,
-  end_time NUMERIC(10,2) NOT NULL,
+  start_time NUMERIC(10,2),
+  end_time NUMERIC(10,2),
   title TEXT NOT NULL,
   summary TEXT,
   transcript_snippet TEXT,
-  created_at TIMESTAMPTZ DEFAULT now(),
-  CHECK (start_time < end_time)
+  created_at TIMESTAMPTZ DEFAULT now()
 );
 
 CREATE INDEX IF NOT EXISTS idx_video_sections_video ON video_sections(video_id);

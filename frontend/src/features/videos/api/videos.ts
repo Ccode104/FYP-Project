@@ -4,9 +4,28 @@ interface CustomError extends Error {
   response?: { data: unknown };
 }
 
+export interface VideoSection {
+  id: number;
+  video_id: number;
+  start_time: number;
+  end_time: number;
+  title: string;
+  summary: string;
+  transcript_snippet: string;
+  quiz_count?: number;
+}
+
+export interface VideoTranscript {
+  full_transcript: string;
+  word_timestamps: unknown;
+}
+
 const baseURL = API_URL;
 
-export async function uploadVideo(formData: FormData, onUploadProgress?: (progressEvent: unknown) => void): Promise<unknown> {
+export async function uploadVideo(
+  formData: FormData,
+  onUploadProgress?: (progressEvent: unknown) => void
+): Promise<unknown> {
   if (onUploadProgress) {
     return new Promise((resolve, reject) => {
       const xhr = new XMLHttpRequest();
@@ -14,7 +33,7 @@ export async function uploadVideo(formData: FormData, onUploadProgress?: (progre
       xhr.open('POST', `${baseURL}/api/videos`);
       if (token) xhr.setRequestHeader('Authorization', `Bearer ${token}`);
 
-      xhr.upload.onprogress = (event) => {
+      xhr.upload.onprogress = event => {
         if (event.total) {
           const percentCompleted = Math.round((event.loaded * 100) / event.total);
           onUploadProgress({ percentCompleted, progressEvent: event });
@@ -33,7 +52,9 @@ export async function uploadVideo(formData: FormData, onUploadProgress?: (progre
         if (status >= 200 && status < 300) {
           resolve(data);
         } else {
-          const err = new Error((data as { error?: string }).error || `HTTP ${status}`) as CustomError;
+          const err = new Error(
+            (data as { error?: string }).error || `HTTP ${status}`
+          ) as CustomError;
           err.response = { data };
           reject(err);
         }
@@ -51,7 +72,9 @@ export async function getMyVideos(): Promise<unknown> {
   return apiFetch('/api/videos/my');
 }
 
-export async function getVideosByCourseOffering(courseOfferingId: number | string): Promise<unknown> {
+export async function getVideosByCourseOffering(
+  courseOfferingId: number | string
+): Promise<unknown> {
   return apiFetch(`/api/videos/course/${courseOfferingId}`);
 }
 
@@ -73,7 +96,7 @@ export async function addVideoQuizQuestion(
     points?: number;
     explanation?: string;
     timestamp?: number | null;
-  },
+  }
 ): Promise<unknown> {
   return apiFetch(`/api/videos/${videoId}/quiz-questions`, { method: 'POST', body: questionData });
 }
@@ -92,12 +115,18 @@ export async function updateVideoQuizQuestion(
     correct_answer?: string;
     points?: number;
     explanation?: string;
-  },
+  }
 ): Promise<unknown> {
-  return apiFetch(`/api/videos/${videoId}/quiz-questions/${questionId}`, { method: 'PUT', body: questionData });
+  return apiFetch(`/api/videos/${videoId}/quiz-questions/${questionId}`, {
+    method: 'PUT',
+    body: questionData,
+  });
 }
 
-export async function deleteVideoQuizQuestion(videoId: number, questionId: number): Promise<unknown> {
+export async function deleteVideoQuizQuestion(
+  videoId: number,
+  questionId: number
+): Promise<unknown> {
   return apiFetch(`/api/videos/${videoId}/quiz-questions/${questionId}`, { method: 'DELETE' });
 }
 
@@ -105,7 +134,11 @@ export async function startVideoQuizAttempt(videoId: number): Promise<unknown> {
   return apiFetch(`/api/videos/${videoId}/quiz/start`, { method: 'POST' });
 }
 
-export async function submitVideoQuizAnswer(videoId: number, questionId: number, answer: unknown): Promise<unknown> {
+export async function submitVideoQuizAnswer(
+  videoId: number,
+  questionId: number,
+  answer: unknown
+): Promise<unknown> {
   return apiFetch(`/api/videos/${videoId}/quiz/answer`, {
     method: 'POST',
     body: { question_id: questionId, answer },
@@ -124,3 +157,46 @@ export async function getVideoQuizAttempts(videoId: number): Promise<unknown> {
   return apiFetch(`/api/videos/${videoId}/quiz/attempts`);
 }
 
+export async function getVideoSections(videoId: number): Promise<{ sections: VideoSection[] }> {
+  return apiFetch(`/api/videos/${videoId}/sections`);
+}
+
+export async function getVideoTranscript(
+  videoId: number
+): Promise<{ transcript: VideoTranscript }> {
+  return apiFetch(`/api/videos/${videoId}/transcript`);
+}
+
+export async function createVideoSection(
+  videoId: number,
+  sectionData: { start_time?: number; end_time?: number; title: string; summary?: string }
+): Promise<{ section: VideoSection }> {
+  return apiFetch(`/api/videos/${videoId}/sections`, {
+    method: 'POST',
+    body: sectionData,
+  });
+}
+
+export async function updateVideoSection(
+  videoId: number,
+  sectionId: number,
+  sectionData: { start_time?: number; end_time?: number; title?: string; summary?: string }
+): Promise<{ section: VideoSection }> {
+  return apiFetch(`/api/videos/${videoId}/sections/${sectionId}`, {
+    method: 'PUT',
+    body: sectionData,
+  });
+}
+
+export async function deleteVideoSection(
+  videoId: number,
+  sectionId: number
+): Promise<{ message: string }> {
+  return apiFetch(`/api/videos/${videoId}/sections/${sectionId}`, { method: 'DELETE' });
+}
+
+export async function autoGenerateSections(
+  videoId: number
+): Promise<{ message: string; sections: number; transcriptGenerated: boolean }> {
+  return apiFetch(`/api/videos/${videoId}/sections/auto-generate`, { method: 'POST' });
+}

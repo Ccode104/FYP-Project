@@ -1,9 +1,10 @@
- import { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
   getVideoById,
   getVideoQuizQuestions,
   getVideosByCourseOffering,
+  getVideoSections,
 } from '../../features/videos/api/videos';
 import { apiFetch } from '../../services/api';
 import './VideoPlayerPage.css';
@@ -106,7 +107,7 @@ export default function VideoPlayerPage() {
         setQuestions(Array.isArray(questionsData) ? questionsData : []);
 
         // Load sections
-        const sectionsData = (await apiFetch(`/api/videos/${videoId}/sections`)) as { sections: VideoSection[] };
+        const sectionsData = await getVideoSections(Number(videoId));
         setSections(sectionsData.sections || []);
 
         if (videoData.video.course_offering_id) {
@@ -169,9 +170,7 @@ export default function VideoPlayerPage() {
     s => currentTime >= s.start_time && currentTime <= s.end_time
   );
 
-  const currentQuestion = questions.find(
-    q => q.section_id === currentSection?.id
-  );
+  const currentQuestion = questions.find(q => q.section_id === currentSection?.id);
 
   if (loading) {
     return (
@@ -208,7 +207,7 @@ export default function VideoPlayerPage() {
                   allowFullScreen
                   title={video.title}
                   onLoad={() => console.log('Iframe loaded:', embedUrl)}
-                  onError={(e) => console.error('Iframe error:', e)}
+                  onError={e => console.error('Iframe error:', e)}
                 />
               </>
             ) : (
@@ -365,11 +364,16 @@ export default function VideoPlayerPage() {
               <div className="sections">
                 {sections.map((section, index) => (
                   <div key={section.id} className="section-item">
-                    <div className="section-time">{formatTime(section.start_time)} - {formatTime(section.end_time)}</div>
+                    <div className="section-time">
+                      {formatTime(section.start_time)} - {formatTime(section.end_time)}
+                    </div>
                     <h5 className="section-title">{section.title}</h5>
                     <div className="section-progress">
                       <div className="progress-bar">
-                        <div className="progress-fill" style={{width: currentSection === section ? '100%' : '0%'}}></div>
+                        <div
+                          className="progress-fill"
+                          style={{ width: currentSection === section ? '100%' : '0%' }}
+                        ></div>
                       </div>
                     </div>
                   </div>

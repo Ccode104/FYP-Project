@@ -162,6 +162,8 @@ export async function uploadVideo(req, res) {
       courseOfferingId,
     ]);
 
+    const video = result.rows[0];
+
     res.status(201).json({
       success: true,
       message: 'Video uploaded successfully',
@@ -304,6 +306,9 @@ export async function getVideoById(req, res) {
         v.title,
         v.description,
         v.video_url,
+        v.embed_url,
+        v.drive_file_id,
+        v.cloudinary_public_id,
         v.duration,
         v.upload_timestamp,
         v.created_at,
@@ -1033,6 +1038,8 @@ export async function uploadVideoToDrive(req, res) {
 
     logger.info(`Video uploaded to Drive: ${driveFileId}`);
 
+    const video = result.rows[0];
+
     res.status(201).json({
       success: true,
       message: 'Video uploaded to Google Drive successfully',
@@ -1052,7 +1059,7 @@ export async function processVideoTranscript(videoId) {
 
     // Get video details
     const videoResult = await pool.query(
-      'SELECT * FROM videos WHERE id = $1 AND drive_file_id IS NOT NULL',
+      'SELECT * FROM videos WHERE id = $1 AND (drive_file_id IS NOT NULL OR cloudinary_public_id IS NOT NULL)',
       [videoId]
     );
     if (videoResult.rows.length === 0) {
@@ -1072,11 +1079,21 @@ export async function processVideoTranscript(videoId) {
       return;
     }
 
-    // Step 1: Generate dummy transcript for demo (replace with real Whisper)
-    const duration = video.duration || 1800; // default 30min
-    const wordsPerMin = 150;
-    const totalWords = Math.floor((duration / 60) * wordsPerMin);
-    const dummyTranscript = generateDummyTranscript(totalWords, duration);
+    // Step 1: Generate or fetch transcript
+    let transcript;
+    const duration = video.duration || 1800;
+
+    try {
+      transcript = await transcribeVideoWithGoogleSTT(video, duration);
+      logger.info(
+        `Google STT transcript fetched for video ${videoId}, length: ${transcript.length}`
+      );
+    } catch (sttError) {
+      logger.warn(`Google STT failed (feature not available), using dummy transcript`);
+      const wordsPerMin = 150;
+      const totalWords = Math.floor((duration / 60) * wordsPerMin);
+      transcript = generateDummyTranscript(totalWords, duration);
+    }
 
     // Step 2: Use Groq to divide into sections
     // Note: Groq is imported in the original file, but if not available, use fallback
@@ -1088,7 +1105,7 @@ export async function processVideoTranscript(videoId) {
       const prompt = `Divide this video transcript into 4-8 logical sections based on topics. Video duration: ${duration}s.
 
 Transcript:
-${dummyTranscript.substring(0, 4000)}...
+${transcript.substring(0, 4000)}...
 
 Output ONLY valid JSON array:
 [
@@ -1122,7 +1139,7 @@ Output ONLY valid JSON array:
     await pool.query(
       `INSERT INTO video_transcripts (video_id, full_transcript, language) 
        VALUES ($1, $2, 'en')`,
-      [videoId, dummyTranscript]
+      [videoId, transcript]
     );
 
     // Step 4: Store sections
@@ -1199,6 +1216,239 @@ export async function getVideoTranscript(req, res) {
   }
 }
 
+export async function createVideoSection(req, res) {
+  try {
+    const videoId = parseInt(req.params.id);
+    const { start_time, end_time, title, summary } = req.body;
+
+    if (isNaN(videoId)) {
+      return res.status(400).json({ error: 'Invalid video ID' });
+    }
+
+    if (!title) {
+      return res.status(400).json({ error: 'Title is required' });
+    }
+
+    const existingSection = await pool.query(
+      'SELECT id FROM video_sections WHERE video_id = $1 AND LOWER(title) = LOWER($2)',
+      [videoId, title.trim()]
+    );
+    if (existingSection.rows.length > 0) {
+      return res
+        .status(400)
+        .json({ error: 'A section with this name already exists for this video' });
+    }
+
+    const result = await pool.query(
+      `INSERT INTO video_sections (video_id, start_time, end_time, title, summary, transcript_snippet)
+       VALUES ($1, $2, $3, $4, $5, $6)
+       RETURNING *`,
+      [videoId, start_time || null, end_time || null, title.trim(), summary || '', '']
+    );
+
+    res.status(201).json({ section: result.rows[0] });
+  } catch (error) {
+    logger.error('Error creating section:', error);
+    res.status(500).json({ error: 'Failed to create section' });
+  }
+}
+
+export async function updateVideoSection(req, res) {
+  try {
+    const videoId = parseInt(req.params.id);
+    const sectionId = parseInt(req.params.sectionId);
+    const { start_time, end_time, title, summary } = req.body;
+
+    if (isNaN(sectionId)) {
+      return res.status(400).json({ error: 'Invalid section ID' });
+    }
+
+    if (title !== undefined && title.trim()) {
+      const existingSection = await pool.query(
+        'SELECT id FROM video_sections WHERE video_id = $1 AND LOWER(title) = LOWER($2) AND id != $3',
+        [videoId, title.trim(), sectionId]
+      );
+      if (existingSection.rows.length > 0) {
+        return res
+          .status(400)
+          .json({ error: 'A section with this name already exists for this video' });
+      }
+    }
+
+    const updates = [];
+    const values = [];
+    let paramIndex = 1;
+
+    if (start_time !== undefined) {
+      updates.push(`start_time = $${paramIndex++}`);
+      values.push(start_time);
+    }
+    if (end_time !== undefined) {
+      updates.push(`end_time = $${paramIndex++}`);
+      values.push(end_time);
+    }
+    if (title !== undefined) {
+      updates.push(`title = $${paramIndex++}`);
+      values.push(title.trim());
+    }
+    if (summary !== undefined) {
+      updates.push(`summary = $${paramIndex++}`);
+      values.push(summary);
+    }
+
+    if (updates.length === 0) {
+      return res.status(400).json({ error: 'No fields to update' });
+    }
+
+    values.push(sectionId);
+    const result = await pool.query(
+      `UPDATE video_sections SET ${updates.join(', ')} WHERE id = $${paramIndex} RETURNING *`,
+      values
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Section not found' });
+    }
+
+    res.json({ section: result.rows[0] });
+  } catch (error) {
+    logger.error('Error updating section:', error);
+    res.status(500).json({ error: 'Failed to update section' });
+  }
+}
+
+export async function deleteVideoSection(req, res) {
+  try {
+    const sectionId = parseInt(req.params.sectionId);
+
+    if (isNaN(sectionId)) {
+      return res.status(400).json({ error: 'Invalid section ID' });
+    }
+
+    const result = await pool.query('DELETE FROM video_sections WHERE id = $1 RETURNING *', [
+      sectionId,
+    ]);
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Section not found' });
+    }
+
+    res.json({ message: 'Section deleted successfully' });
+  } catch (error) {
+    logger.error('Error deleting section:', error);
+    res.status(500).json({ error: 'Failed to delete section' });
+  }
+}
+
+export async function autoGenerateSections(req, res) {
+  try {
+    const videoId = parseInt(req.params.id);
+
+    if (isNaN(videoId)) {
+      return res.status(400).json({ error: 'Invalid video ID' });
+    }
+
+    const videoResult = await pool.query('SELECT * FROM videos WHERE id = $1', [videoId]);
+    if (videoResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Video not found' });
+    }
+
+    const video = videoResult.rows[0];
+    const duration = video.duration || 1800;
+
+    const existingSections = await pool.query('SELECT id FROM video_sections WHERE video_id = $1', [
+      videoId,
+    ]);
+    if (existingSections.rows.length > 0) {
+      return res
+        .status(400)
+        .json({ error: 'Sections already exist. Delete them first to regenerate.' });
+    }
+
+    let transcript;
+    try {
+      transcript = await transcribeVideoWithGoogleSTT(video, duration);
+      logger.info(`Google STT transcript fetched for video ${videoId}`);
+    } catch (sttError) {
+      logger.warn(`Google STT failed (feature not available), using dummy transcript`);
+      const wordsPerMin = 150;
+      const totalWords = Math.floor((duration / 60) * wordsPerMin);
+      transcript = generateDummyTranscript(totalWords, duration);
+    }
+
+    let sections;
+    try {
+      const { Groq } = await import('groq');
+      const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
+
+      const prompt = `Divide this video transcript into 4-8 logical sections based on topics. Video duration: ${duration}s.
+
+Transcript:
+${transcript.substring(0, 4000)}...
+
+Output ONLY valid JSON array:
+[
+  {
+    "start_time": 0,
+    "end_time": 300,
+    "title": "Introduction",
+    "summary": "Brief summary..."
+  }
+]`;
+
+      const completion = await groq.chat.completions.create({
+        messages: [{ role: 'user', content: prompt }],
+        model: 'llama3-8b-8192',
+        temperature: 0.1,
+        max_tokens: 2000,
+      });
+
+      const response = completion.choices[0]?.message?.content || '[]';
+      try {
+        sections = JSON.parse(response);
+      } catch {
+        sections = generateDummySections(duration);
+      }
+    } catch (groqError) {
+      logger.warn('Groq not available, using dummy sections:', groqError.message);
+      sections = generateDummySections(duration);
+    }
+
+    for (const sec of sections) {
+      await pool.query(
+        `INSERT INTO video_sections (video_id, start_time, end_time, title, summary, transcript_snippet)
+         VALUES ($1, $2, $3, $4, $5, $6)`,
+        [
+          videoId,
+          sec.start_time || 0,
+          sec.end_time || 60,
+          sec.title || 'Section',
+          sec.summary || '',
+          sec.transcript_snippet || '',
+        ]
+      );
+    }
+
+    if (transcript && transcript.length > 100) {
+      await pool.query(
+        `INSERT INTO video_transcripts (video_id, full_transcript, language) 
+         VALUES ($1, $2, 'en')`,
+        [videoId, transcript]
+      );
+    }
+
+    logger.info(`Auto-generated ${sections.length} sections for video ${videoId}`);
+    res.json({
+      message: 'Sections generated successfully',
+      sections: sections.length,
+      transcriptGenerated: transcript && transcript.length > 100,
+    });
+  } catch (error) {
+    logger.error('Error auto-generating sections:', error);
+    res.status(500).json({ error: 'Failed to generate sections' });
+  }
+}
+
 function generateDummyTranscript(words, duration) {
   const topics = [
     'introduction to algorithms',
@@ -1244,4 +1494,10 @@ function generateDummySections(duration) {
     });
   }
   return sections;
+}
+
+async function transcribeVideoWithGoogleSTT(video, duration) {
+  throw new Error(
+    'Google Speech-to-Text is not configured. Please install @google-cloud/speech and set up credentials.'
+  );
 }

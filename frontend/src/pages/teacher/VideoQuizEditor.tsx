@@ -8,8 +8,12 @@ import {
   addVideoQuizQuestion,
   updateVideoQuizQuestion,
   deleteVideoQuizQuestion,
+  getVideoSections,
+  createVideoSection,
+  updateVideoSection,
+  deleteVideoSection,
+  autoGenerateSections,
 } from '../../features/videos/api/videos';
-import { apiFetch } from '../../services/api';
 import './VideoQuizEditor.css';
 
 interface Video {
@@ -19,6 +23,8 @@ interface Video {
   thumbnail_url?: string;
   video_url: string;
   cloudinary_public_id?: string;
+  drive_file_id?: string;
+  embed_url?: string;
   duration: number;
   upload_timestamp: string;
 }
@@ -66,37 +72,60 @@ export default function VideoQuizEditor() {
   const [selectedSectionId, setSelectedSectionId] = useState<number | null>(null);
   const [editingQuestion, setEditingQuestion] = useState<QuizQuestion | null>(null);
 
-  const getDriveEmbedUrl = (v: Video | null) => {
-    if (!v) {
-      console.log('Video is null');
-      return '';
-    }
-    console.log('Video data:', v);
-    console.log('cloudinary_public_id:', v.cloudinary_public_id);
-    console.log('video_url:', v.video_url);
+  const [showSectionModal, setShowSectionModal] = useState(false);
+  const [editingSection, setEditingSection] = useState<VideoSection | null>(null);
+  const [sectionForm, setSectionForm] = useState({
+    start_time: '',
+    end_time: '',
+    title: '',
+    summary: '',
+  });
+  const [generatingSections, setGeneratingSections] = useState(false);
 
-    // Check if cloudinary_public_id exists and contains a Google Drive file ID
+  const getDriveEmbedUrl = (v: Video | null) => {
+    if (!v) return '';
+
+    // Use embed_url from backend if available
+    if (v.embed_url) {
+      return v.embed_url;
+    }
+
+    // Helper to extract Drive file ID from various URL formats
+    const extractDriveFileId = (url: string): string | null => {
+      // Pattern 1: /file/d/FILE_ID (embed URL)
+      const match1 = url.match(/\/file\/d\/([a-zA-Z0-9-_]+)/);
+      if (match1 && match1[1]) return match1[1];
+
+      // Pattern 2: ?id=FILE_ID or &id=FILE_ID (download URL)
+      const match2 = url.match(/[?&]id=([a-zA-Z0-9-_]+)/);
+      if (match2 && match2[1]) return match2[1];
+
+      return null;
+    };
+
+    // Check if drive_file_id exists (most reliable)
+    if (v.drive_file_id) {
+      return `https://drive.google.com/file/d/${v.drive_file_id}/preview?usp=drivesdk`;
+    }
+
+    // Check cloudinary_public_id (contains Drive file ID)
     if (v.cloudinary_public_id) {
-      console.log('Checking cloudinary_public_id for Drive ID...');
-      const driveMatch = v.cloudinary_public_id.match(/\/d\/([a-zA-Z0-9-_]+)/);
-      if (driveMatch && driveMatch[1]) {
-        console.log('Found Drive ID in cloudinary_public_id:', driveMatch[1]);
-        return `https://drive.google.com/file/d/${driveMatch[1]}/preview`;
+      const fileId = extractDriveFileId(v.cloudinary_public_id);
+      if (fileId) {
+        return `https://drive.google.com/file/d/${fileId}/preview?usp=drivesdk`;
       }
     }
-    // Check if video_url is a Google Drive URL
+
+    // Check video_url
     if (v.video_url) {
-      console.log('Checking video_url for Drive ID...');
-      const driveMatch = v.video_url.match(/\/d\/([a-zA-Z0-9-_]+)/);
-      if (driveMatch && driveMatch[1]) {
-        console.log('Found Drive ID in video_url:', driveMatch[1]);
-        return `https://drive.google.com/file/d/${driveMatch[1]}/preview`;
+      const fileId = extractDriveFileId(v.video_url);
+      if (fileId) {
+        return `https://drive.google.com/file/d/${fileId}/preview?usp=drivesdk`;
       }
-      // Otherwise use the video_url as-is
-      console.log('Using video_url as-is:', v.video_url);
+      // Fallback: use video_url as-is
       return v.video_url;
     }
-    console.log('No video URL found');
+
     return '';
   };
 
@@ -136,7 +165,7 @@ export default function VideoQuizEditor() {
         setQuestions(Array.isArray(questionsData) ? questionsData : []);
 
         // Load sections
-        const sectionsResponse = await apiFetch(`/api/videos/${videoId}/sections`);
+        const sectionsResponse = await getVideoSections(Number(videoId));
         setSections(sectionsResponse.sections || []);
       } catch (err) {
         console.error('Failed to load video data:', err);
@@ -275,6 +304,104 @@ export default function VideoQuizEditor() {
     }
   };
 
+  const openAddSection = () => {
+    setEditingSection(null);
+    setSectionForm({
+      start_time: '00:00',
+      end_time: formatTimestamp(duration || 600),
+      title: '',
+      summary: '',
+    });
+    setShowSectionModal(true);
+  };
+
+  const openEditSection = (section: VideoSection) => {
+    setEditingSection(section);
+    setSectionForm({
+      start_time: formatTimestamp(section.start_time),
+      end_time: formatTimestamp(section.end_time),
+      title: section.title,
+      summary: section.summary || '',
+    });
+    setShowSectionModal(true);
+  };
+
+  const handleSaveSection = async () => {
+    if (!videoId || !sectionForm.title.trim()) {
+      push({ kind: 'error', message: 'Title is required' });
+      return;
+    }
+
+    const startSec = parseTimestamp(sectionForm.start_time);
+    const endSec = parseTimestamp(sectionForm.end_time);
+
+    if (sectionForm.start_time && sectionForm.end_time && endSec <= startSec) {
+      push({ kind: 'error', message: 'End time must be after start time' });
+      return;
+    }
+
+    try {
+      const sectionData = {
+        title: sectionForm.title,
+        summary: sectionForm.summary,
+        ...(sectionForm.start_time ? { start_time: startSec } : {}),
+        ...(sectionForm.end_time ? { end_time: endSec } : {}),
+      };
+
+      if (editingSection) {
+        const updated = await updateVideoSection(Number(videoId), editingSection.id, sectionData);
+        setSections(prev =>
+          prev.map(s => (s.id === editingSection.id ? { ...s, ...updated.section } : s))
+        );
+        push({ kind: 'success', message: 'Section updated successfully' });
+      } else {
+        const created = await createVideoSection(Number(videoId), sectionData);
+        setSections(prev => [...prev, created.section]);
+        push({ kind: 'success', message: 'Section created successfully' });
+      }
+      setShowSectionModal(false);
+    } catch (err: any) {
+      console.error('Failed to save section:', err);
+      const msg = err?.response?.data?.error || 'Failed to save section';
+      push({ kind: 'error', message: msg });
+    }
+  };
+
+  const handleDeleteSection = async (sectionId: number) => {
+    if (!confirm('Delete this section? Quiz questions linked to it will not be deleted.')) return;
+
+    try {
+      await deleteVideoSection(Number(videoId), sectionId);
+      setSections(prev => prev.filter(s => s.id !== sectionId));
+      if (selectedSectionId === sectionId) setSelectedSectionId(null);
+      push({ kind: 'success', message: 'Section deleted successfully' });
+    } catch (err) {
+      console.error('Failed to delete section:', err);
+      push({ kind: 'error', message: 'Failed to delete section' });
+    }
+  };
+
+  const handleAutoGenerate = async () => {
+    if (!videoId) return;
+
+    setGeneratingSections(true);
+    try {
+      const result = await autoGenerateSections(Number(videoId));
+      const sectionsResp = await getVideoSections(Number(videoId));
+      setSections(sectionsResp.sections || []);
+      push({
+        kind: 'success',
+        message: `Generated ${result.sections} sections${result.transcriptGenerated ? ' with transcript' : ''}`,
+      });
+    } catch (err: any) {
+      console.error('Failed to auto-generate sections:', err);
+      const msg = err?.response?.data?.error || 'Failed to auto-generate sections';
+      push({ kind: 'error', message: msg });
+    } finally {
+      setGeneratingSections(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="video-quiz-editor-loading">
@@ -296,9 +423,10 @@ export default function VideoQuizEditor() {
               {embedUrl ? (
                 <iframe
                   src={embedUrl}
-                  className="w-full h-full"
-                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share; fullscreen"
+                  className="drive-iframe"
+                  allow="autoplay; fullscreen; picture-in-picture"
                   allowFullScreen
+                  referrerPolicy="no-referrer"
                   title={video?.title}
                 />
               ) : (
@@ -321,14 +449,17 @@ export default function VideoQuizEditor() {
               <div className="form-grid">
                 <div className="form-group">
                   <label>Section</label>
-                  <select 
+                  <select
                     value={selectedSectionId || ''}
-                    onChange={e => setSelectedSectionId(e.target.value ? parseInt(e.target.value) : null)}
+                    onChange={e =>
+                      setSelectedSectionId(e.target.value ? parseInt(e.target.value) : null)
+                    }
                   >
                     <option value="">Select section...</option>
                     {sections.map(section => (
                       <option key={section.id} value={section.id}>
-                        {formatTimestamp(section.start_time)} - {formatTimestamp(section.end_time)}: {section.title}
+                        {formatTimestamp(section.start_time)} - {formatTimestamp(section.end_time)}:{' '}
+                        {section.title}
                       </option>
                     ))}
                   </select>
@@ -430,6 +561,64 @@ export default function VideoQuizEditor() {
               </div>
             </form>
           </section>
+
+          <section className="sections-panel">
+            <div className="sections-panel-header">
+              <h3>Video Sections</h3>
+              <div className="sections-actions">
+                <button
+                  className="btn-secondary"
+                  onClick={handleAutoGenerate}
+                  disabled={generatingSections}
+                  title="Auto-generate sections using AI"
+                >
+                  <span className="material-symbols-outlined">auto_awesome</span>
+                  {generatingSections ? 'Generating...' : 'Auto-Generate'}
+                </button>
+                <button className="btn-primary" onClick={openAddSection}>
+                  <span className="material-symbols-outlined">add</span>
+                  Add Section
+                </button>
+              </div>
+            </div>
+            <div className="sections-list">
+              {sections.length === 0 ? (
+                <div className="empty-state">
+                  <span className="material-symbols-outlined">segment</span>
+                  <p>No sections yet. Add sections to organize quiz questions.</p>
+                </div>
+              ) : (
+                sections.map(section => (
+                  <div key={section.id} className="section-card">
+                    <div className="section-card-header">
+                      <span className="section-time">
+                        {formatTimestamp(section.start_time)} - {formatTimestamp(section.end_time)}
+                      </span>
+                      <div className="section-actions">
+                        <button
+                          className="action-btn"
+                          onClick={() => openEditSection(section)}
+                          title="Edit"
+                        >
+                          <span className="material-symbols-outlined">edit</span>
+                        </button>
+                        <button
+                          className="action-btn action-btn-delete"
+                          onClick={() => handleDeleteSection(section.id)}
+                          title="Delete"
+                        >
+                          <span className="material-symbols-outlined">delete</span>
+                        </button>
+                      </div>
+                    </div>
+                    <h4 className="section-title">{section.title}</h4>
+                    {section.summary && <p className="section-summary">{section.summary}</p>}
+                    <span className="section-quiz-count">{section.quiz_count || 0} questions</span>
+                  </div>
+                ))
+              )}
+            </div>
+          </section>
         </div>
 
         <div className="right-column">
@@ -453,12 +642,14 @@ export default function VideoQuizEditor() {
                       className={`question-card ${index === 0 ? 'question-card-highlighted' : ''}`}
                     >
                       <div className="question-card-header">
-                      <span
+                        <span
                           className={
                             index === 0 ? 'timestamp-badge-highlighted' : 'timestamp-badge'
                           }
                         >
-                          {question.section ? formatTimestamp(question.section.start_time) : 'No section'}
+                          {question.section
+                            ? formatTimestamp(question.section.start_time)
+                            : 'No section'}
                         </span>
                         <div className="question-actions">
                           <button
@@ -498,6 +689,79 @@ export default function VideoQuizEditor() {
           </div>
         </div>
       </div>
+
+      {showSectionModal && (
+        <div className="modal-overlay" onClick={() => setShowSectionModal(false)}>
+          <div className="modal-content" onClick={e => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3>{editingSection ? 'Edit Section' : 'Add New Section'}</h3>
+              <button className="modal-close" onClick={() => setShowSectionModal(false)}>
+                <span className="material-symbols-outlined">close</span>
+              </button>
+            </div>
+            <div className="modal-body">
+              <p
+                className="modal-hint"
+                style={{ marginBottom: '16px', color: '#64748b', fontSize: '14px' }}
+              >
+                Note: Two sections cannot have the same name. Adding timestamps is highly
+                recommended for better quiz alignment.
+              </p>
+              <div className="form-group">
+                <label>
+                  Start Time (mm:ss){' '}
+                  <span style={{ color: '#f59e0b', fontSize: '12px' }}>(highly recommended)</span>
+                </label>
+                <input
+                  type="text"
+                  value={sectionForm.start_time}
+                  onChange={e => setSectionForm({ ...sectionForm, start_time: e.target.value })}
+                  placeholder="00:00"
+                />
+              </div>
+              <div className="form-group">
+                <label>
+                  End Time (mm:ss){' '}
+                  <span style={{ color: '#f59e0b', fontSize: '12px' }}>(highly recommended)</span>
+                </label>
+                <input
+                  type="text"
+                  value={sectionForm.end_time}
+                  onChange={e => setSectionForm({ ...sectionForm, end_time: e.target.value })}
+                  placeholder="05:00"
+                />
+              </div>
+              <div className="form-group">
+                <label>Section Title</label>
+                <input
+                  type="text"
+                  value={sectionForm.title}
+                  onChange={e => setSectionForm({ ...sectionForm, title: e.target.value })}
+                  placeholder="e.g., Introduction, Main Concepts"
+                  required
+                />
+              </div>
+              <div className="form-group">
+                <label>Summary (optional)</label>
+                <textarea
+                  value={sectionForm.summary}
+                  onChange={e => setSectionForm({ ...sectionForm, summary: e.target.value })}
+                  placeholder="Brief description of this section..."
+                  rows={3}
+                />
+              </div>
+            </div>
+            <div className="modal-footer">
+              <button className="btn-secondary" onClick={() => setShowSectionModal(false)}>
+                Cancel
+              </button>
+              <button className="btn-primary" onClick={handleSaveSection}>
+                {editingSection ? 'Update Section' : 'Create Section'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
