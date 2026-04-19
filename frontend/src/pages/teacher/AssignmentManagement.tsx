@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { apiFetch } from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
@@ -16,6 +16,7 @@ interface Assignment {
   attempt_limit?: number;
   course_code?: string;
   course_name?: string;
+  google_sheet_id?: string;
 }
 
 interface Submission {
@@ -40,8 +41,17 @@ export default function AssignmentManagement() {
   const [submissions, setSubmissions] = useState<Submission[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [editingDescription, setEditingDescription] = useState(false);
-  const [editDescription, setEditDescription] = useState('');
+
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editForm, setEditForm] = useState({
+    title: '',
+    description: '',
+    due_at: '',
+    max_score: 100,
+  });
+
+  const [googleConnected, setGoogleConnected] = useState(false);
+  const [sheetLoading, setSheetLoading] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -60,7 +70,6 @@ export default function AssignmentManagement() {
         if (!cancelled) {
           setAssignment(assignmentData);
           setSubmissions(submissionsResponse?.submissions || []);
-          setEditDescription(assignmentData?.description || '');
         }
       } catch (err) {
         if (!cancelled) {
@@ -79,21 +88,77 @@ export default function AssignmentManagement() {
     };
   }, [courseId, assignmentId]);
 
-  const handleSaveDescription = async () => {
+  useEffect(() => {
+    async function checkGoogleConnection() {
+      try {
+        const data = await apiFetch<{ connected: boolean }>('/api/google/status');
+        setGoogleConnected(data.connected);
+      } catch {
+        setGoogleConnected(false);
+      }
+    }
+    checkGoogleConnection();
+  }, []);
+
+  const handleSaveEdit = async () => {
     if (!assignmentId) return;
     try {
-      const response = await apiFetch<Assignment>(`/api/assignments/${assignmentId}`, {
+      const updated = await apiFetch<Assignment>(`/api/assignments/${assignmentId}`, {
         method: 'PUT',
-        body: JSON.stringify({ description: editDescription }),
+        body: JSON.stringify({
+          title: editForm.title,
+          description: editForm.description,
+          due_at: editForm.due_at || null,
+          max_score: editForm.max_score,
+        }),
       });
-      setAssignment(response);
-      setEditDescription(response.description || '');
-      setEditingDescription(false);
+      setAssignment(updated);
+      setShowEditModal(false);
     } catch (err) {
-      console.error('Failed to update description:', err);
-      alert('Failed to update description');
+      console.error('Failed to update assignment:', err);
+      alert('Failed to update assignment');
     }
   };
+
+  const handleDelete = async () => {
+    if (!assignmentId) return;
+    if (
+      !window.confirm(
+        'Are you sure you want to delete this assignment? This action cannot be undone.'
+      )
+    )
+      return;
+    try {
+      await apiFetch(`/api/assignments/${assignmentId}`, { method: 'DELETE' });
+      navigate(`/courses/${courseId}/assignments`);
+    } catch (err) {
+      console.error('Failed to delete assignment:', err);
+      alert('Failed to delete assignment');
+    }
+  };
+
+  const handleOpenSheet = useCallback(async () => {
+    if (!assignment || !assignmentId) return;
+    setSheetLoading(true);
+    try {
+      const response = await apiFetch<{ url: string }>(
+        `/api/assignments/${assignmentId}/grading-sheet`,
+        {
+          method: 'POST',
+        }
+      );
+      if (response.url) {
+        window.open(response.url, '_blank');
+      } else {
+        alert('Failed to generate grading sheet');
+      }
+    } catch (err) {
+      console.error('Failed to open grading sheet:', err);
+      alert('Failed to open grading sheet');
+    } finally {
+      setSheetLoading(false);
+    }
+  }, [assignment, assignmentId]);
 
   if (loading) {
     return (
@@ -159,9 +224,34 @@ export default function AssignmentManagement() {
             </div>
           </div>
           <div className="assignment-actions">
-            <button className="btn-edit" onClick={() => setEditingDescription(true)}>
+            <button
+              className="btn btn-secondary"
+              onClick={() => {
+                setEditForm({
+                  title: assignment.title,
+                  description: assignment.description || '',
+                  due_at: assignment.due_at
+                    ? new Date(assignment.due_at).toISOString().slice(0, 16)
+                    : '',
+                  max_score: assignment.max_score || 100,
+                });
+                setShowEditModal(true);
+              }}
+            >
               <span className="material-symbols-outlined">edit</span>
               Edit Assignment
+            </button>
+            <button className="btn btn-danger" onClick={handleDelete} style={{ marginLeft: '8px' }}>
+              <span className="material-symbols-outlined">delete</span>
+              Delete
+            </button>
+            <button
+              className="btn btn-outline"
+              onClick={handleOpenSheet}
+              style={{ marginLeft: '8px' }}
+            >
+              <span className="material-symbols-outlined">table_chart</span>
+              Grading Sheet
             </button>
           </div>
         </div>
@@ -169,32 +259,113 @@ export default function AssignmentManagement() {
         {/* Description Section */}
         <div className="assignment-description-section">
           <h3>Assignment Description</h3>
-          {editingDescription ? (
-            <div className="description-edit">
-              <textarea
-                value={editDescription}
-                onChange={e => setEditDescription(e.target.value)}
-                rows={6}
-                placeholder="Enter assignment description..."
-              />
-              <div className="description-edit-actions">
-                <button className="btn-cancel" onClick={() => setEditingDescription(false)}>
+          <div className="description-display">
+            <p>{assignment.description || 'No description provided.'}</p>
+          </div>
+        </div>
+
+        {/* Edit Modal */}
+        {showEditModal && (
+          <div
+            style={{
+              position: 'fixed',
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              background: 'rgba(0,0,0,0.5)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              zIndex: 1000,
+            }}
+          >
+            <div
+              style={{
+                background: 'var(--bg-primary)',
+                padding: '24px',
+                borderRadius: '12px',
+                width: '100%',
+                maxWidth: '500px',
+              }}
+            >
+              <h2 style={{ marginBottom: '16px' }}>Edit Assignment</h2>
+              <div style={{ marginBottom: '12px' }}>
+                <label style={{ display: 'block', marginBottom: '4px', fontWeight: 600 }}>
+                  Title
+                </label>
+                <input
+                  type="text"
+                  value={editForm.title}
+                  onChange={e => setEditForm({ ...editForm, title: e.target.value })}
+                  style={{
+                    width: '100%',
+                    padding: '8px',
+                    borderRadius: '4px',
+                    border: '1px solid var(--border)',
+                  }}
+                />
+              </div>
+              <div style={{ marginBottom: '12px' }}>
+                <label style={{ display: 'block', marginBottom: '4px', fontWeight: 600 }}>
+                  Description
+                </label>
+                <textarea
+                  value={editForm.description}
+                  onChange={e => setEditForm({ ...editForm, description: e.target.value })}
+                  rows={4}
+                  style={{
+                    width: '100%',
+                    padding: '8px',
+                    borderRadius: '4px',
+                    border: '1px solid var(--border)',
+                  }}
+                />
+              </div>
+              <div style={{ marginBottom: '12px' }}>
+                <label style={{ display: 'block', marginBottom: '4px', fontWeight: 600 }}>
+                  Due Date
+                </label>
+                <input
+                  type="datetime-local"
+                  value={editForm.due_at}
+                  onChange={e => setEditForm({ ...editForm, due_at: e.target.value })}
+                  style={{
+                    width: '100%',
+                    padding: '8px',
+                    borderRadius: '4px',
+                    border: '1px solid var(--border)',
+                  }}
+                />
+              </div>
+              <div style={{ marginBottom: '16px' }}>
+                <label style={{ display: 'block', marginBottom: '4px', fontWeight: 600 }}>
+                  Max Score
+                </label>
+                <input
+                  type="number"
+                  value={editForm.max_score}
+                  onChange={e => setEditForm({ ...editForm, max_score: Number(e.target.value) })}
+                  min={0}
+                  style={{
+                    width: '100%',
+                    padding: '8px',
+                    borderRadius: '4px',
+                    border: '1px solid var(--border)',
+                  }}
+                />
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
+                <button className="btn" onClick={() => setShowEditModal(false)}>
                   Cancel
                 </button>
-                <button className="btn-save" onClick={handleSaveDescription}>
+                <button className="btn btn-primary" onClick={handleSaveEdit}>
                   Save
                 </button>
               </div>
             </div>
-          ) : (
-            <div className="description-display">
-              <p>{assignment.description || 'No description provided.'}</p>
-              <button className="btn-edit-inline" onClick={() => setEditingDescription(true)}>
-                <span className="material-symbols-outlined">edit</span>
-              </button>
-            </div>
-          )}
-        </div>
+          </div>
+        )}
       </div>
 
       {/* Submissions Spreadsheet */}

@@ -35,7 +35,10 @@ import {
 } from '../../features/discussion/api/discussion';
 import CourseSidebar, { type TabItem } from '../../components/course/CourseSidebar';
 import LiveLectureBroadcaster from '../../components/LiveLectureBroadcaster';
-import { getLiveLecturesByCourse } from '../../features/live-lecture/api/liveLectures';
+import {
+  getLiveLecturesByCourse,
+  type LiveLecture,
+} from '../../features/live-lecture/api/liveLectures';
 import SuspendedQuizzes from '../../components/SuspendedQuizzes';
 import ProctoringAnalytics from '../../components/ProctoringAnalytics';
 
@@ -99,7 +102,7 @@ export default function CourseDetails() {
   >((urlTab as typeof tab) || 'present');
   const [backendVideos, setBackendVideos] = useState<unknown[]>([]);
   const [selectedVideo, setSelectedVideo] = useState<unknown | null>(null);
-  const [liveLectures, setLiveLectures] = useState<unknown[]>([]);
+  const [liveLectures, setLiveLectures] = useState<LiveLecture[]>([]);
   const [showLiveLectureBroadcaster, setShowLiveLectureBroadcaster] = useState(false);
   const [selectedQuizResult, setSelectedQuizResult] = useState<unknown | null>(null);
   const [showQuizResultModal, setShowQuizResultModal] = useState(false);
@@ -3135,13 +3138,13 @@ export default function CourseDetails() {
                         <th>Title</th>
                         <th>Status</th>
                         <th>Scheduled</th>
-                        <th>Started</th>
+                        <th>Meet</th>
                         <th>Participants</th>
                         <th>Actions</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {liveLectures.map((lecture: unknown) => (
+                      {liveLectures.map(lecture => (
                         <tr key={lecture.id}>
                           <td>
                             <div>
@@ -3183,70 +3186,21 @@ export default function CourseDetails() {
                               ? new Date(lecture.scheduled_at).toLocaleString()
                               : 'N/A'}
                           </td>
+                          <td>{lecture.meeting_url ? 'Scheduled' : 'Unavailable'}</td>
+                          <td>{lecture.total_participant_count || lecture.active_participant_count || 0}</td>
                           <td>
-                            {lecture.started_at
-                              ? new Date(lecture.started_at).toLocaleString()
-                              : 'Not started'}
-                          </td>
-                          <td>{lecture.participant_count || 0}</td>
-                          <td>
-                            {lecture.status === 'live' && (
-                              <button
-                                className="btn btn-primary"
-                                onClick={() => {
-                                  // Navigate to dedicated live lecture page
-                                  navigate(`/courses/${courseId}/live-lectures/${lecture.id}`);
-                                }}
-                              >
-                                Join
-                              </button>
-                            )}
-                            {user?.role === 'teacher' && lecture.status === 'scheduled' && (
-                              <button
-                                className="btn btn-success"
-                                onClick={async () => {
-                                  try {
-                                    const { startLiveLecture } =
-                                      await import('../../features/live-lecture/api/liveLectures');
-                                    await startLiveLecture(lecture.id);
-                                    // Refresh lectures
-                                    const lecturesData = await getLiveLecturesByCourse(courseId!);
-                                    setLiveLectures(lecturesData.lectures || []);
-                                    push({ kind: 'success', message: 'Live lecture started' });
-                                  } catch (err: unknown) {
-                                    push({
-                                      kind: 'error',
-                                      message: err?.message || 'Failed to start lecture',
-                                    });
-                                  }
-                                }}
-                              >
-                                Start
-                              </button>
-                            )}
-                            {user?.role === 'teacher' && lecture.status === 'live' && (
-                              <button
-                                className="btn btn-danger"
-                                onClick={async () => {
-                                  try {
-                                    const { endLiveLecture } =
-                                      await import('../../features/live-lecture/api/liveLectures');
-                                    await endLiveLecture(lecture.id);
-                                    // Refresh lectures
-                                    const lecturesData = await getLiveLecturesByCourse(courseId!);
-                                    setLiveLectures(lecturesData.lectures || []);
-                                    push({ kind: 'success', message: 'Live lecture ended' });
-                                  } catch (err: unknown) {
-                                    push({
-                                      kind: 'error',
-                                      message: err?.message || 'Failed to end lecture',
-                                    });
-                                  }
-                                }}
-                              >
-                                End
-                              </button>
-                            )}
+                            <button
+                              className="btn btn-primary"
+                              onClick={() => {
+                                navigate(`/courses/${courseId}/live-lectures/${lecture.id}`);
+                              }}
+                            >
+                              {lecture.status === 'ended'
+                                ? 'View Stats'
+                                : user?.role === 'teacher'
+                                  ? 'Open'
+                                  : 'View / Join'}
+                            </button>
                           </td>
                         </tr>
                       ))}
@@ -3262,7 +3216,7 @@ export default function CourseDetails() {
             <Modal
               open={showLiveLectureBroadcaster}
               onClose={() => setShowLiveLectureBroadcaster(false)}
-              title="Create Live Lecture"
+              title="Schedule Google Meet Lecture"
             >
               <LiveLectureBroadcaster
                 courseOfferingId={courseId || ''}
@@ -3272,7 +3226,7 @@ export default function CourseDetails() {
                     const lecturesData = await getLiveLecturesByCourse(courseId!);
                     setLiveLectures(lecturesData.lectures || []);
                     setShowLiveLectureBroadcaster(false);
-                    push({ kind: 'success', message: 'Live lecture created successfully' });
+                    push({ kind: 'success', message: 'Live lecture scheduled successfully' });
                   } catch (err: unknown) {
                     push({ kind: 'error', message: err?.message || 'Failed to refresh lectures' });
                   }

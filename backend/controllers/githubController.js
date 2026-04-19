@@ -1,13 +1,15 @@
 import { pool } from '../db/index.js';
 import axios from 'axios';
 import jwt from 'jsonwebtoken';
-import { getGitHubUser, validateGitHubToken } from '../utils/github.js';
+import { getGitHubUser, validateGitHubToken, createGitHubClient } from '../utils/github.js';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'supersecretkey';
 const JWT_EXPIRES_IN = '7d';
 const GITHUB_CLIENT_ID = process.env.GITHUB_CLIENT_ID;
 const GITHUB_CLIENT_SECRET = process.env.GITHUB_CLIENT_SECRET;
-const GITHUB_REDIRECT_URI = process.env.GITHUB_REDIRECT_URI || `${process.env.BASE_URL || 'http://localhost:3000'}/api/auth/github/callback`;
+const GITHUB_REDIRECT_URI =
+  process.env.GITHUB_REDIRECT_URI ||
+  `${process.env.BASE_URL || 'http://localhost:3000'}/api/auth/github/callback`;
 
 /**
  * Initiate GitHub OAuth flow
@@ -39,11 +41,9 @@ export async function initiateOAuth(req, res) {
     }
 
     // Generate state parameter for CSRF protection
-    const state = jwt.sign(
-      { userId: decoded.id, timestamp: Date.now() },
-      JWT_SECRET,
-      { expiresIn: '10m' }
-    );
+    const state = jwt.sign({ userId: decoded.id, timestamp: Date.now() }, JWT_SECRET, {
+      expiresIn: '10m',
+    });
 
     // GitHub OAuth URL
     const githubAuthUrl = `https://github.com/login/oauth/authorize?client_id=${GITHUB_CLIENT_ID}&redirect_uri=${encodeURIComponent(GITHUB_REDIRECT_URI)}&scope=repo,user&state=${state}&response_type=code`;
@@ -51,7 +51,7 @@ export async function initiateOAuth(req, res) {
 
     res.json({
       authUrl: githubAuthUrl,
-      state: state
+      state: state,
     });
   } catch (error) {
     console.error('Error initiating GitHub OAuth:', error);
@@ -89,16 +89,20 @@ export async function handleOAuthCallback(req, res) {
     }
 
     // Exchange authorization code for access token
-    const tokenResponse = await axios.post('https://github.com/login/oauth/access_token', {
-      client_id: GITHUB_CLIENT_ID,
-      client_secret: GITHUB_CLIENT_SECRET,
-      code: code,
-      redirect_uri: GITHUB_REDIRECT_URI
-    }, {
-      headers: {
-        'Accept': 'application/json'
+    const tokenResponse = await axios.post(
+      'https://github.com/login/oauth/access_token',
+      {
+        client_id: GITHUB_CLIENT_ID,
+        client_secret: GITHUB_CLIENT_SECRET,
+        code: code,
+        redirect_uri: GITHUB_REDIRECT_URI,
+      },
+      {
+        headers: {
+          Accept: 'application/json',
+        },
       }
-    });
+    );
 
     const { access_token } = tokenResponse.data;
 
@@ -123,11 +127,7 @@ export async function handleOAuthCallback(req, res) {
       RETURNING id, name, email, role, department_id, roll_number, github_username, github_connected_at
     `;
 
-    const result = await pool.query(updateQuery, [
-      plainToken,
-      githubUser.login,
-      stateData.userId
-    ]);
+    const result = await pool.query(updateQuery, [plainToken, githubUser.login, stateData.userId]);
 
     if (result.rowCount === 0) {
       return res.status(404).json({ error: 'User not found' });
@@ -136,11 +136,9 @@ export async function handleOAuthCallback(req, res) {
     const user = result.rows[0];
 
     // Generate new JWT token
-    const newToken = jwt.sign(
-      { id: user.id, email: user.email, role: user.role },
-      JWT_SECRET,
-      { expiresIn: JWT_EXPIRES_IN }
-    );
+    const newToken = jwt.sign({ id: user.id, email: user.email, role: user.role }, JWT_SECRET, {
+      expiresIn: JWT_EXPIRES_IN,
+    });
 
     // Redirect to frontend with success
     const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3001';
@@ -235,7 +233,7 @@ export async function getUserRepositories(req, res) {
       page,
       per_page,
       sort,
-      direction
+      direction,
     });
 
     res.json({
@@ -243,11 +241,110 @@ export async function getUserRepositories(req, res) {
       pagination: {
         page,
         per_page,
-        has_more: repositories.length === per_page
-      }
+        has_more: repositories.length === per_page,
+      },
     });
   } catch (error) {
     console.error('Error fetching GitHub repositories:', error);
     res.status(500).json({ error: 'Failed to fetch repositories' });
+  }
+}
+
+/**
+ * Get GitHub connection status
+ * GET /api/github/status
+ */
+export async function getGitHubStatus(req, res) {
+  try {
+    const userId = req.user.id;
+
+    const userQuery = await pool.query(
+      'SELECT github_access_token, github_username FROM users WHERE id = $1',
+      [userId]
+    );
+
+    if (userQuery.rowCount === 0) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    const user = userQuery.rows[0];
+    const connected = user.github_access_token != null;
+    const username = user.github_username;
+
+    res.json({ connected, username });
+  } catch (error) {
+    console.error('Error checking GitHub status:', error);
+    res.status(500).json({ error: 'Failed to check status' });
+  }
+}
+
+/**
+ * Get repository contents at root or specific path
+ * GET /api/github/repos/:owner/:repo/contents/:path(*)
+ */
+export async function getRepoContents(req, res) {
+  try {
+    const userId = req.user.id;
+    const { owner, repo, path } = req.params;
+
+    // Get user's GitHub access token
+    const userQuery = await pool.query(
+      'SELECT github_access_token, github_token_expires_at FROM users WHERE id = $1',
+      [userId]
+    );
+
+    if (userQuery.rowCount === 0) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    const user = userQuery.rows[0];
+
+    if (!user.github_access_token) {
+      return res.status(400).json({ error: 'GitHub not connected' });
+    }
+
+    // Check if token is expired
+    if (user.github_token_expires_at && new Date(user.github_token_expires_at) < new Date()) {
+      return res.status(401).json({ error: 'GitHub token expired. Please reconnect.' });
+    }
+
+    // Validate token
+    const isValid = await validateGitHubToken(user.github_access_token);
+    if (!isValid) {
+      return res.status(401).json({ error: 'Invalid GitHub token. Please reconnect.' });
+    }
+
+    // Fetch contents from GitHub
+    const octokit = createGitHubClient(user.github_access_token);
+
+    const apiPath = path || '';
+    const response = await octokit.repos.getContent({
+      owner,
+      repo,
+      path: apiPath,
+    });
+
+    // Handle single file response (when path points to a file)
+    const transform = item => ({
+      name: item.name,
+      path: item.path,
+      type: item.type,
+      size: item.size,
+      download_url: item.download_url,
+      content: item.content,
+      encoding: item.encoding,
+    });
+
+    if (Array.isArray(response.data)) {
+      res.json(response.data.map(transform));
+    } else {
+      res.json(transform(response.data));
+    }
+  } catch (error) {
+    console.error('Error fetching repository contents:', error);
+    if (error.status === 404) {
+      return res.status(404).json({ error: 'Path not found' });
+    }
+    res.status(500).json({ error: 'Failed to fetch contents' });
   }
 }

@@ -7,7 +7,7 @@ import Chatbot from './Chatbot';
 import TAAgentChat from './TAAgentChat';
 import { useAuth, getDashboardPathForRole } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
-import { useCallback } from 'react';
+import { useCallback, useEffect } from 'react';
 import { useCourse } from '../context/CourseContext';
 import AppSidebar from './AppSidebar';
 import AppHeader from './AppHeader';
@@ -22,7 +22,6 @@ export default function Layout({ children }: { children: ReactNode }) {
   const isLanding = pathname === '/';
   const isLoginPage = pathname === '/login';
   const isLiveLecture = pathname.includes('/live-lectures/');
-  const isVideoPlayer = pathname.includes('/videos/');
   const isVideoQuizEditor = pathname.includes('/videos/') && pathname.includes('/edit');
   const isPublicPage = isLanding || isAuth;
   const isFullscreenPage = isLiveLecture && user?.role === 'student'; // Remove video player from fullscreen
@@ -35,6 +34,17 @@ export default function Layout({ children }: { children: ReactNode }) {
     const match = pathname.match(/\/courses\/(\d+)/);
     return match ? match[1] : undefined;
   }, [pathname]);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const googleConnected = params.get('google_connected');
+    const returnUrl = sessionStorage.getItem('google_oauth_return_url');
+
+    if (googleConnected === 'true' && returnUrl) {
+      sessionStorage.removeItem('google_oauth_return_url');
+      window.location.replace(returnUrl);
+    }
+  }, []);
 
   if (isLanding) {
     return <>{children}</>;

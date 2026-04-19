@@ -1,83 +1,137 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { getLiveLecturesByCourse } from '../../features/live-lecture/api/liveLectures';
 import { useAuth } from '../../context/AuthContext';
+import {
+  getLiveLecturesByCourse,
+  type LiveLecture,
+} from '../../features/live-lecture/api/liveLectures';
+
+function formatDateTime(value?: string | null) {
+  if (!value) {
+    return 'Not scheduled';
+  }
+  return new Date(value).toLocaleString();
+}
 
 export default function LiveLecturesLanding() {
   const { courseId } = useParams<{ courseId: string }>();
-  const navigate = useNavigate();
   const { user } = useAuth();
-  const [status, setStatus] = useState<'loading' | 'redirect' | 'empty' | 'error'>('loading');
-  const [error, setError] = useState<string | null>(null);
+  const navigate = useNavigate();
+
+  const [lectures, setLectures] = useState<LiveLecture[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
 
   useEffect(() => {
-    if (!courseId || !user) return;
-    const courseIdNum = Number(courseId);
-    if (Number.isNaN(courseIdNum)) {
-      navigate(`/courses/${courseId}/hub`, { replace: true });
-      return;
-    }
-
     const loadLectures = async () => {
+      if (!courseId) {
+        return;
+      }
+
       try {
-        const data = await getLiveLecturesByCourse(courseIdNum);
-        const lectures = (data as any)?.lectures || [];
-        const activeLecture = lectures.find((lecture: any) => lecture.status === 'live');
-        const scheduledLecture = lectures.find((lecture: any) => lecture.status === 'scheduled');
-
-        if (activeLecture?.id) {
-          navigate(`/courses/${courseId}/live-lectures/${activeLecture.id}`, { replace: true });
-          return;
-        }
-
-        if (scheduledLecture?.id) {
-          navigate(`/courses/${courseId}/live-lectures/${scheduledLecture.id}`, { replace: true });
-          return;
-        }
-
-        setStatus('empty');
-      } catch (err: unknown) {
-        setError((err as Error)?.message || 'Unable to resolve live lectures');
-        setStatus('error');
+        const data = await getLiveLecturesByCourse(Number.parseInt(courseId, 10));
+        setLectures(data.lectures || []);
+        setError('');
+      } catch (loadError) {
+        setError(loadError instanceof Error ? loadError.message : 'Unable to load live lectures');
+      } finally {
+        setLoading(false);
       }
     };
 
     void loadLectures();
-  }, [courseId, navigate, user]);
+  }, [courseId]);
 
-  if (status === 'loading') {
-    return (
-      <div className="live-lecture-loading">
-        <div className="live-lecture-spinner"></div>
-        <p>Looking for your live lecture session...</p>
-      </div>
-    );
-  }
-
-  if (status === 'error') {
-    return (
-      <div className="live-lecture-loading">
-        <p>{error}</p>
-      </div>
-    );
+  if (!courseId || !user) {
+    return <div>Loading...</div>;
   }
 
   return (
-    <div className="live-lecture-dashboard" style={{ paddingTop: '32px' }}>
-      <header className="live-lecture-header">
-        <div className="live-lecture-header-left">
-          <h1 className="live-lecture-title">No Live Lecture Session Available</h1>
-          <p className="live-lecture-info">
-            There are no active or scheduled lectures for this course right now.
+    <div style={{ maxWidth: '1100px', margin: '0 auto', display: 'grid', gap: '18px' }}>
+      <div
+        style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          gap: '16px',
+          flexWrap: 'wrap',
+        }}
+      >
+        <div>
+          <h1 style={{ margin: 0 }}>Live Lectures</h1>
+          <p className="muted" style={{ margin: '8px 0 0' }}>
+            Scheduled and completed Google Meet sessions for this course.
           </p>
         </div>
-      </header>
-      <div className="live-lecture-analytics" style={{ gridTemplateColumns: '1fr' }}>
-        <div className="live-lecture-analytics-card">
-          <p className="live-lecture-analytics-value">No sessions</p>
-          <span className="live-lecture-analytics-label">Live Lecture Status</span>
-        </div>
+        <button className="btn" onClick={() => navigate(`/courses/${courseId}/hub`)}>
+          Back to Course Hub
+        </button>
       </div>
+
+      {loading ? (
+        <div className="loading-spinner">Loading live lectures...</div>
+      ) : error ? (
+        <div
+          style={{
+            padding: '12px 14px',
+            borderRadius: '10px',
+            background: '#fff1f0',
+            border: '1px solid #ffccc7',
+            color: '#a8071a',
+          }}
+        >
+          {error}
+        </div>
+      ) : lectures.length === 0 ? (
+        <div className="card">
+          <p className="muted" style={{ margin: 0 }}>
+            No live lectures have been scheduled for this course yet.
+          </p>
+        </div>
+      ) : (
+        <div className="card" style={{ overflowX: 'auto' }}>
+          <table className="table">
+            <thead>
+              <tr>
+                <th>Title</th>
+                <th>Status</th>
+                <th>Scheduled</th>
+                <th>Participants</th>
+                <th>Action</th>
+              </tr>
+            </thead>
+            <tbody>
+              {lectures.map(lecture => (
+                <tr key={lecture.id}>
+                  <td>
+                    <div style={{ fontWeight: 600 }}>{lecture.title}</div>
+                    {lecture.description && (
+                      <div className="muted" style={{ fontSize: '0.9rem' }}>
+                        {lecture.description}
+                      </div>
+                    )}
+                  </td>
+                  <td style={{ textTransform: 'capitalize' }}>{lecture.status}</td>
+                  <td>{formatDateTime(lecture.scheduled_at)}</td>
+                  <td>{lecture.total_participant_count || 0}</td>
+                  <td>
+                    <button
+                      className="btn btn-primary"
+                      onClick={() => navigate(`/courses/${courseId}/live-lectures/${lecture.id}`)}
+                    >
+                      {lecture.status === 'ended'
+                        ? 'View Stats'
+                        : user.role === 'teacher' || user.role === 'ta'
+                          ? 'Open'
+                          : 'View / Join'}
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
     </div>
   );
 }

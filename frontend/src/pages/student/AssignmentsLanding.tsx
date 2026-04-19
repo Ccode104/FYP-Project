@@ -215,8 +215,12 @@ export default function AssignmentsLanding() {
                     // For teachers/TAs, navigate to management page
                     if (user?.role === 'teacher' || user?.role === 'ta') {
                       navigate(`/courses/${courseId}/assignments/${assignment.id}/submissions`);
+                    } else if (assignment.assignment_type === 'code') {
+                      navigate(`/courses/${courseId}/assignments/${assignment.id}/editor`);
                     } else if (assignment.assignment_type === 'github') {
                       navigate(`/courses/${courseId}/assignments/${assignment.id}/github-submit`);
+                    } else if (assignment.assignment_type === 'mixed') {
+                      navigate(`/courses/${courseId}/assignments/${assignment.id}/mixed`);
                     } else {
                       navigate(`/courses/${courseId}/assignments/${assignment.id}`);
                     }

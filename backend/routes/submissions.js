@@ -9,6 +9,7 @@ import {
   submitGitHubRepoAssignment,
   getSubmissionById,
   deleteSubmission,
+  submitMixedAssignment,
 } from '../controllers/submissionsController.js';
 
 const router = express.Router();
@@ -221,6 +222,53 @@ router.post('/submit/link', requireAuth, requireRole('student'), submitLinkAssig
  *         description: Internal server error
  */
 router.post('/submit/github-repo', requireAuth, requireRole('student'), submitGitHubRepoAssignment);
+
+/**
+ * @swagger
+ * /api/submissions/submit/mixed:
+ *   post:
+ *     summary: Submit a mixed type assignment with multiple files
+ *     tags: [Submissions]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         multipart/form-data:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - assignmentId
+ *             properties:
+ *               assignmentId:
+ *                 type: string
+ *               files:
+ *                 type: array
+ *                 items:
+ *                   type: string
+ *                   format: binary
+ *               content:
+ *                 type: string
+ *     responses:
+ *       201:
+ *         description: Mixed assignment submitted successfully
+ *       400:
+ *         description: Invalid request
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Forbidden - Requires student role
+ *       404:
+ *         description: Assignment not found
+ */
+router.post(
+  '/submit/mixed',
+  requireAuth,
+  requireRole('student', 'ta'),
+  upload.array('files', 10),
+  submitMixedAssignment
+);
+
 router.delete('/:id', requireAuth, deleteSubmission);
 
 export default router;

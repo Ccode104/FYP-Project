@@ -21,6 +21,8 @@ const AssignmentsLanding = lazy(() => import('./pages/student/AssignmentsLanding
 
 const SubmissionReview = lazy(() => import('./pages/student/SubmissionReview'));
 const CodeEditorPage = lazy(() => import('./pages/student/CodeEditorPage'));
+const GitHubCodeEditor = lazy(() => import('./pages/student/GitHubCodeEditor'));
+const CodeAssignmentView = lazy(() => import('./pages/student/CodeAssignmentView'));
 const ContestEditorPage = lazy(() => import('./pages/student/ContestEditorPage'));
 const LiveLecturePage = lazy(() => import('./pages/student/LiveLecturePage'));
 const LiveLecturesLanding = lazy(() => import('./pages/student/LiveLecturesLanding'));
@@ -40,6 +42,8 @@ const QuizGrader = lazy(() => import('./pages/teacher/QuizGrader'));
 const QuizManagement = lazy(() => import('./pages/teacher/QuizManagement'));
 const AssignmentGitHubSubmit = lazy(() => import('./pages/student/AssignmentGitHubSubmit'));
 const AssignmentGrading = lazy(() => import('./pages/teacher/AssignmentGrading'));
+const AssignmentManagement = lazy(() => import('./pages/teacher/AssignmentManagement'));
+const MixedSubmissionUpload = lazy(() => import('./components/student/MixedSubmissionUpload'));
 const VideoManagement = lazy(() => import('./pages/teacher/VideoManagement'));
 const VideoQuizEditor = lazy(() => import('./pages/teacher/VideoQuizEditor'));
 const VideoLibrary = lazy(() => import('./pages/student/VideoLibrary'));
@@ -191,6 +195,16 @@ function App() {
               }
             />
 
+            {/* Code assignment view for students */}
+            <Route
+              path="/courses/:courseId/assignments/:assignmentId"
+              element={
+                <ProtectedRoute roles={['student', 'teacher', 'ta']}>
+                  <CodeAssignmentView />
+                </ProtectedRoute>
+              }
+            />
+
             {/* Discussion forum (accessible by student, teacher, TA) */}
             <Route
               path="/courses/:courseId/discussion"
@@ -232,6 +246,26 @@ function App() {
               }
             />
 
+            {/* Mixed submission page (accessible by student, teacher, TA) */}
+            <Route
+              path="/courses/:courseId/assignments/:assignmentId/mixed"
+              element={
+                <ProtectedRoute roles={['student', 'teacher', 'ta']}>
+                  <MixedSubmissionUpload />
+                </ProtectedRoute>
+              }
+            />
+
+            {/* Assignment submissions list (teacher/ta view all submissions) */}
+            <Route
+              path="/courses/:courseId/assignments/:assignmentId/submissions"
+              element={
+                <ProtectedRoute roles={['teacher', 'ta']}>
+                  <AssignmentManagement />
+                </ProtectedRoute>
+              }
+            />
+
             {/* Assignment grading page for GitHub/mixed assignments */}
             <Route
               path="/courses/:courseId/assignments/:assignmentId/grading"
@@ -257,7 +291,7 @@ function App() {
               path="/courses/:courseId/assignments/:assignmentId/editor"
               element={
                 <ProtectedRoute roles={['student', 'teacher', 'ta']}>
-                  <CodeEditorPage />
+                  <GitHubCodeEditor />
                 </ProtectedRoute>
               }
             />

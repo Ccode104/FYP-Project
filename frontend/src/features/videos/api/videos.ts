@@ -96,6 +96,7 @@ export async function addVideoQuizQuestion(
     points?: number;
     explanation?: string;
     timestamp?: number | null;
+    section_id?: number | null;
   }
 ): Promise<unknown> {
   return apiFetch(`/api/videos/${videoId}/quiz-questions`, { method: 'POST', body: questionData });
@@ -115,6 +116,7 @@ export async function updateVideoQuizQuestion(
     correct_answer?: string;
     points?: number;
     explanation?: string;
+    timestamp?: number | null;
   }
 ): Promise<unknown> {
   return apiFetch(`/api/videos/${videoId}/quiz-questions/${questionId}`, {

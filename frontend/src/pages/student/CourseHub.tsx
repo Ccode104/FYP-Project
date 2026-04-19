@@ -239,7 +239,11 @@ export default function CourseHub() {
         navigate(`/courses/${id}/discussion`);
         break;
       case 'videos':
-        navigate(`/courses/${id}/library`);
+        if (user?.role === 'teacher' || user?.role === 'ta') {
+          navigate(`/courses/${id}/videos`);
+        } else {
+          navigate(`/courses/${id}/library`);
+        }
         break;
       case 'live':
         navigate(`/courses/${id}/live`);

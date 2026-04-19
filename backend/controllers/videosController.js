@@ -406,11 +406,16 @@ export async function addVideoQuizQuestion(req, res) {
       points,
       explanation,
       timestamp,
+      section_id,
     } = req.body;
 
     // Validate required fields
     if (!question_text || !correct_answer) {
       return res.status(400).json({ error: 'question_text and correct_answer are required' });
+    }
+
+    if (isNaN(videoId)) {
+      return res.status(400).json({ error: 'Invalid video ID' });
     }
 
     if (isNaN(videoId)) {
@@ -439,12 +444,23 @@ export async function addVideoQuizQuestion(req, res) {
       }
     }
 
+    // If section_id provided, validate it exists and belongs to this video
+    if (section_id) {
+      const sectionCheck = await pool.query(
+        'SELECT id FROM video_sections WHERE id = $1 AND video_id = $2',
+        [section_id, videoId]
+      );
+      if (sectionCheck.rows.length === 0) {
+        return res.status(400).json({ error: 'Invalid section ID' });
+      }
+    }
+
     // Insert quiz question
     const insertQuery = `
       INSERT INTO video_quiz_questions (
-        video_id, question_text, question_type, options, correct_answer, points, explanation, timestamp
+        video_id, question_text, question_type, options, correct_answer, points, explanation, timestamp, section_id
       )
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
       RETURNING *
     `;
 
@@ -457,6 +473,7 @@ export async function addVideoQuizQuestion(req, res) {
       points || 1.0,
       explanation || null,
       timestamp !== undefined && timestamp !== null ? parseFloat(timestamp) : null,
+      section_id || null,
     ]);
 
     res.status(201).json({
@@ -484,13 +501,79 @@ export async function getVideoQuizQuestions(req, res) {
     }
 
     const query = `
-      SELECT * FROM video_quiz_questions
-      WHERE video_id = $1
-      ORDER BY COALESCE(timestamp, 0) ASC, created_at ASC
+      SELECT 
+        vqq.id,
+        vqq.video_id,
+        vqq.question_text,
+        vqq.question_type,
+        vqq.options,
+        vqq.correct_answer,
+        vqq.points,
+        vqq.explanation,
+        vqq.timestamp,
+        vqq.section_id,
+        vqq.created_at,
+        vqq.updated_at,
+        vs.id as section_id__id,
+        vs.video_id as section_video_id,
+        vs.start_time as section_start_time,
+        vs.end_time as section_end_time,
+        vs.title as section_title,
+        vs.summary as section_summary,
+        vs.created_at as section_created_at
+      FROM video_quiz_questions vqq
+      LEFT JOIN video_sections vs ON vqq.section_id = vs.id
+      WHERE vqq.video_id = $1
+      ORDER BY COALESCE(vqq.timestamp, 0) ASC, vqq.created_at ASC
     `;
 
     const result = await pool.query(query, [videoId]);
-    res.json({ questions: result.rows });
+    console.log(
+      'getVideoQuizQuestions raw rows:',
+      result.rows.map(r => ({
+        id: r.id,
+        question_text: r.question_text.substring(0, 20),
+        section_id: r.section_id,
+        section_id__id: r.section_id__id,
+        section_title: r.section_title,
+      }))
+    );
+
+    // Transform rows to include nested section object
+    const questions = result.rows.map(row => {
+      const {
+        // Exclude duplicated section columns from root level
+        section_id__id,
+        section_video_id,
+        section_start_time,
+        section_end_time,
+        section_title,
+        section_summary,
+        section_created_at,
+        ...questionFields
+      } = row;
+
+      const question = { ...questionFields };
+
+      // Build section object if section_id exists
+      if (row.section_id && row.section_id__id) {
+        question.section = {
+          id: row.section_id__id,
+          video_id: row.section_video_id,
+          start_time: row.section_start_time,
+          end_time: row.section_end_time,
+          title: row.section_title,
+          summary: row.section_summary,
+          created_at: row.section_created_at,
+          transcript_snippet: '', // not selected
+          quiz_count: undefined, // not calculated here
+        };
+      }
+
+      return question;
+    });
+
+    res.json({ questions });
   } catch (error) {
     logger.error('Error fetching quiz questions:', error);
     res.status(500).json({ error: 'Failed to fetch quiz questions', message: error.message });
@@ -504,6 +587,7 @@ export async function getVideoQuizQuestions(req, res) {
  */
 export async function updateVideoQuizQuestion(req, res) {
   try {
+    const videoId = parseInt(req.params.videoId);
     const questionId = parseInt(req.params.questionId);
     const {
       question_text,
@@ -513,10 +597,15 @@ export async function updateVideoQuizQuestion(req, res) {
       points,
       explanation,
       timestamp,
+      section_id,
     } = req.body;
 
     if (isNaN(questionId)) {
       return res.status(400).json({ error: 'Invalid question ID' });
+    }
+
+    if (isNaN(videoId)) {
+      return res.status(400).json({ error: 'Invalid video ID' });
     }
 
     // Build update query dynamically based on provided fields
@@ -551,6 +640,18 @@ export async function updateVideoQuizQuestion(req, res) {
     if (timestamp !== undefined) {
       updates.push(`timestamp = $${paramIndex++}`);
       values.push(timestamp !== null ? parseFloat(timestamp) : null);
+    }
+    if (section_id !== undefined) {
+      // Validate section exists and belongs to this video
+      const sectionCheck = await pool.query(
+        'SELECT id FROM video_sections WHERE id = $1 AND video_id = $2',
+        [section_id, videoId]
+      );
+      if (sectionCheck.rows.length === 0) {
+        return res.status(400).json({ error: 'Invalid section ID' });
+      }
+      updates.push(`section_id = $${paramIndex++}`);
+      values.push(section_id || null);
     }
 
     if (updates.length === 0) {

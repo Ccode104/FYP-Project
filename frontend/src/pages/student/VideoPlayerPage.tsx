@@ -61,13 +61,18 @@ export default function VideoPlayerPage() {
   const [views, setViews] = useState(0);
   const [loading, setLoading] = useState(true);
 
-  const [activeTab, setActiveTab] = useState<'playlist' | 'sections' | 'notes'>('playlist');
+  const [activeTab, setActiveTab] = useState<'playlist' | 'sections' | 'notes' | 'quiz'>(
+    'playlist'
+  );
   const [notesExpanded, setNotesExpanded] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
   const [showQuiz, setShowQuiz] = useState(false);
   const [selectedAnswer, setSelectedAnswer] = useState<number | null>(null);
   const [quizAnswered, setQuizAnswered] = useState(false);
+  const [currentQuizIndex, setCurrentQuizIndex] = useState(0);
+  const [selectedAnswers, setSelectedAnswers] = useState<Record<number, number>>({});
+  const [submittedAnswers, setSubmittedAnswers] = useState<Record<number, boolean>>({});
 
   const getEmbedUrl = (v: Video | null) => {
     if (!v) return '';
@@ -103,8 +108,15 @@ export default function VideoPlayerPage() {
         setVideo(videoData.video);
         setViews(videoData.video.views || 12400);
 
-        const questionsData = await getVideoQuizQuestions(Number(videoId));
-        setQuestions(Array.isArray(questionsData) ? questionsData : []);
+        const questionsResponse = await getVideoQuizQuestions(Number(videoId));
+        const questions =
+          (
+            questionsResponse as {
+              questions: Array<{ id: number; question_text: string; [key: string]: unknown }>;
+            }
+          ).questions || [];
+        setQuestions(questions);
+        console.log('Video quiz questions loaded:', questions);
 
         // Load sections
         const sectionsData = await getVideoSections(Number(videoId));
@@ -194,7 +206,7 @@ export default function VideoPlayerPage() {
   return (
     <div className="video-player-page">
       <div className="video-player-layout">
-        {/* Main Column */}
+        {/* Main Column - only video container */}
         <div className="video-player-main">
           {/* Video Container */}
           <div className="video-container">
@@ -256,50 +268,6 @@ export default function VideoPlayerPage() {
               </div>
             )}
           </div>
-
-          {/* Video Info Section */}
-          <div className="video-info">
-            <div className="video-info-header">
-              <div>
-                <h1 className="video-title">{video.title}</h1>
-                <div className="video-meta">
-                  <span className="meta-item">
-                    <span className="material-symbols-outlined">calendar_today</span>
-                    {formatDate(video.upload_timestamp)}
-                  </span>
-                  <span className="meta-item">
-                    <span className="material-symbols-outlined">school</span>
-                    {courseTitle}
-                  </span>
-                  <span className="meta-item">
-                    <span className="material-symbols-outlined">visibility</span>
-                    {views.toLocaleString()} views
-                  </span>
-                </div>
-              </div>
-              <div className="video-actions">
-                <button className="action-btn">
-                  <span className="material-symbols-outlined">share</span>
-                  Share
-                </button>
-                <button className="action-btn">
-                  <span className="material-symbols-outlined">bookmark</span>
-                  Save
-                </button>
-              </div>
-            </div>
-
-            <div className="video-instructor">
-              {instructorAvatar && (
-                <img src={instructorAvatar} alt={instructorName} className="instructor-avatar" />
-              )}
-              <div className="instructor-info">
-                <h4 className="instructor-name">{instructorName}</h4>
-                <p className="instructor-title">Instructor</p>
-                {video.description && <p className="video-description">{video.description}</p>}
-              </div>
-            </div>
-          </div>
         </div>
 
         {/* Sidebar Column */}
@@ -326,6 +294,13 @@ export default function VideoPlayerPage() {
             >
               <span className="material-symbols-outlined">note_alt</span>
               Notes
+            </button>
+            <button
+              className={`tab-btn ${activeTab === 'quiz' ? 'active' : ''}`}
+              onClick={() => setActiveTab('quiz')}
+            >
+              <span className="material-symbols-outlined">quiz</span>
+              Quiz
             </button>
           </div>
 
@@ -362,22 +337,148 @@ export default function VideoPlayerPage() {
               </div>
             ) : activeTab === 'sections' ? (
               <div className="sections">
-                {sections.map((section, index) => (
-                  <div key={section.id} className="section-item">
-                    <div className="section-time">
-                      {formatTime(section.start_time)} - {formatTime(section.end_time)}
-                    </div>
-                    <h5 className="section-title">{section.title}</h5>
-                    <div className="section-progress">
-                      <div className="progress-bar">
-                        <div
-                          className="progress-fill"
-                          style={{ width: currentSection === section ? '100%' : '0%' }}
-                        ></div>
+                {sections.map((section, index) => {
+                  const sectionQuiz = questions.find(q => q.section_id === section.id);
+                  return (
+                    <div key={section.id} className="section-item">
+                      <div className="section-time">
+                        {formatTime(section.start_time)} - {formatTime(section.end_time)}
+                      </div>
+                      <h5 className="section-title">
+                        <span className="section-index">
+                          ({(index + 1).toString().padStart(2, '0')})
+                        </span>{' '}
+                        {section.title}
+                        {sectionQuiz && (
+                          <span className="section-quiz-badge" title="Quiz available">
+                            <span className="material-symbols-outlined">quiz</span>
+                          </span>
+                        )}
+                      </h5>
+                      <div className="section-progress">
+                        <div className="progress-bar">
+                          <div
+                            className="progress-fill"
+                            style={{ width: currentSection === section ? '100%' : '0%' }}
+                          ></div>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
+              </div>
+            ) : activeTab === 'quiz' ? (
+              <div className="quiz-carousel">
+                {questions.length > 1 && (
+                  <button
+                    className="quiz-arrow quiz-arrow-left"
+                    onClick={() =>
+                      setCurrentQuizIndex(prev => (prev > 0 ? prev - 1 : questions.length - 1))
+                    }
+                    disabled={questions.length <= 1}
+                  >
+                    <span className="material-symbols-outlined">chevron_left</span>
+                  </button>
+                )}
+
+                <div className="quiz-carousel-content">
+                  {questions.length > 0 ? (
+                    <>
+                      <div className="quiz-carousel-counter">
+                        Question {currentQuizIndex + 1} of {questions.length}
+                        {submittedAnswers[questions[currentQuizIndex].id] && (
+                          <span className="quiz-submitted-badge">Submitted</span>
+                        )}
+                      </div>
+                      {(() => {
+                        const question = questions[currentQuizIndex];
+                        const section = sections.find(s => s.id === question.section_id);
+                        const isSubmitted = submittedAnswers[question.id];
+                        const selectedOption = selectedAnswers[question.id];
+
+                        return (
+                          <div key={question.id} className="quiz-section-item">
+                            <div className="quiz-section-header">
+                              <span className="quiz-section-index">Q{currentQuizIndex + 1}</span>
+                              {section && (
+                                <span className="quiz-section-ref">Section {section.title}</span>
+                              )}
+                            </div>
+                            <p className="quiz-section-question">{question.question_text}</p>
+                            <div className="quiz-section-options">
+                              {question.options?.map((option, optIdx) => {
+                                const optionLetter = String.fromCharCode(65 + optIdx);
+                                const isCorrect =
+                                  question.correct_answer === option ||
+                                  question.correct_answer === optionLetter;
+                                const isSelected = selectedOption === optIdx;
+                                const wasWrong = isSubmitted && isSelected && !isCorrect;
+
+                                return (
+                                  <button
+                                    key={optIdx}
+                                    className={`quiz-section-option ${isSelected ? 'selected' : ''} ${isCorrect && isSubmitted ? 'correct' : ''} ${wasWrong ? 'incorrect' : ''}`}
+                                    onClick={() => {
+                                      if (!isSubmitted) {
+                                        setSelectedAnswers(prev => ({
+                                          ...prev,
+                                          [question.id]: optIdx,
+                                        }));
+                                      }
+                                    }}
+                                    disabled={isSubmitted}
+                                  >
+                                    <span className="quiz-option-letter">{optionLetter}</span>
+                                    <span>{option}</span>
+                                    {isSubmitted && isCorrect && (
+                                      <span className="material-symbols-outlined">
+                                        check_circle
+                                      </span>
+                                    )}
+                                    {isSubmitted && wasWrong && (
+                                      <span className="material-symbols-outlined">cancel</span>
+                                    )}
+                                  </button>
+                                );
+                              })}
+                            </div>
+                            {!isSubmitted && (
+                              <button
+                                className="quiz-submit-btn"
+                                onClick={() => {
+                                  if (selectedAnswers[question.id] !== undefined) {
+                                    setSubmittedAnswers(prev => ({ ...prev, [question.id]: true }));
+                                  }
+                                }}
+                                disabled={selectedAnswers[question.id] === undefined}
+                              >
+                                Submit Answer
+                              </button>
+                            )}
+                          </div>
+                        );
+                      })()}
+                    </>
+                  ) : (
+                    <div className="quiz-empty">
+                      <span className="material-symbols-outlined">quiz</span>
+                      <h4>No quiz questions</h4>
+                      <p>This video doesn't have any quiz questions.</p>
+                    </div>
+                  )}
+                </div>
+
+                {questions.length > 1 && (
+                  <button
+                    className="quiz-arrow quiz-arrow-right"
+                    onClick={() =>
+                      setCurrentQuizIndex(prev => (prev < questions.length - 1 ? prev + 1 : 0))
+                    }
+                    disabled={questions.length <= 1}
+                  >
+                    <span className="material-symbols-outlined">chevron_right</span>
+                  </button>
+                )}
               </div>
             ) : (
               <div className="notes-empty">
@@ -387,6 +488,50 @@ export default function VideoPlayerPage() {
                 <button className="notes-add-btn">Add Note</button>
               </div>
             )}
+          </div>
+        </div>
+
+        {/* Video Info Section */}
+        <div className="video-info">
+          <div className="video-info-header">
+            <div>
+              <h1 className="video-title">{video.title}</h1>
+              <div className="video-meta">
+                <span className="meta-item">
+                  <span className="material-symbols-outlined">calendar_today</span>
+                  {formatDate(video.upload_timestamp)}
+                </span>
+                <span className="meta-item">
+                  <span className="material-symbols-outlined">school</span>
+                  {courseTitle}
+                </span>
+                <span className="meta-item">
+                  <span className="material-symbols-outlined">visibility</span>
+                  {views.toLocaleString()} views
+                </span>
+              </div>
+            </div>
+            <div className="video-actions">
+              <button className="action-btn">
+                <span className="material-symbols-outlined">share</span>
+                Share
+              </button>
+              <button className="action-btn">
+                <span className="material-symbols-outlined">bookmark</span>
+                Save
+              </button>
+            </div>
+          </div>
+
+          <div className="video-instructor">
+            {instructorAvatar && (
+              <img src={instructorAvatar} alt={instructorName} className="instructor-avatar" />
+            )}
+            <div className="instructor-info">
+              <h4 className="instructor-name">{instructorName}</h4>
+              <p className="instructor-title">Instructor</p>
+              {video.description && <p className="video-description">{video.description}</p>}
+            </div>
           </div>
         </div>
       </div>

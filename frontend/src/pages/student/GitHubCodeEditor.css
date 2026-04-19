@@ -1,0 +1,549 @@
+.github-code-editor {
+  min-height: 100vh;
+  background: #f8fafc;
+  display: flex;
+  flex-direction: column;
+}
+
+.github-code-editor .editor-header {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 16px 24px;
+  background: white;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.github-code-editor .back-btn {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  background: none;
+  border: none;
+  color: #4f46e5;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  padding: 8px 12px;
+  border-radius: 6px;
+  transition: background 0.2s;
+}
+
+.github-code-editor .back-btn:hover {
+  background: #f1f5f9;
+}
+
+.github-code-editor .header-title {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.github-code-editor .header-title h2 {
+  font-size: 20px;
+  font-weight: 700;
+  color: #0f172a;
+  margin: 0;
+}
+
+.github-code-editor .language-badge {
+  padding: 4px 10px;
+  background: #e0e7ff;
+  color: #4f46e5;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.github-code-editor .header-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.github-code-editor .language-select {
+  padding: 8px 12px;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  font-size: 14px;
+  background: white;
+  color: #1f2937;
+  cursor: pointer;
+}
+
+.github-code-editor .editor-layout {
+  display: grid;
+  grid-template-columns: 250px 1fr 320px;
+  gap: 0;
+  flex: 1;
+  min-height: 0;
+}
+
+.github-code-editor .left-panel {
+  background: white;
+  border-right: 1px solid #e2e8f0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.github-code-editor .panel-section {
+  padding: 16px;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.github-code-editor .panel-section:last-child {
+  border-bottom: none;
+  flex: 1;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.github-code-editor .panel-section h3 {
+  font-size: 12px;
+  font-weight: 700;
+  color: #64748b;
+  text-transform: uppercase;
+  margin: 0 0 12px 0;
+}
+
+.github-code-editor .repo-selector {
+  flex-shrink: 0;
+}
+
+.github-code-editor .repo-select {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  font-size: 14px;
+  background: white;
+  color: #1f2937;
+  cursor: pointer;
+}
+
+.github-code-editor .loading-files {
+  color: #64748b;
+  font-size: 13px;
+  text-align: center;
+  padding: 20px;
+}
+
+.github-code-editor .github-connect-prompt {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 20px;
+  text-align: center;
+}
+
+.github-code-editor .github-connect-prompt p {
+  color: #64748b;
+  font-size: 13px;
+  margin: 0;
+}
+
+.github-code-editor .github-connect-prompt .btn {
+  background: #24292f;
+  color: white;
+  border: none;
+  padding: 10px 20px;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.github-code-editor .github-connect-prompt .btn:hover {
+  background: #1b1f23;
+}
+
+.github-code-editor .file-list {
+  flex: 1;
+  overflow-y: auto;
+}
+
+.github-code-editor .no-files {
+  color: #94a3b8;
+  font-size: 13px;
+  text-align: center;
+  padding: 20px;
+}
+
+.github-code-editor .file-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.github-code-editor .file-item:hover {
+  background: #f1f5f9;
+}
+
+.github-code-editor .file-item.selected {
+  background: #e0e7ff;
+  color: #4f46e5;
+}
+
+.github-code-editor .file-item .material-symbols-outlined {
+  font-size: 18px;
+  color: inherit;
+}
+
+.github-code-editor .file-item.dir .material-symbols-outlined {
+  color: #f59e0b;
+}
+
+.github-code-editor .file-name {
+  font-size: 13px;
+  color: #1f2937;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.github-code-editor .file-item.selected .file-name {
+  color: #4f46e5;
+  font-weight: 500;
+}
+
+.github-code-editor .main-panel {
+  display: flex;
+  flex-direction: column;
+  background: white;
+  overflow: hidden;
+}
+
+.github-code-editor .no-file-selected {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  color: #94a3b8;
+}
+
+.github-code-editor .no-file-selected .material-symbols-outlined {
+  font-size: 48px;
+  margin-bottom: 12px;
+}
+
+.github-code-editor .file-tabs {
+  display: flex;
+  align-items: center;
+  padding: 8px 16px;
+  background: #f9fafb;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.github-code-editor .file-tab {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 16px;
+  background: white;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px 6px 0 0;
+  font-size: 13px;
+  color: #1f2937;
+}
+
+.github-code-editor .unsaved-indicator {
+  color: #f59e0b;
+  font-weight: bold;
+}
+
+.github-code-editor .code-editor-wrapper {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.github-code-editor .right-panel {
+  background: white;
+  border-left: 1px solid #e2e8f0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.github-code-editor .test-cases {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px;
+}
+
+.github-code-editor .test-list {
+  flex: 1;
+}
+
+.github-code-editor .no-tests {
+  color: #94a3b8;
+  font-size: 13px;
+  text-align: center;
+  padding: 20px;
+}
+
+.github-code-editor .question-tests {
+  margin-bottom: 16px;
+}
+
+.github-code-editor .question-tests h4 {
+  font-size: 13px;
+  font-weight: 600;
+  color: #0f172a;
+  margin: 0 0 8px 0;
+}
+
+.github-code-editor .test-case {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  margin-bottom: 8px;
+  overflow: hidden;
+}
+
+.github-code-editor .test-case.passed {
+  border-color: #86efac;
+  background: #f0fdf4;
+}
+
+.github-code-editor .test-case.failed {
+  border-color: #fca5a5;
+  background: #fef2f2;
+}
+
+.github-code-editor .test-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 12px;
+  background: #f1f5f9;
+  border-bottom: 1px solid #e2e8f0;
+  font-size: 12px;
+  font-weight: 600;
+  color: #475569;
+}
+
+.github-code-editor .test-status {
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.github-code-editor .test-status.passed {
+  background: #86efac;
+  color: #166534;
+}
+
+.github-code-editor .test-status.failed {
+  background: #fca5a5;
+  color: #991b1b;
+}
+
+.github-code-editor .test-content {
+  padding: 8px 12px;
+  font-size: 12px;
+}
+
+.github-code-editor .test-input,
+.github-code-editor .test-output {
+  margin-bottom: 6px;
+}
+
+.github-code-editor .test-input strong,
+.github-code-editor .test-output strong {
+  display: block;
+  color: #475569;
+  margin-bottom: 2px;
+}
+
+.github-code-editor .test-input pre,
+.github-code-editor .test-output pre {
+  background: #1f2937;
+  color: #e5e7eb;
+  padding: 6px 10px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-family: 'Monaco', 'Menlo', monospace;
+  margin: 0;
+  white-space: pre-wrap;
+}
+
+.github-code-editor .panel-actions {
+  padding: 16px;
+  border-top: 1px solid #e2e8f0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.github-code-editor .btn-run-tests {
+  width: 100%;
+  padding: 10px 16px;
+  background: #f59e0b;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.github-code-editor .btn-run-tests:hover:not(:disabled) {
+  background: #d97706;
+}
+
+.github-code-editor .btn-run-tests:disabled {
+  background: #cbd5e1;
+  cursor: not-allowed;
+}
+
+.github-code-editor .btn-save {
+  width: 100%;
+  padding: 10px 16px;
+  background: #4f46e5;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.github-code-editor .btn-save:hover:not(:disabled) {
+  background: #4338ca;
+}
+
+.github-code-editor .btn-save:disabled {
+  background: #cbd5e1;
+  cursor: not-allowed;
+}
+
+.github-code-editor .btn-submit {
+  width: 100%;
+  padding: 10px 16px;
+  background: #22c55e;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.github-code-editor .btn-submit:hover:not(:disabled) {
+  background: #16a34a;
+}
+
+.github-code-editor .btn-submit:disabled {
+  background: #cbd5e1;
+  cursor: not-allowed;
+}
+
+.github-code-editor .output-console {
+  height: 200px;
+  background: white;
+  border-top: 1px solid #e2e8f0;
+  padding: 16px 24px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.github-code-editor .output-console h3 {
+  font-size: 12px;
+  font-weight: 700;
+  color: #64748b;
+  text-transform: uppercase;
+  margin: 0 0 12px 0;
+}
+
+.github-code-editor .output-content {
+  flex: 1;
+  background: #1f2937;
+  color: #e5e7eb;
+  padding: 12px 16px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-family: 'Monaco', 'Menlo', monospace;
+  margin: 0;
+  overflow-y: auto;
+  white-space: pre-wrap;
+}
+
+.github-code-editor .loading-state,
+.github-code-editor .error-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 300px;
+  gap: 16px;
+}
+
+.github-code-editor .loading-spinner {
+  width: 40px;
+  height: 40px;
+  border: 3px solid #e5e7eb;
+  border-top-color: #4f46e5;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.github-code-editor .error-state button {
+  background: #4f46e5;
+  color: white;
+  border: none;
+  padding: 10px 20px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: 500;
+}
+
+@media (max-width: 1200px) {
+  .github-code-editor .editor-layout {
+    grid-template-columns: 200px 1fr 280px;
+  }
+}
+
+@media (max-width: 1024px) {
+  .github-code-editor .editor-layout {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto 1fr auto;
+  }
+
+  .github-code-editor .left-panel {
+    border-right: none;
+    border-bottom: 1px solid #e2e8f0;
+    flex-direction: row;
+    max-height: 200px;
+  }
+
+  .github-code-editor .right-panel {
+    border-left: none;
+    border-top: 1px solid #e2e8f0;
+  }
+}

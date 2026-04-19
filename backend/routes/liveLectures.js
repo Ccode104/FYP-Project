@@ -10,6 +10,7 @@ import {
   leaveLiveLecture,
   getLiveLectureParticipants,
   cleanupLiveLectureParticipants,
+  generateMeetLink,
 } from '../controllers/liveLecturesController.js';
 
 const router = express.Router();
@@ -214,7 +215,11 @@ router.post('/:id/leave', leaveLiveLecture);
  *       403:
  *         description: Forbidden - Not an instructor
  */
-router.post('/:id/participants/cleanup', requireRole('faculty', 'admin', 'ta'), cleanupLiveLectureParticipants);
+router.post(
+  '/:id/participants/cleanup',
+  requireRole('faculty', 'admin', 'ta'),
+  cleanupLiveLectureParticipants
+);
 
 /**
  * @swagger
@@ -237,5 +242,29 @@ router.post('/:id/participants/cleanup', requireRole('faculty', 'admin', 'ta'), 
  *         description: Forbidden - Not enrolled in the course
  */
 router.get('/:id/participants', getLiveLectureParticipants);
+
+/**
+ * @swagger
+ * /api/live-lectures/{id}/meet-link:
+ *   post:
+ *     summary: Get or generate a Google Meet link for a live lecture
+ *     tags: [Live Lectures]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *     responses:
+ *       200:
+ *         description: Google Meet link generated/retrieved
+ *       403:
+ *         description: Forbidden - No access to lecture
+ *       404:
+ *         description: Live lecture not found
+ */
+router.post('/:id/meet-link', generateMeetLink);
 
 export default router;

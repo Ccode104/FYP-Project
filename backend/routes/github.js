@@ -1,6 +1,10 @@
 // src/routes/github.js
 import express from 'express';
-import { getUserRepositories } from '../controllers/githubController.js';
+import {
+  getUserRepositories,
+  getGitHubStatus,
+  getRepoContents,
+} from '../controllers/githubController.js';
 import { requireAuth } from '../middleware/auth.js';
 
 const router = express.Router();
@@ -122,5 +126,115 @@ const router = express.Router();
  *         description: Failed to fetch repositories
  */
 router.get('/repositories', requireAuth, getUserRepositories);
+
+/**
+ * @swagger
+ * /api/github/status:
+ *   get:
+ *     summary: Check GitHub connection status
+ *     tags: [GitHub]
+ *     description: Check if the user has connected their GitHub account
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Status retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 connected:
+ *                   type: boolean
+ *                   example: true
+ *                 username:
+ *                   type: string
+ *                   example: "githubuser"
+ *       401:
+ *         description: Authentication required
+ *       404:
+ *         description: User not found
+ *       500:
+ *         description: Failed to check status
+ */
+router.get('/status', requireAuth, getGitHubStatus);
+
+/**
+ * @swagger
+ * /api/github/repos/:owner/:repo/contents:
+ *   get:
+ *     summary: Get repository root contents
+ *     tags: [GitHub]
+ *     description: List files and directories at the root of a repository
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: owner
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Repository owner username
+ *       - in: path
+ *         name: repo
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Repository name
+ *     responses:
+ *       200:
+ *         description: Contents retrieved successfully
+ *       400:
+ *         description: GitHub not connected
+ *       401:
+ *         description: Token expired
+ *       404:
+ *         description: Repository or path not found
+ *       500:
+ *         description: Failed to fetch contents
+ */
+router.get('/repos/:owner/:repo/contents', requireAuth, getRepoContents);
+
+/**
+ * @swagger
+ * /api/github/repos/:owner/:repo/contents/:path:
+ *   get:
+ *     summary: Get repository contents at specific path
+ *     tags: [GitHub]
+ *     description: Get file content or list directory contents at a specific path
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: owner
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Repository owner username
+ *       - in: path
+ *         name: repo
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Repository name
+ *       - in: path
+ *         name: path
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Path to file or directory
+ *     responses:
+ *       200:
+ *         description: Contents retrieved successfully
+ *       400:
+ *         description: GitHub not connected
+ *       401:
+ *         description: Token expired
+ *       404:
+ *         description: Path not found
+ *       500:
+ *         description: Failed to fetch contents
+ */
+router.get('/repos/:owner/:repo/contents/:path(*)', requireAuth, getRepoContents);
 
 export default router;

@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 
 interface AssignmentComponent {
   id: string;
@@ -69,10 +70,12 @@ interface ComponentSubmission {
 
 interface Props {
   assignmentId: number;
+  courseId: number;
   onClose: () => void;
 }
 
-export default function FlexibleAssignmentView({ assignmentId, onClose }: Props) {
+export default function FlexibleAssignmentView({ assignmentId, courseId, onClose }: Props) {
+  const navigate = useNavigate();
   const [assignment, setAssignment] = useState<FlexibleAssignment | null>(null);
   const [loading, setLoading] = useState(true);
   const [componentSubmissions, setComponentSubmissions] = useState<ComponentSubmission[]>([]);
@@ -117,7 +120,7 @@ export default function FlexibleAssignmentView({ assignmentId, onClose }: Props)
       const response = await fetch(`/api/assignments/${assignmentId}/submit-components`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ components: componentSubmissions })
+        body: JSON.stringify({ components: componentSubmissions }),
       });
 
       if (response.ok) {
@@ -134,26 +137,31 @@ export default function FlexibleAssignmentView({ assignmentId, onClose }: Props)
     }
   };
 
-  const renderComponentInput = (component: AssignmentComponent, requirement: SubmissionRequirement) => {
+  const renderComponentInput = (
+    component: AssignmentComponent,
+    requirement: SubmissionRequirement
+  ) => {
     const currentSubmission = componentSubmissions.find(s => s.component_id === component.id);
 
     switch (requirement.submission_type) {
       case 'file_upload':
         return (
           <div key={component.id} className="component-input">
-            <h4>{component.title} ({component.points} pts)</h4>
+            <h4>
+              {component.title} ({component.points} pts)
+            </h4>
             <p>{component.description}</p>
             <input
               type="file"
               accept={requirement.accepted_formats?.join(',')}
-              onChange={(e) => {
+              onChange={e => {
                 const file = e.target.files?.[0];
                 if (file) {
                   handleComponentSubmission(component.id, {
                     component_id: component.id,
                     submission_type: 'file',
                     file_path: file.name,
-                    metadata: { size: file.size, type: file.type }
+                    metadata: { size: file.size, type: file.type },
                   });
                 }
               }}
@@ -167,15 +175,19 @@ export default function FlexibleAssignmentView({ assignmentId, onClose }: Props)
       case 'text':
         return (
           <div key={component.id} className="component-input">
-            <h4>{component.title} ({component.points} pts)</h4>
+            <h4>
+              {component.title} ({component.points} pts)
+            </h4>
             <p>{component.description}</p>
             <textarea
               value={currentSubmission?.content || ''}
-              onChange={(e) => handleComponentSubmission(component.id, {
-                component_id: component.id,
-                submission_type: 'text',
-                content: e.target.value
-              })}
+              onChange={e =>
+                handleComponentSubmission(component.id, {
+                  component_id: component.id,
+                  submission_type: 'text',
+                  content: e.target.value,
+                })
+              }
               placeholder="Enter your response here..."
               rows={6}
             />
@@ -185,16 +197,20 @@ export default function FlexibleAssignmentView({ assignmentId, onClose }: Props)
       case 'link':
         return (
           <div key={component.id} className="component-input">
-            <h4>{component.title} ({component.points} pts)</h4>
+            <h4>
+              {component.title} ({component.points} pts)
+            </h4>
             <p>{component.description}</p>
             <input
               type="url"
               value={currentSubmission?.content || ''}
-              onChange={(e) => handleComponentSubmission(component.id, {
-                component_id: component.id,
-                submission_type: 'link',
-                content: e.target.value
-              })}
+              onChange={e =>
+                handleComponentSubmission(component.id, {
+                  component_id: component.id,
+                  submission_type: 'link',
+                  content: e.target.value,
+                })
+              }
               placeholder="https://..."
             />
           </div>
@@ -203,12 +219,16 @@ export default function FlexibleAssignmentView({ assignmentId, onClose }: Props)
       case 'code':
         return (
           <div key={component.id} className="component-input">
-            <h4>{component.title} ({component.points} pts)</h4>
+            <h4>
+              {component.title} ({component.points} pts)
+            </h4>
             <p>{component.description}</p>
             <div className="code-editor-placeholder">
               <p>Code Editor Integration</p>
               <small>Language: {component.subtype || 'Any'}</small>
-              <button onClick={() => alert('Code editor would open here')}>
+              <button
+                onClick={() => navigate(`/courses/${courseId}/assignments/${assignmentId}/editor`)}
+              >
                 Open Code Editor
               </button>
             </div>
@@ -218,7 +238,9 @@ export default function FlexibleAssignmentView({ assignmentId, onClose }: Props)
       default:
         return (
           <div key={component.id} className="component-input">
-            <h4>{component.title} ({component.points} pts)</h4>
+            <h4>
+              {component.title} ({component.points} pts)
+            </h4>
             <p>{component.description}</p>
             <p>Unsupported submission type: {requirement.submission_type}</p>
           </div>
@@ -236,10 +258,14 @@ export default function FlexibleAssignmentView({ assignmentId, onClose }: Props)
   return (
     <div className="flexible-assignment-view">
       <div className="assignment-header">
-        <button onClick={onClose} className="close-btn">×</button>
+        <button onClick={onClose} className="close-btn">
+          ×
+        </button>
         <h2>{assignment.title}</h2>
         <div className="assignment-meta">
-          <span className="course">{assignment.course_code} - {assignment.course_name}</span>
+          <span className="course">
+            {assignment.course_code} - {assignment.course_name}
+          </span>
           <span className="points">{assignment.total_points} points total</span>
           <span className="due">Due: {new Date(assignment.due_at).toLocaleDateString()}</span>
         </div>
@@ -271,7 +297,9 @@ export default function FlexibleAssignmentView({ assignmentId, onClose }: Props)
               <div key={component.id} className="component-card">
                 <div className="component-header">
                   <h4>{component.title}</h4>
-                  <span className="component-type">{component.type} - {component.subtype}</span>
+                  <span className="component-type">
+                    {component.type} - {component.subtype}
+                  </span>
                   <span className="points">{component.points} pts</span>
                 </div>
                 <p className="component-description">{component.description}</p>
@@ -299,7 +327,6 @@ export default function FlexibleAssignmentView({ assignmentId, onClose }: Props)
           </button>
         </div>
       </div>
-
     </div>
   );
 }

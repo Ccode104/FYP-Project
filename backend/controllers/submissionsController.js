@@ -9,6 +9,90 @@ import { runPlagiarismCheck } from '../utils/plagiarism.js';
 import archiver from 'archiver';
 import { v2 as cloudinary } from 'cloudinary';
 import { v4 as uuidv4 } from 'uuid';
+import { google } from 'googleapis';
+import { getAuthenticatedClient } from './googleController.js';
+
+/**
+ * Upload files to Google Drive and grant teacher access
+ * @param {Array} files - Array of multer file objects
+ * @param {number} studentId - Student ID
+ * @param {number} assignmentId - Assignment ID
+ * @param {string} teacherEmail - Teacher's email to grant access
+ * @returns {Promise<{driveUrl: string, driveFileId: string}> - Drive URL and file ID
+ */
+async function uploadToGoogleDrive(files, studentId, assignmentId, teacherEmail) {
+  const auth = await getAuthenticatedClient(studentId);
+  const drive = google.drive({ version: 'v3', auth });
+
+  const folderName = `FYP_Submission_Assignment_${assignmentId}_Student_${studentId}`;
+  let folderId;
+
+  const folderMetadata = {
+    name: folderName,
+    mimeType: 'application/vnd.google-apps.folder',
+  };
+
+  const folder = await drive.files.create({
+    resource: folderMetadata,
+    fields: 'id',
+  });
+  folderId = folder.data.id;
+
+  let driveFileUrl = `https://drive.google.com/drive/folders/${folderId}`;
+  let driveFileId = folderId;
+
+  for (const file of files) {
+    const fileMetadata = {
+      name: file.originalname,
+      parents: [folderId],
+    };
+
+    const media = {
+      mimeType: file.mimetype,
+      body: Buffer.from(file.buffer),
+    };
+
+    const uploadedFile = await drive.files.create({
+      resource: fileMetadata,
+      media: media,
+      fields: 'id, webViewLink',
+    });
+
+    if (uploadedFile.data.webViewLink) {
+      driveFileUrl = uploadedFile.data.webViewLink;
+      driveFileId = uploadedFile.data.id;
+    }
+
+    if (teacherEmail) {
+      try {
+        await drive.permissions.create({
+          fileId: uploadedFile.data.id,
+          requestBody: {
+            type: 'user',
+            role: 'writer',
+            emailAddress: teacherEmail,
+          },
+        });
+      } catch (permError) {
+        console.error('[DEBUG] Failed to grant teacher permission:', permError.message);
+      }
+    }
+
+    try {
+      await drive.permissions.create({
+        fileId: uploadedFile.data.id,
+        requestBody: {
+          type: 'anyone',
+          role: 'reader',
+        },
+      });
+    } catch (publicError) {
+      console.error('[DEBUG] Failed to make file public:', publicError.message);
+    }
+  }
+
+  return { driveUrl: driveFileUrl, driveFileId };
+}
 
 /**
  * Create a zip file from uploaded files and upload to Cloudinary
@@ -181,6 +265,150 @@ export async function submitFileAssignment(req, res) {
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Failed to submit' });
+  }
+}
+
+export async function submitMixedAssignment(req, res) {
+  try {
+    const { assignmentId, content, uploadToDrive } = req.body;
+    const student_id = Number(req.user?.id);
+    const shouldUploadToDrive = uploadToDrive === 'true';
+
+    console.log(
+      `[DEBUG] submitMixedAssignment: received assignmentId="${assignmentId}" (type: ${typeof assignmentId}), uploadToDrive=${shouldUploadToDrive}`
+    );
+
+    if (!assignmentId || !student_id) {
+      return res.status(400).json({ error: 'Missing required fields: assignmentId' });
+    }
+
+    const assignment_id = parseInt(assignmentId);
+
+    if (isNaN(assignment_id) || assignment_id <= 0) {
+      console.log(
+        `[DEBUG] submitMixedAssignment: Invalid assignmentId="${assignmentId}", parsed as ${assignment_id}`
+      );
+      return res.status(400).json({ error: 'Invalid assignment ID' });
+    }
+
+    const assignmentCheck = await pool.query(
+      'SELECT id, assignment_type, allow_multiple_submissions, course_offering_id FROM assignments WHERE id = $1',
+      [assignment_id]
+    );
+    if (assignmentCheck.rowCount === 0) {
+      return res.status(404).json({ error: 'Assignment not found' });
+    }
+
+    const assignment = assignmentCheck.rows[0];
+
+    let submission;
+    if (assignment.allow_multiple_submissions) {
+      const q = `INSERT INTO assignment_submissions (assignment_id, student_id, attempt)
+                 VALUES ($1, $2, (SELECT COALESCE(MAX(attempt), 0) + 1 FROM assignment_submissions WHERE assignment_id = $1 AND student_id = $2))
+                 RETURNING *`;
+      const r = await pool.query(q, [assignment_id, student_id]);
+      submission = r.rows[0];
+    } else {
+      const existingQ =
+        'SELECT * FROM assignment_submissions WHERE assignment_id = $1 AND student_id = $2';
+      const existingR = await pool.query(existingQ, [assignment_id, student_id]);
+
+      if (existingR.rowCount > 0) {
+        submission = existingR.rows[0];
+      } else {
+        const q = `INSERT INTO assignment_submissions (assignment_id, student_id, attempt)
+                   VALUES ($1, $2, 1) RETURNING *`;
+        const r = await pool.query(q, [assignment_id, student_id]);
+        submission = r.rows[0];
+      }
+    }
+
+    if (content && content.trim()) {
+      await pool.query('UPDATE assignment_submissions SET content = $1 WHERE id = $2', [
+        content.trim(),
+        submission.id,
+      ]);
+    }
+
+    const files = req.files || [];
+
+    if (files.length > 1) {
+      try {
+        const zipUrl = await createZipFromFiles(files, assignment_id, student_id);
+        await pool.query(
+          `INSERT INTO file_submissions (submission_id, zip_file_url, submission_type) VALUES ($1, $2, $3)
+           ON CONFLICT (submission_id) DO UPDATE SET zip_file_url = EXCLUDED.zip_file_url`,
+          [submission.id, zipUrl, 'mixed']
+        );
+      } catch (zipError) {
+        console.error('Error creating zip for multiple files:', zipError);
+      }
+    }
+
+    for (const f of files) {
+      const url = `local://${f.originalname}`;
+      await pool.query(
+        `INSERT INTO submission_files (submission_id, storage_path, filename, file_size, mime_type)
+                         VALUES ($1,$2,$3,$4,$5)`,
+        [submission.id, url, f.originalname, f.size, f.mimetype]
+      );
+    }
+
+    let driveUrl = null;
+    let driveFileId = null;
+
+    if (files.length > 0 && shouldUploadToDrive) {
+      try {
+        const googleTokensCheck = await pool.query(
+          `SELECT 1 FROM user_oauth_tokens WHERE user_id = $1 AND provider = 'google'`,
+          [student_id]
+        );
+
+        if (googleTokensCheck.rowCount > 0) {
+          const courseOfferingQ = `
+            SELECT o.faculty_id, u.email as teacher_email
+            FROM course_offerings o
+            JOIN users u ON o.faculty_id = u.id
+            WHERE o.id = $1
+          `;
+          const courseOfferingR = await pool.query(courseOfferingQ, [
+            assignment.course_offering_id,
+          ]);
+
+          const teacherEmail = courseOfferingR.rows[0]?.teacher_email || null;
+          console.log(
+            `[DEBUG] submitMixedAssignment: Uploading to Google Drive for student=${student_id}, teacher=${teacherEmail}`
+          );
+
+          const driveResult = await uploadToGoogleDrive(
+            files,
+            student_id,
+            assignment_id,
+            teacherEmail
+          );
+          driveUrl = driveResult.driveUrl;
+          driveFileId = driveResult.driveFileId;
+
+          await pool.query(
+            `UPDATE assignment_submissions SET drive_url = $1, drive_file_id = $2 WHERE id = $3`,
+            [driveUrl, driveFileId, submission.id]
+          );
+
+          console.log(`[DEBUG] submitMixedAssignment: Drive upload successful, url=${driveUrl}`);
+        }
+      } catch (driveError) {
+        console.error('[DEBUG] Google Drive upload failed:', driveError.message);
+      }
+    }
+
+    runPlagiarismCheck(assignment_id).catch(err => {
+      console.error('File plagiarism check failed:', err);
+    });
+
+    res.json({ submission, filesCount: files.length, driveUrl, driveFileId });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to submit mixed assignment' });
   }
 }
 

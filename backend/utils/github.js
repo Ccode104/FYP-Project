@@ -13,13 +13,15 @@ class RepositoryCache {
   set(key, value) {
     this.cache.set(key, {
       data: value,
-      timestamp: Date.now()
+      timestamp: Date.now(),
     });
   }
 
   get(key) {
     const item = this.cache.get(key);
-    if (!item) {return null;}
+    if (!item) {
+      return null;
+    }
 
     if (Date.now() - item.timestamp > this.ttl) {
       this.cache.delete(key);
@@ -44,6 +46,13 @@ const repoCache = new RepositoryCache();
 export function createGitHubClient(accessToken) {
   return new Octokit({
     auth: accessToken,
+    headers: {
+      'X-GitHub-Api-Version': '2022-11-28',
+      Accept: 'application/vnd.github+json',
+    },
+    log: {
+      warn: () => {}, // Suppress deprecation warnings
+    },
   });
 }
 
@@ -58,12 +67,7 @@ export function createGitHubClient(accessToken) {
  * @returns {Promise<Array>} - Array of repository objects
  */
 export async function fetchUserRepositories(accessToken, options = {}) {
-  const {
-    page = 1,
-    per_page = 30,
-    sort = 'updated',
-    direction = 'desc'
-  } = options;
+  const { page = 1, per_page = 30, sort = 'updated', direction = 'desc' } = options;
 
   const cacheKey = `repos_${accessToken}_${page}_${per_page}_${sort}_${direction}`;
 
@@ -81,7 +85,7 @@ export async function fetchUserRepositories(accessToken, options = {}) {
       per_page: Math.min(per_page, 100), // GitHub API limit
       sort,
       direction,
-      type: 'owner' // Only show repositories owned by the user
+      type: 'owner', // Only show repositories owned by the user
     });
 
     const repos = response.data.map(repo => ({
@@ -103,7 +107,7 @@ export async function fetchUserRepositories(accessToken, options = {}) {
       watchers_count: repo.watchers_count,
       forks_count: repo.forks_count,
       open_issues_count: repo.open_issues_count,
-      default_branch: repo.default_branch
+      default_branch: repo.default_branch,
     }));
 
     // Cache the result
@@ -141,7 +145,7 @@ export async function validateGitHubToken(accessToken) {
   try {
     await getGitHubUser(accessToken);
     return true;
-  // eslint-disable-next-line no-unused-vars
+    // eslint-disable-next-line no-unused-vars
   } catch (_error) {
     return false;
   }

@@ -81,6 +81,7 @@ export default function VideoQuizEditor() {
     summary: '',
   });
   const [generatingSections, setGeneratingSections] = useState(false);
+  const [targetTimestamp, setTargetTimestamp] = useState('');
 
   const getDriveEmbedUrl = (v: Video | null) => {
     if (!v) return '';
@@ -153,20 +154,29 @@ export default function VideoQuizEditor() {
     const loadData = async () => {
       setLoading(true);
       try {
-        const response = (await getVideoById(Number(videoId))) as { video: Video };
-        const videoData = response.video;
-        console.log('API Response:', response);
+        const videoResponse = await getVideoById(Number(videoId));
+        const videoData = (videoResponse as { video: Video }).video;
+        console.log('API Response:', videoResponse);
         setVideo(videoData);
         if (videoData.duration) {
           setDuration(videoData.duration);
         }
 
-        const questionsData = await getVideoQuizQuestions(Number(videoId));
-        setQuestions(Array.isArray(questionsData) ? questionsData : []);
+        const questionsResponse = await getVideoQuizQuestions(Number(videoId));
+        console.log('Questions API raw response:', questionsResponse);
+        const questions = (questionsResponse as { questions: QuizQuestion[] }).questions || [];
+        console.log('Questions after extract:', questions);
+        setQuestions(questions);
 
         // Load sections
         const sectionsResponse = await getVideoSections(Number(videoId));
-        setSections(sectionsResponse.sections || []);
+        console.log('Sections API raw response:', sectionsResponse);
+        const sectionsData = sectionsResponse.sections || [];
+        console.log(
+          'Sections loaded:',
+          sectionsData.map(s => ({ id: s.id, title: s.title }))
+        );
+        setSections(sectionsData);
       } catch (err) {
         console.error('Failed to load video data:', err);
         push({ kind: 'error', message: 'Failed to load video data' });
@@ -177,6 +187,63 @@ export default function VideoQuizEditor() {
 
     loadData();
   }, [videoId, push]);
+
+  // Enrich questions with full section objects when sections load or change
+  useEffect(() => {
+    if (sections.length === 0) {
+      console.log('Enrich: sections array is empty, skipping');
+      return;
+    }
+    console.log(
+      'Enrich: running with sections:',
+      sections.map(s => ({ id: s.id, title: s.title, id_type: typeof s.id }))
+    );
+    setQuestions(prev => {
+      const enriched = prev.map(q => {
+        console.log(
+          `Enrich: Q${q.id} - section_id=${q.section_id} (type: ${typeof q.section_id}), hasSection=`,
+          !!q.section
+        );
+        if (q.section) {
+          console.log(`  already has section: "${q.section.title}"`);
+          return q;
+        }
+        if (q.section_id != null) {
+          const section = sections.find(s => {
+            const match = s.id == q.section_id;
+            if (match) {
+              console.log(
+                `  MATCHED section "${s.title}" (id=${s.id}) for section_id=${q.section_id}`
+              );
+            } else {
+              console.log(
+                `  no match: comparing s.id=${s.id} (${typeof s.id}) with q.section_id=${q.section_id} (${typeof q.section_id})`
+              );
+            }
+            return match;
+          });
+          if (section) {
+            return { ...q, section };
+          } else {
+            console.log(`  No section found in sections array for section_id=${q.section_id}`);
+          }
+        } else {
+          console.log(`  Q${q.id} has no section_id`);
+        }
+        return q;
+      });
+      console.log(
+        'Enrich: after mapping, questions:',
+        enriched.map(q => ({
+          id: q.id,
+          section_id: q.section_id,
+          hasSection: !!q.section,
+          sectionTitle: q.section?.title,
+        }))
+      );
+      return enriched;
+    });
+  }, [sections]);
 
   const handleAddOption = () => {
     if (options.length < 6) {
@@ -208,7 +275,19 @@ export default function VideoQuizEditor() {
     setOptions(['', '']);
     setCorrectAnswer(1);
     setTargetTimestamp('');
+    setSelectedSectionId(null);
     setEditingQuestion(null);
+  };
+
+  const enrichQuestionWithSection = (q: QuizQuestion): QuizQuestion => {
+    if (q.section) return q;
+    if (q.section_id != null && sections.length > 0) {
+      const section = sections.find(s => s.id == q.section_id);
+      if (section) {
+        return { ...q, section };
+      }
+    }
+    return q;
   };
 
   const handleSubmitQuestion = async (e: React.FormEvent) => {
@@ -228,21 +307,26 @@ export default function VideoQuizEditor() {
             : 'false'
           : options[correctAnswer] || '',
       section_id: selectedSectionId,
+      timestamp: timestamp,
     };
 
     try {
       if (editingQuestion) {
-        await updateVideoQuizQuestion(Number(videoId), editingQuestion.id, questionData);
-        setQuestions(prev =>
-          prev.map(q =>
-            q.id === editingQuestion.id
-              ? { ...q, ...questionData, timestamp: timestamp || undefined }
-              : q
-          )
+        const response = await updateVideoQuizQuestion(
+          Number(videoId),
+          editingQuestion.id,
+          questionData
         );
+        const updatedQuestion = enrichQuestionWithSection(
+          (response as { question: QuizQuestion }).question
+        );
+        setQuestions(prev => prev.map(q => (q.id === editingQuestion.id ? updatedQuestion : q)));
         push({ kind: 'success', message: 'Question updated successfully' });
       } else {
-        const created = (await addVideoQuizQuestion(Number(videoId), questionData)) as QuizQuestion;
+        const response = await addVideoQuizQuestion(Number(videoId), questionData);
+        const created = enrichQuestionWithSection(
+          (response as { question: QuizQuestion }).question
+        );
         setQuestions(prev => [...prev, created]);
         push({ kind: 'success', message: 'Question added successfully' });
       }
@@ -276,6 +360,8 @@ export default function VideoQuizEditor() {
     } else {
       setSelectedSectionId(null);
     }
+
+    setTargetTimestamp(question.timestamp ? formatTimestamp(question.timestamp) : '');
   };
 
   const handleDeleteQuestion = async (questionId: number) => {
@@ -647,9 +733,15 @@ export default function VideoQuizEditor() {
                             index === 0 ? 'timestamp-badge-highlighted' : 'timestamp-badge'
                           }
                         >
-                          {question.section
-                            ? formatTimestamp(question.section.start_time)
-                            : 'No section'}
+                          {(() => {
+                            const sectionName = question.section ? question.section.title : null;
+                            const sectionId = question.section_id;
+                            console.log(
+                              `Render badge for Q${question.id}: section=${sectionName}, section_id=${sectionId}, fullQuestion=`,
+                              question
+                            );
+                            return question.section ? question.section.title : 'No section';
+                          })()}
                         </span>
                         <div className="question-actions">
                           <button
