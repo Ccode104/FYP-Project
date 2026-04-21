@@ -40,7 +40,6 @@ const Layout = lazy(() => import('./components/Layout'));
 const QuizTake = lazy(() => import('./pages/student/QuizTake'));
 const QuizGrader = lazy(() => import('./pages/teacher/QuizGrader'));
 const QuizManagement = lazy(() => import('./pages/teacher/QuizManagement'));
-const QuizBuilderPage = lazy(() => import('./pages/teacher/QuizBuilderPage'));
 const AssignmentGitHubSubmit = lazy(() => import('./pages/student/AssignmentGitHubSubmit'));
 const AssignmentGrading = lazy(() => import('./pages/teacher/AssignmentGrading'));
 const AssignmentManagement = lazy(() => import('./pages/teacher/AssignmentManagement'));
@@ -232,24 +231,6 @@ function App() {
               element={
                 <ProtectedRoute roles={['teacher', 'ta']}>
                   <QuizManagement />
-                </ProtectedRoute>
-              }
-            />
-
-            {/* Quiz builder (teacher, faculty, or TA only) */}
-            <Route
-              path="/courses/:courseId/quiz-builder"
-              element={
-                <ProtectedRoute roles={['teacher', 'ta', 'faculty']}>
-                  <QuizBuilderPage />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/courses/:courseId/quiz-builder/:quizId"
-              element={
-                <ProtectedRoute roles={['teacher', 'ta', 'faculty']}>
-                  <QuizBuilderPage />
                 </ProtectedRoute>
               }
             />

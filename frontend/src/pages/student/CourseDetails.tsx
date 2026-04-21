@@ -1443,21 +1443,7 @@ export default function CourseDetails() {
                 <section className="assignments-section">
                   <div className="section-header">
                     <h2 className="section-title">Quiz Management</h2>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                      <span className="assignment-count">{backendQuizzes.length} quizzes</span>
-                      <button
-                        className="btn btn-primary"
-                        onClick={() => navigate(`/courses/${courseId}/quizzes`)}
-                      >
-                        <span
-                          className="material-symbols-outlined"
-                          style={{ fontSize: '18px', verticalAlign: 'middle', marginRight: '4px' }}
-                        >
-                          add
-                        </span>
-                        Create New Quiz
-                      </button>
-                    </div>
+                    <span className="assignment-count">{backendQuizzes.length} quizzes</span>
                   </div>
 
                   {backendQuizzes.length === 0 ? (
@@ -3201,11 +3187,7 @@ export default function CourseDetails() {
                               : 'N/A'}
                           </td>
                           <td>{lecture.meeting_url ? 'Scheduled' : 'Unavailable'}</td>
-                          <td>
-                            {lecture.total_participant_count ||
-                              lecture.active_participant_count ||
-                              0}
-                          </td>
+                          <td>{lecture.total_participant_count || lecture.active_participant_count || 0}</td>
                           <td>
                             <button
                               className="btn btn-primary"

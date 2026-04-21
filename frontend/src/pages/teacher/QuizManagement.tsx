@@ -15,8 +15,6 @@ interface Quiz {
   status?: 'draft' | 'scheduled' | 'active' | 'completed' | 'archived';
   total_submissions?: number;
   average_score?: number;
-  google_form_url?: string;
-  google_form_id?: string;
 }
 
 function getQuizStatus(quiz: Quiz): 'scheduled' | 'active' | 'completed' {
@@ -66,7 +64,6 @@ export default function QuizManagement() {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [newQuiz, setNewQuiz] = useState({
     title: '',
-    description: '',
     course_offering_id: courseId ? Number(courseId) : 0,
     start_at: '',
     end_at: '',
@@ -74,30 +71,13 @@ export default function QuizManagement() {
     time_limit: 60,
     is_proctored: false,
     allow_suspension_resume: false,
-    google_form_url: '',
   });
   const [creating, setCreating] = useState(false);
 
   const isTeacher = user?.role === 'teacher' || user?.role === 'ta' || user?.role === 'faculty';
 
-  const extractGoogleFormId = (url: string): string => {
-    const match = url.match(/forms\.google\.com\/forms\/u\/0\/d\/([a-zA-Z0-9_-]+)/);
-    return match ? match[1] : '';
-  };
-
   const handleCreateQuiz = async () => {
     if (!newQuiz.title || !newQuiz.start_at || !newQuiz.end_at || !courseId) return;
-
-    if (!newQuiz.google_form_url) {
-      setError('Please provide a Google Form URL');
-      return;
-    }
-
-    const googleFormId = extractGoogleFormId(newQuiz.google_form_url);
-    if (!googleFormId) {
-      setError('Invalid Google Form URL. Please provide a valid Google Form link.');
-      return;
-    }
 
     setCreating(true);
     try {
@@ -106,15 +86,12 @@ export default function QuizManagement() {
         body: {
           course_offering_id: Number(courseId),
           title: newQuiz.title,
-          description: newQuiz.description || '',
           start_at: newQuiz.start_at,
           end_at: newQuiz.end_at,
           max_score: newQuiz.max_score,
           time_limit: newQuiz.time_limit,
           is_proctored: newQuiz.is_proctored,
           allow_suspension_resume: newQuiz.allow_suspension_resume,
-          google_form_url: newQuiz.google_form_url,
-          google_form_id: googleFormId,
         },
       });
       setQuizzes(prev => [...prev, created]);
@@ -128,7 +105,6 @@ export default function QuizManagement() {
         time_limit: 60,
         is_proctored: false,
         allow_suspension_resume: false,
-        google_form_url: '',
       });
     } catch (err) {
       console.error('Failed to create quiz:', err);
@@ -225,7 +201,7 @@ export default function QuizManagement() {
             </div>
             <button
               className="btn btn-primary quiz-create-btn"
-              onClick={() => navigate(`/courses/${courseId}/quiz-builder`)}
+              onClick={() => setShowCreateModal(true)}
             >
               <span className="material-symbols-outlined">add</span>
               <span>Create New Quiz</span>
@@ -254,25 +230,8 @@ export default function QuizManagement() {
                     upcomingQuizzes.slice(0, 2).map(quiz => (
                       <div key={quiz.id} className="quiz-card">
                         <div className="quiz-card-content">
-                          <div className="quiz-card-icon google-form-badge">
-                            <svg viewBox="0 0 24 24" width="20" height="20">
-                              <path
-                                fill="#4285F4"
-                                d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
-                              />
-                              <path
-                                fill="#34A853"
-                                d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.96 21.07 7.7 23 12 23z"
-                              />
-                              <path
-                                fill="#FBBC05"
-                                d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"
-                              />
-                              <path
-                                fill="#EA4335"
-                                d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.96 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
-                              />
-                            </svg>
+                          <div className="quiz-card-icon">
+                            <span className="material-symbols-outlined">terminal</span>
                           </div>
                           <div className="quiz-card-details">
                             <h5 className="quiz-card-title">{quiz.title}</h5>
@@ -286,31 +245,20 @@ export default function QuizManagement() {
                                 {formatTime(quiz.start_at)} ({quiz.time_limit || 60} min)
                               </span>
                             </div>
-                            {quiz.google_form_url && (
-                              <a
-                                href={quiz.google_form_url}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="quiz-google-link"
-                              >
-                                <span className="material-symbols-outlined">open_in_new</span>
-                                View Google Form
-                              </a>
-                            )}
                           </div>
                         </div>
                         <div className="quiz-card-actions">
                           <button
                             className="action-btn view"
                             title="View Quiz"
-                            onClick={() => window.open(quiz.google_form_url, '_blank')}
+                            onClick={() => navigate(`/quizzes/${quiz.id}`)}
                           >
                             <span className="material-symbols-outlined">visibility</span>
                           </button>
                           <button
                             className="action-btn"
-                            title="Edit in Google Forms"
-                            onClick={() => window.open(quiz.google_form_url, '_blank')}
+                            title="Edit"
+                            onClick={() => navigate(`/quizzes/${quiz.id}/grading`)}
                           >
                             <span className="material-symbols-outlined">edit</span>
                           </button>
@@ -346,34 +294,6 @@ export default function QuizManagement() {
                         </div>
                         <h6 className="quiz-history-title">{quiz.title}</h6>
                         <p className="quiz-history-avg">Class Avg: {quiz.average_score || 0}%</p>
-                        {quiz.google_form_url && (
-                          <a
-                            href={quiz.google_form_url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="quiz-history-google-link"
-                          >
-                            <svg viewBox="0 0 24 24" width="14" height="14">
-                              <path
-                                fill="#4285F4"
-                                d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
-                              />
-                              <path
-                                fill="#34A853"
-                                d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.96 21.07 7.7 23 12 23z"
-                              />
-                              <path
-                                fill="#FBBC05"
-                                d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"
-                              />
-                              <path
-                                fill="#EA4335"
-                                d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.96 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
-                              />
-                            </svg>
-                            Google Form
-                          </a>
-                        )}
                         <div className="quiz-history-footer">
                           <div className="quiz-avatar-stack">
                             <div className="quiz-avatar"></div>
@@ -383,15 +303,15 @@ export default function QuizManagement() {
                           <div className="quiz-history-actions">
                             <button
                               className="action-btn view"
-                              title="View Responses"
-                              onClick={() => window.open(quiz.google_form_url, '_blank')}
+                              title="View Quiz"
+                              onClick={() => navigate(`/quizzes/${quiz.id}`)}
                             >
                               <span className="material-symbols-outlined">visibility</span>
                             </button>
                             <button
                               className="action-btn"
-                              title="View in Google Forms"
-                              onClick={() => window.open(quiz.google_form_url, '_blank')}
+                              title="View Grading"
+                              onClick={() => navigate(`/quizzes/${quiz.id}/grading`)}
                             >
                               <span className="material-symbols-outlined">edit</span>
                             </button>
@@ -493,7 +413,7 @@ export default function QuizManagement() {
                 <span>Back to Management</span>
               </button>
               <h2>Create New Quiz</h2>
-              <p>Link a Google Form to create and manage your quiz.</p>
+              <p>Configure your quiz settings and availability for students.</p>
             </div>
 
             {/* Form */}
@@ -505,87 +425,65 @@ export default function QuizManagement() {
               }}
             >
               <div className="create-quiz-grid">
-                {/* Google Form Card - Primary */}
-                <div className="quiz-google-form-card">
-                  <div className="google-form-header">
-                    <div className="google-form-icon">
-                      <svg viewBox="0 0 24 24" width="24" height="24">
-                        <path
-                          fill="#4285F4"
-                          d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
-                        />
-                        <path
-                          fill="#34A853"
-                          d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.96 21.07 7.7 23 12 23z"
-                        />
-                        <path
-                          fill="#FBBC05"
-                          d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"
-                        />
-                        <path
-                          fill="#EA4335"
-                          d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.96 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
-                        />
-                      </svg>
-                    </div>
-                    <div>
-                      <h3>Google Form Quiz</h3>
-                      <p>Link your existing Google Form or create a new one</p>
-                    </div>
-                  </div>
-                  <div className="form-group">
-                    <label>Google Form URL</label>
-                    <input
-                      type="url"
-                      className="quiz-input"
-                      placeholder="https://forms.google.com/forms/u/0/d/e/..."
-                      value={newQuiz.google_form_url}
-                      onChange={e => setNewQuiz({ ...newQuiz, google_form_url: e.target.value })}
-                    />
-                    <span className="input-hint">
-                      Paste your Google Form link here. Students will take the quiz via Google
-                      Forms.
-                    </span>
-                  </div>
-                  <a
-                    href="https://forms.google.com"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="create-google-form-link"
-                  >
-                    <span className="material-symbols-outlined">open_in_new</span>
-                    Create New Google Form
-                  </a>
-                </div>
-
-                {/* Quiz Info Card */}
+                {/* Primary Info Card */}
                 <div className="quiz-info-card">
-                  <h3>Quiz Details</h3>
+                  <h3>General Information</h3>
                   <div className="form-group">
                     <label>Quiz Title</label>
                     <input
                       type="text"
                       className="quiz-input"
-                      placeholder="e.g. Chapter 5 Quiz"
+                      placeholder="e.g. Introduction to Quantum Physics Final"
                       value={newQuiz.title}
                       onChange={e => setNewQuiz({ ...newQuiz, title: e.target.value })}
                     />
                   </div>
                   <div className="form-group">
-                    <label>Description (Optional)</label>
-                    <textarea
-                      className="quiz-input quiz-textarea"
-                      placeholder="Instructions for students..."
-                      value={newQuiz.description}
-                      onChange={e => setNewQuiz({ ...newQuiz, description: e.target.value })}
-                      rows={3}
-                    />
+                    <label>Course Offering ID</label>
+                    <select className="quiz-input" value={newQuiz.course_offering_id} disabled>
+                      <option value={newQuiz.course_offering_id}>
+                        {course?.course_code}: {course?.course_title}
+                      </option>
+                    </select>
+                  </div>
+                </div>
+
+                {/* Scoring & Time Card */}
+                <div className="quiz-scoring-card">
+                  <h3>Evaluation</h3>
+                  <div className="form-group">
+                    <label>Maximum Score</label>
+                    <div className="input-with-suffix">
+                      <input
+                        type="number"
+                        className="quiz-input"
+                        value={newQuiz.max_score}
+                        onChange={e =>
+                          setNewQuiz({ ...newQuiz, max_score: Number(e.target.value) })
+                        }
+                      />
+                      <span>PTS</span>
+                    </div>
+                  </div>
+                  <div className="form-group">
+                    <label>Time Limit</label>
+                    <div className="input-with-suffix">
+                      <input
+                        type="number"
+                        className="quiz-input"
+                        value={newQuiz.time_limit}
+                        onChange={e =>
+                          setNewQuiz({ ...newQuiz, time_limit: Number(e.target.value) })
+                        }
+                      />
+                      <span>MIN</span>
+                    </div>
                   </div>
                 </div>
 
                 {/* Schedule Card */}
                 <div className="quiz-schedule-card">
-                  <h3>Availability</h3>
+                  <h3>Availability Schedule</h3>
                   <div className="schedule-grid">
                     <div className="form-group">
                       <label>Start Date & Time</label>
@@ -608,70 +506,68 @@ export default function QuizManagement() {
                   </div>
                 </div>
 
-                {/* Settings Card */}
-                <div className="quiz-settings-card">
-                  <h3>Settings</h3>
-                  <div className="form-group">
-                    <label>Maximum Score</label>
-                    <div className="input-with-suffix">
-                      <input
-                        type="number"
-                        className="quiz-input"
-                        value={newQuiz.max_score}
-                        onChange={e =>
-                          setNewQuiz({ ...newQuiz, max_score: Number(e.target.value) })
+                {/* Integrity & Controls Card */}
+                <div className="quiz-integrity-card">
+                  <h3>Academic Integrity</h3>
+                  <div className="integrity-options">
+                    <label className="integrity-toggle">
+                      <div className="toggle-content">
+                        <div className="toggle-icon proctoring">
+                          <span className="material-symbols-outlined">shield</span>
+                        </div>
+                        <div>
+                          <p>Proctoring</p>
+                          <span>Enable AI-assisted monitoring</span>
+                        </div>
+                      </div>
+                      <div
+                        className={`toggle-switch ${newQuiz.is_proctored ? 'on' : ''}`}
+                        onClick={() =>
+                          setNewQuiz({ ...newQuiz, is_proctored: !newQuiz.is_proctored })
                         }
-                      />
-                      <span>PTS</span>
-                    </div>
-                  </div>
-                  <div className="form-group">
-                    <label>Time Limit (Optional)</label>
-                    <div className="input-with-suffix">
-                      <input
-                        type="number"
-                        className="quiz-input"
-                        value={newQuiz.time_limit}
-                        onChange={e =>
-                          setNewQuiz({ ...newQuiz, time_limit: Number(e.target.value) })
+                      >
+                        <div className="toggle-knob"></div>
+                      </div>
+                    </label>
+                    <label className="integrity-toggle">
+                      <div className="toggle-content">
+                        <div className="toggle-icon suspension">
+                          <span className="material-symbols-outlined">pause_circle</span>
+                        </div>
+                        <div>
+                          <p>Allow Suspension</p>
+                          <span>Students can pause and resume</span>
+                        </div>
+                      </div>
+                      <div
+                        className={`toggle-switch ${newQuiz.allow_suspension_resume ? 'on' : ''}`}
+                        onClick={() =>
+                          setNewQuiz({
+                            ...newQuiz,
+                            allow_suspension_resume: !newQuiz.allow_suspension_resume,
+                          })
                         }
-                      />
-                      <span>MIN</span>
-                    </div>
+                      >
+                        <div className="toggle-knob"></div>
+                      </div>
+                    </label>
                   </div>
                 </div>
               </div>
-
-              {/* Error Display */}
-              {error && (
-                <div className="create-quiz-error">
-                  <span className="material-symbols-outlined">error</span>
-                  {error}
-                </div>
-              )}
 
               {/* Action Bar */}
               <div className="create-quiz-actions">
                 <button
                   type="button"
                   className="btn-cancel"
-                  onClick={() => {
-                    setShowCreateModal(false);
-                    setError(null);
-                  }}
+                  onClick={() => setShowCreateModal(false)}
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   className="btn-submit"
-                  disabled={
-                    !newQuiz.title ||
-                    !newQuiz.start_at ||
-                    !newQuiz.end_at ||
-                    !newQuiz.google_form_url ||
-                    creating
-                  }
+                  disabled={!newQuiz.title || !newQuiz.start_at || !newQuiz.end_at || creating}
                 >
                   {creating ? 'Creating...' : 'Create Quiz'}
                 </button>

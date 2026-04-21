@@ -47,7 +47,6 @@ import { createPlannerTables } from './controllers/plannerController.js';
 import { createRagTables } from './controllers/chatbotController.js';
 import swaggerSpec from './swagger.js';
 import googleRoutes from './routes/google.js';
-import quizBuilderRoutes from './routes/quizBuilderRoutes.js';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret';
 
@@ -197,7 +196,6 @@ export async function startServer(port = 4000) {
   app.use('/api/ai-assistant', aiEditorRoutes);
   app.use('/api/planner', plannerRoutes);
   app.use('/api/staff', staffRoutes);
-  app.use('/api/quiz-builder', quizBuilderRoutes);
 
   app.get('/health', (req, res) => res.json({ ok: true }));
 

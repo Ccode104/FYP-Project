@@ -1,5 +1,5 @@
 import { pool } from '../db/index.js';
-import { generateAiResponse } from '../services/discussionAiService.js';
+
 async function hasAccess(offeringId, user) {
   if (!user) {return false;}
   if (user.role === 'admin') {return true;}
@@ -89,31 +89,6 @@ export async function postMessage(req, res) {
     res.status(201).json({ message: r.rows[0] });
   } catch (err) {
     console.error('postMessage error', err);
-    res.status(500).json({ error: 'Internal server error' });
-  }
-}
-
-export async function getAiAssist(req, res) {
-  try {
-    const offeringId = Number(req.params.offeringId);
-    const messageId = Number(req.params.messageId);
-    const { user_query } = req.body || {};
-
-    if (!offeringId || !messageId) {
-      return res.status(400).json({ error: 'Invalid offeringId or messageId' });
-    }
-    
-    // Authorization check
-    if (!(await hasAccess(offeringId, req.user))) {
-      return res.status(403).json({ error: 'Forbidden' });
-    }
-
-    // Call AI Service
-    const aiResult = await generateAiResponse(messageId, offeringId, user_query);
-    res.json(aiResult);
-
-  } catch (err) {
-    console.error('getAiAssist error', err);
     res.status(500).json({ error: 'Internal server error' });
   }
 }
