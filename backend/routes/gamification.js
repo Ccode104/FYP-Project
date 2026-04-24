@@ -6,7 +6,8 @@ import {
   getAllAchievements,
   getDailyChallenge,
   completeDailyChallenge,
-  getUserSubmissionHistory
+  getUserSubmissionHistory,
+  getDashboardSummary
 } from '../controllers/gamificationController.js';
 import { requireAuth } from '../middleware/auth.js';
 
@@ -17,6 +18,7 @@ router.use(requireAuth);
 
 // User stats
 router.get('/stats', getUserStats);
+router.get('/summary', getDashboardSummary);
 
 // Leaderboards
 router.get('/leaderboard', getLeaderboard);

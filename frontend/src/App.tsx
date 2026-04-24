@@ -51,6 +51,7 @@ const ReviewQueue = lazy(() => import('./pages/teacher/ReviewQueue'));
 // Progress / analytics pages
 const StudentProgress = lazy(() => import('./pages/progress/StudentProgress'));
 const CourseProgress = lazy(() => import('./pages/progress/CourseProgress'));
+const ProgressLeaderboard = lazy(() => import('./pages/progress/ProgressLeaderboard'));
 const Profile = lazy(() => import('./pages/Profile'));
 
 // Global course context provider
@@ -394,11 +395,20 @@ function App() {
               }
             />
 
+            <Route
+              path="/progress/leaderboard"
+              element={
+                <ProtectedRoute roles={['student']}>
+                  <ProgressLeaderboard />
+                </ProtectedRoute>
+              }
+            />
+
             {/* Course progress analytics (teacher / TA only) */}
             <Route
               path="/progress/course/:offeringId"
               element={
-                <ProtectedRoute roles={['teacher', 'ta']}>
+                <ProtectedRoute roles={['student', 'teacher', 'ta']}>
                   <CourseProgress />
                 </ProtectedRoute>
               }

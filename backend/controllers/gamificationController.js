@@ -105,8 +105,40 @@ export async function getLeaderboard(req, res) {
 
     const leaderboard = await pool.query(query, params);
 
+    let totalEntriesQuery;
+    let totalEntriesParams = [];
+
+    if (type === 'global') {
+      totalEntriesQuery = `
+        SELECT COUNT(*)::int AS total_entries
+        FROM leaderboards
+        WHERE leaderboard_type = 'global'
+      `;
+    } else if (type === 'quiz') {
+      totalEntriesQuery = `
+        SELECT COUNT(*)::int AS total_entries
+        FROM quiz_attempts
+        WHERE quiz_id = $1
+          AND violated = false
+          AND score IS NOT NULL
+      `;
+      totalEntriesParams = [referenceId];
+    } else {
+      totalEntriesQuery = `
+        SELECT COUNT(*)::int AS total_entries
+        FROM leaderboards
+        WHERE leaderboard_type = $1
+          AND reference_id = $2
+      `;
+      totalEntriesParams = [type, referenceId];
+    }
+
+    const totalEntriesResult = await pool.query(totalEntriesQuery, totalEntriesParams);
+    const totalEntries = totalEntriesResult.rows[0]?.total_entries || 0;
+
     // Get current user's rank if requested
     let userRank = null;
+    let currentUserEntry = null;
     if (userId) {
       if (type === 'quiz') {
         // For quiz leaderboards, calculate rank from quiz attempts
@@ -127,6 +159,37 @@ export async function getLeaderboard(req, res) {
         if (rankResult.rowCount > 0) {
           userRank = rankResult.rows[0].rank;
         }
+
+        const currentUserEntryResult = await pool.query(
+          `
+            SELECT
+              qa.score,
+              qa.finished_at as submission_date,
+              NULL as time_spent_seconds,
+              u.name as user_name,
+              u.email as user_email,
+              ranked.rank,
+              qa.student_id as user_id
+            FROM (
+              SELECT
+                id,
+                student_id,
+                ROW_NUMBER() OVER (ORDER BY score DESC, finished_at ASC) as rank
+              FROM quiz_attempts
+              WHERE quiz_id = $1
+                AND violated = false
+                AND score IS NOT NULL
+            ) ranked
+            JOIN quiz_attempts qa ON qa.id = ranked.id
+            JOIN users u ON qa.student_id = u.id
+            WHERE ranked.student_id = $2
+            ORDER BY qa.finished_at DESC NULLS LAST
+            LIMIT 1
+          `,
+          [referenceId, userId]
+        );
+
+        currentUserEntry = currentUserEntryResult.rows[0] || null;
       } else {
         const rankQuery = type === 'global'
           ? 'SELECT rank FROM leaderboards WHERE leaderboard_type = \'global\' AND user_id = $1 ORDER BY submission_date DESC LIMIT 1'
@@ -138,12 +201,54 @@ export async function getLeaderboard(req, res) {
         if (rankResult.rowCount > 0) {
           userRank = rankResult.rows[0].rank;
         }
+
+        const currentUserEntryQuery =
+          type === 'global'
+            ? `
+                SELECT l.*, u.name as user_name, u.email as user_email
+                FROM leaderboards l
+                JOIN users u ON l.user_id = u.id
+                WHERE l.leaderboard_type = 'global' AND l.user_id = $1
+                ORDER BY l.submission_date DESC
+                LIMIT 1
+              `
+            : `
+                SELECT l.*, u.name as user_name, u.email as user_email
+                FROM leaderboards l
+                JOIN users u ON l.user_id = u.id
+                WHERE l.leaderboard_type = $1 AND l.reference_id = $2 AND l.user_id = $3
+                ORDER BY l.submission_date DESC
+                LIMIT 1
+              `;
+
+        const currentUserEntryParams = type === 'global' ? [userId] : [type, referenceId, userId];
+        const currentUserEntryResult = await pool.query(currentUserEntryQuery, currentUserEntryParams);
+        currentUserEntry = currentUserEntryResult.rows[0] || null;
       }
     }
+
+    const averageScore =
+      leaderboard.rows.length > 0
+        ? Number(
+            (
+              leaderboard.rows.reduce((sum, entry) => sum + Number(entry.score || 0), 0) /
+              leaderboard.rows.length
+            ).toFixed(2)
+          )
+        : 0;
+
+    const userPercentile =
+      userRank && totalEntries > 0
+        ? Math.max(1, Math.round(((totalEntries - userRank) / totalEntries) * 100) + 1)
+        : null;
 
     res.json({
       leaderboard: leaderboard.rows,
       userRank,
+      userPercentile,
+      totalEntries,
+      averageScore,
+      currentUserEntry,
       type,
       referenceId: referenceId || null
     });
@@ -329,5 +434,141 @@ export async function getUserSubmissionHistory(req, res) {
   } catch (error) {
     console.error('Error fetching submission history:', error);
     res.status(500).json({ error: 'Failed to fetch submission history' });
+  }
+}
+
+/**
+ * Get XP source summary and recent gamification transactions
+ */
+export async function getDashboardSummary(req, res) {
+  try {
+    const userId = req.user?.id;
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const [statsResult, achievementsResult, dailyChallengesResult, codeSubmissionsResult] =
+      await Promise.all([
+        pool.query(
+          'SELECT total_points, experience_points, level, current_streak, longest_streak FROM user_gamification_stats WHERE user_id = $1',
+          [userId]
+        ),
+        pool.query(
+          `SELECT
+             ua.id,
+             ua.unlocked_at as occurred_at,
+             a.name as title,
+             a.category,
+             a.points_reward as xp_delta
+           FROM user_achievements ua
+           JOIN achievements a ON a.id = ua.achievement_id
+           WHERE ua.user_id = $1
+           ORDER BY ua.unlocked_at DESC`,
+          [userId]
+        ),
+        pool.query(
+          `SELECT
+             udc.id,
+             udc.completed_at as occurred_at,
+             dc.date,
+             COALESCE(udc.points_earned, 0) as xp_delta
+           FROM user_daily_challenges udc
+           JOIN daily_challenges dc ON dc.id = udc.challenge_id
+           WHERE udc.user_id = $1
+           ORDER BY udc.completed_at DESC`,
+          [userId]
+        ),
+        pool.query(
+          `SELECT
+             cs.id,
+             cs.created_at as occurred_at,
+             COALESCE(cs.gamified_score, 0) as xp_delta,
+             a.title as assignment_title,
+             cq.title as question_title
+           FROM code_submissions cs
+           JOIN assignment_submissions ass ON ass.id = cs.submission_id
+           JOIN assignments a ON a.id = ass.assignment_id
+           LEFT JOIN assignment_questions aq ON aq.id = cs.assignment_question_id
+           LEFT JOIN code_questions cq ON cq.id = aq.question_id
+           WHERE ass.student_id = $1
+             AND COALESCE(cs.gamified_score, 0) > 0
+           ORDER BY cs.created_at DESC`,
+          [userId]
+        ),
+      ]);
+
+    const stats = statsResult.rows[0] || {
+      total_points: 0,
+      experience_points: 0,
+      level: 1,
+      current_streak: 0,
+      longest_streak: 0,
+    };
+
+    const achievementXp = achievementsResult.rows.reduce(
+      (sum, row) => sum + Number(row.xp_delta || 0),
+      0
+    );
+    const dailyChallengeXp = dailyChallengesResult.rows.reduce(
+      (sum, row) => sum + Number(row.xp_delta || 0),
+      0
+    );
+    const codeSubmissionXp = codeSubmissionsResult.rows.reduce(
+      (sum, row) => sum + Number(row.xp_delta || 0),
+      0
+    );
+
+    const totalXp = Number(stats.experience_points || stats.total_points || 0);
+    const knownXp = achievementXp + dailyChallengeXp + codeSubmissionXp;
+    const otherXp = Math.max(totalXp - knownXp, 0);
+
+    const recentTransactions = [
+      ...achievementsResult.rows.map(row => ({
+        id: `achievement-${row.id}`,
+        category: 'achievement',
+        title: row.title,
+        context: row.category || 'Achievement',
+        occurred_at: row.occurred_at,
+        xp_delta: Number(row.xp_delta || 0),
+      })),
+      ...dailyChallengesResult.rows.map(row => ({
+        id: `daily-${row.id}`,
+        category: 'daily_challenge',
+        title: 'Daily Challenge',
+        context: row.date,
+        occurred_at: row.occurred_at,
+        xp_delta: Number(row.xp_delta || 0),
+      })),
+      ...codeSubmissionsResult.rows.map(row => ({
+        id: `code-${row.id}`,
+        category: 'code_submission',
+        title: row.question_title || row.assignment_title || 'Code Submission',
+        context: row.assignment_title || 'Code assignment',
+        occurred_at: row.occurred_at,
+        xp_delta: Number(row.xp_delta || 0),
+      })),
+    ]
+      .sort((a, b) => new Date(b.occurred_at).getTime() - new Date(a.occurred_at).getTime())
+      .slice(0, 12);
+
+    res.json({
+      stats,
+      sources: [
+        { key: 'code_submissions', label: 'Code Submissions', xp: codeSubmissionXp },
+        { key: 'achievements', label: 'Achievements', xp: achievementXp },
+        { key: 'daily_challenges', label: 'Daily Challenges', xp: dailyChallengeXp },
+        { key: 'other', label: 'Other Sources', xp: otherXp },
+      ],
+      recentTransactions,
+      totals: {
+        totalXp,
+        achievementsUnlocked: achievementsResult.rows.length,
+        dailyChallengesCompleted: dailyChallengesResult.rows.length,
+        codeSubmissionCount: codeSubmissionsResult.rows.length,
+      },
+    });
+  } catch (error) {
+    console.error('Error fetching gamification dashboard summary:', error);
+    res.status(500).json({ error: 'Failed to fetch gamification summary' });
   }
 }
