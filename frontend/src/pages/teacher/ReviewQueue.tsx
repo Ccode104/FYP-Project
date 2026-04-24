@@ -101,7 +101,6 @@ export default function ReviewQueue() {
           </p>
         </div>
         <div className="dashboard-actions">
-          <button className="btn btn-secondary" onClick={() => navigate('/teacher/suspended-quizzes')}>Suspended quizzes</button>
           <button className="btn btn-outline" onClick={load} disabled={loading}>Refresh</button>
         </div>
       </div>

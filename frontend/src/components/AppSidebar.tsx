@@ -182,18 +182,6 @@ export default function AppSidebar() {
         { id: 'dashboard', label: 'Dashboard', icon: 'dashboard', href: `/dashboard/${user.role}` },
         { id: 'planner', label: 'Planner', icon: 'calendar_month', href: `/planner/${user.role}` },
         {
-          id: 'suspended-quizzes',
-          label: 'Suspended Quizzes',
-          icon: 'warning',
-          href: '/teacher/suspended-quizzes',
-        },
-        {
-          id: 'proctoring',
-          label: 'Proctoring',
-          icon: 'visibility',
-          href: '/teacher/proctoring-dashboard',
-        },
-        {
           id: 'review-queue',
           label: 'Review Queue',
           icon: 'rate_review',

@@ -13,6 +13,226 @@ function getOAuth2Client() {
   return new google.auth.OAuth2(GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, GOOGLE_REDIRECT_URI);
 }
 
+// ALLOWED_FIELDS: Strict schema validation for Google Forms API
+// Only these fields are allowed in batchUpdate requests
+const ALLOWED_CREATE_ITEM_FIELDS = new Set(['createItem']);
+
+const ALLOWED_ITEM_FIELDS = new Set(['title', 'questionItem', 'description']);
+
+const ALLOWED_QUESTION_ITEM_FIELDS = new Set(['question', 'required']);
+
+const ALLOWED_QUESTION_FIELDS = new Set(['choiceQuestion', 'textQuestion']);
+
+const ALLOWED_CHOICE_QUESTION_FIELDS = new Set(['type', 'options', 'shuffle']);
+
+const ALLOWED_OPTION_FIELDS = new Set(['value']);
+
+const ALLOWED_TEXT_QUESTION_FIELDS = new Set(['paragraph']);
+
+// INVALID_FIELDS: Fields that Google Forms API does NOT support
+const INVALID_FIELDS = new Set([
+  'grading',
+  'correctAnswer',
+  'correctAnswers',
+  'score',
+  'answers',
+  'gradingPointValue',
+  'pointValue',
+  'feedback',
+  'correctFeedback',
+  'incorrectFeedback',
+]);
+
+/**
+ * Validates that a payload contains only allowed Google Forms API fields
+ * Throws error if any invalid field is found
+ */
+function validateGoogleFormsPayload(requests) {
+  for (const request of requests) {
+    // Check createItem
+    if (request.createItem) {
+      const item = request.createItem.item || {};
+
+      // Check item fields
+      for (const key of Object.keys(item)) {
+        if (!ALLOWED_ITEM_FIELDS.has(key)) {
+          throw new Error(
+            `Invalid field in item: '${key}'. Allowed: ${[...ALLOWED_ITEM_FIELDS].join(', ')}`
+          );
+        }
+      }
+
+      // Check questionItem
+      if (item.questionItem) {
+        const qi = item.questionItem;
+
+        for (const key of Object.keys(qi)) {
+          if (!ALLOWED_QUESTION_ITEM_FIELDS.has(key)) {
+            throw new Error(
+              `Invalid field in questionItem: '${key}'. Allowed: ${[...ALLOWED_QUESTION_ITEM_FIELDS].join(', ')}`
+            );
+          }
+        }
+
+        // Check question
+        if (qi.question) {
+          for (const key of Object.keys(qi.question)) {
+            if (!ALLOWED_QUESTION_FIELDS.has(key)) {
+              throw new Error(
+                `Invalid field in question: '${key}'. Allowed: ${[...ALLOWED_QUESTION_FIELDS].join(', ')}`
+              );
+            }
+          }
+
+          // Check choiceQuestion
+          if (qi.question.choiceQuestion) {
+            const cq = qi.question.choiceQuestion;
+            for (const key of Object.keys(cq)) {
+              if (!ALLOWED_CHOICE_QUESTION_FIELDS.has(key)) {
+                throw new Error(
+                  `Invalid field in choiceQuestion: '${key}'. Allowed: ${[...ALLOWED_CHOICE_QUESTION_FIELDS].join(', ')}`
+                );
+              }
+            }
+
+            // Check options
+            if (cq.options) {
+              for (const opt of cq.options) {
+                for (const key of Object.keys(opt)) {
+                  if (!ALLOWED_OPTION_FIELDS.has(key)) {
+                    throw new Error(
+                      `Invalid field in option: '${key}'. Allowed: ${[...ALLOWED_OPTION_FIELDS].join(', ')}`
+                    );
+                  }
+                }
+              }
+            }
+          }
+
+          // Check textQuestion
+          if (qi.question.textQuestion) {
+            const tq = qi.question.textQuestion;
+            for (const key of Object.keys(tq)) {
+              if (!ALLOWED_TEXT_QUESTION_FIELDS.has(key)) {
+                throw new Error(
+                  `Invalid field in textQuestion: '${key}'. Allowed: ${[...ALLOWED_TEXT_QUESTION_FIELDS].join(', ')}`
+                );
+              }
+            }
+          }
+        }
+      }
+    }
+
+    // Check for any top-level invalid fields in request
+    for (const key of Object.keys(request)) {
+      if (INVALID_FIELDS.has(key)) {
+        throw new Error(
+          `Invalid field at top level: '${key}'. This field is NOT supported by Google Forms API.`
+        );
+      }
+    }
+  }
+
+  return true;
+}
+
+// ============================================================
+// STRICT GOOGLE FORMS API TRANSFORMER
+// Converts internal quiz model → Google Forms API format ONLY
+// ============================================================
+
+/**
+ * Transforms a single quiz question to Google Forms API questionItem format
+ * NEVER includes grading or any invalid fields
+ */
+function transformQuestionToGoogleForm(q) {
+  const sanitizedQuestion = sanitizeText(q.question);
+
+  // Build the questionItem structure
+  const questionItem = {
+    question: {},
+  };
+
+  if (q.type === 'mcq') {
+    // Multiple choice - RADIO type
+    const options = (q.options || []).map(opt => ({
+      value: sanitizeText(opt),
+    }));
+
+    questionItem.question = {
+      choiceQuestion: {
+        type: 'RADIO',
+        options: options,
+        shuffle: false,
+      },
+    };
+  } else if (q.type === 'checkbox') {
+    // Checkbox - CHECKBOX type
+    const options = (q.options || []).map(opt => ({
+      value: sanitizeText(opt),
+    }));
+
+    questionItem.question = {
+      choiceQuestion: {
+        type: 'CHECKBOX',
+        options: options,
+        shuffle: false,
+      },
+    };
+  } else if (q.type === 'short') {
+    // Short answer
+    questionItem.question = {
+      textQuestion: {},
+    };
+  } else if (q.type === 'paragraph') {
+    // Paragraph answer
+    questionItem.question = {
+      textQuestion: {
+        paragraph: true,
+      },
+    };
+  }
+
+  return {
+    item: {
+      title: sanitizedQuestion,
+      questionItem: questionItem,
+    },
+  };
+}
+
+/**
+ * Transforms quiz to Google Forms batchUpdate requests
+ * Returns ONLY valid createItem array with proper structure
+ */
+function transformQuizToGoogleForms(quiz) {
+  const requests = [];
+  let index = 0;
+
+  // Add questions starting from index 0
+  for (const q of quiz.questions) {
+    // Skip invalid question types
+    if (!['mcq', 'checkbox', 'short', 'paragraph'].includes(q.type)) {
+      console.warn(`Skipping unsupported question type: ${q.type}`);
+      continue;
+    }
+
+    const itemData = transformQuestionToGoogleForm(q);
+
+    requests.push({
+      createItem: {
+        item: itemData.item,
+        location: { index: index },
+      },
+    });
+
+    index++;
+  }
+
+  return requests;
+}
+
 async function getAuthenticatedClient(userId) {
   const result = await pool.query(
     `SELECT * FROM user_oauth_tokens WHERE user_id = $1 AND provider = 'google'`,
@@ -51,6 +271,37 @@ async function getAuthenticatedClient(userId) {
 function sanitizeText(text) {
   if (typeof text !== 'string') return '';
   return text.replace(/[<>]/g, '').trim();
+}
+
+function extractGoogleFormIdFromUrl(url) {
+  if (typeof url !== 'string' || !url.trim()) return null;
+
+  const editMatch = url.match(/\/forms\/d\/([a-zA-Z0-9_-]+)/);
+  if (editMatch?.[1]) return editMatch[1];
+
+  const publicMatch = url.match(/\/forms\/d\/e\/([a-zA-Z0-9_-]+)/);
+  if (publicMatch?.[1]) return publicMatch[1];
+
+  return null;
+}
+
+let ensureQuizGoogleFormColumnsPromise = null;
+
+async function ensureQuizGoogleFormColumns() {
+  if (!ensureQuizGoogleFormColumnsPromise) {
+    ensureQuizGoogleFormColumnsPromise = (async () => {
+      await pool.query(`
+        ALTER TABLE quizzes
+        ADD COLUMN IF NOT EXISTS google_form_url TEXT,
+        ADD COLUMN IF NOT EXISTS google_form_id TEXT
+      `);
+    })().catch(error => {
+      ensureQuizGoogleFormColumnsPromise = null;
+      throw error;
+    });
+  }
+
+  return ensureQuizGoogleFormColumnsPromise;
 }
 
 function validateQuizData(quizData) {
@@ -114,7 +365,11 @@ export async function createQuiz(req, res) {
       max_score,
       time_limit,
       is_proctored,
+      google_form_url,
+      google_form_id,
     } = req.body;
+
+    await ensureQuizGoogleFormColumns();
 
     const quizData = { title, questions };
     const validationErrors = validateQuizData(quizData);
@@ -149,8 +404,8 @@ export async function createQuiz(req, res) {
       await client.query('BEGIN');
 
       const quizQuery = `
-        INSERT INTO quizzes (course_offering_id, title, description, start_at, end_at, max_score, time_limit, is_proctored)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+        INSERT INTO quizzes (course_offering_id, title, description, start_at, end_at, max_score, time_limit, is_proctored, google_form_url, google_form_id)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
         RETURNING *
       `;
       const quizResult = await client.query(quizQuery, [
@@ -162,6 +417,8 @@ export async function createQuiz(req, res) {
         max_score || 100,
         time_limit || null,
         is_proctored || false,
+        google_form_url || null,
+        google_form_id || extractGoogleFormIdFromUrl(google_form_url) || null,
       ]);
       const quiz = quizResult.rows[0];
 
@@ -204,6 +461,7 @@ export async function createQuiz(req, res) {
 export async function getQuiz(req, res) {
   try {
     const { quizId } = req.params;
+    await ensureQuizGoogleFormColumns();
 
     const quizQuery = `
       SELECT q.*, c.code as course_code, c.title as course_title
@@ -350,7 +608,9 @@ Make sure questions are appropriate for ${difficulty} level.`;
 export async function exportToGoogleForm(req, res) {
   try {
     const userId = req.user.id;
-    const { quiz } = req.body;
+    const { quiz, quizId } = req.body;
+
+    await ensureQuizGoogleFormColumns();
 
     if (!quiz || !quiz.title || !quiz.questions) {
       return res.status(400).json({ error: 'Quiz data is required' });
@@ -364,113 +624,122 @@ export async function exportToGoogleForm(req, res) {
     let auth;
     try {
       auth = await getAuthenticatedClient(userId);
-    } catch (error) {
-      return res
-        .status(401)
-        .json({ error: 'Google account not connected. Please connect your Google account first.' });
+    } catch (authError) {
+      console.error('Authentication failed:', authError.message);
+      return res.status(401).json({
+        error:
+          'Google account not connected or tokens expired. Please reconnect your Google account.',
+      });
     }
 
     const forms = google.forms({ version: 'v1', auth });
 
-    const formInfo = {
-      info: {
-        title: sanitizeText(quiz.title),
-        description: quiz.description
-          ? sanitizeText(quiz.description)
-          : 'Quiz created via FYP Platform',
-      },
-    };
+    // ============================================================
+    // STEP 1: Create Form (ALWAYS create fresh form)
+    // ============================================================
+    let form;
+    let formId;
 
-    const form = await forms.forms.create(formInfo);
-
-    const formId = form.formId;
-    const updateRequests = [];
-
-    for (const q of quiz.questions) {
-      const questionItem = {
-        createItem: {
-          item: {
-            title: sanitizeText(q.question),
-            question: {},
-          },
-          location: { index: updateRequests.length },
-        },
-      };
-
-      if (q.type === 'mcq') {
-        const options = (q.options || []).map(opt => ({
-          value: sanitizeText(opt),
-        }));
-
-        const correctIndex = q.correct_answers?.[0] ? q.options?.indexOf(q.correct_answers[0]) : -1;
-
-        questionItem.createItem.item.question = {
-          choiceQuestion: {
-            type: 'RADIO',
-            options: options,
-            shuffle: false,
-          },
-        };
-
-        if (correctIndex >= 0) {
-          questionItem.createItem.item.question.grading = {
-            correctAnswer: {
-              score: 1,
-              answers: [{ value: sanitizeText(q.options[correctIndex]) }],
-            },
-          };
-          questionItem.createItem.item.question.gradingPointValue = 1;
-        }
-      } else if (q.type === 'checkbox') {
-        const options = (q.options || []).map(opt => ({
-          value: sanitizeText(opt),
-        }));
-
-        questionItem.createItem.item.question = {
-          choiceQuestion: {
-            type: 'CHECKBOX',
-            options: options,
-            shuffle: false,
-          },
-        };
-
-        if (q.correct_answers && q.correct_answers.length > 0) {
-          const correctAnswers = q.correct_answers.map(a => ({ value: sanitizeText(a) }));
-          questionItem.createItem.item.question.grading = {
-            correctAnswers: { answers: correctAnswers },
-            pointValue: q.correct_answers.length,
-          };
-        }
-      } else if (q.type === 'short') {
-        questionItem.createItem.item.question = {
-          textQuestion: {},
-        };
-      } else if (q.type === 'paragraph') {
-        questionItem.createItem.item.question = {
-          textQuestion: {
-            paragraph: true,
-          },
-        };
-      }
-
-      updateRequests.push(questionItem);
-    }
-
-    if (updateRequests.length > 0) {
-      await forms.forms.batchUpdate({
-        formId,
+    try {
+      form = await forms.forms.create({
         requestBody: {
-          requests: updateRequests,
+          info: {
+            title: sanitizeText(quiz.title),
+          },
         },
+      });
+    } catch (createError) {
+      // Check for auth-related errors
+      const errorMessage = createError.message || '';
+      if (
+        errorMessage.includes('insufficient authentication') ||
+        errorMessage.includes('Request had insufficient authentication') ||
+        errorMessage.includes('401') ||
+        errorMessage.includes('deleted') ||
+        errorMessage.includes('not found')
+      ) {
+        console.error('Authentication tokens expired or invalid, or missing Forms scope');
+        return res.status(401).json({
+          error:
+            'Google authentication tokens expired or missing permissions. Please reconnect your Google account in Settings to enable Google Forms access.',
+        });
+      }
+      console.error('Google Form creation failed:', createError.message);
+      return res.status(500).json({
+        error: 'Failed to create Google Form: ' + createError.message,
       });
     }
 
-    const formUrl = `https://docs.google.com/forms/d/e/${formId}/viewform`;
+    // Extract formId with validation
+    formId = form?.data?.formId || form?.formId;
+
+    // VALIDATE: Ensure formId exists and is valid
+    if (!formId || typeof formId !== 'string' || formId.trim() === '') {
+      console.error('Invalid formId received:', form);
+      return res.status(500).json({ error: 'Failed to get valid formId from Google Forms API' });
+    }
+
+    // ============================================================
+    // STEP 2: Build and Validate Payload
+    // ============================================================
+    const requests = transformQuizToGoogleForms(quiz);
+
+    // VALIDATE: Fail fast if payload contains invalid fields
+    if (requests.length > 0) {
+      try {
+        validateGoogleFormsPayload(requests);
+      } catch (validationError) {
+        console.error('Payload validation failed:', validationError.message);
+        return res.status(400).json({ error: 'Invalid payload: ' + validationError.message });
+      }
+    }
+
+    // ============================================================
+    // STEP 3: batchUpdate (ONLY after validation passes)
+    // ============================================================
+    try {
+      await forms.forms.batchUpdate({
+        formId,
+        requestBody: {
+          requests: requests,
+        },
+      });
+    } catch (batchUpdateError) {
+      console.error('batchUpdate failed:', batchUpdateError.message);
+      // Clean up: Delete the created form if batchUpdate fails
+      try {
+        await forms.forms.delete({ formId });
+        console.log('Cleaned up failed form:', formId);
+      } catch (deleteError) {
+        console.error('Failed to clean up form:', deleteError.message);
+      }
+      return res.status(500).json({
+        error: 'Failed to add questions to form: ' + batchUpdateError.message,
+      });
+    }
+
+    const editUrl = `https://docs.google.com/forms/d/${formId}/edit`;
+    const viewUrl = `https://docs.google.com/forms/d/e/${formId}/viewform`;
+    const responderUrl = `https://docs.google.com/forms/d/e/${formId}/viewform?usp=dialog`;
+
+    if (quizId) {
+      await pool.query(
+        `
+        UPDATE quizzes
+        SET google_form_url = $1, google_form_id = $2
+        WHERE id = $3
+        `,
+        [editUrl, formId, quizId]
+      );
+    }
 
     res.json({
       message: 'Google Form created successfully',
       formId,
-      formUrl,
+      formUrl: editUrl,
+      editUrl,
+      viewUrl,
+      responderUrl,
     });
   } catch (error) {
     console.error('Error exporting to Google Form:', error);
@@ -482,8 +751,20 @@ export async function updateQuiz(req, res) {
   try {
     const { quizId } = req.params;
     const userId = req.user.id;
-    const { title, description, questions, start_at, end_at, max_score, time_limit, is_proctored } =
-      req.body;
+    const {
+      title,
+      description,
+      questions,
+      start_at,
+      end_at,
+      max_score,
+      time_limit,
+      is_proctored,
+      google_form_url,
+      google_form_id,
+    } = req.body;
+
+    await ensureQuizGoogleFormColumns();
 
     const quizData = { title, questions };
     const validationErrors = validateQuizData(quizData);
@@ -508,8 +789,9 @@ export async function updateQuiz(req, res) {
 
       const updateQuizQuery = `
         UPDATE quizzes
-        SET title = $1, description = $2, start_at = $3, end_at = $4, max_score = $5, time_limit = $6, is_proctored = $7
-        WHERE id = $8
+        SET title = $1, description = $2, start_at = $3, end_at = $4, max_score = $5, time_limit = $6, is_proctored = $7,
+            google_form_url = COALESCE($8, google_form_url), google_form_id = COALESCE($9, google_form_id)
+        WHERE id = $10
         RETURNING *
       `;
       const updatedQuiz = await client.query(updateQuizQuery, [
@@ -520,6 +802,8 @@ export async function updateQuiz(req, res) {
         max_score || 100,
         time_limit || null,
         is_proctored || false,
+        google_form_url || null,
+        google_form_id || extractGoogleFormIdFromUrl(google_form_url) || null,
         quizId,
       ]);
 
@@ -564,7 +848,7 @@ export async function updateQuiz(req, res) {
 export async function deleteQuiz(req, res) {
   try {
     const { quizId } = req.params;
-    const userId = req.user.id;
+    await ensureQuizGoogleFormColumns();
 
     const checkQ =
       'SELECT q.*, co.faculty_id FROM quizzes q JOIN course_offerings co ON q.course_offering_id = co.id WHERE q.id = $1';
@@ -576,9 +860,48 @@ export async function deleteQuiz(req, res) {
       return res.status(403).json({ error: 'Not authorized' });
     }
 
+    const googleFormId =
+      quiz.google_form_id ||
+      extractGoogleFormIdFromUrl(quiz.google_form_url) ||
+      extractGoogleFormIdFromUrl(quiz.edit_url) ||
+      null;
+
+    if (googleFormId) {
+      let auth;
+      try {
+        auth = await getAuthenticatedClient(req.user.id);
+      } catch (authError) {
+        console.error('Authentication failed while deleting Google Form:', authError.message);
+        return res.status(401).json({
+          error:
+            'Google account not connected or tokens expired. Reconnect your Google account before deleting this quiz.',
+        });
+      }
+
+      try {
+        const forms = google.forms({ version: 'v1', auth });
+        await forms.forms.delete({ formId: googleFormId });
+      } catch (formDeleteError) {
+        console.error('Failed to delete linked Google Form:', formDeleteError.message);
+        return res.status(500).json({
+          error: 'Failed to delete the linked Google Form. Quiz was not removed.',
+        });
+      }
+    }
+
     const client = await pool.connect();
     try {
       await client.query('BEGIN');
+      await client.query(
+        `
+        DELETE FROM resume_requests
+        WHERE quiz_attempt_id IN (
+          SELECT id FROM quiz_attempts WHERE quiz_id = $1
+        )
+        `,
+        [quizId]
+      );
+      await client.query('DELETE FROM quiz_attempts WHERE quiz_id = $1', [quizId]);
       await client.query('DELETE FROM quiz_questions WHERE quiz_id = $1', [quizId]);
       await client.query('DELETE FROM quizzes WHERE id = $1', [quizId]);
       await client.query('COMMIT');
@@ -599,36 +922,37 @@ export async function listQuizzes(req, res) {
   try {
     const userId = req.user.id;
     const { course_offering_id } = req.params;
-
-    let query;
-    let params;
+    await ensureQuizGoogleFormColumns();
 
     if (req.user.role === 'student') {
-      query = `
+      const quizzes = await pool.query(
+        `
         SELECT q.*, c.code as course_code, c.title as course_title
         FROM quizzes q
         JOIN course_offerings co ON q.course_offering_id = co.id
         JOIN courses c ON co.course_id = c.id
         WHERE q.course_offering_id = $1
-        ORDER BY q.created_at DESC
-      `;
-      params = [course_offering_id];
-    } else {
-      query = `
-        SELECT q.*, c.code as course_code, c.title as course_title
-        FROM quizzes q
-        JOIN course_offerings co ON q.course_offering_id = co.id
-        JOIN courses c ON co.course_id = c.id
-        WHERE q.course_offering_id = $1
-        ORDER BY q.created_at DESC
-      `;
-      params = [course_offering_id];
+        ORDER BY q.id DESC
+      `,
+        [course_offering_id]
+      );
+      return res.json(quizzes.rows);
     }
 
-    const result = await pool.query(query, params);
+    const quizzes = await pool.query(
+      `
+      SELECT q.*, c.code as course_code, c.title as course_title
+      FROM quizzes q
+      JOIN course_offerings co ON q.course_offering_id = co.id
+      JOIN courses c ON co.course_id = c.id
+      WHERE q.course_offering_id = $1
+      ORDER BY q.id DESC
+    `,
+      [course_offering_id]
+    );
 
-    const quizzes = await Promise.all(
-      result.rows.map(async quiz => {
+    const quizzesWithCount = await Promise.all(
+      quizzes.rows.map(async quiz => {
         const questionsCount = await pool.query(
           'SELECT COUNT(*) as count FROM quiz_questions WHERE quiz_id = $1',
           [quiz.id]
@@ -641,7 +965,7 @@ export async function listQuizzes(req, res) {
       })
     );
 
-    res.json(quizzes);
+    res.json(quizzesWithCount);
   } catch (error) {
     console.error('Error listing quizzes:', error);
     res.status(500).json({ error: error.message || 'Failed to list quizzes' });

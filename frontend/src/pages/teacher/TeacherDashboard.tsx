@@ -171,20 +171,6 @@ export default function TeacherDashboard() {
                 <span className="teacher-notification-count">5</span>
               </span>
             </button>
-            <button
-              className="teacher-action-btn teacher-action-btn-suspended"
-              onClick={() => navigate('/teacher/suspended-quizzes')}
-            >
-              <span className="material-symbols-outlined">report</span>
-              <span>Suspended Quizzes</span>
-            </button>
-            <button
-              className="teacher-action-btn teacher-action-btn-proctoring"
-              onClick={() => navigate('/teacher/proctoring-dashboard')}
-            >
-              <span className="material-symbols-outlined">monitoring</span>
-              <span>Proctoring Analytics</span>
-            </button>
           </div>
         </div>
       </section>

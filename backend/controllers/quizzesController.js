@@ -1,4 +1,24 @@
 import { pool } from '../db/index.js';
+import { getGoogleFormQuizResultsData } from './googleController.js';
+
+let ensureQuizGoogleFormColumnsPromise = null;
+
+async function ensureQuizGoogleFormColumns() {
+  if (!ensureQuizGoogleFormColumnsPromise) {
+    ensureQuizGoogleFormColumnsPromise = (async () => {
+      await pool.query(`
+        ALTER TABLE quizzes
+        ADD COLUMN IF NOT EXISTS google_form_url TEXT,
+        ADD COLUMN IF NOT EXISTS google_form_id TEXT
+      `);
+    })().catch(error => {
+      ensureQuizGoogleFormColumnsPromise = null;
+      throw error;
+    });
+  }
+
+  return ensureQuizGoogleFormColumnsPromise;
+}
 
 // Get quiz details with questions for taking
 export async function getQuiz(req, res) {
@@ -286,14 +306,30 @@ export async function submitQuizAttempt(req, res) {
 export async function createQuiz(req, res) {
   try {
     // eslint-disable-next-line no-unused-vars
-    const { course_offering_id, title, _description, start_at, end_at, max_score, questions, is_proctored, time_limit } = req.body;
+    const {
+      course_offering_id,
+      title,
+      _description,
+      start_at,
+      end_at,
+      max_score,
+      questions,
+      is_proctored,
+      time_limit,
+      google_form_url,
+      google_form_id,
+    } = req.body;
+
+    await ensureQuizGoogleFormColumns();
 
     console.log('Creating quiz with data:', {
       course_offering_id,
       title,
       is_proctored,
       time_limit,
-      questionCount: questions?.length || 0
+      questionCount: questions?.length || 0,
+      google_form_url,
+      google_form_id,
     });
 
     // Validate required fields
@@ -325,7 +361,14 @@ export async function createQuiz(req, res) {
       await client.query('BEGIN');
 
       // Create quiz
-      const quizQuery = 'INSERT INTO quizzes (course_offering_id, title, start_at, end_at, max_score, is_proctored, time_limit) VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING *';
+      const quizQuery = `
+        INSERT INTO quizzes (
+          course_offering_id, title, start_at, end_at, max_score, is_proctored, time_limit,
+          google_form_url, google_form_id
+        )
+        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
+        RETURNING *
+      `;
       const quizResult = await client.query(quizQuery, [
         course_offering_id,
         title,
@@ -333,7 +376,9 @@ export async function createQuiz(req, res) {
         end_at || null,
         max_score || 100,
         is_proctored || false,
-        time_limit || null
+        time_limit || null,
+        google_form_url || null,
+        google_form_id || null
       ]);
       const quiz = quizResult.rows[0];
     
@@ -925,6 +970,55 @@ export async function gradeQuizAttemptOverall(req, res) {
   } catch (err) {
     console.error('Error grading quiz attempt:', err);
     res.status(500).json({ error: err.message || 'Failed to grade attempt' });
+  }
+}
+
+// Get quiz results summary for teachers/TAs/admins
+export async function getQuizResultsSummary(req, res) {
+  try {
+    const { quizId } = req.params;
+
+    const quizQuery = `
+      SELECT q.*, c.code as course_code, c.title as course_title, co.faculty_id
+      FROM quizzes q
+      JOIN course_offerings co ON q.course_offering_id = co.id
+      JOIN courses c ON co.course_id = c.id
+      WHERE q.id = $1
+    `;
+    const quizResult = await pool.query(quizQuery, [quizId]);
+
+    if (quizResult.rowCount === 0) {
+      return res.status(404).json({ error: 'Quiz not found' });
+    }
+
+    const quiz = quizResult.rows[0];
+
+    if (req.user.role !== 'admin') {
+      if (req.user.role === 'faculty' && Number(req.user.id) !== Number(quiz.faculty_id)) {
+        return res.status(403).json({ error: 'Not authorized to view this quiz' });
+      }
+
+      if (req.user.role === 'ta') {
+        const taCheck = await pool.query(
+          'SELECT 1 FROM ta_assignments WHERE ta_id = $1 AND course_offering_id = $2',
+          [req.user.id, quiz.course_offering_id]
+        );
+        if (taCheck.rowCount === 0) {
+          return res.status(403).json({ error: 'Not authorized to view this quiz' });
+        }
+      }
+    }
+
+    res.json(await getGoogleFormQuizResultsData(quizId, req.user.id));
+  } catch (error) {
+    console.error('Error fetching quiz results summary:', error);
+    if (error.message === 'Google not connected') {
+      return res.status(403).json({ error: 'Connect Google to view Google Form quiz results' });
+    }
+    if (error.message === 'Linked Google Form is missing for this quiz') {
+      return res.status(400).json({ error: error.message });
+    }
+    res.status(500).json({ error: error.message || 'Failed to fetch quiz results summary' });
   }
 }
 

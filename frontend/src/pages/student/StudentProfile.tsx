@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { getUserProfile, updateUserProfile } from '../../features/users/api/users';
 import type { UserProfile } from '../../features/users/api/users';
 import { useToast } from '../../components/ToastProvider';
+import { apiFetch } from '../../services/api';
 import UserStats from '../../components/UserStats';
 import Modal from '../../components/Modal';
 import SupportTicketList from '../../components/SupportTicketList';
@@ -16,6 +17,53 @@ export default function StudentProfile() {
   const [editForm, setEditForm] = useState({ name: '', email: '', roll_number: '' });
   const [saving, setSaving] = useState(false);
   const [showTicketForm, setShowTicketForm] = useState(false);
+  const [googleConnected, setGoogleConnected] = useState(false);
+  const [googleLoading, setGoogleLoading] = useState(true);
+
+  const checkGoogleStatus = async () => {
+    try {
+      setGoogleLoading(true);
+      const data = await apiFetch<{ connected: boolean }>('/api/auth/google/status');
+      setGoogleConnected(data.connected);
+    } catch {
+      setGoogleConnected(false);
+    } finally {
+      setGoogleLoading(false);
+    }
+  };
+
+  const handleConnectGoogle = async () => {
+    try {
+      const data = await apiFetch<{ authUrl: string }>('/api/auth/google');
+      sessionStorage.setItem('google_oauth_return_url', window.location.href);
+      const oauthWindow = window.open(data.authUrl, 'Google OAuth', 'width=500,height=600');
+      const checkInterval = setInterval(async () => {
+        try {
+          const statusData = await apiFetch<{ connected: boolean }>('/api/auth/google/status');
+          if (statusData.connected) {
+            clearInterval(checkInterval);
+            setGoogleConnected(true);
+            oauthWindow?.close();
+          }
+        } catch {
+          // Continue polling
+        }
+      }, 2000);
+      setTimeout(() => clearInterval(checkInterval), 60000);
+    } catch (err: unknown) {
+      push({ kind: 'error', message: err?.message || 'Failed to connect Google account' });
+    }
+  };
+
+  const handleDisconnectGoogle = async () => {
+    try {
+      await apiFetch('/api/auth/google/disconnect', { method: 'POST' });
+      setGoogleConnected(false);
+      push({ kind: 'success', message: 'Google account disconnected' });
+    } catch (err: unknown) {
+      push({ kind: 'error', message: err?.message || 'Failed to disconnect Google account' });
+    }
+  };
 
   const loadProfile = useCallback(async () => {
     try {
@@ -32,7 +80,8 @@ export default function StudentProfile() {
 
   useEffect(() => {
     loadProfile();
-  }, [loadProfile]);
+    checkGoogleStatus();
+  }, []);
 
   const handleEdit = () => {
     if (profile) {
@@ -90,9 +139,7 @@ export default function StudentProfile() {
     <div className="container container-wide profile-page student-theme">
       <div className="profile-header">
         <div className="profile-avatar">
-          <div className="avatar-circle">
-            {profile.name.charAt(0).toUpperCase()}
-          </div>
+          <div className="avatar-circle">{profile.name.charAt(0).toUpperCase()}</div>
         </div>
         <div className="profile-info">
           <h1 className="profile-name">{profile.name}</h1>
@@ -140,18 +187,55 @@ export default function StudentProfile() {
           </div>
         </section>
 
+        {/* Google Account Integration */}
+        <section className="profile-section">
+          <h2>Google Account</h2>
+          <p style={{ marginBottom: '16px', color: 'var(--text-secondary)' }}>
+            Connect your Google account for submission features
+          </p>
+          <div className="info-grid">
+            <div className="info-item">
+              <label>Status</label>
+              {googleLoading ? (
+                <span>Checking...</span>
+              ) : googleConnected ? (
+                <span className="status-active">Connected</span>
+              ) : (
+                <span className="status-inactive">Not Connected</span>
+              )}
+            </div>
+          </div>
+          <div style={{ marginTop: '16px' }}>
+            {googleConnected ? (
+              <button className="btn btn-secondary" onClick={handleDisconnectGoogle}>
+                Disconnect Google Account
+              </button>
+            ) : (
+              <button className="btn btn-primary" onClick={handleConnectGoogle}>
+                Connect Google Account
+              </button>
+            )}
+          </div>
+        </section>
+
         {/* Enrolled Courses */}
         <section className="profile-section">
           <h2>Enrolled Courses</h2>
           {profile.enrolledCourses && profile.enrolledCourses.length > 0 ? (
             <div className="courses-list">
-              {profile.enrolledCourses.map((course) => (
+              {profile.enrolledCourses.map(course => (
                 <div key={course.enrolled_at} className="course-item">
                   <div className="course-info">
-                    <h3>{course.course_code} - {course.course_title}</h3>
-                    <p>Term: {course.term} {course.section ? `Section ${course.section}` : ''}</p>
+                    <h3>
+                      {course.course_code} - {course.course_title}
+                    </h3>
+                    <p>
+                      Term: {course.term} {course.section ? `Section ${course.section}` : ''}
+                    </p>
                     <p>Instructor: {course.faculty_name || 'TBA'}</p>
-                    <p>Enrolled: {course.enrolled_students}/{course.max_capacity || 'Unlimited'}</p>
+                    <p>
+                      Enrolled: {course.enrolled_students}/{course.max_capacity || 'Unlimited'}
+                    </p>
                   </div>
                   <div className="enrollment-date">
                     Enrolled: {new Date(course.enrolled_at).toLocaleDateString()}
@@ -175,14 +259,16 @@ export default function StudentProfile() {
           <section className="profile-section">
             <h2>Achievements</h2>
             <div className="achievements-grid">
-              {profile.achievements.map((achievement) => (
+              {profile.achievements.map(achievement => (
                 <div key={achievement.unlocked_at} className="achievement-card">
                   <div className="achievement-icon">{achievement.icon || '🏆'}</div>
                   <div className="achievement-info">
                     <h3>{achievement.name}</h3>
                     <p>{achievement.description}</p>
                     <span className={`rarity ${achievement.rarity}`}>{achievement.rarity}</span>
-                    <small>Unlocked: {new Date(achievement.unlocked_at).toLocaleDateString()}</small>
+                    <small>
+                      Unlocked: {new Date(achievement.unlocked_at).toLocaleDateString()}
+                    </small>
                   </div>
                 </div>
               ))}
@@ -192,7 +278,14 @@ export default function StudentProfile() {
 
         {/* Support Tickets */}
         <section className="profile-section">
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+          <div
+            style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              marginBottom: '20px',
+            }}
+          >
             <h2>Support Tickets</h2>
             <button className="btn btn-primary" onClick={() => setShowTicketForm(true)}>
               Create Ticket
@@ -224,7 +317,9 @@ export default function StudentProfile() {
         title="Edit Profile"
         actions={
           <>
-            <button className="btn" onClick={() => setEditModal(false)}>Cancel</button>
+            <button className="btn" onClick={() => setEditModal(false)}>
+              Cancel
+            </button>
             <button className="btn btn-primary" onClick={handleSave} disabled={saving}>
               {saving ? 'Saving...' : 'Save Changes'}
             </button>
@@ -238,7 +333,7 @@ export default function StudentProfile() {
               className="input"
               type="text"
               value={editForm.name}
-              onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
+              onChange={e => setEditForm({ ...editForm, name: e.target.value })}
             />
           </label>
           <label className="field">
@@ -247,7 +342,7 @@ export default function StudentProfile() {
               className="input"
               type="email"
               value={editForm.email}
-              onChange={(e) => setEditForm({ ...editForm, email: e.target.value })}
+              onChange={e => setEditForm({ ...editForm, email: e.target.value })}
             />
           </label>
           <label className="field">
@@ -256,7 +351,7 @@ export default function StudentProfile() {
               className="input"
               type="text"
               value={editForm.roll_number}
-              onChange={(e) => setEditForm({ ...editForm, roll_number: e.target.value })}
+              onChange={e => setEditForm({ ...editForm, roll_number: e.target.value })}
             />
           </label>
         </div>

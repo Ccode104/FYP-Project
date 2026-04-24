@@ -1,137 +1,166 @@
-import { useEffect, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import React, { useEffect, useMemo, useState } from 'react';
+import { useParams } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import {
   getLiveLecturesByCourse,
   type LiveLecture,
 } from '../../features/live-lecture/api/liveLectures';
+import { useToast } from '../../components/ToastProvider';
+import LiveSessionsSection from './components/live-lectures/LiveSessionsSection';
+import ScheduledLecturesSection from './components/live-lectures/ScheduledLecturesSection';
+import CompletedSessionsSection from './components/live-lectures/CompletedSessionsSection';
+import ScheduleLectureModal from './components/live-lectures/ScheduleLectureModal';
+import './LiveLecturesPage.css';
 
-function formatDateTime(value?: string | null) {
-  if (!value) {
-    return 'Not scheduled';
-  }
-  return new Date(value).toLocaleString();
-}
+type TabKey = 'all' | 'live' | 'scheduled' | 'completed';
 
 export default function LiveLecturesLanding() {
   const { courseId } = useParams<{ courseId: string }>();
   const { user } = useAuth();
-  const navigate = useNavigate();
+  const { push } = useToast();
 
   const [lectures, setLectures] = useState<LiveLecture[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [activeTab, setActiveTab] = useState<TabKey>('all');
+  const [showScheduleModal, setShowScheduleModal] = useState(false);
+
+  const isStaff = user?.role === 'teacher' || user?.role === 'ta' || user?.role === 'admin';
+
+  const loadLectures = async () => {
+    if (!courseId) return;
+    setLoading(true);
+    setError('');
+    try {
+      const data = await getLiveLecturesByCourse(Number.parseInt(courseId, 10));
+      setLectures(data.lectures || []);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Unable to load live lectures';
+      setError(msg);
+      push({ kind: 'error', message: msg });
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
-    const loadLectures = async () => {
-      if (!courseId) {
-        return;
-      }
-
-      try {
-        const data = await getLiveLecturesByCourse(Number.parseInt(courseId, 10));
-        setLectures(data.lectures || []);
-        setError('');
-      } catch (loadError) {
-        setError(loadError instanceof Error ? loadError.message : 'Unable to load live lectures');
-      } finally {
-        setLoading(false);
-      }
-    };
-
     void loadLectures();
+    // Auto-refresh every 30 seconds for live status updates
+    const interval = setInterval(() => {
+      void loadLectures();
+    }, 30000);
+    return () => clearInterval(interval);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [courseId]);
 
+  const liveLectures = useMemo(() => lectures.filter((l) => l.status === 'live'), [lectures]);
+  const scheduledLectures = useMemo(
+    () => lectures.filter((l) => l.status === 'scheduled'),
+    [lectures]
+  );
+  const completedLectures = useMemo(
+    () => lectures.filter((l) => l.status === 'ended' || l.status === 'cancelled'),
+    [lectures]
+  );
+
+  const tabCounts = {
+    all: lectures.length,
+    live: liveLectures.length,
+    scheduled: scheduledLectures.length,
+    completed: completedLectures.length,
+  };
+
+  const tabs: { key: TabKey; label: string }[] = [
+    { key: 'all', label: 'All Sessions' },
+    { key: 'live', label: 'Live Now' },
+    { key: 'scheduled', label: 'Scheduled' },
+    { key: 'completed', label: 'Completed/Recordings' },
+  ];
+
   if (!courseId || !user) {
-    return <div>Loading...</div>;
+    return <div className="ll-page"><div className="loading-spinner">Loading...</div></div>;
   }
 
   return (
-    <div style={{ maxWidth: '1100px', margin: '0 auto', display: 'grid', gap: '18px' }}>
-      <div
-        style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          gap: '16px',
-          flexWrap: 'wrap',
-        }}
-      >
+    <div className="ll-page">
+      {/* Page Header */}
+      <div className="ll-page-header">
         <div>
-          <h1 style={{ margin: 0 }}>Live Lectures</h1>
-          <p className="muted" style={{ margin: '8px 0 0' }}>
-            Scheduled and completed Google Meet sessions for this course.
+          <h2 className="ll-page-header__title">Live Lecture Management</h2>
+          <p className="ll-page-header__subtitle">
+            Coordinate, broadcast, and review your academic sessions.
           </p>
         </div>
-        <button className="btn" onClick={() => navigate(`/courses/${courseId}/hub`)}>
-          Back to Course Hub
-        </button>
+        {isStaff && (
+          <button
+            className="ll-btn ll-editorial-gradient"
+            style={{
+              background: 'linear-gradient(135deg, #00346F 0%, #2563EB 100%)',
+              color: '#fff',
+              padding: '0.75rem 1.5rem',
+              borderRadius: '0.75rem',
+              fontSize: '0.875rem',
+              fontWeight: 700,
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '0.5rem',
+              border: 'none',
+              cursor: 'pointer',
+            }}
+            onClick={() => setShowScheduleModal(true)}
+          >
+            <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>add</span>
+            Schedule New Lecture
+          </button>
+        )}
       </div>
 
-      {loading ? (
-        <div className="loading-spinner">Loading live lectures...</div>
-      ) : error ? (
-        <div
-          style={{
-            padding: '12px 14px',
-            borderRadius: '10px',
-            background: '#fff1f0',
-            border: '1px solid #ffccc7',
-            color: '#a8071a',
-          }}
-        >
-          {error}
-        </div>
-      ) : lectures.length === 0 ? (
-        <div className="card">
-          <p className="muted" style={{ margin: 0 }}>
-            No live lectures have been scheduled for this course yet.
-          </p>
-        </div>
-      ) : (
-        <div className="card" style={{ overflowX: 'auto' }}>
-          <table className="table">
-            <thead>
-              <tr>
-                <th>Title</th>
-                <th>Status</th>
-                <th>Scheduled</th>
-                <th>Participants</th>
-                <th>Action</th>
-              </tr>
-            </thead>
-            <tbody>
-              {lectures.map(lecture => (
-                <tr key={lecture.id}>
-                  <td>
-                    <div style={{ fontWeight: 600 }}>{lecture.title}</div>
-                    {lecture.description && (
-                      <div className="muted" style={{ fontSize: '0.9rem' }}>
-                        {lecture.description}
-                      </div>
-                    )}
-                  </td>
-                  <td style={{ textTransform: 'capitalize' }}>{lecture.status}</td>
-                  <td>{formatDateTime(lecture.scheduled_at)}</td>
-                  <td>{lecture.total_participant_count || 0}</td>
-                  <td>
-                    <button
-                      className="btn btn-primary"
-                      onClick={() => navigate(`/courses/${courseId}/live-lectures/${lecture.id}`)}
-                    >
-                      {lecture.status === 'ended'
-                        ? 'View Stats'
-                        : user.role === 'teacher' || user.role === 'ta'
-                          ? 'Open'
-                          : 'View / Join'}
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+      {/* Error Banner */}
+      {error && !loading && <div className="ll-error">{error}</div>}
+
+      {/* Status Tabs */}
+      <div className="ll-tabs">
+        {tabs.map((t) => (
+          <button
+            key={t.key}
+            className={'ll-tab' + (activeTab === t.key ? ' ll-tab--active' : '')}
+            onClick={() => setActiveTab(t.key)}
+          >
+            {t.label}
+            {t.key === 'live' && tabCounts.live > 0 && (
+              <span className="ll-tab-badge">{tabCounts.live}</span>
+            )}
+          </button>
+        ))}
+      </div>
+
+      {/* Live Now Section */}
+      {(activeTab === 'all' || activeTab === 'live') && (
+        <LiveSessionsSection lectures={liveLectures} isStaff={isStaff} loading={loading} />
       )}
+
+      {/* Scheduled Section */}
+      {(activeTab === 'all' || activeTab === 'scheduled') && (
+        <ScheduledLecturesSection
+          lectures={scheduledLectures}
+          isStaff={isStaff}
+          loading={loading}
+          onRefresh={loadLectures}
+        />
+      )}
+
+      {/* Completed Section */}
+      {(activeTab === 'all' || activeTab === 'completed') && (
+        <CompletedSessionsSection lectures={completedLectures} loading={loading} />
+      )}
+
+      {/* Schedule Modal */}
+      <ScheduleLectureModal
+        open={showScheduleModal}
+        courseId={courseId}
+        onClose={() => setShowScheduleModal(false)}
+        onCreated={loadLectures}
+      />
     </div>
   );
 }

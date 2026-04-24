@@ -112,9 +112,6 @@ export default function TADashboard() {
               <button className="btn btn-primary" onClick={() => setShowAgentChat(true)}>
                 🤖 AI Assistant
               </button>
-              <button className="btn btn-outline" onClick={() => navigate('/teacher/proctoring-dashboard')}>
-                📊 Proctoring Analytics
-              </button>
             </div>
           </div>
 
@@ -243,7 +240,7 @@ export default function TADashboard() {
                       <li
                         key={quiz.id}
                         className="list-item list-item-clickable"
-                        onClick={() => navigate(`/quizzes/${quiz.id}/grading`)}
+                        onClick={() => navigate(`/quizzes/${quiz.id}/results`)}
                       >
                         <div className="list-item-content">
                           <span className="list-item-title">{quiz.title}</span>

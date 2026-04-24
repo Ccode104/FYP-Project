@@ -1,26 +1,40 @@
-import { useEffect, useState, useMemo, useCallback } from 'react'
-import { courses } from '../../data/mock'
-import { useAuth } from '../../hooks/useAuth'
-import { useNavigate } from 'react-router-dom'
-import CourseCard from '../../components/CourseCard'
-import './AdminDashboard.css'
+import { useEffect, useState, useMemo, useCallback } from 'react';
+import { courses } from '../../data/mock';
+import { useAuth } from '../../hooks/useAuth';
+import { useNavigate } from 'react-router-dom';
+import CourseCard from '../../components/CourseCard';
+import './AdminDashboard.css';
 import {
-  listUsers, getUserOverview, updateUser, deleteUser,
-  listDepartments, createDepartment, updateDepartment, deleteDepartment,
-  getCoursesByDepartment, getCourseDetails,
-  assignFacultyToCourse, getOverview, deleteCourse,
-  listCourses, createCourse,
-  createOffering, updateOffering, deleteOffering,
+  listUsers,
+  getUserOverview,
+  updateUser,
+  deleteUser,
+  listDepartments,
+  createDepartment,
+  updateDepartment,
+  deleteDepartment,
+  getCoursesByDepartment,
+  getCourseDetails,
+  assignFacultyToCourse,
+  getOverview,
+  deleteCourse,
+  listCourses,
+  createCourse,
+  createOffering,
+  updateOffering,
+  deleteOffering,
   createAssignment,
   createQuiz,
-  listEnrollments, createEnrollment, deleteEnrollment
-} from '../../features/admin/api/admin'
-import { useToast } from '../../components/ToastProvider'
-import SupportTicketList from '../../components/SupportTicketList'
-import Reports from '../../components/Reports'
-import RecentActivities from '../../components/RecentActivities'
-import { SkeletonCard } from '../../components/Skeleton'
-import ConfirmationModal from '../../components/ConfirmationModal'
+  listEnrollments,
+  createEnrollment,
+  deleteEnrollment,
+} from '../../features/admin/api/admin';
+import { useToast } from '../../components/ToastProvider';
+import SupportTicketList from '../../components/SupportTicketList';
+import Reports from '../../components/Reports';
+import RecentActivities from '../../components/RecentActivities';
+import { SkeletonCard } from '../../components/Skeleton';
+import ConfirmationModal from '../../components/ConfirmationModal';
 interface User {
   id: number;
   name?: string;
@@ -32,13 +46,15 @@ interface User {
 }
 
 export default function AdminDashboard() {
-  const { user } = useAuth()
-  const navigate = useNavigate()
-  const { push } = useToast()
+  const { user } = useAuth();
+  const navigate = useNavigate();
+  const { push } = useToast();
 
-  const isAdmin = user?.role === 'admin'
-  const [isSuperAdmin, setIsSuperAdmin] = useState(false)
-  const [tab, setTab] = useState<'overview' | 'users' | 'courses' | 'departments' | 'reports' | 'support'>('overview')
+  const isAdmin = user?.role === 'admin';
+  const [isSuperAdmin, setIsSuperAdmin] = useState(false);
+  const [tab, setTab] = useState<
+    'overview' | 'users' | 'courses' | 'departments' | 'reports' | 'support'
+  >('overview');
 
   // Tab configuration for better maintainability
   const tabConfigs = [
@@ -48,102 +64,108 @@ export default function AdminDashboard() {
     { key: 'courses', label: 'Courses' },
     { key: 'support', label: 'Support' },
     { key: 'reports', label: 'Reports' },
-  ] as const
+  ] as const;
 
   // Users state
-  const [roleFilter, setRoleFilter] = useState<'student' | 'faculty' | 'ta' | 'admin' | ''>('')
-  const [usersList, setUsersList] = useState<User[]>([])
-  const [selectedUser, setSelectedUser] = useState<User | null>(null)
-  const [selectedOverview, setSelectedOverview] = useState<unknown>(null)
-  const [loadError, setLoadError] = useState<string>('')
-  const [isLoading, setIsLoading] = useState(false)
-  const [userSearch, setUserSearch] = useState('')
-  const [userSearchType, setUserSearchType] = useState<'all' | 'name' | 'email' | 'roll_number'>('all')
-  const [userDeptFilter, setUserDeptFilter] = useState('')
-  const [userRoleFilter, setUserRoleFilter] = useState<string[]>([])
-  const [userDeptMultiFilter, setUserDeptMultiFilter] = useState<string[]>([])
-  const [showUserDetailsModal, setShowUserDetailsModal] = useState(false)
-  const [liveSearchEnabled, setLiveSearchEnabled] = useState(true)
-  const [searchParameterHistory, setSearchParameterHistory] = useState<Array<{
-    keyword: string
-    searchType: 'all' | 'name' | 'email' | 'roll_number'
-    deptFilter: string
-    roleFilter: string[]
-    deptMultiFilter: string[]
-    timestamp: number
-  }>>([])
-  const [showSearchSuggestions, setShowSearchSuggestions] = useState(false)
-  const [recentlyViewedUsers, setRecentlyViewedUsers] = useState<User[]>([])
-  const [currentPage, setCurrentPage] = useState(1)
-  const [itemsPerPage] = useState(10)
-  const [showMultiSelect, setShowMultiSelect] = useState(false)
-  const [viewMode, setViewMode] = useState<'cards' | 'table'>('cards')
+  const [roleFilter, setRoleFilter] = useState<'student' | 'faculty' | 'ta' | 'admin' | ''>('');
+  const [usersList, setUsersList] = useState<User[]>([]);
+  const [selectedUser, setSelectedUser] = useState<User | null>(null);
+  const [selectedOverview, setSelectedOverview] = useState<unknown>(null);
+  const [loadError, setLoadError] = useState<string>('');
+  const [isLoading, setIsLoading] = useState(false);
+  const [userSearch, setUserSearch] = useState('');
+  const [userSearchType, setUserSearchType] = useState<'all' | 'name' | 'email' | 'roll_number'>(
+    'all'
+  );
+  const [userDeptFilter, setUserDeptFilter] = useState('');
+  const [userRoleFilter, setUserRoleFilter] = useState<string[]>([]);
+  const [userDeptMultiFilter, setUserDeptMultiFilter] = useState<string[]>([]);
+  const [showUserDetailsModal, setShowUserDetailsModal] = useState(false);
+  const [liveSearchEnabled, setLiveSearchEnabled] = useState(true);
+  const [searchParameterHistory, setSearchParameterHistory] = useState<
+    Array<{
+      keyword: string;
+      searchType: 'all' | 'name' | 'email' | 'roll_number';
+      deptFilter: string;
+      roleFilter: string[];
+      deptMultiFilter: string[];
+      timestamp: number;
+    }>
+  >([]);
+  const [showSearchSuggestions, setShowSearchSuggestions] = useState(false);
+  const [recentlyViewedUsers, setRecentlyViewedUsers] = useState<User[]>([]);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage] = useState(10);
+  const [showMultiSelect, setShowMultiSelect] = useState(false);
+  const [viewMode, setViewMode] = useState<'cards' | 'table'>('cards');
 
   const loadUsers = async () => {
     try {
-      setIsLoading(true)
-      setLoadError('')
-      const r = await listUsers()
-      setUsersList(r.users || [])
+      setIsLoading(true);
+      setLoadError('');
+      const r = await listUsers();
+      setUsersList(r.users || []);
     } catch (err: unknown) {
-      console.error('Error loading users:', err)
-      setLoadError(err?.message || 'Failed to load users')
-      setUsersList([])
+      console.error('Error loading users:', err);
+      setLoadError(err?.message || 'Failed to load users');
+      setUsersList([]);
     } finally {
-      setIsLoading(false)
+      setIsLoading(false);
     }
-  }
+  };
 
   // Check if current user is super admin
   const checkSuperAdminStatus = async () => {
-    if (!user?.id) return
+    if (!user?.id) return;
     try {
       // We'll need to add a backend endpoint to check super admin status
       // For now, we'll check if the user email is admin@gmail.com (the known super admin)
-      setIsSuperAdmin(user.email === 'admin@gmail.com')
+      setIsSuperAdmin(user.email === 'admin@gmail.com');
     } catch (error) {
-      console.error('Error checking super admin status:', error)
-      setIsSuperAdmin(false)
+      console.error('Error checking super admin status:', error);
+      setIsSuperAdmin(false);
     }
-  }
+  };
 
   // Load search parameter history and recently viewed users from localStorage
   useEffect(() => {
-    const savedParameterHistory = localStorage.getItem('adminSearchParameterHistory')
-    const savedRecentUsers = localStorage.getItem('adminRecentUsers')
-    const savedDeptParameterHistory = localStorage.getItem('adminDeptSearchParameterHistory')
+    const savedParameterHistory = localStorage.getItem('adminSearchParameterHistory');
+    const savedRecentUsers = localStorage.getItem('adminRecentUsers');
+    const savedDeptParameterHistory = localStorage.getItem('adminDeptSearchParameterHistory');
     if (savedParameterHistory) {
-      setSearchParameterHistory(JSON.parse(savedParameterHistory))
+      setSearchParameterHistory(JSON.parse(savedParameterHistory));
     }
     if (savedRecentUsers) {
-      setRecentlyViewedUsers(JSON.parse(savedRecentUsers))
+      setRecentlyViewedUsers(JSON.parse(savedRecentUsers));
     }
     if (savedDeptParameterHistory) {
-      setDeptSearchParameterHistory(JSON.parse(savedDeptParameterHistory))
+      setDeptSearchParameterHistory(JSON.parse(savedDeptParameterHistory));
     }
-  }, [])
+  }, []);
 
   useEffect(() => {
     if (isAdmin) {
-      void loadUsers()
-      void checkSuperAdminStatus()
+      void loadUsers();
+      void checkSuperAdminStatus();
     }
-  }, [isAdmin, user])
+  }, [isAdmin, user]);
 
   // Department search state (moved before useEffect)
-  const [deptSearch, setDeptSearch] = useState('')
-  const [deptSearchType, setDeptSearchType] = useState<'all' | 'code' | 'name'>('all')
-  const [deptViewMode, setDeptViewMode] = useState<'cards' | 'table'>('cards')
-  const [deptLiveSearchEnabled, setDeptLiveSearchEnabled] = useState(true)
-  const [deptSearchParameterHistory, setDeptSearchParameterHistory] = useState<Array<{
-    keyword: string
-    searchType: 'all' | 'code' | 'name'
-    timestamp: number
-  }>>([])
-  const [showDeptSearchSuggestions, setShowDeptSearchSuggestions] = useState(false)
-  const [deptCurrentPage, setDeptCurrentPage] = useState(1)
-  const [deptItemsPerPage] = useState(10)
-  const [showDeptDetailsModal, setShowDeptDetailsModal] = useState(false)
+  const [deptSearch, setDeptSearch] = useState('');
+  const [deptSearchType, setDeptSearchType] = useState<'all' | 'code' | 'name'>('all');
+  const [deptViewMode, setDeptViewMode] = useState<'cards' | 'table'>('cards');
+  const [deptLiveSearchEnabled, setDeptLiveSearchEnabled] = useState(true);
+  const [deptSearchParameterHistory, setDeptSearchParameterHistory] = useState<
+    Array<{
+      keyword: string;
+      searchType: 'all' | 'code' | 'name';
+      timestamp: number;
+    }>
+  >([]);
+  const [showDeptSearchSuggestions, setShowDeptSearchSuggestions] = useState(false);
+  const [deptCurrentPage, setDeptCurrentPage] = useState(1);
+  const [deptItemsPerPage] = useState(10);
+  const [showDeptDetailsModal, setShowDeptDetailsModal] = useState(false);
   interface DepartmentDetails {
     id?: string | number;
     name?: string;
@@ -157,246 +179,284 @@ export default function AdminDashboard() {
     [key: string]: unknown;
   }
 
-  const [selectedDeptDetails, setSelectedDeptDetails] = useState<DepartmentDetails | null>(null)
-  const [deptDetailsCourses, setDeptDetailsCourses] = useState<Course[]>([])
+  const [selectedDeptDetails, setSelectedDeptDetails] = useState<DepartmentDetails | null>(null);
+  const [deptDetailsCourses, setDeptDetailsCourses] = useState<Course[]>([]);
 
   // Load users on initial mount for default view
   useEffect(() => {
     if (isAdmin && tab === 'users' && usersList.length === 0) {
-      void loadUsers()
+      void loadUsers();
     }
-  }, [isAdmin, tab, usersList.length])
+  }, [isAdmin, tab, usersList.length]);
 
   // Debounced search effect
   useEffect(() => {
-    if (!liveSearchEnabled || !userSearch.trim()) return
+    if (!liveSearchEnabled || !userSearch.trim()) return;
 
     const timeoutId = setTimeout(() => {
-      performSearch()
-    }, 500) // 500ms debounce
+      performSearch();
+    }, 500); // 500ms debounce
 
-    return () => clearTimeout(timeoutId)
-  }, [userSearch, userSearchType, userDeptFilter, roleFilter, liveSearchEnabled])
+    return () => clearTimeout(timeoutId);
+  }, [userSearch, userSearchType, userDeptFilter, roleFilter, liveSearchEnabled]);
 
   // Debounced department search effect
   useEffect(() => {
-    if (!deptLiveSearchEnabled || !deptSearch.trim()) return
+    if (!deptLiveSearchEnabled || !deptSearch.trim()) return;
 
     const timeoutId = setTimeout(() => {
       // For departments, we just filter the existing data
-      setDeptCurrentPage(1)
-    }, 300) // 300ms debounce for departments
+      setDeptCurrentPage(1);
+    }, 300); // 300ms debounce for departments
 
-    return () => clearTimeout(timeoutId)
-  }, [deptSearch, deptSearchType, deptLiveSearchEnabled])
+    return () => clearTimeout(timeoutId);
+  }, [deptSearch, deptSearchType, deptLiveSearchEnabled]);
 
   // Course search state (moved before useEffect)
-  const [courseSearch, setCourseSearch] = useState('')
-  const [courseSearchType, setCourseSearchType] = useState<'all' | 'code' | 'title'>('all')
-  const [courseDeptFilter, setCourseDeptFilter] = useState('')
+  const [courseSearch, setCourseSearch] = useState('');
+  const [courseSearchType, setCourseSearchType] = useState<'all' | 'code' | 'title'>('all');
+  const [courseDeptFilter, setCourseDeptFilter] = useState('');
 
   // Debounced course search effect
   useEffect(() => {
-    if (!courseSearch.trim()) return
+    if (!courseSearch.trim()) return;
 
     const timeoutId = setTimeout(() => {
       // For courses, we just filter the existing data
       // No pagination for courses
-    }, 300) // 300ms debounce for courses
+    }, 300); // 300ms debounce for courses
 
-    return () => clearTimeout(timeoutId)
-  }, [courseSearch, courseSearchType, courseDeptFilter])
-// Advanced search scoring function
-const calculateSearchScore = (text: string, searchTerm: string): number => {
-  if (!text || !searchTerm) return 0
+    return () => clearTimeout(timeoutId);
+  }, [courseSearch, courseSearchType, courseDeptFilter]);
+  // Advanced search scoring function
+  const calculateSearchScore = (text: string, searchTerm: string): number => {
+    if (!text || !searchTerm) return 0;
 
-  const textLower = text.toLowerCase()
-  const searchLower = searchTerm.toLowerCase()
+    const textLower = text.toLowerCase();
+    const searchLower = searchTerm.toLowerCase();
 
-  // Exact match (highest priority)
-  if (textLower === searchLower) return 100
+    // Exact match (highest priority)
+    if (textLower === searchLower) return 100;
 
-  // Starts with (very high priority)
-  if (textLower.startsWith(searchLower)) return 80
+    // Starts with (very high priority)
+    if (textLower.startsWith(searchLower)) return 80;
 
-  // Word boundary match (word starts with search term)
-  const words = textLower.split(/\s+/)
-  if (words.some(word => word.startsWith(searchLower))) return 60
+    // Word boundary match (word starts with search term)
+    const words = textLower.split(/\s+/);
+    if (words.some(word => word.startsWith(searchLower))) return 60;
 
-  // Contains match (medium priority)
-  if (textLower.includes(searchLower)) return 40
+    // Contains match (medium priority)
+    if (textLower.includes(searchLower)) return 40;
 
-  // Partial word match (low priority - any word contains the search term)
-  if (words.some(word => word.includes(searchLower))) return 20
+    // Partial word match (low priority - any word contains the search term)
+    if (words.some(word => word.includes(searchLower))) return 20;
 
-  return 0
-}
+    return 0;
+  };
 
-// Advanced search and sort function for any array of items
-const advancedSearchAndSort = <T,>(
-  items: T[],
-  searchTerm: string,
-  getSearchFields: (item: T) => string[],
-  getSortKey: (item: T) => string
-): T[] => {
-  const term = searchTerm.trim()
+  // Advanced search and sort function for any array of items
+  const advancedSearchAndSort = <T,>(
+    items: T[],
+    searchTerm: string,
+    getSearchFields: (item: T) => string[],
+    getSortKey: (item: T) => string
+  ): T[] => {
+    const term = searchTerm.trim();
 
-  if (!term) {
-    return items.sort((a, b) => getSortKey(a).localeCompare(getSortKey(b)))
-  }
+    if (!term) {
+      return items.sort((a, b) => getSortKey(a).localeCompare(getSortKey(b)));
+    }
 
-  const scoredItems = items.map(item => {
-    let totalScore = 0
-    const fields = getSearchFields(item)
+    const scoredItems = items.map(item => {
+      let totalScore = 0;
+      const fields = getSearchFields(item);
 
-    fields.forEach(field => {
-      const score = calculateSearchScore(field, term)
-      totalScore += score
-    })
+      fields.forEach(field => {
+        const score = calculateSearchScore(field, term);
+        totalScore += score;
+      });
 
-    return { item, score: totalScore }
-  })
+      return { item, score: totalScore };
+    });
 
-  return scoredItems
-    .filter(item => item.score > 0)
-    .sort((a, b) => {
-      // Sort by score descending, then by sort key ascending
-      if (a.score !== b.score) return b.score - a.score
-      return getSortKey(a.item).localeCompare(getSortKey(b.item))
-    })
-    .map(item => item.item)
-}
+    return scoredItems
+      .filter(item => item.score > 0)
+      .sort((a, b) => {
+        // Sort by score descending, then by sort key ascending
+        if (a.score !== b.score) return b.score - a.score;
+        return getSortKey(a.item).localeCompare(getSortKey(b.item));
+      })
+      .map(item => item.item);
+  };
 
-// Advanced user search with scoring and sorting (supports multi-select)
-const filterUsers = (users: User[], search: string, searchType: 'all' | 'name' | 'email' | 'roll_number', roleFilter: string | string[], deptFilter: string | string[]): User[] => {
-  const searchTerm = search.trim()
+  // Advanced user search with scoring and sorting (supports multi-select)
+  const filterUsers = (
+    users: User[],
+    search: string,
+    searchType: 'all' | 'name' | 'email' | 'roll_number',
+    roleFilter: string | string[],
+    deptFilter: string | string[]
+  ): User[] => {
+    const searchTerm = search.trim();
 
-  // Convert single values to arrays for consistent handling
-  const roleFilterArray = Array.isArray(roleFilter) ? roleFilter : (roleFilter ? [roleFilter] : [])
-  const deptFilterArray = Array.isArray(deptFilter) ? deptFilter : (deptFilter ? [deptFilter] : [])
+    // Convert single values to arrays for consistent handling
+    const roleFilterArray = Array.isArray(roleFilter) ? roleFilter : roleFilter ? [roleFilter] : [];
+    const deptFilterArray = Array.isArray(deptFilter) ? deptFilter : deptFilter ? [deptFilter] : [];
 
-  // First filter by roles and departments (multi-select support)
-  const filtered = users.filter(u => {
-    const roleMatch = roleFilterArray.length === 0 || roleFilterArray.includes(u.role)
-    const deptMatch = deptFilterArray.length === 0 || deptFilterArray.includes(u.department_id?.toString() || '')
-    return roleMatch && deptMatch
-  })
+    // First filter by roles and departments (multi-select support)
+    const filtered = users.filter(u => {
+      const roleMatch = roleFilterArray.length === 0 || roleFilterArray.includes(u.role);
+      const deptMatch =
+        deptFilterArray.length === 0 || deptFilterArray.includes(u.department_id?.toString() || '');
+      return roleMatch && deptMatch;
+    });
 
-  // If no search term, return filtered results sorted by name
-  if (!searchTerm) {
-    return filtered.sort((a, b) => (a.name || a.email).localeCompare(b.name || b.email))
-  }
+    // If no search term, return filtered results sorted by name
+    if (!searchTerm) {
+      return filtered.sort((a, b) => (a.name || a.email).localeCompare(b.name || b.email));
+    }
 
-  // Calculate scores for each user
-  const scoredUsers = filtered.map(user => {
-    let totalScore = 0
-    const fieldsToSearch = searchType === 'all'
-      ? ['name', 'email', 'roll_number']
-      : [searchType]
+    // Calculate scores for each user
+    const scoredUsers = filtered.map(user => {
+      let totalScore = 0;
+      const fieldsToSearch = searchType === 'all' ? ['name', 'email', 'roll_number'] : [searchType];
 
-    fieldsToSearch.forEach(field => {
-      let fieldValue = ''
-      if (field === 'name') fieldValue = user.name || ''
-      else if (field === 'email') fieldValue = user.email
-      else if (field === 'roll_number') fieldValue = user.roll_number || ''
+      fieldsToSearch.forEach(field => {
+        let fieldValue = '';
+        if (field === 'name') fieldValue = user.name || '';
+        else if (field === 'email') fieldValue = user.email;
+        else if (field === 'roll_number') fieldValue = user.roll_number || '';
 
-      const score = calculateSearchScore(fieldValue, searchTerm)
-      totalScore += score
-    })
+        const score = calculateSearchScore(fieldValue, searchTerm);
+        totalScore += score;
+      });
 
-    return { user, score: totalScore }
-  })
+      return { user, score: totalScore };
+    });
 
-  // Filter out users with no matches and sort by score (descending), then by name
-  return scoredUsers
-    .filter(item => item.score > 0)
-    .sort((a, b) => {
-      // Sort by score descending
-      if (a.score !== b.score) return b.score - a.score
-      // If scores are equal, sort alphabetically by name
-      return (a.user.name || a.user.email).localeCompare(b.user.name || b.user.email)
-    })
-    .map(item => item.user)
-}
-const filteredUsers = useMemo(() =>
-  usersList ? filterUsers(
-    usersList,
-    userSearch,
-    userSearchType,
-    showMultiSelect ? userRoleFilter : roleFilter,
-    showMultiSelect ? userDeptMultiFilter : userDeptFilter
-  ) : [],
-  [usersList, userSearch, userSearchType, userRoleFilter, userDeptMultiFilter, roleFilter, userDeptFilter, showMultiSelect]
-)
+    // Filter out users with no matches and sort by score (descending), then by name
+    return scoredUsers
+      .filter(item => item.score > 0)
+      .sort((a, b) => {
+        // Sort by score descending
+        if (a.score !== b.score) return b.score - a.score;
+        // If scores are equal, sort alphabetically by name
+        return (a.user.name || a.user.email).localeCompare(b.user.name || b.user.email);
+      })
+      .map(item => item.user);
+  };
+  const filteredUsers = useMemo(
+    () =>
+      usersList
+        ? filterUsers(
+            usersList,
+            userSearch,
+            userSearchType,
+            showMultiSelect ? userRoleFilter : roleFilter,
+            showMultiSelect ? userDeptMultiFilter : userDeptFilter
+          )
+        : [],
+    [
+      usersList,
+      userSearch,
+      userSearchType,
+      userRoleFilter,
+      userDeptMultiFilter,
+      roleFilter,
+      userDeptFilter,
+      showMultiSelect,
+    ]
+  );
 
-// Pagination logic
-const totalPages = Math.ceil(filteredUsers.length / itemsPerPage)
-const paginatedUsers = filteredUsers.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage)
+  // Pagination logic
+  const totalPages = Math.ceil(filteredUsers.length / itemsPerPage);
+  const paginatedUsers = filteredUsers.slice(
+    (currentPage - 1) * itemsPerPage,
+    currentPage * itemsPerPage
+  );
 
   // Data Explorer state
-  const [departments, setDepartments] = useState<DepartmentDetails[]>([])
-  const [selectedCourse, setSelectedCourse] = useState<Course | null>(null)
+  const [departments, setDepartments] = useState<DepartmentDetails[]>([]);
+  const [selectedCourse, setSelectedCourse] = useState<Course | null>(null);
 
   // Admin Courses state
-  const [adminCourses, setAdminCourses] = useState<Course[]>([])
-  const [loadingCourses, setLoadingCourses] = useState(false)
+  const [adminCourses, setAdminCourses] = useState<Course[]>([]);
+  const [loadingCourses, setLoadingCourses] = useState(false);
 
-// Department filtering and pagination
-const filteredDepartments = useMemo(() =>
-  departments ? advancedSearchAndSort(
-    departments,
-    deptSearch,
-    (dept) => {
-      if (deptSearchType === 'all') return [dept.code || '', dept.name || '']
-      if (deptSearchType === 'code') return [dept.code || '']
-      if (deptSearchType === 'name') return [dept.name || '']
-      return [dept.code || '', dept.name || '']
-    },
-    (dept) => dept.code || dept.name || ''
-  ) : [],
-  [departments, deptSearch, deptSearchType]
-)
+  // Department filtering and pagination
+  const filteredDepartments = useMemo(
+    () =>
+      departments
+        ? advancedSearchAndSort(
+            departments,
+            deptSearch,
+            dept => {
+              if (deptSearchType === 'all') return [dept.code || '', dept.name || ''];
+              if (deptSearchType === 'code') return [dept.code || ''];
+              if (deptSearchType === 'name') return [dept.name || ''];
+              return [dept.code || '', dept.name || ''];
+            },
+            dept => dept.code || dept.name || ''
+          )
+        : [],
+    [departments, deptSearch, deptSearchType]
+  );
 
-const deptTotalPages = Math.ceil(filteredDepartments.length / deptItemsPerPage)
-const paginatedDepartments = filteredDepartments.slice((deptCurrentPage - 1) * deptItemsPerPage, deptCurrentPage * deptItemsPerPage)
+  const deptTotalPages = Math.ceil(filteredDepartments.length / deptItemsPerPage);
+  const paginatedDepartments = filteredDepartments.slice(
+    (deptCurrentPage - 1) * deptItemsPerPage,
+    deptCurrentPage * deptItemsPerPage
+  );
 
+  const [showCreateCourse, setShowCreateCourse] = useState(false);
+  const [newCode, setNewCode] = useState('');
+  const [newTitle, setNewTitle] = useState('');
+  const [newDesc, setNewDesc] = useState('');
+  const [newCredits, setNewCredits] = useState<number | ''>('');
+  const [selectedFacultyIds, setSelectedFacultyIds] = useState<number[]>([]);
+  const [savingCourse, setSavingCourse] = useState(false);
 
-  const [showCreateCourse, setShowCreateCourse] = useState(false)
-  const [newCode, setNewCode] = useState('')
-  const [newTitle, setNewTitle] = useState('')
-  const [newDesc, setNewDesc] = useState('')
-  const [newCredits, setNewCredits] = useState<number | ''>('')
-  const [selectedFacultyIds, setSelectedFacultyIds] = useState<number[]>([])
-  const [savingCourse, setSavingCourse] = useState(false)
-
-  const [showOfferCourse, setShowOfferCourse] = useState(false)
-  const [offerForCourse, setOfferForCourse] = useState<Course | null>(null)
+  const [showOfferCourse, setShowOfferCourse] = useState(false);
+  const [offerForCourse, setOfferForCourse] = useState<Course | null>(null);
 
   // Create user modal
-  const [showCreateUser, setShowCreateUser] = useState(false)
-  const [newUser, setNewUser] = useState({ name: '', email: '', password: '', role: 'student', department_id: '', roll_number: '' })
-  const [creatingUser, setCreatingUser] = useState(false)
+  const [showCreateUser, setShowCreateUser] = useState(false);
+  const [newUser, setNewUser] = useState({
+    name: '',
+    email: '',
+    password: '',
+    role: 'student',
+    department_id: '',
+    roll_number: '',
+  });
+  const [creatingUser, setCreatingUser] = useState(false);
 
   // Edit user modal
-  const [showEditUser, setShowEditUser] = useState(false)
-  const [editingUser, setEditingUser] = useState<User | null>(null)
-  const [editUserData, setEditUserData] = useState({ name: '', role: 'student', department_id: '', roll_number: '', is_active: false })
-  const [updatingUser, setUpdatingUser] = useState(false)
+  const [showEditUser, setShowEditUser] = useState(false);
+  const [editingUser, setEditingUser] = useState<User | null>(null);
+  const [editUserData, setEditUserData] = useState({
+    name: '',
+    role: 'student',
+    department_id: '',
+    roll_number: '',
+    is_active: false,
+  });
+  const [updatingUser, setUpdatingUser] = useState(false);
 
   // Delete confirmation modal
-  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
-  const [userToDelete, setUserToDelete] = useState<User | null>(null)
-  const [deletingUser, setDeletingUser] = useState(false)
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [userToDelete, setUserToDelete] = useState<User | null>(null);
+  const [deletingUser, setDeletingUser] = useState(false);
 
   // Delete course confirmation modal
-  const [showDeleteCourseConfirm, setShowDeleteCourseConfirm] = useState(false)
-  const [courseToDelete, setCourseToDelete] = useState<Course | null>(null)
-  const [deletingCourse, setDeletingCourse] = useState(false)
+  const [showDeleteCourseConfirm, setShowDeleteCourseConfirm] = useState(false);
+  const [courseToDelete, setCourseToDelete] = useState<Course | null>(null);
+  const [deletingCourse, setDeletingCourse] = useState(false);
 
   // Delete department confirmation modal
-  const [showDeleteDeptConfirm, setShowDeleteDeptConfirm] = useState(false)
-  const [deptToDelete, setDeptToDelete] = useState<DepartmentDetails | null>(null)
-  const [deletingDept, setDeletingDept] = useState(false)
+  const [showDeleteDeptConfirm, setShowDeleteDeptConfirm] = useState(false);
+  const [deptToDelete, setDeptToDelete] = useState<DepartmentDetails | null>(null);
+  const [deletingDept, setDeletingDept] = useState(false);
 
   interface Offering {
     id?: string | number;
@@ -425,30 +485,32 @@ const paginatedDepartments = filteredDepartments.slice((deptCurrentPage - 1) * d
   }
 
   // Delete offering confirmation modal
-  const [showDeleteOfferingConfirm, setShowDeleteOfferingConfirm] = useState(false)
-  const [offeringToDelete, setOfferingToDelete] = useState<Offering | null>(null)
-  const [offeringToDeleteMessage, setOfferingToDeleteMessage] = useState('')
-  const [deletingOffering, setDeletingOffering] = useState(false)
+  const [showDeleteOfferingConfirm, setShowDeleteOfferingConfirm] = useState(false);
+  const [offeringToDelete, setOfferingToDelete] = useState<Offering | null>(null);
+  const [offeringToDeleteMessage, setOfferingToDeleteMessage] = useState('');
+  const [deletingOffering, setDeletingOffering] = useState(false);
 
   // Delete enrollment confirmation modal
-  const [showDeleteEnrollmentConfirm, setShowDeleteEnrollmentConfirm] = useState(false)
-  const [enrollmentToDelete, setEnrollmentToDelete] = useState<Enrollment | null>(null)
-  const [deletingEnrollment, setDeletingEnrollment] = useState(false)
+  const [showDeleteEnrollmentConfirm, setShowDeleteEnrollmentConfirm] = useState(false);
+  const [enrollmentToDelete, setEnrollmentToDelete] = useState<Enrollment | null>(null);
+  const [deletingEnrollment, setDeletingEnrollment] = useState(false);
 
   // Create department modal
-  const [showCreateDept, setShowCreateDept] = useState(false)
-  const [newDept, setNewDept] = useState({ code: '', name: '' })
-  const [creatingDept, setCreatingDept] = useState(false)
-  const [offerTerm, setOfferTerm] = useState('W25')
-  const [offerSection, setOfferSection] = useState('A')
-  const [offerFacultyId, setOfferFacultyId] = useState<number | ''>('')
-  const [offerCapacity, setOfferCapacity] = useState<number | ''>('')
-  const [offerStart, setOfferStart] = useState('')
-  const [offerEnd, setOfferEnd] = useState('')
-  const [savingOffering, setSavingOffering] = useState(false)
+  const [showCreateDept, setShowCreateDept] = useState(false);
+  const [newDept, setNewDept] = useState({ code: '', name: '' });
+  const [creatingDept, setCreatingDept] = useState(false);
+  const [offerTerm, setOfferTerm] = useState('W25');
+  const [offerSection, setOfferSection] = useState('A');
+  const [offerFacultyId, setOfferFacultyId] = useState<number | ''>('');
+  const [offerCapacity, setOfferCapacity] = useState<number | ''>('');
+  const [offerStart, setOfferStart] = useState('');
+  const [offerEnd, setOfferEnd] = useState('');
+  const [savingOffering, setSavingOffering] = useState(false);
 
-
-  const [showCreateOffering, setShowCreateOffering] = useState(false)
+  const [showCreateOffering, setShowCreateOffering] = useState(false);
+  const [showCreateEnrollment, setShowCreateEnrollment] = useState(false);
+  const [newEnrollment, setNewEnrollment] = useState({ course_offering_id: '', student_id: '' });
+  const [creatingEnrollment, setCreatingEnrollment] = useState(false);
   const [newOffering, setNewOffering] = useState({
     course_id: '',
     term: 'W25',
@@ -456,91 +518,91 @@ const paginatedDepartments = filteredDepartments.slice((deptCurrentPage - 1) * d
     faculty_id: '',
     max_capacity: '',
     start_date: '',
-    end_date: ''
-  })
-  const [creatingOffering, setCreatingOffering] = useState(false)
-
-
-
-
-
-
+    end_date: '',
+  });
+  const [creatingOffering, setCreatingOffering] = useState(false);
 
   // Course management modals
-  const [showManageOfferings, setShowManageOfferings] = useState(false)
-  const [showManageEnrollments, setShowManageEnrollments] = useState(false)
-  const [courseEnrollments, setCourseEnrollments] = useState<EnrollmentData[]>([])
-  const [loadingCourseEnrollments, setLoadingCourseEnrollments] = useState(false)
+  const [showManageOfferings, setShowManageOfferings] = useState(false);
+  const [showManageEnrollments, setShowManageEnrollments] = useState(false);
+  const [showCreateAssignment, setShowCreateAssignment] = useState(false);
+  const [showCreateQuiz, setShowCreateQuiz] = useState(false);
+  const [courseEnrollments, setCourseEnrollments] = useState<EnrollmentData[]>([]);
+  const [loadingCourseEnrollments, setLoadingCourseEnrollments] = useState(false);
 
   // Overview state
-  const [overviewStats, setOverviewStats] = useState<OverviewStats | null>(null)
-  const [loadingOverview, setLoadingOverview] = useState(false)
+  const [overviewStats, setOverviewStats] = useState<OverviewStats | null>(null);
+  const [loadingOverview, setLoadingOverview] = useState(false);
 
   const loadDepartments = async () => {
     try {
-      const r = await listDepartments()
-      setDepartments(r.departments)
+      const r = await listDepartments();
+      setDepartments(r.departments);
     } catch (err) {
-      console.error('Error loading departments:', err)
+      console.error('Error loading departments:', err);
     }
-  }
+  };
 
   const loadAdminCourses = async () => {
     try {
-      setLoadingCourses(true)
-      const r = await listCourses()
-      const coursesWithDetails = await Promise.all((r.courses || []).map(async (c: unknown) => {
-        const details = await getCourseDetails(c.id)
-        return { ...c, offerings: details.offerings || [] }
-      }))
-      setAdminCourses(coursesWithDetails)
+      setLoadingCourses(true);
+      const r = await listCourses();
+      const coursesWithDetails = await Promise.all(
+        (r.courses || []).map(async (c: unknown) => {
+          const details = await getCourseDetails(c.id);
+          return { ...c, offerings: details.offerings || [] };
+        })
+      );
+      setAdminCourses(coursesWithDetails);
     } catch (err) {
-      console.error('Error loading admin courses:', err)
+      console.error('Error loading admin courses:', err);
     } finally {
-      setLoadingCourses(false)
+      setLoadingCourses(false);
     }
-  }
+  };
 
   const loadOverview = async () => {
     try {
-      setLoadingOverview(true)
-      const stats = await getOverview()
-      setOverviewStats(stats)
+      setLoadingOverview(true);
+      const stats = await getOverview();
+      setOverviewStats(stats);
     } catch (err) {
-      console.error('Error loading overview:', err)
+      console.error('Error loading overview:', err);
     } finally {
-      setLoadingOverview(false)
+      setLoadingOverview(false);
     }
-  }
+  };
 
   const loadCourseEnrollments = async (courseId: number) => {
     try {
-      setLoadingCourseEnrollments(true)
+      setLoadingCourseEnrollments(true);
       // We'll need to add a backend endpoint for this
-      const r = await listEnrollments()
-      console.log('All enrollments:', r.enrollments)
+      const r = await listEnrollments();
+      console.log('All enrollments:', r.enrollments);
       // Filter enrollments for this course's offerings
-      const courseOfferings = adminCourses.find((c: unknown) => c.id === courseId)?.offerings || []
-      console.log('Course offerings:', courseOfferings)
-      const offeringIds = courseOfferings.map((o: unknown) => o.offering_id)
-      console.log('Offering IDs:', offeringIds)
-      const filteredEnrollments = r.enrollments.filter((e: unknown) => offeringIds.includes(e.course_offering_id))
-      console.log('Filtered enrollments:', filteredEnrollments)
-      setCourseEnrollments(filteredEnrollments)
+      const courseOfferings = adminCourses.find((c: unknown) => c.id === courseId)?.offerings || [];
+      console.log('Course offerings:', courseOfferings);
+      const offeringIds = courseOfferings.map((o: unknown) => o.offering_id);
+      console.log('Offering IDs:', offeringIds);
+      const filteredEnrollments = r.enrollments.filter((e: unknown) =>
+        offeringIds.includes(e.course_offering_id)
+      );
+      console.log('Filtered enrollments:', filteredEnrollments);
+      setCourseEnrollments(filteredEnrollments);
     } catch (err) {
-      console.error('Error loading course enrollments:', err)
+      console.error('Error loading course enrollments:', err);
     } finally {
-      setLoadingCourseEnrollments(false)
+      setLoadingCourseEnrollments(false);
     }
-  }
+  };
   // Debounced search function
   const performSearch = useCallback(async () => {
     if (!userSearch.trim()) {
-      return
+      return;
     }
 
     try {
-      setIsLoading(true)
+      setIsLoading(true);
       // Save search parameters to history
       const searchParams = {
         keyword: userSearch.trim(),
@@ -548,114 +610,140 @@ const paginatedDepartments = filteredDepartments.slice((deptCurrentPage - 1) * d
         deptFilter: userDeptFilter,
         roleFilter: userRoleFilter,
         deptMultiFilter: userDeptMultiFilter,
-        timestamp: Date.now()
-      }
+        timestamp: Date.now(),
+      };
 
-      const newHistory = [searchParams, ...searchParameterHistory.filter(h =>
-        !(h.keyword === searchParams.keyword &&
-          h.searchType === searchParams.searchType &&
-          h.deptFilter === searchParams.deptFilter &&
-          JSON.stringify(h.roleFilter) === JSON.stringify(searchParams.roleFilter) &&
-          JSON.stringify(h.deptMultiFilter) === JSON.stringify(searchParams.deptMultiFilter))
-      )].slice(0, 10)
+      const newHistory = [
+        searchParams,
+        ...searchParameterHistory.filter(
+          h =>
+            !(
+              h.keyword === searchParams.keyword &&
+              h.searchType === searchParams.searchType &&
+              h.deptFilter === searchParams.deptFilter &&
+              JSON.stringify(h.roleFilter) === JSON.stringify(searchParams.roleFilter) &&
+              JSON.stringify(h.deptMultiFilter) === JSON.stringify(searchParams.deptMultiFilter)
+            )
+        ),
+      ].slice(0, 10);
 
-      setSearchParameterHistory(newHistory)
-      localStorage.setItem('adminSearchParameterHistory', JSON.stringify(newHistory))
+      setSearchParameterHistory(newHistory);
+      localStorage.setItem('adminSearchParameterHistory', JSON.stringify(newHistory));
 
       // For now, just filter existing users (in a real app, this would call the backend)
     } catch (err: unknown) {
-      console.error('Search error:', err)
+      console.error('Search error:', err);
     } finally {
-      setIsLoading(false)
+      setIsLoading(false);
     }
-  }, [userSearch, userSearchType, userDeptFilter, userRoleFilter, userDeptMultiFilter, searchParameterHistory])
+  }, [
+    userSearch,
+    userSearchType,
+    userDeptFilter,
+    userRoleFilter,
+    userDeptMultiFilter,
+    searchParameterHistory,
+  ]);
 
   // Export users to CSV
   const exportToCSV = () => {
-    const headers = ['ID', 'Name', 'Email', 'Role', 'Department', 'Roll Number', 'Status', 'Created At']
+    const headers = [
+      'ID',
+      'Name',
+      'Email',
+      'Role',
+      'Department',
+      'Roll Number',
+      'Status',
+      'Created At',
+    ];
     const csvData = [
       headers.join(','),
-      ...filteredUsers.map(user => [
-        user.id,
-        `"${user.name || ''}"`,
-        `"${user.email}"`,
-        user.role,
-        `"${departments.find(d => d.id.toString() === user.department_id?.toString())?.name || ''}"`,
-        `"${user.roll_number || ''}"`,
-        user.is_active ? 'Active' : 'Inactive',
-        new Date().toISOString().split('T')[0] // Placeholder for created_at
-      ].join(','))
-    ].join('\n')
-  
-    const blob = new Blob([csvData], { type: 'text/csv;charset=utf-8;' })
-    const link = document.createElement('a')
-    const url = URL.createObjectURL(blob)
-    link.setAttribute('href', url)
-    link.setAttribute('download', `users_export_${new Date().toISOString().split('T')[0]}.csv`)
-    link.style.visibility = 'hidden'
-    document.body.appendChild(link)
-    link.click()
-    document.body.removeChild(link)
-  }
-  
+      ...filteredUsers.map(user =>
+        [
+          user.id,
+          `"${user.name || ''}"`,
+          `"${user.email}"`,
+          user.role,
+          `"${departments.find(d => d.id.toString() === user.department_id?.toString())?.name || ''}"`,
+          `"${user.roll_number || ''}"`,
+          user.is_active ? 'Active' : 'Inactive',
+          new Date().toISOString().split('T')[0], // Placeholder for created_at
+        ].join(',')
+      ),
+    ].join('\n');
+
+    const blob = new Blob([csvData], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    link.setAttribute('href', url);
+    link.setAttribute('download', `users_export_${new Date().toISOString().split('T')[0]}.csv`);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
   // Export departments to CSV
   const exportDepartmentsToCSV = () => {
-    const headers = ['ID', 'Code', 'Name', 'Created At']
+    const headers = ['ID', 'Code', 'Name', 'Created At'];
     const csvData = [
       headers.join(','),
-      ...filteredDepartments.map(dept => [
-        dept.id,
-        `"${dept.code || ''}"`,
-        `"${dept.name || ''}"`,
-        new Date().toISOString().split('T')[0] // Placeholder for created_at
-      ].join(','))
-    ].join('\n')
-  
-    const blob = new Blob([csvData], { type: 'text/csv;charset=utf-8;' })
-    const link = document.createElement('a')
-    const url = URL.createObjectURL(blob)
-    link.setAttribute('href', url)
-    link.setAttribute('download', `departments_export_${new Date().toISOString().split('T')[0]}.csv`)
-    link.style.visibility = 'hidden'
-    document.body.appendChild(link)
-    link.click()
-    document.body.removeChild(link)
-  }
+      ...filteredDepartments.map(dept =>
+        [
+          dept.id,
+          `"${dept.code || ''}"`,
+          `"${dept.name || ''}"`,
+          new Date().toISOString().split('T')[0], // Placeholder for created_at
+        ].join(',')
+      ),
+    ].join('\n');
+
+    const blob = new Blob([csvData], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    link.setAttribute('href', url);
+    link.setAttribute(
+      'download',
+      `departments_export_${new Date().toISOString().split('T')[0]}.csv`
+    );
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
 
   // Add user to recently viewed
   const addToRecentlyViewed = (user: User) => {
-    const newRecent = [user, ...recentlyViewedUsers.filter(u => u.id !== user.id)].slice(0, 5)
-    setRecentlyViewedUsers(newRecent)
-    localStorage.setItem('adminRecentUsers', JSON.stringify(newRecent))
-  }
+    const newRecent = [user, ...recentlyViewedUsers.filter(u => u.id !== user.id)].slice(0, 5);
+    setRecentlyViewedUsers(newRecent);
+    localStorage.setItem('adminRecentUsers', JSON.stringify(newRecent));
+  };
 
   useEffect(() => {
     if (isAdmin && (tab === 'courses' || tab === 'departments')) {
-      void loadDepartments()
+      void loadDepartments();
     }
-  }, [isAdmin, tab])
+  }, [isAdmin, tab]);
 
   useEffect(() => {
     if (isAdmin && tab === 'courses') {
-      void loadAdminCourses()
+      void loadAdminCourses();
     }
-  }, [isAdmin, tab])
-
+  }, [isAdmin, tab]);
 
   useEffect(() => {
     if (isAdmin && tab === 'overview') {
-      void loadOverview()
+      void loadOverview();
     }
-  }, [isAdmin, tab])
-
-
+  }, [isAdmin, tab]);
 
   // Load course enrollments when manage enrollments modal opens
   useEffect(() => {
     if (showManageEnrollments && selectedCourse) {
-      void loadCourseEnrollments(selectedCourse.id)
+      void loadCourseEnrollments(selectedCourse.id);
     }
-  }, [showManageEnrollments, selectedCourse])
+  }, [showManageEnrollments, selectedCourse]);
 
   if (!isAdmin) {
     // TA view as before
@@ -664,22 +752,26 @@ const paginatedDepartments = filteredDepartments.slice((deptCurrentPage - 1) * d
         <div className="dashboard-header">
           <div className="welcome-section">
             <h1 className="dashboard-title h2 text-primary">Welcome back, {user?.name}!</h1>
-            <p className="dashboard-subtitle text-lg text-secondary leading-relaxed">Manage your courses and track your progress</p>
+            <p className="dashboard-subtitle text-lg text-secondary leading-relaxed">
+              Manage your courses and track your progress
+            </p>
           </div>
         </div>
         <div className="courses-section">
           <div className="section-header">
             <h3 className="section-title h3">Courses</h3>
-            <span className="courses-count text-sm font-medium text-secondary">{courses.length} courses available</span>
+            <span className="courses-count text-sm font-medium text-secondary">
+              {courses.length} courses available
+            </span>
           </div>
           <div className="grid grid-cards">
-            {courses.map((c) => (
+            {courses.map(c => (
               <CourseCard key={c.id} course={c} onClick={() => navigate(`/courses/${c.id}/hub`)} />
             ))}
           </div>
         </div>
       </div>
-    )
+    );
   }
 
   return (
@@ -687,13 +779,29 @@ const paginatedDepartments = filteredDepartments.slice((deptCurrentPage - 1) * d
       <div className="dashboard-header">
         <div className="welcome-section">
           <h1 className="dashboard-title h2 text-primary">Welcome back, {user?.name}!</h1>
-          <p className="dashboard-subtitle text-lg text-secondary leading-relaxed">Manage users, courses, and explore system data</p>
+          <p className="dashboard-subtitle text-lg text-secondary leading-relaxed">
+            Manage users, courses, and explore system data
+          </p>
         </div>
         <div className="dashboard-actions">
-          <button className="btn btn-secondary" onClick={() => navigate('/profile')} style={{ fontWeight: '500', padding: '8px 16px', borderRadius: '6px', border: '1px solid var(--border)', backgroundColor: 'var(--surface)', color: 'var(--text)', transition: 'all 0.2s ease' }}>
+          <button
+            className="btn btn-secondary"
+            onClick={() => navigate('/profile')}
+            style={{
+              fontWeight: '500',
+              padding: '8px 16px',
+              borderRadius: '6px',
+              border: '1px solid var(--border)',
+              backgroundColor: 'var(--surface)',
+              color: 'var(--text)',
+              transition: 'all 0.2s ease',
+            }}
+          >
             <span style={{ fontSize: '1.1em', marginRight: '6px' }}>👤</span> Profile
           </button>
-          <button className="btn btn-outline" onClick={() => navigate('/planner/admin')}>Planner</button>
+          <button className="btn btn-outline" onClick={() => navigate('/planner/admin')}>
+            Planner
+          </button>
         </div>
       </div>
 
@@ -712,10 +820,15 @@ const paginatedDepartments = filteredDepartments.slice((deptCurrentPage - 1) * d
 
       {tab === 'users' && (
         <section className="card">
-          <div className="section-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div
+            className="section-header"
+            style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
+          >
             <h3>Users</h3>
             <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-              <div style={{ display: 'flex', border: '1px solid var(--border)', borderRadius: '6px' }}>
+              <div
+                style={{ display: 'flex', border: '1px solid var(--border)', borderRadius: '6px' }}
+              >
                 <button
                   className={`btn ${viewMode === 'cards' ? 'btn-primary' : 'btn-secondary'}`}
                   onClick={() => setViewMode('cards')}
@@ -732,7 +845,9 @@ const paginatedDepartments = filteredDepartments.slice((deptCurrentPage - 1) * d
                 </button>
               </div>
               {isSuperAdmin && (
-                <button className="btn btn-primary" onClick={() => setShowCreateUser(true)}>Create User</button>
+                <button className="btn btn-primary" onClick={() => setShowCreateUser(true)}>
+                  Create User
+                </button>
               )}
             </div>
           </div>
@@ -745,9 +860,9 @@ const paginatedDepartments = filteredDepartments.slice((deptCurrentPage - 1) * d
                   type="text"
                   placeholder="🔍 Search users..."
                   value={userSearch}
-                  onChange={(e) => {
-                    setUserSearch(e.target.value)
-                    setShowSearchSuggestions(e.target.value.length > 0)
+                  onChange={e => {
+                    setUserSearch(e.target.value);
+                    setShowSearchSuggestions(e.target.value.length > 0);
                   }}
                   onFocus={() => setShowSearchSuggestions(userSearch.length > 0)}
                   onBlur={() => setTimeout(() => setShowSearchSuggestions(false), 300)}
@@ -758,7 +873,7 @@ const paginatedDepartments = filteredDepartments.slice((deptCurrentPage - 1) * d
                     border: '2px solid var(--border)',
                     borderRadius: '8px',
                     backgroundColor: 'var(--surface)',
-                    color: 'var(--text)'
+                    color: 'var(--text)',
                   }}
                   aria-label="Search users by name, email, or roll number"
                 />
@@ -775,7 +890,7 @@ const paginatedDepartments = filteredDepartments.slice((deptCurrentPage - 1) * d
                       color: 'var(--text-secondary)',
                       cursor: 'pointer',
                       fontSize: '18px',
-                      padding: '4px'
+                      padding: '4px',
                     }}
                     aria-label="Clear search"
                   >
@@ -785,33 +900,35 @@ const paginatedDepartments = filteredDepartments.slice((deptCurrentPage - 1) * d
 
                 {/* Search Suggestions Dropdown */}
                 {showSearchSuggestions && searchParameterHistory.length > 0 && (
-                  <div style={{
-                    position: 'absolute',
-                    top: '100%',
-                    left: 0,
-                    right: 0,
-                    backgroundColor: 'var(--surface)',
-                    border: '1px solid var(--border)',
-                    borderRadius: '8px',
-                    boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
-                    zIndex: 1000,
-                    maxHeight: '200px',
-                    overflowY: 'auto'
-                  }}>
+                  <div
+                    style={{
+                      position: 'absolute',
+                      top: '100%',
+                      left: 0,
+                      right: 0,
+                      backgroundColor: 'var(--surface)',
+                      border: '1px solid var(--border)',
+                      borderRadius: '8px',
+                      boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+                      zIndex: 1000,
+                      maxHeight: '200px',
+                      overflowY: 'auto',
+                    }}
+                  >
                     {searchParameterHistory
                       .filter(item => item.keyword.toLowerCase().includes(userSearch.toLowerCase()))
                       .slice(0, 5)
-                      .map((item) => (
+                      .map(item => (
                         <button
                           key={index}
-                          onMouseDown={(e) => {
-                            e.preventDefault()
-                            setUserSearch(item.keyword)
-                            setUserSearchType(item.searchType)
-                            setUserDeptFilter(item.deptFilter)
-                            setUserRoleFilter(item.roleFilter)
-                            setUserDeptMultiFilter(item.deptMultiFilter)
-                            setShowSearchSuggestions(false)
+                          onMouseDown={e => {
+                            e.preventDefault();
+                            setUserSearch(item.keyword);
+                            setUserSearchType(item.searchType);
+                            setUserDeptFilter(item.deptFilter);
+                            setUserRoleFilter(item.roleFilter);
+                            setUserDeptMultiFilter(item.deptMultiFilter);
+                            setShowSearchSuggestions(false);
                           }}
                           style={{
                             width: '100%',
@@ -821,25 +938,41 @@ const paginatedDepartments = filteredDepartments.slice((deptCurrentPage - 1) * d
                             textAlign: 'left',
                             cursor: 'pointer',
                             borderBottom: index < 4 ? '1px solid var(--border)' : 'none',
-                            color: 'var(--text)'
+                            color: 'var(--text)',
                           }}
-                          onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'var(--surface-secondary)'}
-                          onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                          onMouseEnter={e =>
+                            (e.currentTarget.style.backgroundColor = 'var(--surface-secondary)')
+                          }
+                          onMouseLeave={e =>
+                            (e.currentTarget.style.backgroundColor = 'transparent')
+                          }
                         >
                           <div style={{ fontWeight: '500', marginBottom: '2px' }}>
                             "{item.keyword}"
                           </div>
-                          <div style={{
-                            fontSize: '0.8em',
-                            color: 'var(--text-secondary)',
-                            display: 'flex',
-                            gap: '4px',
-                            flexWrap: 'wrap'
-                          }}>
+                          <div
+                            style={{
+                              fontSize: '0.8em',
+                              color: 'var(--text-secondary)',
+                              display: 'flex',
+                              gap: '4px',
+                              flexWrap: 'wrap',
+                            }}
+                          >
                             {item.searchType !== 'all' && <span>In: {item.searchType}</span>}
-                            {item.deptFilter && <span>Dept: {departments.find(d => d.id.toString() === item.deptFilter)?.name || item.deptFilter}</span>}
-                            {item.roleFilter.length > 0 && <span>Roles: {item.roleFilter.length}</span>}
-                            {item.deptMultiFilter.length > 0 && <span>Depts: {item.deptMultiFilter.length}</span>}
+                            {item.deptFilter && (
+                              <span>
+                                Dept:{' '}
+                                {departments.find(d => d.id.toString() === item.deptFilter)?.name ||
+                                  item.deptFilter}
+                              </span>
+                            )}
+                            {item.roleFilter.length > 0 && (
+                              <span>Roles: {item.roleFilter.length}</span>
+                            )}
+                            {item.deptMultiFilter.length > 0 && (
+                              <span>Depts: {item.deptMultiFilter.length}</span>
+                            )}
                           </div>
                         </button>
                       ))}
@@ -850,11 +983,23 @@ const paginatedDepartments = filteredDepartments.slice((deptCurrentPage - 1) * d
 
             {/* Search Scope */}
             <div style={{ marginBottom: '12px' }}>
-              <label style={{ fontSize: '0.9em', color: 'var(--text-secondary)', fontWeight: '500', marginBottom: '4px', display: 'block' }}>Search in:</label>
+              <label
+                style={{
+                  fontSize: '0.9em',
+                  color: 'var(--text-secondary)',
+                  fontWeight: '500',
+                  marginBottom: '4px',
+                  display: 'block',
+                }}
+              >
+                Search in:
+              </label>
               <select
                 className="input"
                 value={userSearchType}
-                onChange={(e) => setUserSearchType(e.target.value as 'all' | 'name' | 'email' | 'roll_number')}
+                onChange={e =>
+                  setUserSearchType(e.target.value as 'all' | 'name' | 'email' | 'roll_number')
+                }
                 style={{ width: '100%' }}
                 aria-label="Select which fields to search in"
               >
@@ -867,8 +1012,19 @@ const paginatedDepartments = filteredDepartments.slice((deptCurrentPage - 1) * d
 
             {/* Filters */}
             <div style={{ marginBottom: '12px' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
-                <label style={{ fontSize: '0.9em', color: 'var(--text-secondary)', fontWeight: '500' }}>Filter:</label>
+              <div
+                style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  marginBottom: '4px',
+                }}
+              >
+                <label
+                  style={{ fontSize: '0.9em', color: 'var(--text-secondary)', fontWeight: '500' }}
+                >
+                  Filter:
+                </label>
                 <button
                   onClick={() => setShowMultiSelect(!showMultiSelect)}
                   style={{
@@ -877,7 +1033,7 @@ const paginatedDepartments = filteredDepartments.slice((deptCurrentPage - 1) * d
                     background: 'none',
                     border: 'none',
                     cursor: 'pointer',
-                    textDecoration: 'underline'
+                    textDecoration: 'underline',
                   }}
                 >
                   {showMultiSelect ? 'Simple Mode' : 'Advanced Mode'}
@@ -889,27 +1045,50 @@ const paginatedDepartments = filteredDepartments.slice((deptCurrentPage - 1) * d
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
                   {/* Department Multi-Select */}
                   <div>
-                    <label style={{ fontSize: '0.8em', color: 'var(--text-secondary)', display: 'block', marginBottom: '4px' }}>
+                    <label
+                      style={{
+                        fontSize: '0.8em',
+                        color: 'var(--text-secondary)',
+                        display: 'block',
+                        marginBottom: '4px',
+                      }}
+                    >
                       Departments ({userDeptMultiFilter.length} selected)
                     </label>
-                    <div style={{
-                      border: '1px solid var(--border)',
-                      borderRadius: '6px',
-                      padding: '8px',
-                      maxHeight: '120px',
-                      overflowY: 'auto',
-                      backgroundColor: 'var(--surface)'
-                    }}>
+                    <div
+                      style={{
+                        border: '1px solid var(--border)',
+                        borderRadius: '6px',
+                        padding: '8px',
+                        maxHeight: '120px',
+                        overflowY: 'auto',
+                        backgroundColor: 'var(--surface)',
+                      }}
+                    >
                       {departments.map((dept: unknown) => (
-                        <label key={dept.id} style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '4px', fontSize: '0.85em' }}>
+                        <label
+                          key={dept.id}
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '6px',
+                            marginBottom: '4px',
+                            fontSize: '0.85em',
+                          }}
+                        >
                           <input
                             type="checkbox"
                             checked={userDeptMultiFilter.includes(dept.id.toString())}
-                            onChange={(e) => {
+                            onChange={e => {
                               if (e.target.checked) {
-                                setUserDeptMultiFilter([...userDeptMultiFilter, dept.id.toString()])
+                                setUserDeptMultiFilter([
+                                  ...userDeptMultiFilter,
+                                  dept.id.toString(),
+                                ]);
                               } else {
-                                setUserDeptMultiFilter(userDeptMultiFilter.filter(id => id !== dept.id.toString()))
+                                setUserDeptMultiFilter(
+                                  userDeptMultiFilter.filter(id => id !== dept.id.toString())
+                                );
                               }
                             }}
                           />
@@ -921,30 +1100,48 @@ const paginatedDepartments = filteredDepartments.slice((deptCurrentPage - 1) * d
 
                   {/* Role Multi-Select */}
                   <div>
-                    <label style={{ fontSize: '0.8em', color: 'var(--text-secondary)', display: 'block', marginBottom: '4px' }}>
+                    <label
+                      style={{
+                        fontSize: '0.8em',
+                        color: 'var(--text-secondary)',
+                        display: 'block',
+                        marginBottom: '4px',
+                      }}
+                    >
                       Roles ({userRoleFilter.length} selected)
                     </label>
-                    <div style={{
-                      border: '1px solid var(--border)',
-                      borderRadius: '6px',
-                      padding: '8px',
-                      backgroundColor: 'var(--surface)'
-                    }}>
+                    <div
+                      style={{
+                        border: '1px solid var(--border)',
+                        borderRadius: '6px',
+                        padding: '8px',
+                        backgroundColor: 'var(--surface)',
+                      }}
+                    >
                       {[
                         { value: 'student', label: 'Students' },
                         { value: 'faculty', label: 'Teachers' },
                         { value: 'ta', label: 'TAs' },
-                        ...(isSuperAdmin ? [{ value: 'admin', label: 'Admins' }] : [])
-                      ].map((role) => (
-                        <label key={role.value} style={{ display: 'flex', alignItems: 'center', gap: '6px', marginRight: '12px', fontSize: '0.85em' }}>
+                        ...(isSuperAdmin ? [{ value: 'admin', label: 'Admins' }] : []),
+                      ].map(role => (
+                        <label
+                          key={role.value}
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '6px',
+                            marginRight: '12px',
+                            fontSize: '0.85em',
+                          }}
+                        >
                           <input
                             type="checkbox"
                             checked={userRoleFilter.includes(role.value)}
-                            onChange={(e) => {
+                            onChange={e => {
                               if (e.target.checked) {
-                                setUserRoleFilter([...userRoleFilter, role.value])
+                                setUserRoleFilter([...userRoleFilter, role.value]);
                               } else {
-                                setUserRoleFilter(userRoleFilter.filter(r => r !== role.value))
+                                setUserRoleFilter(userRoleFilter.filter(r => r !== role.value));
                               }
                             }}
                           />
@@ -960,19 +1157,21 @@ const paginatedDepartments = filteredDepartments.slice((deptCurrentPage - 1) * d
                   <select
                     className="input"
                     value={userDeptFilter}
-                    onChange={(e) => setUserDeptFilter(e.target.value)}
+                    onChange={e => setUserDeptFilter(e.target.value)}
                     style={{ flex: 1 }}
                     aria-label="Filter by department"
                   >
                     <option value="">All Departments</option>
                     {departments.map((d: unknown) => (
-                      <option key={d.id} value={d.id}>{d.name}</option>
+                      <option key={d.id} value={d.id}>
+                        {d.name}
+                      </option>
                     ))}
                   </select>
                   <select
                     className="input"
                     value={roleFilter}
-                    onChange={(e) => setRoleFilter(e.target.value)}
+                    onChange={e => setRoleFilter(e.target.value)}
                     style={{ flex: 1 }}
                     aria-label="Filter by user role"
                   >
@@ -1004,7 +1203,16 @@ const paginatedDepartments = filteredDepartments.slice((deptCurrentPage - 1) * d
                   setUserDeptFilter('');
                   setRoleFilter('');
                 }}
-                style={{ flex: 1, fontWeight: '500', padding: '8px 16px', borderRadius: '6px', border: '1px solid var(--border)', backgroundColor: 'var(--surface)', color: 'var(--text)', transition: 'all 0.2s ease' }}
+                style={{
+                  flex: 1,
+                  fontWeight: '500',
+                  padding: '8px 16px',
+                  borderRadius: '6px',
+                  border: '1px solid var(--border)',
+                  backgroundColor: 'var(--surface)',
+                  color: 'var(--text)',
+                  transition: 'all 0.2s ease',
+                }}
                 disabled={isLoading}
               >
                 <span style={{ fontSize: '1.1em', marginRight: '6px' }}>🗑️</span> Clear All
@@ -1021,137 +1229,186 @@ const paginatedDepartments = filteredDepartments.slice((deptCurrentPage - 1) * d
 
             {/* Live Search Toggle */}
             <div style={{ marginBottom: '12px' }}>
-              <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.9em' }}>
+              <label
+                style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.9em' }}
+              >
                 <input
                   type="checkbox"
                   checked={liveSearchEnabled}
-                  onChange={(e) => setLiveSearchEnabled(e.target.checked)}
+                  onChange={e => setLiveSearchEnabled(e.target.checked)}
                 />
                 ⟳ Enable live search (searches as you type)
               </label>
             </div>
 
             {/* Applied Filters Display */}
-            {(userSearch || userSearchType !== 'all' || userDeptFilter || roleFilter || userDeptMultiFilter.length > 0 || userRoleFilter.length > 0) && (
-              <div style={{
-                backgroundColor: 'var(--surface-secondary)',
-                padding: '8px 12px',
-                borderRadius: '6px',
-                marginBottom: '12px',
-                border: '1px solid var(--border)'
-              }}>
-                <div style={{ fontSize: '0.85em', color: 'var(--text-secondary)', marginBottom: '4px', fontWeight: '500' }}>
+            {(userSearch ||
+              userSearchType !== 'all' ||
+              userDeptFilter ||
+              roleFilter ||
+              userDeptMultiFilter.length > 0 ||
+              userRoleFilter.length > 0) && (
+              <div
+                style={{
+                  backgroundColor: 'var(--surface-secondary)',
+                  padding: '8px 12px',
+                  borderRadius: '6px',
+                  marginBottom: '12px',
+                  border: '1px solid var(--border)',
+                }}
+              >
+                <div
+                  style={{
+                    fontSize: '0.85em',
+                    color: 'var(--text-secondary)',
+                    marginBottom: '4px',
+                    fontWeight: '500',
+                  }}
+                >
                   Applied Filters:
                 </div>
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
                   {userSearch && (
-                    <span style={{
-                      backgroundColor: 'var(--primary)',
-                      color: 'white',
-                      padding: '2px 8px',
-                      borderRadius: '12px',
-                      fontSize: '0.8em'
-                    }}>
+                    <span
+                      style={{
+                        backgroundColor: 'var(--primary)',
+                        color: 'white',
+                        padding: '2px 8px',
+                        borderRadius: '12px',
+                        fontSize: '0.8em',
+                      }}
+                    >
                       Search: "{userSearch}"
                     </span>
                   )}
                   {userSearchType !== 'all' && (
-                    <span style={{
-                      backgroundColor: 'var(--secondary)',
-                      color: 'var(--text)',
-                      padding: '2px 8px',
-                      borderRadius: '12px',
-                      fontSize: '0.8em'
-                    }}>
+                    <span
+                      style={{
+                        backgroundColor: 'var(--secondary)',
+                        color: 'var(--text)',
+                        padding: '2px 8px',
+                        borderRadius: '12px',
+                        fontSize: '0.8em',
+                      }}
+                    >
                       In: {userSearchType}
                     </span>
                   )}
                   {userDeptFilter && (
-                    <span style={{
-                      backgroundColor: 'var(--accent)',
-                      color: 'white',
-                      padding: '2px 8px',
-                      borderRadius: '12px',
-                      fontSize: '0.8em'
-                    }}>
-                      Dept: {departments.find((d: unknown) => d.id.toString() === userDeptFilter)?.name || userDeptFilter}
+                    <span
+                      style={{
+                        backgroundColor: 'var(--accent)',
+                        color: 'white',
+                        padding: '2px 8px',
+                        borderRadius: '12px',
+                        fontSize: '0.8em',
+                      }}
+                    >
+                      Dept:{' '}
+                      {departments.find((d: unknown) => d.id.toString() === userDeptFilter)?.name ||
+                        userDeptFilter}
                     </span>
                   )}
                   {roleFilter && (
-                    <span style={{
-                      backgroundColor: 'var(--success)',
-                      color: 'white',
-                      padding: '2px 8px',
-                      borderRadius: '12px',
-                      fontSize: '0.8em'
-                    }}>
-                      Role: {roleFilter === 'faculty' ? 'Teacher' : roleFilter.charAt(0).toUpperCase() + roleFilter.slice(1)}
+                    <span
+                      style={{
+                        backgroundColor: 'var(--success)',
+                        color: 'white',
+                        padding: '2px 8px',
+                        borderRadius: '12px',
+                        fontSize: '0.8em',
+                      }}
+                    >
+                      Role:{' '}
+                      {roleFilter === 'faculty'
+                        ? 'Teacher'
+                        : roleFilter.charAt(0).toUpperCase() + roleFilter.slice(1)}
                     </span>
                   )}
                   {userDeptMultiFilter.length > 0 && (
-                    <span style={{
-                      backgroundColor: 'var(--warning)',
-                      color: 'white',
-                      padding: '2px 8px',
-                      borderRadius: '12px',
-                      fontSize: '0.8em'
-                    }}>
+                    <span
+                      style={{
+                        backgroundColor: 'var(--warning)',
+                        color: 'white',
+                        padding: '2px 8px',
+                        borderRadius: '12px',
+                        fontSize: '0.8em',
+                      }}
+                    >
                       Depts: {userDeptMultiFilter.length}
                     </span>
                   )}
                   {userRoleFilter.length > 0 && (
-                    <span style={{
-                      backgroundColor: 'var(--info)',
-                      color: 'white',
-                      padding: '2px 8px',
-                      borderRadius: '12px',
-                      fontSize: '0.8em'
-                    }}>
+                    <span
+                      style={{
+                        backgroundColor: 'var(--info)',
+                        color: 'white',
+                        padding: '2px 8px',
+                        borderRadius: '12px',
+                        fontSize: '0.8em',
+                      }}
+                    >
                       Roles: {userRoleFilter.length}
                     </span>
                   )}
                 </div>
               </div>
             )}
-
           </div>
           {isLoading && (
-            <div className="grid" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(450px, 1fr))', gap: 16 }}>
+            <div
+              className="grid"
+              style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(450px, 1fr))', gap: 16 }}
+            >
               {Array.from({ length: 6 }).map((_, i) => (
                 <SkeletonCard key={i} />
               ))}
             </div>
           )}
           {loadError && (
-            <div style={{ marginBottom: 8, padding: 12, backgroundColor: '#fee', color: '#c00', borderRadius: 6, border: '1px solid #fcc' }}>
+            <div
+              style={{
+                marginBottom: 8,
+                padding: 12,
+                backgroundColor: '#fee',
+                color: '#c00',
+                borderRadius: 6,
+                border: '1px solid #fcc',
+              }}
+            >
               <span style={{ fontSize: '1.1em', marginRight: '6px' }}>⚠️</span> Error: {loadError}
             </div>
           )}
           {!isLoading && usersList.length > 0 && (
             <>
               {/* Results Summary */}
-              <div style={{
-                marginBottom: '12px',
-                padding: '8px 12px',
-                backgroundColor: 'var(--surface-secondary)',
-                borderRadius: '6px',
-                fontSize: '0.9em',
-                color: 'var(--text-secondary)'
-              }}>
-                <span style={{ fontSize: '1.1em' }}>📈</span> Showing {paginatedUsers.length} of {filteredUsers.length} users
+              <div
+                style={{
+                  marginBottom: '12px',
+                  padding: '8px 12px',
+                  backgroundColor: 'var(--surface-secondary)',
+                  borderRadius: '6px',
+                  fontSize: '0.9em',
+                  color: 'var(--text-secondary)',
+                }}
+              >
+                <span style={{ fontSize: '1.1em' }}>📈</span> Showing {paginatedUsers.length} of{' '}
+                {filteredUsers.length} users
                 {totalPages > 1 && ` (Page ${currentPage} of ${totalPages})`}
               </div>
 
               {/* No Results State */}
               {filteredUsers.length === 0 ? (
-                <div style={{
-                  textAlign: 'center',
-                  padding: '40px 20px',
-                  color: 'var(--text-secondary)',
-                  backgroundColor: 'var(--surface-secondary)',
-                  borderRadius: '8px',
-                  border: '2px dashed var(--border)'
-                }}>
+                <div
+                  style={{
+                    textAlign: 'center',
+                    padding: '40px 20px',
+                    color: 'var(--text-secondary)',
+                    backgroundColor: 'var(--surface-secondary)',
+                    borderRadius: '8px',
+                    border: '2px dashed var(--border)',
+                  }}
+                >
                   <div style={{ fontSize: '3em', marginBottom: '16px' }}>🔎</div>
                   <h3 style={{ margin: '0 0 8px 0', color: 'var(--text)' }}>No users found</h3>
                   <p style={{ margin: '0 0 16px 0' }}>Try adjusting your search terms or filters</p>
@@ -1166,46 +1423,78 @@ const paginatedDepartments = filteredDepartments.slice((deptCurrentPage - 1) * d
                       setUserRoleFilter([]);
                       setCurrentPage(1);
                     }}
-                    style={{ fontWeight: '500', padding: '8px 16px', borderRadius: '6px', border: '1px solid var(--border)', backgroundColor: 'var(--surface)', color: 'var(--text)', transition: 'all 0.2s ease' }}
+                    style={{
+                      fontWeight: '500',
+                      padding: '8px 16px',
+                      borderRadius: '6px',
+                      border: '1px solid var(--border)',
+                      backgroundColor: 'var(--surface)',
+                      color: 'var(--text)',
+                      transition: 'all 0.2s ease',
+                    }}
                   >
-                    <span style={{ fontSize: '1.1em', marginRight: '6px' }}>🗑️</span> Clear all filters
+                    <span style={{ fontSize: '1.1em', marginRight: '6px' }}>🗑️</span> Clear all
+                    filters
                   </button>
                 </div>
               ) : (
                 <>
                   {viewMode === 'cards' ? (
                     /* Results Grid */
-                    <div className="grid" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(450px, 1fr))', gap: 16 }}>
-                      {paginatedUsers.map((u) => (
+                    <div
+                      className="grid"
+                      style={{
+                        gridTemplateColumns: 'repeat(auto-fill, minmax(450px, 1fr))',
+                        gap: 16,
+                      }}
+                    >
+                      {paginatedUsers.map(u => (
                         <div key={u.id} className="card user-card">
                           <div style={{ marginBottom: 12 }}>
                             <strong>{u.name || u.email}</strong>
-                            <div className="muted">{u.email} ({u.role})</div>
+                            <div className="muted">
+                              {u.email} ({u.role})
+                            </div>
                           </div>
                           <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                            <button className="btn btn-primary" onClick={async () => {
-                              setSelectedUser(u)
-                              setSelectedOverview(null)
-                              setShowUserDetailsModal(true)
-                              addToRecentlyViewed(u)
-                              const ov = await getUserOverview(u.id)
-                              setSelectedOverview(ov)
-                            }}>View Details</button>
-                            <button className="btn btn-success" onClick={() => {
-                              setEditingUser(u)
-                              setEditUserData({
-                                name: u.name || '',
-                                role: u.role,
-                                department_id: u.department_id?.toString() || '',
-                                roll_number: u.roll_number || '',
-                                is_active: u.is_active || false
-                              })
-                              setShowEditUser(true)
-                            }}>Edit</button>
-                            <button className="btn btn-danger" onClick={() => {
-                              setUserToDelete(u)
-                              setShowDeleteConfirm(true)
-                            }}>Delete</button>
+                            <button
+                              className="btn btn-primary"
+                              onClick={async () => {
+                                setSelectedUser(u);
+                                setSelectedOverview(null);
+                                setShowUserDetailsModal(true);
+                                addToRecentlyViewed(u);
+                                const ov = await getUserOverview(u.id);
+                                setSelectedOverview(ov);
+                              }}
+                            >
+                              View Details
+                            </button>
+                            <button
+                              className="btn btn-success"
+                              onClick={() => {
+                                setEditingUser(u);
+                                setEditUserData({
+                                  name: u.name || '',
+                                  role: u.role,
+                                  department_id: u.department_id?.toString() || '',
+                                  roll_number: u.roll_number || '',
+                                  is_active: u.is_active || false,
+                                });
+                                setShowEditUser(true);
+                              }}
+                            >
+                              Edit
+                            </button>
+                            <button
+                              className="btn btn-danger"
+                              onClick={() => {
+                                setUserToDelete(u);
+                                setShowDeleteConfirm(true);
+                              }}
+                            >
+                              Delete
+                            </button>
                           </div>
                         </div>
                       ))}
@@ -1213,68 +1502,148 @@ const paginatedDepartments = filteredDepartments.slice((deptCurrentPage - 1) * d
                   ) : (
                     /* Table View */
                     <div style={{ overflowX: 'auto' }}>
-                      <table style={{
-                        width: '100%',
-                        borderCollapse: 'collapse',
-                        backgroundColor: 'var(--surface)',
-                        borderRadius: '8px',
-                        overflow: 'hidden',
-                        boxShadow: '0 2px 8px rgba(0,0,0,0.1)'
-                      }}>
+                      <table
+                        style={{
+                          width: '100%',
+                          borderCollapse: 'collapse',
+                          backgroundColor: 'var(--surface)',
+                          borderRadius: '8px',
+                          overflow: 'hidden',
+                          boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
+                        }}
+                      >
                         <thead>
                           <tr style={{ backgroundColor: 'var(--surface-secondary)' }}>
-                            <th style={{ padding: '12px', textAlign: 'left', borderBottom: '1px solid var(--border)', fontWeight: '600' }}>Name</th>
-                            <th style={{ padding: '12px', textAlign: 'left', borderBottom: '1px solid var(--border)', fontWeight: '600' }}>Email</th>
-                            <th style={{ padding: '12px', textAlign: 'left', borderBottom: '1px solid var(--border)', fontWeight: '600' }}>Role</th>
-                            <th style={{ padding: '12px', textAlign: 'left', borderBottom: '1px solid var(--border)', fontWeight: '600' }}>Department</th>
-                            <th style={{ padding: '12px', textAlign: 'left', borderBottom: '1px solid var(--border)', fontWeight: '600' }}>Status</th>
-                            <th style={{ padding: '12px', textAlign: 'center', borderBottom: '1px solid var(--border)', fontWeight: '600' }}>Actions</th>
+                            <th
+                              style={{
+                                padding: '12px',
+                                textAlign: 'left',
+                                borderBottom: '1px solid var(--border)',
+                                fontWeight: '600',
+                              }}
+                            >
+                              Name
+                            </th>
+                            <th
+                              style={{
+                                padding: '12px',
+                                textAlign: 'left',
+                                borderBottom: '1px solid var(--border)',
+                                fontWeight: '600',
+                              }}
+                            >
+                              Email
+                            </th>
+                            <th
+                              style={{
+                                padding: '12px',
+                                textAlign: 'left',
+                                borderBottom: '1px solid var(--border)',
+                                fontWeight: '600',
+                              }}
+                            >
+                              Role
+                            </th>
+                            <th
+                              style={{
+                                padding: '12px',
+                                textAlign: 'left',
+                                borderBottom: '1px solid var(--border)',
+                                fontWeight: '600',
+                              }}
+                            >
+                              Department
+                            </th>
+                            <th
+                              style={{
+                                padding: '12px',
+                                textAlign: 'left',
+                                borderBottom: '1px solid var(--border)',
+                                fontWeight: '600',
+                              }}
+                            >
+                              Status
+                            </th>
+                            <th
+                              style={{
+                                padding: '12px',
+                                textAlign: 'center',
+                                borderBottom: '1px solid var(--border)',
+                                fontWeight: '600',
+                              }}
+                            >
+                              Actions
+                            </th>
                           </tr>
                         </thead>
                         <tbody>
-                          {paginatedUsers.map((u) => (
+                          {paginatedUsers.map(u => (
                             <tr key={u.id} style={{ borderBottom: '1px solid var(--border)' }}>
                               <td style={{ padding: '12px' }}>
                                 <strong>{u.name || u.email}</strong>
                               </td>
                               <td style={{ padding: '12px' }}>{u.email}</td>
                               <td style={{ padding: '12px' }}>
-                                <span style={{
-                                  padding: '4px 8px',
-                                  borderRadius: '12px',
-                                  fontSize: '0.8em',
-                                  backgroundColor: u.role === 'admin' ? '#e3f2fd' : u.role === 'faculty' ? '#f3e5f5' : u.role === 'ta' ? '#fff3e0' : '#e8f5e8',
-                                  color: u.role === 'admin' ? '#1565c0' : u.role === 'faculty' ? '#7b1fa2' : u.role === 'ta' ? '#f57c00' : '#2e7d32'
-                                }}>
-                                  {u.role === 'faculty' ? 'Teacher' : u.role.charAt(0).toUpperCase() + u.role.slice(1)}
+                                <span
+                                  style={{
+                                    padding: '4px 8px',
+                                    borderRadius: '12px',
+                                    fontSize: '0.8em',
+                                    backgroundColor:
+                                      u.role === 'admin'
+                                        ? '#e3f2fd'
+                                        : u.role === 'faculty'
+                                          ? '#f3e5f5'
+                                          : u.role === 'ta'
+                                            ? '#fff3e0'
+                                            : '#e8f5e8',
+                                    color:
+                                      u.role === 'admin'
+                                        ? '#1565c0'
+                                        : u.role === 'faculty'
+                                          ? '#7b1fa2'
+                                          : u.role === 'ta'
+                                            ? '#f57c00'
+                                            : '#2e7d32',
+                                  }}
+                                >
+                                  {u.role === 'faculty'
+                                    ? 'Teacher'
+                                    : u.role.charAt(0).toUpperCase() + u.role.slice(1)}
                                 </span>
                               </td>
                               <td style={{ padding: '12px' }}>
-                                {departments.find(d => d.id.toString() === u.department_id?.toString())?.name || 'N/A'}
+                                {departments.find(
+                                  d => d.id.toString() === u.department_id?.toString()
+                                )?.name || 'N/A'}
                               </td>
                               <td style={{ padding: '12px' }}>
-                                <span style={{
-                                  padding: '4px 8px',
-                                  borderRadius: '12px',
-                                  fontSize: '0.8em',
-                                  backgroundColor: u.is_active ? '#e8f5e8' : '#ffebee',
-                                  color: u.is_active ? '#2e7d32' : '#c62828'
-                                }}>
+                                <span
+                                  style={{
+                                    padding: '4px 8px',
+                                    borderRadius: '12px',
+                                    fontSize: '0.8em',
+                                    backgroundColor: u.is_active ? '#e8f5e8' : '#ffebee',
+                                    color: u.is_active ? '#2e7d32' : '#c62828',
+                                  }}
+                                >
                                   {u.is_active ? 'Active' : 'Inactive'}
                                 </span>
                               </td>
                               <td style={{ padding: '12px', textAlign: 'center' }}>
-                                <div style={{ display: 'flex', gap: '4px', justifyContent: 'center' }}>
+                                <div
+                                  style={{ display: 'flex', gap: '4px', justifyContent: 'center' }}
+                                >
                                   <button
                                     className="btn btn-secondary"
                                     style={{ fontSize: '0.8em', padding: '4px 8px' }}
                                     onClick={async () => {
-                                      setSelectedUser(u)
-                                      setSelectedOverview(null)
-                                      setShowUserDetailsModal(true)
-                                      addToRecentlyViewed(u)
-                                      const ov = await getUserOverview(u.id)
-                                      setSelectedOverview(ov)
+                                      setSelectedUser(u);
+                                      setSelectedOverview(null);
+                                      setShowUserDetailsModal(true);
+                                      addToRecentlyViewed(u);
+                                      const ov = await getUserOverview(u.id);
+                                      setSelectedOverview(ov);
                                     }}
                                   >
                                     View
@@ -1283,15 +1652,15 @@ const paginatedDepartments = filteredDepartments.slice((deptCurrentPage - 1) * d
                                     className="btn btn-secondary"
                                     style={{ fontSize: '0.8em', padding: '4px 8px' }}
                                     onClick={() => {
-                                      setEditingUser(u)
+                                      setEditingUser(u);
                                       setEditUserData({
                                         name: u.name || '',
                                         role: u.role,
                                         department_id: u.department_id?.toString() || '',
                                         roll_number: u.roll_number || '',
-                                        is_active: u.is_active || false
-                                      })
-                                      setShowEditUser(true)
+                                        is_active: u.is_active || false,
+                                      });
+                                      setShowEditUser(true);
                                     }}
                                   >
                                     Edit
@@ -1300,8 +1669,8 @@ const paginatedDepartments = filteredDepartments.slice((deptCurrentPage - 1) * d
                                     className="btn btn-danger"
                                     style={{ fontSize: '0.8em', padding: '4px 8px' }}
                                     onClick={() => {
-                                      setUserToDelete(u)
-                                      setShowDeleteConfirm(true)
+                                      setUserToDelete(u);
+                                      setShowDeleteConfirm(true);
                                     }}
                                   >
                                     Delete
@@ -1317,16 +1686,18 @@ const paginatedDepartments = filteredDepartments.slice((deptCurrentPage - 1) * d
 
                   {/* Pagination Controls */}
                   {totalPages > 1 && (
-                    <div style={{
-                      display: 'flex',
-                      justifyContent: 'center',
-                      alignItems: 'center',
-                      gap: '8px',
-                      marginTop: '20px',
-                      padding: '12px',
-                      backgroundColor: 'var(--surface-secondary)',
-                      borderRadius: '8px'
-                    }}>
+                    <div
+                      style={{
+                        display: 'flex',
+                        justifyContent: 'center',
+                        alignItems: 'center',
+                        gap: '8px',
+                        marginTop: '20px',
+                        padding: '12px',
+                        backgroundColor: 'var(--surface-secondary)',
+                        borderRadius: '8px',
+                      }}
+                    >
                       <button
                         className="btn btn-secondary"
                         onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
@@ -1355,29 +1726,31 @@ const paginatedDepartments = filteredDepartments.slice((deptCurrentPage - 1) * d
             </>
           )}
           {!isLoading && usersList.length === 0 && !loadError && (
-            <div style={{
-              textAlign: 'center',
-              padding: '40px 20px',
-              color: 'var(--text-secondary)',
-              backgroundColor: 'var(--surface-secondary)',
-              borderRadius: '8px',
-              border: '2px dashed var(--border)'
-            }}>
+            <div
+              style={{
+                textAlign: 'center',
+                padding: '40px 20px',
+                color: 'var(--text-secondary)',
+                backgroundColor: 'var(--surface-secondary)',
+                borderRadius: '8px',
+                border: '2px dashed var(--border)',
+              }}
+            >
               <div style={{ fontSize: '3em', marginBottom: '16px' }}>👥</div>
               <h3 style={{ margin: '0 0 8px 0', color: 'var(--text)' }}>No users yet</h3>
               <p style={{ margin: '0 0 16px 0' }}>Users will appear here once they register</p>
             </div>
           )}
-          
         </section>
-        
-      ) }
+      )}
 
       {tab === 'courses' && (
         <section className="card">
           <div className="section-header">
             <h3>Courses</h3>
-            <button className="btn btn-primary" onClick={() => setTab('departments')}>Create Course</button>
+            <button className="btn btn-primary" onClick={() => setTab('departments')}>
+              Create Course
+            </button>
           </div>
           <div className="filters" style={{ marginBottom: '16px' }}>
             <div style={{ display: 'flex', gap: '12px', marginBottom: '12px' }}>
@@ -1386,13 +1759,13 @@ const paginatedDepartments = filteredDepartments.slice((deptCurrentPage - 1) * d
                 type="text"
                 placeholder="Search courses..."
                 value={courseSearch}
-                onChange={(e) => setCourseSearch(e.target.value)}
+                onChange={e => setCourseSearch(e.target.value)}
                 style={{ flex: 1 }}
               />
               <select
                 className="input"
                 value={courseSearchType}
-                onChange={(e) => setCourseSearchType(e.target.value as 'all' | 'code' | 'title')}
+                onChange={e => setCourseSearchType(e.target.value as 'all' | 'code' | 'title')}
                 style={{ width: '150px' }}
               >
                 <option value="all">All Fields</option>
@@ -1403,12 +1776,14 @@ const paginatedDepartments = filteredDepartments.slice((deptCurrentPage - 1) * d
             <select
               className="input"
               value={courseDeptFilter}
-              onChange={(e) => setCourseDeptFilter(e.target.value)}
+              onChange={e => setCourseDeptFilter(e.target.value)}
               style={{ width: '100%' }}
             >
               <option value="">All Departments</option>
               {departments.map((d: unknown) => (
-                <option key={d.id} value={d.id}>{d.name}</option>
+                <option key={d.id} value={d.id}>
+                  {d.name}
+                </option>
               ))}
             </select>
           </div>
@@ -1418,86 +1793,120 @@ const paginatedDepartments = filteredDepartments.slice((deptCurrentPage - 1) * d
             <div className="courses-list">
               <div>
                 {(() => {
-                const filteredCourses = advancedSearchAndSort(
-                  adminCourses.filter(course => courseDeptFilter === '' || course.department_id == courseDeptFilter),
-                  courseSearch,
-                  (course) => {
-                    if (courseSearchType === 'all') return [course.code || '', course.title || '']
-                    if (courseSearchType === 'code') return [course.code || '']
-                    if (courseSearchType === 'title') return [course.title || '']
-                    return [course.code || '', course.title || '']
-                  },
-                  (course) => course.code || course.title || ''
-                )
-                return filteredCourses.map((course) => (
-                  <div key={course.id} className="card course-admin-card">
-                    <div className="course-header">
-                      <h4 className="course-title">{course.code} - {course.title}</h4>
-                      <p className="course-description">{course.description}</p>
-                      <p className="course-credits">Credits: {course.credits || 'N/A'}</p>
-                    </div>
-                    <div className="course-offerings">
-                      <h5>Offerings:</h5>
-                      {course.offerings && course.offerings.length > 0 ? (
-                        course.offerings.map((offering: unknown) => (
-                          <div key={offering.offering_id} className="offering-item">
-                            <p><strong>Term:</strong> {offering.term} {offering.section ? `Section ${offering.section}` : ''}</p>
-                            <p><strong>Faculty:</strong> {offering.faculty_name || 'N/A'}</p>
-                            <p><strong>Enrolled Students:</strong> {offering.students?.length || 0}</p>
-                            <p><strong>Duration:</strong> {offering.start_date ? new Date(offering.start_date).toLocaleDateString() : 'N/A'} to {offering.end_date ? new Date(offering.end_date).toLocaleDateString() : 'N/A'}</p>
-                            <p><strong>Capacity:</strong> {offering.max_capacity || 'Unlimited'}</p>
-                          </div>
-                        ))
-                      ) : (
-                        <p>No offerings yet.</p>
-                      )}
-                    </div>
-                    <div style={{ marginTop: 12, display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
-                      <button
-                        className="btn btn-primary"
-                        onClick={() => {
-                          setSelectedCourse(course)
-                          setShowManageOfferings(true)
+                  const filteredCourses = advancedSearchAndSort(
+                    adminCourses.filter(
+                      course => courseDeptFilter === '' || course.department_id == courseDeptFilter
+                    ),
+                    courseSearch,
+                    course => {
+                      if (courseSearchType === 'all')
+                        return [course.code || '', course.title || ''];
+                      if (courseSearchType === 'code') return [course.code || ''];
+                      if (courseSearchType === 'title') return [course.title || ''];
+                      return [course.code || '', course.title || ''];
+                    },
+                    course => course.code || course.title || ''
+                  );
+                  return filteredCourses.map(course => (
+                    <div key={course.id} className="card course-admin-card">
+                      <div className="course-header">
+                        <h4 className="course-title">
+                          {course.code} - {course.title}
+                        </h4>
+                        <p className="course-description">{course.description}</p>
+                        <p className="course-credits">Credits: {course.credits || 'N/A'}</p>
+                      </div>
+                      <div className="course-offerings">
+                        <h5>Offerings:</h5>
+                        {course.offerings && course.offerings.length > 0 ? (
+                          course.offerings.map((offering: unknown) => (
+                            <div key={offering.offering_id} className="offering-item">
+                              <p>
+                                <strong>Term:</strong> {offering.term}{' '}
+                                {offering.section ? `Section ${offering.section}` : ''}
+                              </p>
+                              <p>
+                                <strong>Faculty:</strong> {offering.faculty_name || 'N/A'}
+                              </p>
+                              <p>
+                                <strong>Enrolled Students:</strong> {offering.students?.length || 0}
+                              </p>
+                              <p>
+                                <strong>Duration:</strong>{' '}
+                                {offering.start_date
+                                  ? new Date(offering.start_date).toLocaleDateString()
+                                  : 'N/A'}{' '}
+                                to{' '}
+                                {offering.end_date
+                                  ? new Date(offering.end_date).toLocaleDateString()
+                                  : 'N/A'}
+                              </p>
+                              <p>
+                                <strong>Capacity:</strong> {offering.max_capacity || 'Unlimited'}
+                              </p>
+                            </div>
+                          ))
+                        ) : (
+                          <p>No offerings yet.</p>
+                        )}
+                      </div>
+                      <div
+                        style={{
+                          marginTop: 12,
+                          display: 'flex',
+                          justifyContent: 'flex-end',
+                          gap: '8px',
                         }}
                       >
-                        Manage Offerings
-                      </button>
-                      <button
-                        className="btn btn-success"
-                        onClick={() => {
-                          setSelectedCourse(course)
-                          setShowManageEnrollments(true)
-                        }}
-                      >
-                        Manage Enrollments
-                      </button>
-                      <button
-                        className={`btn ${course.offerings && course.offerings.length > 0 ? 'btn-disabled' : 'btn-danger'}`}
-                        disabled={course.offerings && course.offerings.length > 0}
-                        onClick={() => {
-                          setCourseToDelete(course)
-                          setShowDeleteCourseConfirm(true)
-                        }}
-                      >
-                        Delete Course
-                      </button>
+                        <button
+                          className="btn btn-primary"
+                          onClick={() => {
+                            setSelectedCourse(course);
+                            setShowManageOfferings(true);
+                          }}
+                        >
+                          Manage Offerings
+                        </button>
+                        <button
+                          className="btn btn-success"
+                          onClick={() => {
+                            setSelectedCourse(course);
+                            setShowManageEnrollments(true);
+                          }}
+                        >
+                          Manage Enrollments
+                        </button>
+                        <button
+                          className={`btn ${course.offerings && course.offerings.length > 0 ? 'btn-disabled' : 'btn-danger'}`}
+                          disabled={course.offerings && course.offerings.length > 0}
+                          onClick={() => {
+                            setCourseToDelete(course);
+                            setShowDeleteCourseConfirm(true);
+                          }}
+                        >
+                          Delete Course
+                        </button>
+                      </div>
                     </div>
-                  </div>
-                ))
-              })()}
-            </div>
+                  ));
+                })()}
+              </div>
             </div>
           )}
         </section>
       )}
 
-
       {tab === 'departments' && (
         <section className="card">
-          <div className="section-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div
+            className="section-header"
+            style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
+          >
             <h3>Departments</h3>
             <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-              <div style={{ display: 'flex', border: '1px solid var(--border)', borderRadius: '6px' }}>
+              <div
+                style={{ display: 'flex', border: '1px solid var(--border)', borderRadius: '6px' }}
+              >
                 <button
                   className={`btn ${deptViewMode === 'cards' ? 'btn-primary' : 'btn-secondary'}`}
                   onClick={() => setDeptViewMode('cards')}
@@ -1513,7 +1922,9 @@ const paginatedDepartments = filteredDepartments.slice((deptCurrentPage - 1) * d
                   <span style={{ fontSize: '1.1em' }}>⊞</span> Table
                 </button>
               </div>
-              <button className="btn btn-primary" onClick={() => setShowCreateDept(true)}>Create Department</button>
+              <button className="btn btn-primary" onClick={() => setShowCreateDept(true)}>
+                Create Department
+              </button>
             </div>
           </div>
           <div className="filters" style={{ marginBottom: '16px' }}>
@@ -1525,9 +1936,9 @@ const paginatedDepartments = filteredDepartments.slice((deptCurrentPage - 1) * d
                   type="text"
                   placeholder="🔍 Search departments..."
                   value={deptSearch}
-                  onChange={(e) => {
-                    setDeptSearch(e.target.value)
-                    setShowDeptSearchSuggestions(e.target.value.length > 0)
+                  onChange={e => {
+                    setDeptSearch(e.target.value);
+                    setShowDeptSearchSuggestions(e.target.value.length > 0);
                   }}
                   onFocus={() => setShowDeptSearchSuggestions(deptSearch.length > 0)}
                   onBlur={() => setTimeout(() => setShowDeptSearchSuggestions(false), 300)}
@@ -1538,7 +1949,7 @@ const paginatedDepartments = filteredDepartments.slice((deptCurrentPage - 1) * d
                     border: '2px solid var(--border)',
                     borderRadius: '8px',
                     backgroundColor: 'var(--surface)',
-                    color: 'var(--text)'
+                    color: 'var(--text)',
                   }}
                   aria-label="Search departments by code or name"
                 />
@@ -1555,7 +1966,7 @@ const paginatedDepartments = filteredDepartments.slice((deptCurrentPage - 1) * d
                       color: 'var(--text-secondary)',
                       cursor: 'pointer',
                       fontSize: '18px',
-                      padding: '4px'
+                      padding: '4px',
                     }}
                     aria-label="Clear search"
                   >
@@ -1565,30 +1976,32 @@ const paginatedDepartments = filteredDepartments.slice((deptCurrentPage - 1) * d
 
                 {/* Search Suggestions Dropdown */}
                 {showDeptSearchSuggestions && deptSearchParameterHistory.length > 0 && (
-                  <div style={{
-                    position: 'absolute',
-                    top: '100%',
-                    left: 0,
-                    right: 0,
-                    backgroundColor: 'var(--surface)',
-                    border: '1px solid var(--border)',
-                    borderRadius: '8px',
-                    boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
-                    zIndex: 1000,
-                    maxHeight: '200px',
-                    overflowY: 'auto'
-                  }}>
+                  <div
+                    style={{
+                      position: 'absolute',
+                      top: '100%',
+                      left: 0,
+                      right: 0,
+                      backgroundColor: 'var(--surface)',
+                      border: '1px solid var(--border)',
+                      borderRadius: '8px',
+                      boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+                      zIndex: 1000,
+                      maxHeight: '200px',
+                      overflowY: 'auto',
+                    }}
+                  >
                     {deptSearchParameterHistory
                       .filter(item => item.keyword.toLowerCase().includes(deptSearch.toLowerCase()))
                       .slice(0, 5)
-                      .map((item) => (
+                      .map(item => (
                         <button
                           key={index}
-                          onMouseDown={(e) => {
-                            e.preventDefault()
-                            setDeptSearch(item.keyword)
-                            setDeptSearchType(item.searchType)
-                            setShowDeptSearchSuggestions(false)
+                          onMouseDown={e => {
+                            e.preventDefault();
+                            setDeptSearch(item.keyword);
+                            setDeptSearchType(item.searchType);
+                            setShowDeptSearchSuggestions(false);
                           }}
                           style={{
                             width: '100%',
@@ -1598,21 +2011,27 @@ const paginatedDepartments = filteredDepartments.slice((deptCurrentPage - 1) * d
                             textAlign: 'left',
                             cursor: 'pointer',
                             borderBottom: index < 4 ? '1px solid var(--border)' : 'none',
-                            color: 'var(--text)'
+                            color: 'var(--text)',
                           }}
-                          onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'var(--surface-secondary)'}
-                          onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                          onMouseEnter={e =>
+                            (e.currentTarget.style.backgroundColor = 'var(--surface-secondary)')
+                          }
+                          onMouseLeave={e =>
+                            (e.currentTarget.style.backgroundColor = 'transparent')
+                          }
                         >
                           <div style={{ fontWeight: '500', marginBottom: '2px' }}>
                             "{item.keyword}"
                           </div>
-                          <div style={{
-                            fontSize: '0.8em',
-                            color: 'var(--text-secondary)',
-                            display: 'flex',
-                            gap: '4px',
-                            flexWrap: 'wrap'
-                          }}>
+                          <div
+                            style={{
+                              fontSize: '0.8em',
+                              color: 'var(--text-secondary)',
+                              display: 'flex',
+                              gap: '4px',
+                              flexWrap: 'wrap',
+                            }}
+                          >
                             {item.searchType !== 'all' && <span>In: {item.searchType}</span>}
                           </div>
                         </button>
@@ -1624,11 +2043,21 @@ const paginatedDepartments = filteredDepartments.slice((deptCurrentPage - 1) * d
 
             {/* Search Scope */}
             <div style={{ marginBottom: '12px' }}>
-              <label style={{ fontSize: '0.9em', color: 'var(--text-secondary)', fontWeight: '500', marginBottom: '4px', display: 'block' }}>Search in:</label>
+              <label
+                style={{
+                  fontSize: '0.9em',
+                  color: 'var(--text-secondary)',
+                  fontWeight: '500',
+                  marginBottom: '4px',
+                  display: 'block',
+                }}
+              >
+                Search in:
+              </label>
               <select
                 className="input"
                 value={deptSearchType}
-                onChange={(e) => setDeptSearchType(e.target.value as 'all' | 'code' | 'name')}
+                onChange={e => setDeptSearchType(e.target.value as 'all' | 'code' | 'name')}
                 style={{ width: '100%' }}
                 aria-label="Select which fields to search in"
               >
@@ -1643,17 +2072,27 @@ const paginatedDepartments = filteredDepartments.slice((deptCurrentPage - 1) * d
               <button
                 className="btn btn-primary"
                 onClick={() => {
-                  if (!deptSearch.trim()) return
+                  if (!deptSearch.trim()) return;
                   const searchParams = {
                     keyword: deptSearch.trim(),
                     searchType: deptSearchType,
-                    timestamp: Date.now()
-                  }
-                  const newHistory = [searchParams, ...deptSearchParameterHistory.filter(h =>
-                    !(h.keyword === searchParams.keyword && h.searchType === searchParams.searchType)
-                  )].slice(0, 10)
-                  setDeptSearchParameterHistory(newHistory)
-                  localStorage.setItem('adminDeptSearchParameterHistory', JSON.stringify(newHistory))
+                    timestamp: Date.now(),
+                  };
+                  const newHistory = [
+                    searchParams,
+                    ...deptSearchParameterHistory.filter(
+                      h =>
+                        !(
+                          h.keyword === searchParams.keyword &&
+                          h.searchType === searchParams.searchType
+                        )
+                    ),
+                  ].slice(0, 10);
+                  setDeptSearchParameterHistory(newHistory);
+                  localStorage.setItem(
+                    'adminDeptSearchParameterHistory',
+                    JSON.stringify(newHistory)
+                  );
                 }}
                 style={{ flex: 1 }}
               >
@@ -1666,7 +2105,16 @@ const paginatedDepartments = filteredDepartments.slice((deptCurrentPage - 1) * d
                   setDeptSearchType('all');
                   setDeptCurrentPage(1);
                 }}
-                style={{ flex: 1, fontWeight: '500', padding: '8px 16px', borderRadius: '6px', border: '1px solid var(--border)', backgroundColor: 'var(--surface)', color: 'var(--text)', transition: 'all 0.2s ease' }}
+                style={{
+                  flex: 1,
+                  fontWeight: '500',
+                  padding: '8px 16px',
+                  borderRadius: '6px',
+                  border: '1px solid var(--border)',
+                  backgroundColor: 'var(--surface)',
+                  color: 'var(--text)',
+                  transition: 'all 0.2s ease',
+                }}
               >
                 <span style={{ fontSize: '1.1em', marginRight: '6px' }}>🗑️</span> Clear All
               </button>
@@ -1682,11 +2130,13 @@ const paginatedDepartments = filteredDepartments.slice((deptCurrentPage - 1) * d
 
             {/* Live Search Toggle */}
             <div style={{ marginBottom: '12px' }}>
-              <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.9em' }}>
+              <label
+                style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.9em' }}
+              >
                 <input
                   type="checkbox"
                   checked={deptLiveSearchEnabled}
-                  onChange={(e) => setDeptLiveSearchEnabled(e.target.checked)}
+                  onChange={e => setDeptLiveSearchEnabled(e.target.checked)}
                 />
                 ⟳ Enable live search (searches as you type)
               </label>
@@ -1694,83 +2144,114 @@ const paginatedDepartments = filteredDepartments.slice((deptCurrentPage - 1) * d
 
             {/* Applied Filters Display */}
             {(deptSearch || deptSearchType !== 'all') && (
-              <div style={{
-                backgroundColor: 'var(--surface-secondary)',
-                padding: '8px 12px',
-                borderRadius: '6px',
-                marginBottom: '12px',
-                border: '1px solid var(--border)'
-              }}>
-                <div style={{ fontSize: '0.85em', color: 'var(--text-secondary)', marginBottom: '4px', fontWeight: '500' }}>
+              <div
+                style={{
+                  backgroundColor: 'var(--surface-secondary)',
+                  padding: '8px 12px',
+                  borderRadius: '6px',
+                  marginBottom: '12px',
+                  border: '1px solid var(--border)',
+                }}
+              >
+                <div
+                  style={{
+                    fontSize: '0.85em',
+                    color: 'var(--text-secondary)',
+                    marginBottom: '4px',
+                    fontWeight: '500',
+                  }}
+                >
                   Applied Filters:
                 </div>
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
                   {deptSearch && (
-                    <span style={{
-                      backgroundColor: 'var(--primary)',
-                      color: 'white',
-                      padding: '2px 8px',
-                      borderRadius: '12px',
-                      fontSize: '0.8em'
-                    }}>
+                    <span
+                      style={{
+                        backgroundColor: 'var(--primary)',
+                        color: 'white',
+                        padding: '2px 8px',
+                        borderRadius: '12px',
+                        fontSize: '0.8em',
+                      }}
+                    >
                       Search: "{deptSearch}"
                     </span>
                   )}
                   {deptSearchType !== 'all' && (
-                    <span style={{
-                      backgroundColor: 'var(--secondary)',
-                      color: 'var(--text)',
-                      padding: '2px 8px',
-                      borderRadius: '12px',
-                      fontSize: '0.8em'
-                    }}>
+                    <span
+                      style={{
+                        backgroundColor: 'var(--secondary)',
+                        color: 'var(--text)',
+                        padding: '2px 8px',
+                        borderRadius: '12px',
+                        fontSize: '0.8em',
+                      }}
+                    >
                       In: {deptSearchType}
                     </span>
                   )}
                 </div>
               </div>
             )}
-
           </div>
           {isLoading && (
-            <div className="grid" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 16 }}>
+            <div
+              className="grid"
+              style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 16 }}
+            >
               {Array.from({ length: 6 }).map((_, i) => (
                 <SkeletonCard key={i} />
               ))}
             </div>
           )}
           {loadError && (
-            <div style={{ marginBottom: 8, padding: 12, backgroundColor: '#fee', color: '#c00', borderRadius: 6, border: '1px solid #fcc' }}>
+            <div
+              style={{
+                marginBottom: 8,
+                padding: 12,
+                backgroundColor: '#fee',
+                color: '#c00',
+                borderRadius: 6,
+                border: '1px solid #fcc',
+              }}
+            >
               ⚠️ Error: {loadError}
             </div>
           )}
           {!isLoading && departments.length > 0 && (
             <>
               {/* Results Summary */}
-              <div style={{
-                marginBottom: '12px',
-                padding: '8px 12px',
-                backgroundColor: 'var(--surface-secondary)',
-                borderRadius: '6px',
-                fontSize: '0.9em',
-                color: 'var(--text-secondary)'
-              }}>
-                <span style={{ fontSize: '1.1em' }}>📈</span> Showing {paginatedDepartments.length} of {filteredDepartments.length} departments
+              <div
+                style={{
+                  marginBottom: '12px',
+                  padding: '8px 12px',
+                  backgroundColor: 'var(--surface-secondary)',
+                  borderRadius: '6px',
+                  fontSize: '0.9em',
+                  color: 'var(--text-secondary)',
+                }}
+              >
+                <span style={{ fontSize: '1.1em' }}>📈</span> Showing {paginatedDepartments.length}{' '}
+                of {filteredDepartments.length} departments
                 {deptTotalPages > 1 && ` (Page ${deptCurrentPage} of ${deptTotalPages})`}
               </div>
 
               {/* No Results State */}
               {filteredDepartments.length === 0 ? (
-                <div style={{
-                  textAlign: 'center',
-                  padding: '40px 20px',
-                  color: 'var(--text-secondary)',
-                  backgroundColor: 'var(--surface-secondary)',
-                  borderRadius: '8px',
-                  border: '2px dashed var(--border)'
-                }}>
+                <div
+                  style={{
+                    textAlign: 'center',
+                    padding: '40px 20px',
+                    color: 'var(--text-secondary)',
+                    backgroundColor: 'var(--surface-secondary)',
+                    borderRadius: '8px',
+                    border: '2px dashed var(--border)',
+                  }}
+                >
                   <div style={{ fontSize: '3em', marginBottom: '16px' }}>🔎</div>
-                  <h3 style={{ margin: '0 0 8px 0', color: 'var(--text)' }}>No departments found</h3>
+                  <h3 style={{ margin: '0 0 8px 0', color: 'var(--text)' }}>
+                    No departments found
+                  </h3>
                   <p style={{ margin: '0 0 16px 0' }}>Try adjusting your search terms</p>
                   <button
                     className="btn btn-secondary"
@@ -1787,24 +2268,36 @@ const paginatedDepartments = filteredDepartments.slice((deptCurrentPage - 1) * d
                 <>
                   {deptViewMode === 'cards' ? (
                     /* Cards View */
-                    <div className="grid" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 16 }}>
+                    <div
+                      className="grid"
+                      style={{
+                        gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))',
+                        gap: 16,
+                      }}
+                    >
                       {paginatedDepartments.map((dept: unknown) => (
-                        <div key={dept.id} className="card department-card" style={{ padding: '16px' }}>
+                        <div
+                          key={dept.id}
+                          className="card department-card"
+                          style={{ padding: '16px' }}
+                        >
                           <div style={{ marginBottom: 12 }}>
                             <strong style={{ fontSize: '1.1em' }}>{dept.code}</strong>
-                            <div className="muted" style={{ marginTop: '4px' }}>{dept.name}</div>
+                            <div className="muted" style={{ marginTop: '4px' }}>
+                              {dept.name}
+                            </div>
                           </div>
                           <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                             <button
                               className="btn btn-primary"
                               onClick={async () => {
-                                setSelectedDeptDetails(dept)
-                                setShowDeptDetailsModal(true)
+                                setSelectedDeptDetails(dept);
+                                setShowDeptDetailsModal(true);
                                 try {
-                                  const r = await getCoursesByDepartment(dept.id)
-                                  setDeptDetailsCourses(r.courses)
+                                  const r = await getCoursesByDepartment(dept.id);
+                                  setDeptDetailsCourses(r.courses);
                                 } catch (err) {
-                                  console.error('Error loading courses:', err)
+                                  console.error('Error loading courses:', err);
                                 }
                               }}
                             >
@@ -1813,15 +2306,28 @@ const paginatedDepartments = filteredDepartments.slice((deptCurrentPage - 1) * d
                             <button
                               className="btn btn-success"
                               onClick={async () => {
-                                const newCode = prompt('Enter new code:', dept.code)
-                                const newName = prompt('Enter new name:', dept.name)
-                                if (newCode !== null && newName !== null && (newCode !== dept.code || newName !== dept.name)) {
+                                const newCode = prompt('Enter new code:', dept.code);
+                                const newName = prompt('Enter new name:', dept.name);
+                                if (
+                                  newCode !== null &&
+                                  newName !== null &&
+                                  (newCode !== dept.code || newName !== dept.name)
+                                ) {
                                   try {
-                                    await updateDepartment(dept.id, { code: newCode, name: newName })
-                                    push({ kind: 'success', message: 'Department updated successfully' })
-                                    loadDepartments()
+                                    await updateDepartment(dept.id, {
+                                      code: newCode,
+                                      name: newName,
+                                    });
+                                    push({
+                                      kind: 'success',
+                                      message: 'Department updated successfully',
+                                    });
+                                    loadDepartments();
                                   } catch (e: unknown) {
-                                    push({ kind: 'error', message: e?.message || 'Failed to update department' })
+                                    push({
+                                      kind: 'error',
+                                      message: e?.message || 'Failed to update department',
+                                    });
                                   }
                                 }
                               }}
@@ -1831,8 +2337,8 @@ const paginatedDepartments = filteredDepartments.slice((deptCurrentPage - 1) * d
                             <button
                               className="btn btn-danger"
                               onClick={() => {
-                                setDeptToDelete(dept)
-                                setShowDeleteDeptConfirm(true)
+                                setDeptToDelete(dept);
+                                setShowDeleteDeptConfirm(true);
                               }}
                             >
                               Delete
@@ -1844,19 +2350,48 @@ const paginatedDepartments = filteredDepartments.slice((deptCurrentPage - 1) * d
                   ) : (
                     /* Table View */
                     <div style={{ overflowX: 'auto' }}>
-                      <table style={{
-                        width: '100%',
-                        borderCollapse: 'collapse',
-                        backgroundColor: 'var(--surface)',
-                        borderRadius: '8px',
-                        overflow: 'hidden',
-                        boxShadow: '0 2px 8px rgba(0,0,0,0.1)'
-                      }}>
+                      <table
+                        style={{
+                          width: '100%',
+                          borderCollapse: 'collapse',
+                          backgroundColor: 'var(--surface)',
+                          borderRadius: '8px',
+                          overflow: 'hidden',
+                          boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
+                        }}
+                      >
                         <thead>
                           <tr style={{ backgroundColor: 'var(--surface-secondary)' }}>
-                            <th style={{ padding: '12px', textAlign: 'left', borderBottom: '1px solid var(--border)', fontWeight: '600' }}>Code</th>
-                            <th style={{ padding: '12px', textAlign: 'left', borderBottom: '1px solid var(--border)', fontWeight: '600' }}>Name</th>
-                            <th style={{ padding: '12px', textAlign: 'center', borderBottom: '1px solid var(--border)', fontWeight: '600' }}>Actions</th>
+                            <th
+                              style={{
+                                padding: '12px',
+                                textAlign: 'left',
+                                borderBottom: '1px solid var(--border)',
+                                fontWeight: '600',
+                              }}
+                            >
+                              Code
+                            </th>
+                            <th
+                              style={{
+                                padding: '12px',
+                                textAlign: 'left',
+                                borderBottom: '1px solid var(--border)',
+                                fontWeight: '600',
+                              }}
+                            >
+                              Name
+                            </th>
+                            <th
+                              style={{
+                                padding: '12px',
+                                textAlign: 'center',
+                                borderBottom: '1px solid var(--border)',
+                                fontWeight: '600',
+                              }}
+                            >
+                              Actions
+                            </th>
                           </tr>
                         </thead>
                         <tbody>
@@ -1867,18 +2402,20 @@ const paginatedDepartments = filteredDepartments.slice((deptCurrentPage - 1) * d
                               </td>
                               <td style={{ padding: '12px' }}>{dept.name}</td>
                               <td style={{ padding: '12px', textAlign: 'center' }}>
-                                <div style={{ display: 'flex', gap: '4px', justifyContent: 'center' }}>
+                                <div
+                                  style={{ display: 'flex', gap: '4px', justifyContent: 'center' }}
+                                >
                                   <button
                                     className="btn btn-secondary"
                                     style={{ fontSize: '0.8em', padding: '4px 8px' }}
                                     onClick={async () => {
-                                      setSelectedDeptDetails(dept)
-                                      setShowDeptDetailsModal(true)
+                                      setSelectedDeptDetails(dept);
+                                      setShowDeptDetailsModal(true);
                                       try {
-                                        const r = await getCoursesByDepartment(dept.id)
-                                        setDeptDetailsCourses(r.courses)
+                                        const r = await getCoursesByDepartment(dept.id);
+                                        setDeptDetailsCourses(r.courses);
                                       } catch (err) {
-                                        console.error('Error loading courses:', err)
+                                        console.error('Error loading courses:', err);
                                       }
                                     }}
                                   >
@@ -1888,11 +2425,16 @@ const paginatedDepartments = filteredDepartments.slice((deptCurrentPage - 1) * d
                                     className="btn btn-secondary"
                                     style={{ fontSize: '0.8em', padding: '4px 8px' }}
                                     onClick={() => {
-                                      const newCode = prompt('Enter new code:', dept.code)
-                                      const newName = prompt('Enter new name:', dept.name)
+                                      const newCode = prompt('Enter new code:', dept.code);
+                                      const newName = prompt('Enter new name:', dept.name);
                                       if (newCode !== null || newName !== null) {
                                         // Update department logic would go here
-                                        console.log('Update department:', dept.id, newCode, newName)
+                                        console.log(
+                                          'Update department:',
+                                          dept.id,
+                                          newCode,
+                                          newName
+                                        );
                                       }
                                     }}
                                   >
@@ -1902,8 +2444,8 @@ const paginatedDepartments = filteredDepartments.slice((deptCurrentPage - 1) * d
                                     className="btn btn-danger"
                                     style={{ fontSize: '0.8em', padding: '4px 8px' }}
                                     onClick={() => {
-                                      setDeptToDelete(dept)
-                                      setShowDeleteDeptConfirm(true)
+                                      setDeptToDelete(dept);
+                                      setShowDeleteDeptConfirm(true);
                                     }}
                                   >
                                     Delete
@@ -1919,16 +2461,18 @@ const paginatedDepartments = filteredDepartments.slice((deptCurrentPage - 1) * d
 
                   {/* Pagination Controls */}
                   {deptTotalPages > 1 && (
-                    <div style={{
-                      display: 'flex',
-                      justifyContent: 'center',
-                      alignItems: 'center',
-                      gap: '8px',
-                      marginTop: '20px',
-                      padding: '12px',
-                      backgroundColor: 'var(--surface-secondary)',
-                      borderRadius: '8px'
-                    }}>
+                    <div
+                      style={{
+                        display: 'flex',
+                        justifyContent: 'center',
+                        alignItems: 'center',
+                        gap: '8px',
+                        marginTop: '20px',
+                        padding: '12px',
+                        backgroundColor: 'var(--surface-secondary)',
+                        borderRadius: '8px',
+                      }}
+                    >
                       <button
                         className="btn btn-secondary"
                         onClick={() => setDeptCurrentPage(Math.max(1, deptCurrentPage - 1))}
@@ -1944,7 +2488,9 @@ const paginatedDepartments = filteredDepartments.slice((deptCurrentPage - 1) * d
 
                       <button
                         className="btn btn-secondary"
-                        onClick={() => setDeptCurrentPage(Math.min(deptTotalPages, deptCurrentPage + 1))}
+                        onClick={() =>
+                          setDeptCurrentPage(Math.min(deptTotalPages, deptCurrentPage + 1))
+                        }
                         disabled={deptCurrentPage === deptTotalPages}
                         style={{ padding: '6px 12px' }}
                       >
@@ -1957,17 +2503,21 @@ const paginatedDepartments = filteredDepartments.slice((deptCurrentPage - 1) * d
             </>
           )}
           {!isLoading && departments.length === 0 && !loadError && (
-            <div style={{
-              textAlign: 'center',
-              padding: '40px 20px',
-              color: 'var(--text-secondary)',
-              backgroundColor: 'var(--surface-secondary)',
-              borderRadius: '8px',
-              border: '2px dashed var(--border)'
-            }}>
+            <div
+              style={{
+                textAlign: 'center',
+                padding: '40px 20px',
+                color: 'var(--text-secondary)',
+                backgroundColor: 'var(--surface-secondary)',
+                borderRadius: '8px',
+                border: '2px dashed var(--border)',
+              }}
+            >
               <div style={{ fontSize: '3em', marginBottom: '16px' }}>🏢</div>
               <h3 style={{ margin: '0 0 8px 0', color: 'var(--text)' }}>No departments yet</h3>
-              <p style={{ margin: '0 0 16px 0' }}>Departments will appear here once they are created</p>
+              <p style={{ margin: '0 0 16px 0' }}>
+                Departments will appear here once they are created
+              </p>
             </div>
           )}
         </section>
@@ -1990,31 +2540,31 @@ const paginatedDepartments = filteredDepartments.slice((deptCurrentPage - 1) * d
             <div className="stat-card">
               <h3>Total Users</h3>
               <p className="stat-number">
-                {loadingOverview ? 'Loading...' : (overviewStats?.totalUsers || 0)}
+                {loadingOverview ? 'Loading...' : overviewStats?.totalUsers || 0}
               </p>
             </div>
             <div className="stat-card">
               <h3>Inactive Users</h3>
               <p className="stat-number">
-                {loadingOverview ? 'Loading...' : (overviewStats?.inactiveUsers || 0)}
+                {loadingOverview ? 'Loading...' : overviewStats?.inactiveUsers || 0}
               </p>
             </div>
             <div className="stat-card">
               <h3>Active Courses</h3>
               <p className="stat-number">
-                {loadingOverview ? 'Loading...' : (overviewStats?.activeCourses || 0)}
+                {loadingOverview ? 'Loading...' : overviewStats?.activeCourses || 0}
               </p>
             </div>
             <div className="stat-card">
               <h3>Assignments</h3>
               <p className="stat-number">
-                {loadingOverview ? 'Loading...' : (overviewStats?.totalAssignments || 0)}
+                {loadingOverview ? 'Loading...' : overviewStats?.totalAssignments || 0}
               </p>
             </div>
             <div className="stat-card">
               <h3>Submissions</h3>
               <p className="stat-number">
-                {loadingOverview ? 'Loading...' : (overviewStats?.totalSubmissions || 0)}
+                {loadingOverview ? 'Loading...' : overviewStats?.totalSubmissions || 0}
               </p>
             </div>
           </div>
@@ -2022,18 +2572,26 @@ const paginatedDepartments = filteredDepartments.slice((deptCurrentPage - 1) * d
             <div className="quick-actions">
               <h3>Quick Actions</h3>
               <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
-                <button className="btn btn-primary" onClick={() => setTab('users')}>Manage Users</button>
-                <button className="btn btn-primary" onClick={() => setTab('courses')}>Create Course</button>
-                <button className="btn btn-primary" onClick={() => setTab('departments')}>Add Department</button>
-                <button className="btn btn-primary" onClick={() => setTab('reports')}>View Reports</button>
+                <button className="btn btn-primary" onClick={() => setTab('users')}>
+                  Manage Users
+                </button>
+                <button className="btn btn-primary" onClick={() => setTab('courses')}>
+                  Create Course
+                </button>
+                <button className="btn btn-primary" onClick={() => setTab('departments')}>
+                  Add Department
+                </button>
+                <button className="btn btn-primary" onClick={() => setTab('reports')}>
+                  View Reports
+                </button>
               </div>
             </div>
             <RecentActivities
               refreshTrigger={Date.now()}
               onNavigate={(tab: string, filter?: string) => {
-                setTab(tab as unknown)
+                setTab(tab as unknown);
                 if (filter && tab === 'users') {
-                  setUserDeptFilter(filter)
+                  setUserDeptFilter(filter);
                 }
               }}
             />
@@ -2041,32 +2599,94 @@ const paginatedDepartments = filteredDepartments.slice((deptCurrentPage - 1) * d
         </section>
       )}
 
-
       {showCreateCourse && selectedDept && (
-        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, backdropFilter: 'blur(4px)', padding: '20px', overflowY: 'auto' }}>
-          <div className="card" style={{ width: '100%', maxWidth: 520, background: 'var(--surface)', borderRadius: 'var(--radius-lg)', padding: 24, boxShadow: '0 20px 50px rgba(0,0,0,0.3)', border: '1px solid var(--border)', margin: 'auto', maxHeight: '90vh', overflowY: 'auto' }}>
-            <h3 className="h4" style={{ marginTop: 0, marginBottom: 20, color: 'var(--text)' }}>Create New Course in {selectedDept.name}</h3>
+        <div
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: 'rgba(0,0,0,0.5)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 1000,
+            backdropFilter: 'blur(4px)',
+            padding: '20px',
+            overflowY: 'auto',
+          }}
+        >
+          <div
+            className="card"
+            style={{
+              width: '100%',
+              maxWidth: 520,
+              background: 'var(--surface)',
+              borderRadius: 'var(--radius-lg)',
+              padding: 24,
+              boxShadow: '0 20px 50px rgba(0,0,0,0.3)',
+              border: '1px solid var(--border)',
+              margin: 'auto',
+              maxHeight: '90vh',
+              overflowY: 'auto',
+            }}
+          >
+            <h3 className="h4" style={{ marginTop: 0, marginBottom: 20, color: 'var(--text)' }}>
+              Create New Course in {selectedDept.name}
+            </h3>
             <div className="form" style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-              <input className="input" value={newCode} onChange={(e) => setNewCode(e.target.value)} placeholder="Course Code (e.g., CS101)" />
-              <input className="input" value={newTitle} onChange={(e) => setNewTitle(e.target.value)} placeholder="Course Title (e.g., Introduction to Computer Science)" />
-              <input className="input" value={newDesc} onChange={(e) => setNewDesc(e.target.value)} placeholder="Description (Brief course description)" />
-              <input className="input" type="number" value={newCredits} onChange={(e) => setNewCredits(e.target.value === '' ? '' : Number(e.target.value))} placeholder="Credits (e.g., 3)" />
+              <input
+                className="input"
+                value={newCode}
+                onChange={e => setNewCode(e.target.value)}
+                placeholder="Course Code (e.g., CS101)"
+              />
+              <input
+                className="input"
+                value={newTitle}
+                onChange={e => setNewTitle(e.target.value)}
+                placeholder="Course Title (e.g., Introduction to Computer Science)"
+              />
+              <input
+                className="input"
+                value={newDesc}
+                onChange={e => setNewDesc(e.target.value)}
+                placeholder="Description (Brief course description)"
+              />
+              <input
+                className="input"
+                type="number"
+                value={newCredits}
+                onChange={e => setNewCredits(e.target.value === '' ? '' : Number(e.target.value))}
+                placeholder="Credits (e.g., 3)"
+              />
               <div>
                 <div style={{ fontWeight: 600, marginBottom: 6 }}>Assign Faculty</div>
-                <div style={{ maxHeight: 180, overflowY: 'auto', border: '1px solid #e5e7eb', borderRadius: 8, padding: 8 }}>
+                <div
+                  style={{
+                    maxHeight: 180,
+                    overflowY: 'auto',
+                    border: '1px solid #e5e7eb',
+                    borderRadius: 8,
+                    padding: 8,
+                  }}
+                >
                   {deptFaculty.length === 0 ? (
                     <div className="muted">No faculty in this department</div>
                   ) : (
                     <ul className="list">
-                      {deptFaculty.map((f) => (
+                      {deptFaculty.map(f => (
                         <li key={f.id}>
                           <label style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                             <input
                               type="checkbox"
                               checked={selectedFacultyIds.includes(f.id)}
-                              onChange={(e) => {
-                                const checked = e.target.checked
-                                setSelectedFacultyIds((prev) => checked ? [...prev, f.id] : prev.filter((x) => x !== f.id))
+                              onChange={e => {
+                                const checked = e.target.checked;
+                                setSelectedFacultyIds(prev =>
+                                  checked ? [...prev, f.id] : prev.filter(x => x !== f.id)
+                                );
                               }}
                             />
                             <span>{f.name || f.email}</span>
@@ -2079,26 +2699,41 @@ const paginatedDepartments = filteredDepartments.slice((deptCurrentPage - 1) * d
               </div>
             </div>
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 12, marginTop: 24 }}>
-              <button className="btn btn-secondary" onClick={() => setShowCreateCourse(false)} disabled={savingCourse}>Cancel</button>
+              <button
+                className="btn btn-secondary"
+                onClick={() => setShowCreateCourse(false)}
+                disabled={savingCourse}
+              >
+                Cancel
+              </button>
               <button
                 className="btn btn-primary"
                 onClick={async () => {
-                  if (!newCode || !newTitle) return
+                  if (!newCode || !newTitle) return;
                   try {
-                    setSavingCourse(true)
-                    const c = await createCourse({ code: newCode, title: newTitle, description: newDesc || undefined, department_id: selectedDept.id, credits: newCredits === '' ? undefined : Number(newCredits) })
+                    setSavingCourse(true);
+                    const c = await createCourse({
+                      code: newCode,
+                      title: newTitle,
+                      description: newDesc || undefined,
+                      department_id: selectedDept.id,
+                      credits: newCredits === '' ? undefined : Number(newCredits),
+                    });
                     if (selectedFacultyIds.length) {
-                      await assignFacultyToCourse(c.id, selectedFacultyIds)
+                      await assignFacultyToCourse(c.id, selectedFacultyIds);
                     }
-                    const r = await getCoursesByDepartment(selectedDept.id)
-                    setDeptCourses(r.courses)
-                    setShowCreateCourse(false)
-                    push({ kind: 'success', message: `Course ${c.code || ''} created successfully` })
-                    setTimeout(() => window.location.reload(), 800)
+                    const r = await getCoursesByDepartment(selectedDept.id);
+                    setDeptCourses(r.courses);
+                    setShowCreateCourse(false);
+                    push({
+                      kind: 'success',
+                      message: `Course ${c.code || ''} created successfully`,
+                    });
+                    setTimeout(() => window.location.reload(), 800);
                   } catch (e: unknown) {
-                    push({ kind: 'error', message: e?.message || 'Failed to create course' })
+                    push({ kind: 'error', message: e?.message || 'Failed to create course' });
                   } finally {
-                    setSavingCourse(false)
+                    setSavingCourse(false);
                   }
                 }}
                 disabled={savingCourse || !newCode || !newTitle}
@@ -2110,32 +2745,111 @@ const paginatedDepartments = filteredDepartments.slice((deptCurrentPage - 1) * d
         </div>
       )}
       {showOfferCourse && offerForCourse && (
-        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, backdropFilter: 'blur(4px)', padding: '20px', overflowY: 'auto' }}>
-          <div className="card" style={{ width: '100%', maxWidth: 520, background: 'var(--surface)', borderRadius: 'var(--radius-lg)', padding: 24, boxShadow: '0 20px 50px rgba(0,0,0,0.3)', border: '1px solid var(--border)', margin: 'auto', maxHeight: '90vh', overflowY: 'auto' }}>
-            <h3 className="h4" style={{ marginTop: 0, marginBottom: 20, color: 'var(--text)' }}>Create Offering — {offerForCourse.code}</h3>
+        <div
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: 'rgba(0,0,0,0.5)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 1000,
+            backdropFilter: 'blur(4px)',
+            padding: '20px',
+            overflowY: 'auto',
+          }}
+        >
+          <div
+            className="card"
+            style={{
+              width: '100%',
+              maxWidth: 520,
+              background: 'var(--surface)',
+              borderRadius: 'var(--radius-lg)',
+              padding: 24,
+              boxShadow: '0 20px 50px rgba(0,0,0,0.3)',
+              border: '1px solid var(--border)',
+              margin: 'auto',
+              maxHeight: '90vh',
+              overflowY: 'auto',
+            }}
+          >
+            <h3 className="h4" style={{ marginTop: 0, marginBottom: 20, color: 'var(--text)' }}>
+              Create Offering — {offerForCourse.code}
+            </h3>
             <div className="form" style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-              <input className="input" value={offerTerm} onChange={(e) => setOfferTerm(e.target.value)} placeholder="Term (e.g., W25 or Fall 2024)" />
-              <input className="input" value={offerSection} onChange={(e) => setOfferSection(e.target.value)} placeholder="Section (e.g., A)" />
-              <select className="input" value={offerFacultyId} onChange={(e) => setOfferFacultyId(e.target.value === '' ? '' : Number(e.target.value))}>
+              <input
+                className="input"
+                value={offerTerm}
+                onChange={e => setOfferTerm(e.target.value)}
+                placeholder="Term (e.g., W25 or Fall 2024)"
+              />
+              <input
+                className="input"
+                value={offerSection}
+                onChange={e => setOfferSection(e.target.value)}
+                placeholder="Section (e.g., A)"
+              />
+              <select
+                className="input"
+                value={offerFacultyId}
+                onChange={e =>
+                  setOfferFacultyId(e.target.value === '' ? '' : Number(e.target.value))
+                }
+              >
                 <option value="">Faculty (Select faculty member)</option>
-                {deptFaculty.map((f) => (
-                  <option key={f.id} value={f.id}>{f.name || f.email}</option>
+                {deptFaculty.map(f => (
+                  <option key={f.id} value={f.id}>
+                    {f.name || f.email}
+                  </option>
                 ))}
               </select>
-              <input className="input" type="number" value={offerCapacity} onChange={(e) => setOfferCapacity(e.target.value === '' ? '' : Number(e.target.value))} placeholder="Max Capacity (e.g., 50) - Optional" />
+              <input
+                className="input"
+                type="number"
+                value={offerCapacity}
+                onChange={e =>
+                  setOfferCapacity(e.target.value === '' ? '' : Number(e.target.value))
+                }
+                placeholder="Max Capacity (e.g., 50) - Optional"
+              />
               <div className="grid" style={{ gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-                <input className="input" type="date" value={offerStart} onChange={(e) => setOfferStart(e.target.value)} placeholder="Start Date" />
-                <input className="input" type="date" value={offerEnd} onChange={(e) => setOfferEnd(e.target.value)} placeholder="End Date" />
+                <input
+                  className="input"
+                  type="date"
+                  value={offerStart}
+                  onChange={e => setOfferStart(e.target.value)}
+                  placeholder="Start Date"
+                />
+                <input
+                  className="input"
+                  type="date"
+                  value={offerEnd}
+                  onChange={e => setOfferEnd(e.target.value)}
+                  placeholder="End Date"
+                />
               </div>
             </div>
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 12, marginTop: 24 }}>
-              <button className="btn btn-secondary" onClick={() => { setShowOfferCourse(false); setOfferForCourse(null); }} disabled={savingOffering}>Cancel</button>
+              <button
+                className="btn btn-secondary"
+                onClick={() => {
+                  setShowOfferCourse(false);
+                  setOfferForCourse(null);
+                }}
+                disabled={savingOffering}
+              >
+                Cancel
+              </button>
               <button
                 className="btn btn-primary"
                 onClick={async () => {
-                  if (!offerForCourse?.id || !offerTerm || !offerFacultyId) return
+                  if (!offerForCourse?.id || !offerTerm || !offerFacultyId) return;
                   try {
-                    setSavingOffering(true)
+                    setSavingOffering(true);
                     const payload = {
                       course_id: Number(offerForCourse.id),
                       term: offerTerm,
@@ -2144,16 +2858,16 @@ const paginatedDepartments = filteredDepartments.slice((deptCurrentPage - 1) * d
                       max_capacity: offerCapacity === '' ? undefined : Number(offerCapacity),
                       start_date: offerStart || undefined,
                       end_date: offerEnd || undefined,
-                    }
-                    const res = await createOffering(payload)
-                    setShowOfferCourse(false)
-                    setOfferForCourse(null)
-                    push({ kind: 'success', message: `Offering #${res.id} created` })
-                    setTimeout(() => window.location.reload(), 800)
+                    };
+                    const res = await createOffering(payload);
+                    setShowOfferCourse(false);
+                    setOfferForCourse(null);
+                    push({ kind: 'success', message: `Offering #${res.id} created` });
+                    setTimeout(() => window.location.reload(), 800);
                   } catch (e: unknown) {
-                    push({ kind: 'error', message: e?.message || 'Failed to create offering' })
+                    push({ kind: 'error', message: e?.message || 'Failed to create offering' });
                   } finally {
-                    setSavingOffering(false)
+                    setSavingOffering(false);
                   }
                 }}
                 disabled={savingOffering || !offerTerm || !offerFacultyId}
@@ -2166,44 +2880,128 @@ const paginatedDepartments = filteredDepartments.slice((deptCurrentPage - 1) * d
       )}
 
       {showCreateUser && (
-        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, backdropFilter: 'blur(4px)', padding: '20px', overflowY: 'auto' }}>
-          <div className="card" style={{ width: '100%', maxWidth: 520, background: 'var(--surface)', borderRadius: 'var(--radius-lg)', padding: 24, boxShadow: '0 20px 50px rgba(0,0,0,0.3)', border: '1px solid var(--border)', margin: 'auto', maxHeight: '90vh', overflowY: 'auto' }}>
-            <h3 className="h4" style={{ marginTop: 0, marginBottom: 20, color: 'var(--text)' }}>Create New User</h3>
+        <div
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: 'rgba(0,0,0,0.5)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 1000,
+            backdropFilter: 'blur(4px)',
+            padding: '20px',
+            overflowY: 'auto',
+          }}
+        >
+          <div
+            className="card"
+            style={{
+              width: '100%',
+              maxWidth: 520,
+              background: 'var(--surface)',
+              borderRadius: 'var(--radius-lg)',
+              padding: 24,
+              boxShadow: '0 20px 50px rgba(0,0,0,0.3)',
+              border: '1px solid var(--border)',
+              margin: 'auto',
+              maxHeight: '90vh',
+              overflowY: 'auto',
+            }}
+          >
+            <h3 className="h4" style={{ marginTop: 0, marginBottom: 20, color: 'var(--text)' }}>
+              Create New User
+            </h3>
             <div className="form" style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-              <input className="input" value={newUser.name} onChange={(e) => setNewUser({ ...newUser, name: e.target.value })} placeholder="Full Name" />
-              <input className="input" type="email" value={newUser.email} onChange={(e) => setNewUser({ ...newUser, email: e.target.value })} placeholder="Email Address" />
-              <input className="input" type="password" value={newUser.password} onChange={(e) => setNewUser({ ...newUser, password: e.target.value })} placeholder="Password" />
-              <select className="input" value={newUser.role} onChange={(e) => setNewUser({ ...newUser, role: e.target.value as unknown })}>
+              <input
+                className="input"
+                value={newUser.name}
+                onChange={e => setNewUser({ ...newUser, name: e.target.value })}
+                placeholder="Full Name"
+              />
+              <input
+                className="input"
+                type="email"
+                value={newUser.email}
+                onChange={e => setNewUser({ ...newUser, email: e.target.value })}
+                placeholder="Email Address"
+              />
+              <input
+                className="input"
+                type="password"
+                value={newUser.password}
+                onChange={e => setNewUser({ ...newUser, password: e.target.value })}
+                placeholder="Password"
+              />
+              <select
+                className="input"
+                value={newUser.role}
+                onChange={e => setNewUser({ ...newUser, role: e.target.value as unknown })}
+              >
                 <option value="student">Student</option>
                 <option value="faculty">Faculty</option>
                 <option value="ta">Teaching Assistant</option>
                 <option value="admin">Admin</option>
               </select>
-              <select className="input" value={newUser.department_id} onChange={(e) => setNewUser({ ...newUser, department_id: e.target.value })}>
+              <select
+                className="input"
+                value={newUser.department_id}
+                onChange={e => setNewUser({ ...newUser, department_id: e.target.value })}
+              >
                 <option value="">Select Department (Optional)</option>
                 {departments.map((d: unknown) => (
-                  <option key={d.id} value={d.id}>{d.name}</option>
+                  <option key={d.id} value={d.id}>
+                    {d.name}
+                  </option>
                 ))}
               </select>
-              <input className="input" value={newUser.roll_number} onChange={(e) => setNewUser({ ...newUser, roll_number: e.target.value })} placeholder="Roll Number (Optional)" />
+              <input
+                className="input"
+                value={newUser.roll_number}
+                onChange={e => setNewUser({ ...newUser, roll_number: e.target.value })}
+                placeholder="Roll Number (Optional)"
+              />
             </div>
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 12, marginTop: 24 }}>
-              <button className="btn btn-secondary" onClick={() => setShowCreateUser(false)} disabled={creatingUser}>Cancel</button>
+              <button
+                className="btn btn-secondary"
+                onClick={() => setShowCreateUser(false)}
+                disabled={creatingUser}
+              >
+                Cancel
+              </button>
               <button
                 className="btn btn-primary"
                 onClick={async () => {
-                  if (!newUser.name || !newUser.email || !newUser.password) return
+                  if (!newUser.name || !newUser.email || !newUser.password) return;
                   try {
-                    setCreatingUser(true)
-                    await register(newUser.name, newUser.email, newUser.password, newUser.role as unknown, newUser.department_id ? Number(newUser.department_id) : undefined, newUser.roll_number || undefined)
-                    setShowCreateUser(false)
-                    setNewUser({ name: '', email: '', password: '', role: 'student', department_id: '', roll_number: '' })
-                    push({ kind: 'success', message: 'User created successfully' })
-                    loadUsers()
+                    setCreatingUser(true);
+                    await register(
+                      newUser.name,
+                      newUser.email,
+                      newUser.password,
+                      newUser.role as unknown,
+                      newUser.department_id ? Number(newUser.department_id) : undefined,
+                      newUser.roll_number || undefined
+                    );
+                    setShowCreateUser(false);
+                    setNewUser({
+                      name: '',
+                      email: '',
+                      password: '',
+                      role: 'student',
+                      department_id: '',
+                      roll_number: '',
+                    });
+                    push({ kind: 'success', message: 'User created successfully' });
+                    loadUsers();
                   } catch (e: unknown) {
-                    push({ kind: 'error', message: e?.message || 'Failed to create user' })
+                    push({ kind: 'error', message: e?.message || 'Failed to create user' });
                   } finally {
-                    setCreatingUser(false)
+                    setCreatingUser(false);
                   }
                 }}
                 disabled={creatingUser || !newUser.name || !newUser.email || !newUser.password}
@@ -2216,30 +3014,78 @@ const paginatedDepartments = filteredDepartments.slice((deptCurrentPage - 1) * d
       )}
 
       {showCreateDept && (
-        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, backdropFilter: 'blur(4px)', padding: '20px', overflowY: 'auto' }}>
-          <div className="card" style={{ width: '100%', maxWidth: 520, background: 'var(--surface)', borderRadius: 'var(--radius-lg)', padding: 24, boxShadow: '0 20px 50px rgba(0,0,0,0.3)', border: '1px solid var(--border)', margin: 'auto', maxHeight: '90vh', overflowY: 'auto' }}>
-            <h3 className="h4" style={{ marginTop: 0, marginBottom: 20, color: 'var(--text)' }}>Create New Department</h3>
+        <div
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: 'rgba(0,0,0,0.5)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 1000,
+            backdropFilter: 'blur(4px)',
+            padding: '20px',
+            overflowY: 'auto',
+          }}
+        >
+          <div
+            className="card"
+            style={{
+              width: '100%',
+              maxWidth: 520,
+              background: 'var(--surface)',
+              borderRadius: 'var(--radius-lg)',
+              padding: 24,
+              boxShadow: '0 20px 50px rgba(0,0,0,0.3)',
+              border: '1px solid var(--border)',
+              margin: 'auto',
+              maxHeight: '90vh',
+              overflowY: 'auto',
+            }}
+          >
+            <h3 className="h4" style={{ marginTop: 0, marginBottom: 20, color: 'var(--text)' }}>
+              Create New Department
+            </h3>
             <div className="form" style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-              <input className="input" value={newDept.code} onChange={(e) => setNewDept({ ...newDept, code: e.target.value.toUpperCase() })} placeholder="Department Code (e.g., CSE)" />
-              <input className="input" value={newDept.name} onChange={(e) => setNewDept({ ...newDept, name: e.target.value })} placeholder="Department Name (e.g., Computer Science and Engineering)" />
+              <input
+                className="input"
+                value={newDept.code}
+                onChange={e => setNewDept({ ...newDept, code: e.target.value.toUpperCase() })}
+                placeholder="Department Code (e.g., CSE)"
+              />
+              <input
+                className="input"
+                value={newDept.name}
+                onChange={e => setNewDept({ ...newDept, name: e.target.value })}
+                placeholder="Department Name (e.g., Computer Science and Engineering)"
+              />
             </div>
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 12, marginTop: 24 }}>
-              <button className="btn btn-secondary" onClick={() => setShowCreateDept(false)} disabled={creatingDept}>Cancel</button>
+              <button
+                className="btn btn-secondary"
+                onClick={() => setShowCreateDept(false)}
+                disabled={creatingDept}
+              >
+                Cancel
+              </button>
               <button
                 className="btn btn-primary"
                 onClick={async () => {
-                  if (!newDept.code || !newDept.name) return
+                  if (!newDept.code || !newDept.name) return;
                   try {
-                    setCreatingDept(true)
-                    await createDepartment(newDept.code, newDept.name)
-                    setShowCreateDept(false)
-                    setNewDept({ code: '', name: '' })
-                    push({ kind: 'success', message: 'Department created successfully' })
-                    loadDepartments()
+                    setCreatingDept(true);
+                    await createDepartment(newDept.code, newDept.name);
+                    setShowCreateDept(false);
+                    setNewDept({ code: '', name: '' });
+                    push({ kind: 'success', message: 'Department created successfully' });
+                    loadDepartments();
                   } catch (e: unknown) {
-                    push({ kind: 'error', message: e?.message || 'Failed to create department' })
+                    push({ kind: 'error', message: e?.message || 'Failed to create department' });
                   } finally {
-                    setCreatingDept(false)
+                    setCreatingDept(false);
                   }
                 }}
                 disabled={creatingDept || !newDept.code || !newDept.name}
@@ -2252,61 +3098,157 @@ const paginatedDepartments = filteredDepartments.slice((deptCurrentPage - 1) * d
       )}
 
       {showCreateOffering && (
-        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1100, backdropFilter: 'blur(4px)', padding: '20px', overflowY: 'auto' }}>
-          <div className="card" style={{ width: '100%', maxWidth: 520, background: 'var(--surface)', borderRadius: 'var(--radius-lg)', padding: 24, boxShadow: '0 20px 50px rgba(0,0,0,0.3)', border: '1px solid var(--border)', margin: 'auto', maxHeight: '90vh', overflowY: 'auto' }}>
-            <h3 className="h4" style={{ marginTop: 0, marginBottom: 20, color: 'var(--text)' }}>Create New Course Offering</h3>
+        <div
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: 'rgba(0,0,0,0.5)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 1100,
+            backdropFilter: 'blur(4px)',
+            padding: '20px',
+            overflowY: 'auto',
+          }}
+        >
+          <div
+            className="card"
+            style={{
+              width: '100%',
+              maxWidth: 520,
+              background: 'var(--surface)',
+              borderRadius: 'var(--radius-lg)',
+              padding: 24,
+              boxShadow: '0 20px 50px rgba(0,0,0,0.3)',
+              border: '1px solid var(--border)',
+              margin: 'auto',
+              maxHeight: '90vh',
+              overflowY: 'auto',
+            }}
+          >
+            <h3 className="h4" style={{ marginTop: 0, marginBottom: 20, color: 'var(--text)' }}>
+              Create New Course Offering
+            </h3>
             <div className="form" style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-              <select className="input" value={newOffering.course_id} onChange={(e) => setNewOffering({ ...newOffering, course_id: e.target.value })}>
+              <select
+                className="input"
+                value={newOffering.course_id}
+                onChange={e => setNewOffering({ ...newOffering, course_id: e.target.value })}
+              >
                 <option value="">Select Course</option>
                 {adminCourses.map((c: unknown) => (
-                  <option key={c.id} value={c.id}>{c.code} - {c.title}</option>
+                  <option key={c.id} value={c.id}>
+                    {c.code} - {c.title}
+                  </option>
                 ))}
               </select>
-              <input className="input" value={newOffering.term} onChange={(e) => setNewOffering({ ...newOffering, term: e.target.value })} placeholder="Term (e.g., W25)" />
-              <input className="input" value={newOffering.section} onChange={(e) => setNewOffering({ ...newOffering, section: e.target.value })} placeholder="Section (e.g., A)" />
-              <select className="input" value={newOffering.faculty_id} onChange={(e) => setNewOffering({ ...newOffering, faculty_id: e.target.value })}>
+              <input
+                className="input"
+                value={newOffering.term}
+                onChange={e => setNewOffering({ ...newOffering, term: e.target.value })}
+                placeholder="Term (e.g., W25)"
+              />
+              <input
+                className="input"
+                value={newOffering.section}
+                onChange={e => setNewOffering({ ...newOffering, section: e.target.value })}
+                placeholder="Section (e.g., A)"
+              />
+              <select
+                className="input"
+                value={newOffering.faculty_id}
+                onChange={e => setNewOffering({ ...newOffering, faculty_id: e.target.value })}
+              >
                 <option value="">Select Faculty</option>
-                {usersList.filter((u: unknown) => u.role === 'faculty').map((f: unknown) => (
-                  <option key={f.id} value={f.id}>{f.name || f.email}</option>
-                ))}
+                {usersList
+                  .filter((u: unknown) => u.role === 'faculty')
+                  .map((f: unknown) => (
+                    <option key={f.id} value={f.id}>
+                      {f.name || f.email}
+                    </option>
+                  ))}
               </select>
-              <input className="input" type="number" value={newOffering.max_capacity} onChange={(e) => setNewOffering({ ...newOffering, max_capacity: e.target.value })} placeholder="Max Capacity (Optional)" />
+              <input
+                className="input"
+                type="number"
+                value={newOffering.max_capacity}
+                onChange={e => setNewOffering({ ...newOffering, max_capacity: e.target.value })}
+                placeholder="Max Capacity (Optional)"
+              />
               <div className="grid" style={{ gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-                <input className="input" type="date" value={newOffering.start_date} onChange={(e) => setNewOffering({ ...newOffering, start_date: e.target.value })} placeholder="Start Date" />
-                <input className="input" type="date" value={newOffering.end_date} onChange={(e) => setNewOffering({ ...newOffering, end_date: e.target.value })} placeholder="End Date" />
+                <input
+                  className="input"
+                  type="date"
+                  value={newOffering.start_date}
+                  onChange={e => setNewOffering({ ...newOffering, start_date: e.target.value })}
+                  placeholder="Start Date"
+                />
+                <input
+                  className="input"
+                  type="date"
+                  value={newOffering.end_date}
+                  onChange={e => setNewOffering({ ...newOffering, end_date: e.target.value })}
+                  placeholder="End Date"
+                />
               </div>
             </div>
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 12, marginTop: 24 }}>
-              <button className="btn btn-secondary" onClick={() => setShowCreateOffering(false)} disabled={creatingOffering}>Cancel</button>
+              <button
+                className="btn btn-secondary"
+                onClick={() => setShowCreateOffering(false)}
+                disabled={creatingOffering}
+              >
+                Cancel
+              </button>
               <button
                 className="btn btn-primary"
                 onClick={async () => {
-                  if (!newOffering.course_id || !newOffering.term || !newOffering.faculty_id) return
+                  if (!newOffering.course_id || !newOffering.term || !newOffering.faculty_id)
+                    return;
                   try {
-                    setCreatingOffering(true)
+                    setCreatingOffering(true);
                     await createOffering({
                       course_id: Number(newOffering.course_id),
                       term: newOffering.term,
                       section: newOffering.section || undefined,
                       faculty_id: Number(newOffering.faculty_id),
-                      max_capacity: newOffering.max_capacity ? Number(newOffering.max_capacity) : undefined,
+                      max_capacity: newOffering.max_capacity
+                        ? Number(newOffering.max_capacity)
+                        : undefined,
                       start_date: newOffering.start_date || undefined,
                       end_date: newOffering.end_date || undefined,
-                    })
-                    setShowCreateOffering(false)
-                    setNewOffering({ course_id: '', term: 'W25', section: 'A', faculty_id: '', max_capacity: '', start_date: '', end_date: '' })
-                    push({ kind: 'success', message: 'Offering created successfully' })
-                    loadOfferings()
+                    });
+                    setShowCreateOffering(false);
+                    setNewOffering({
+                      course_id: '',
+                      term: 'W25',
+                      section: 'A',
+                      faculty_id: '',
+                      max_capacity: '',
+                      start_date: '',
+                      end_date: '',
+                    });
+                    push({ kind: 'success', message: 'Offering created successfully' });
+                    loadOfferings();
                     if (showManageOfferings && selectedCourse) {
-                      loadAdminCourses() // Refresh the course offerings
+                      loadAdminCourses(); // Refresh the course offerings
                     }
                   } catch (e: unknown) {
-                    push({ kind: 'error', message: e?.message || 'Failed to create offering' })
+                    push({ kind: 'error', message: e?.message || 'Failed to create offering' });
                   } finally {
-                    setCreatingOffering(false)
+                    setCreatingOffering(false);
                   }
                 }}
-                disabled={creatingOffering || !newOffering.course_id || !newOffering.term || !newOffering.faculty_id}
+                disabled={
+                  creatingOffering ||
+                  !newOffering.course_id ||
+                  !newOffering.term ||
+                  !newOffering.faculty_id
+                }
               >
                 {creatingOffering ? 'Creating…' : 'Create Offering'}
               </button>
@@ -2316,56 +3258,116 @@ const paginatedDepartments = filteredDepartments.slice((deptCurrentPage - 1) * d
       )}
 
       {showCreateEnrollment && (
-        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, backdropFilter: 'blur(4px)', padding: '20px', overflowY: 'auto' }}>
-          <div className="card" style={{ width: '100%', maxWidth: 520, background: 'var(--surface)', borderRadius: 'var(--radius-lg)', padding: 24, boxShadow: '0 20px 50px rgba(0,0,0,0.3)', border: '1px solid var(--border)', margin: 'auto', maxHeight: '90vh', overflowY: 'auto' }}>
-            <h3 className="h4" style={{ marginTop: 0, marginBottom: 20, color: 'var(--text)' }}>Create New Enrollment</h3>
+        <div
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: 'rgba(0,0,0,0.5)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 1000,
+            backdropFilter: 'blur(4px)',
+            padding: '20px',
+            overflowY: 'auto',
+          }}
+        >
+          <div
+            className="card"
+            style={{
+              width: '100%',
+              maxWidth: 520,
+              background: 'var(--surface)',
+              borderRadius: 'var(--radius-lg)',
+              padding: 24,
+              boxShadow: '0 20px 50px rgba(0,0,0,0.3)',
+              border: '1px solid var(--border)',
+              margin: 'auto',
+              maxHeight: '90vh',
+              overflowY: 'auto',
+            }}
+          >
+            <h3 className="h4" style={{ marginTop: 0, marginBottom: 20, color: 'var(--text)' }}>
+              Create New Enrollment
+            </h3>
             <div className="form" style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-              <select className="input" value={newEnrollment.course_offering_id} onChange={(e) => setNewEnrollment({ ...newEnrollment, course_offering_id: e.target.value })}>
+              <select
+                className="input"
+                value={newEnrollment.course_offering_id}
+                onChange={e =>
+                  setNewEnrollment({ ...newEnrollment, course_offering_id: e.target.value })
+                }
+              >
                 <option value="">Select Course Offering</option>
-                {(enrollmentFromManage && selectedCourse ? selectedCourse.offerings : offerings).map((o: unknown) => (
+                {(enrollmentFromManage && selectedCourse
+                  ? selectedCourse.offerings
+                  : offerings
+                ).map((o: unknown) => (
                   <option key={o.offering_id || o.id} value={o.offering_id || o.id}>
-                    {o.course_code || selectedCourse?.code} {o.term}{o.section ? '-' + o.section : ''} - {o.faculty_name || 'N/A'}
+                    {o.course_code || selectedCourse?.code} {o.term}
+                    {o.section ? '-' + o.section : ''} - {o.faculty_name || 'N/A'}
                   </option>
                 ))}
               </select>
-              <select className="input" value={newEnrollment.student_id} onChange={(e) => setNewEnrollment({ ...newEnrollment, student_id: e.target.value })}>
+              <select
+                className="input"
+                value={newEnrollment.student_id}
+                onChange={e => setNewEnrollment({ ...newEnrollment, student_id: e.target.value })}
+              >
                 <option value="">Select Student</option>
-                {usersList.filter((u: unknown) => u.role === 'student').map((s: unknown) => (
-                  <option key={s.id} value={s.id}>{s.name || s.email} ({s.roll_number || 'No Roll Number'})</option>
-                ))}
+                {usersList
+                  .filter((u: unknown) => u.role === 'student')
+                  .map((s: unknown) => (
+                    <option key={s.id} value={s.id}>
+                      {s.name || s.email} ({s.roll_number || 'No Roll Number'})
+                    </option>
+                  ))}
               </select>
             </div>
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 12, marginTop: 24 }}>
-              <button className="btn btn-secondary" onClick={() => {
-                setShowCreateEnrollment(false)
-                setEnrollmentFromManage(false)
-                setNewEnrollment({ course_offering_id: '', student_id: '' })
-              }} disabled={creatingEnrollment}>Cancel</button>
+              <button
+                className="btn btn-secondary"
+                onClick={() => {
+                  setShowCreateEnrollment(false);
+                  setEnrollmentFromManage(false);
+                  setNewEnrollment({ course_offering_id: '', student_id: '' });
+                }}
+                disabled={creatingEnrollment}
+              >
+                Cancel
+              </button>
               <button
                 className="btn btn-primary"
                 onClick={async () => {
-                  if (!newEnrollment.course_offering_id || !newEnrollment.student_id) return
+                  if (!newEnrollment.course_offering_id || !newEnrollment.student_id) return;
                   try {
-                    setCreatingEnrollment(true)
+                    setCreatingEnrollment(true);
                     await createEnrollment({
                       course_offering_id: Number(newEnrollment.course_offering_id),
                       student_id: Number(newEnrollment.student_id),
-                    })
-                    setShowCreateEnrollment(false)
-                    setEnrollmentFromManage(false)
-                    setNewEnrollment({ course_offering_id: '', student_id: '' })
-                    push({ kind: 'success', message: 'Enrollment created successfully' })
-                    loadEnrollments()
+                    });
+                    setShowCreateEnrollment(false);
+                    setEnrollmentFromManage(false);
+                    setNewEnrollment({ course_offering_id: '', student_id: '' });
+                    push({ kind: 'success', message: 'Enrollment created successfully' });
+                    loadEnrollments();
                     if (enrollmentFromManage && selectedCourse) {
-                      loadCourseEnrollments(selectedCourse.id)
+                      loadCourseEnrollments(selectedCourse.id);
                     }
                   } catch (e: unknown) {
-                    push({ kind: 'error', message: e?.message || 'Failed to create enrollment' })
+                    push({ kind: 'error', message: e?.message || 'Failed to create enrollment' });
                   } finally {
-                    setCreatingEnrollment(false)
+                    setCreatingEnrollment(false);
                   }
                 }}
-                disabled={creatingEnrollment || !newEnrollment.course_offering_id || !newEnrollment.student_id}
+                disabled={
+                  creatingEnrollment ||
+                  !newEnrollment.course_offering_id ||
+                  !newEnrollment.student_id
+                }
               >
                 {creatingEnrollment ? 'Creating…' : 'Create Enrollment'}
               </button>
@@ -2375,49 +3377,146 @@ const paginatedDepartments = filteredDepartments.slice((deptCurrentPage - 1) * d
       )}
 
       {showCreateAssignment && (
-        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, backdropFilter: 'blur(4px)', padding: '20px', overflowY: 'auto' }}>
-          <div className="card" style={{ width: '100%', maxWidth: 520, background: 'var(--surface)', borderRadius: 'var(--radius-lg)', padding: 24, boxShadow: '0 20px 50px rgba(0,0,0,0.3)', border: '1px solid var(--border)', margin: 'auto', maxHeight: '90vh', overflowY: 'auto' }}>
-            <h3 className="h4" style={{ marginTop: 0, marginBottom: 20, color: 'var(--text)' }}>Create New Assignment</h3>
+        <div
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: 'rgba(0,0,0,0.5)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 1000,
+            backdropFilter: 'blur(4px)',
+            padding: '20px',
+            overflowY: 'auto',
+          }}
+        >
+          <div
+            className="card"
+            style={{
+              width: '100%',
+              maxWidth: 520,
+              background: 'var(--surface)',
+              borderRadius: 'var(--radius-lg)',
+              padding: 24,
+              boxShadow: '0 20px 50px rgba(0,0,0,0.3)',
+              border: '1px solid var(--border)',
+              margin: 'auto',
+              maxHeight: '90vh',
+              overflowY: 'auto',
+            }}
+          >
+            <h3 className="h4" style={{ marginTop: 0, marginBottom: 20, color: 'var(--text)' }}>
+              Create New Assignment
+            </h3>
             <div className="form" style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-              <select className="input" value={newAssignment.course_offering_id} onChange={(e) => setNewAssignment({ ...newAssignment, course_offering_id: e.target.value })}>
+              <select
+                className="input"
+                value={newAssignment.course_offering_id}
+                onChange={e =>
+                  setNewAssignment({ ...newAssignment, course_offering_id: e.target.value })
+                }
+              >
                 <option value="">Select Course Offering</option>
                 {offerings.map((o: unknown) => (
-                  <option key={o.id} value={o.id}>{o.course_code} {o.term}{o.section ? '-' + o.section : ''} - {o.faculty_name || 'N/A'}</option>
+                  <option key={o.id} value={o.id}>
+                    {o.course_code} {o.term}
+                    {o.section ? '-' + o.section : ''} - {o.faculty_name || 'N/A'}
+                  </option>
                 ))}
               </select>
-              <input className="input" value={newAssignment.title} onChange={(e) => setNewAssignment({ ...newAssignment, title: e.target.value })} placeholder="Assignment Title" />
-              <textarea className="input" value={newAssignment.description} onChange={(e) => setNewAssignment({ ...newAssignment, description: e.target.value })} placeholder="Assignment Description" rows={3} />
+              <input
+                className="input"
+                value={newAssignment.title}
+                onChange={e => setNewAssignment({ ...newAssignment, title: e.target.value })}
+                placeholder="Assignment Title"
+              />
+              <textarea
+                className="input"
+                value={newAssignment.description}
+                onChange={e => setNewAssignment({ ...newAssignment, description: e.target.value })}
+                placeholder="Assignment Description"
+                rows={3}
+              />
               <label style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                 <input
                   type="checkbox"
                   checked={newAssignment.allow_github_repo}
-                  onChange={(e) => setNewAssignment({ ...newAssignment, allow_github_repo: e.target.checked })}
+                  onChange={e =>
+                    setNewAssignment({ ...newAssignment, allow_github_repo: e.target.checked })
+                  }
                 />
                 Allow GitHub Repository Submissions
               </label>
-              <input className="input" type="number" value={newAssignment.max_score} onChange={(e) => setNewAssignment({ ...newAssignment, max_score: e.target.value })} placeholder="Max Score" />
-              <input className="input" type="number" value={newAssignment.file_size_limit_mb} onChange={(e) => setNewAssignment({ ...newAssignment, file_size_limit_mb: e.target.value })} placeholder="File Size Limit (MB) - Optional" min="1" />
+              <input
+                className="input"
+                type="number"
+                value={newAssignment.max_score}
+                onChange={e => setNewAssignment({ ...newAssignment, max_score: e.target.value })}
+                placeholder="Max Score"
+              />
+              <input
+                className="input"
+                type="number"
+                value={newAssignment.file_size_limit_mb}
+                onChange={e =>
+                  setNewAssignment({ ...newAssignment, file_size_limit_mb: e.target.value })
+                }
+                placeholder="File Size Limit (MB) - Optional"
+                min="1"
+              />
               <div className="grid" style={{ gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-                <input className="input" type="datetime-local" value={newAssignment.release_at} onChange={(e) => setNewAssignment({ ...newAssignment, release_at: e.target.value })} placeholder="Release Date" />
-                <input className="input" type="datetime-local" value={newAssignment.due_at} onChange={(e) => setNewAssignment({ ...newAssignment, due_at: e.target.value })} placeholder="Due Date" />
+                <input
+                  className="input"
+                  type="datetime-local"
+                  value={newAssignment.release_at}
+                  onChange={e => setNewAssignment({ ...newAssignment, release_at: e.target.value })}
+                  placeholder="Release Date"
+                />
+                <input
+                  className="input"
+                  type="datetime-local"
+                  value={newAssignment.due_at}
+                  onChange={e => setNewAssignment({ ...newAssignment, due_at: e.target.value })}
+                  placeholder="Due Date"
+                />
               </div>
               <label style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                 <input
                   type="checkbox"
                   checked={newAssignment.allow_multiple_submissions}
-                  onChange={(e) => setNewAssignment({ ...newAssignment, allow_multiple_submissions: e.target.checked })}
+                  onChange={e =>
+                    setNewAssignment({
+                      ...newAssignment,
+                      allow_multiple_submissions: e.target.checked,
+                    })
+                  }
                 />
                 Allow Multiple Submissions
               </label>
             </div>
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 12, marginTop: 24 }}>
-              <button className="btn btn-secondary" onClick={() => setShowCreateAssignment(false)} disabled={creatingAssignment}>Cancel</button>
+              <button
+                className="btn btn-secondary"
+                onClick={() => setShowCreateAssignment(false)}
+                disabled={creatingAssignment}
+              >
+                Cancel
+              </button>
               <button
                 className="btn btn-primary"
                 onClick={async () => {
-                  if (!newAssignment.course_offering_id || !newAssignment.title || !newAssignment.max_score) return
+                  if (
+                    !newAssignment.course_offering_id ||
+                    !newAssignment.title ||
+                    !newAssignment.max_score
+                  )
+                    return;
                   try {
-                    setCreatingAssignment(true)
+                    setCreatingAssignment(true);
                     await createAssignment({
                       course_offering_id: Number(newAssignment.course_offering_id),
                       title: newAssignment.title,
@@ -2427,9 +3526,11 @@ const paginatedDepartments = filteredDepartments.slice((deptCurrentPage - 1) * d
                       due_at: newAssignment.due_at || undefined,
                       max_score: Number(newAssignment.max_score),
                       allow_multiple_submissions: newAssignment.allow_multiple_submissions,
-                      file_size_limit_mb: newAssignment.file_size_limit_mb ? Number(newAssignment.file_size_limit_mb) : undefined,
-                    })
-                    setShowCreateAssignment(false)
+                      file_size_limit_mb: newAssignment.file_size_limit_mb
+                        ? Number(newAssignment.file_size_limit_mb)
+                        : undefined,
+                    });
+                    setShowCreateAssignment(false);
                     setNewAssignment({
                       course_offering_id: '',
                       title: '',
@@ -2439,17 +3540,22 @@ const paginatedDepartments = filteredDepartments.slice((deptCurrentPage - 1) * d
                       due_at: '',
                       max_score: '100',
                       allow_multiple_submissions: false,
-                      file_size_limit_mb: ''
-                    })
-                    push({ kind: 'success', message: 'Assignment created successfully' })
-                    loadAssignments()
+                      file_size_limit_mb: '',
+                    });
+                    push({ kind: 'success', message: 'Assignment created successfully' });
+                    loadAssignments();
                   } catch (e: unknown) {
-                    push({ kind: 'error', message: e?.message || 'Failed to create assignment' })
+                    push({ kind: 'error', message: e?.message || 'Failed to create assignment' });
                   } finally {
-                    setCreatingAssignment(false)
+                    setCreatingAssignment(false);
                   }
                 }}
-                disabled={creatingAssignment || !newAssignment.course_offering_id || !newAssignment.title || !newAssignment.max_score}
+                disabled={
+                  creatingAssignment ||
+                  !newAssignment.course_offering_id ||
+                  !newAssignment.title ||
+                  !newAssignment.max_score
+                }
               >
                 {creatingAssignment ? 'Creating…' : 'Create Assignment'}
               </button>
@@ -2459,28 +3565,96 @@ const paginatedDepartments = filteredDepartments.slice((deptCurrentPage - 1) * d
       )}
 
       {showCreateQuiz && (
-        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, backdropFilter: 'blur(4px)', padding: '20px', overflowY: 'auto' }}>
-          <div className="card" style={{ width: '100%', maxWidth: 520, background: 'var(--surface)', borderRadius: 'var(--radius-lg)', padding: 24, boxShadow: '0 20px 50px rgba(0,0,0,0.3)', border: '1px solid var(--border)', margin: 'auto', maxHeight: '90vh', overflowY: 'auto' }}>
-            <h3 className="h4" style={{ marginTop: 0, marginBottom: 20, color: 'var(--text)' }}>Create New Quiz</h3>
+        <div
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: 'rgba(0,0,0,0.5)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 1000,
+            backdropFilter: 'blur(4px)',
+            padding: '20px',
+            overflowY: 'auto',
+          }}
+        >
+          <div
+            className="card"
+            style={{
+              width: '100%',
+              maxWidth: 520,
+              background: 'var(--surface)',
+              borderRadius: 'var(--radius-lg)',
+              padding: 24,
+              boxShadow: '0 20px 50px rgba(0,0,0,0.3)',
+              border: '1px solid var(--border)',
+              margin: 'auto',
+              maxHeight: '90vh',
+              overflowY: 'auto',
+            }}
+          >
+            <h3 className="h4" style={{ marginTop: 0, marginBottom: 20, color: 'var(--text)' }}>
+              Create New Quiz
+            </h3>
             <div className="form" style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-              <select className="input" value={newQuiz.course_offering_id} onChange={(e) => setNewQuiz({ ...newQuiz, course_offering_id: e.target.value })}>
+              <select
+                className="input"
+                value={newQuiz.course_offering_id}
+                onChange={e => setNewQuiz({ ...newQuiz, course_offering_id: e.target.value })}
+              >
                 <option value="">Select Course Offering</option>
                 {offerings.map((o: unknown) => (
-                  <option key={o.id} value={o.id}>{o.course_code} {o.term}{o.section ? '-' + o.section : ''} - {o.faculty_name || 'N/A'}</option>
+                  <option key={o.id} value={o.id}>
+                    {o.course_code} {o.term}
+                    {o.section ? '-' + o.section : ''} - {o.faculty_name || 'N/A'}
+                  </option>
                 ))}
               </select>
-              <input className="input" value={newQuiz.title} onChange={(e) => setNewQuiz({ ...newQuiz, title: e.target.value })} placeholder="Quiz Title (Optional)" />
-              <input className="input" type="number" value={newQuiz.max_score} onChange={(e) => setNewQuiz({ ...newQuiz, max_score: e.target.value })} placeholder="Max Score" />
+              <input
+                className="input"
+                value={newQuiz.title}
+                onChange={e => setNewQuiz({ ...newQuiz, title: e.target.value })}
+                placeholder="Quiz Title (Optional)"
+              />
+              <input
+                className="input"
+                type="number"
+                value={newQuiz.max_score}
+                onChange={e => setNewQuiz({ ...newQuiz, max_score: e.target.value })}
+                placeholder="Max Score"
+              />
               <div className="grid" style={{ gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-                <input className="input" type="datetime-local" value={newQuiz.start_at} onChange={(e) => setNewQuiz({ ...newQuiz, start_at: e.target.value })} placeholder="Start Date" />
-                <input className="input" type="datetime-local" value={newQuiz.end_at} onChange={(e) => setNewQuiz({ ...newQuiz, end_at: e.target.value })} placeholder="End Date" />
+                <input
+                  className="input"
+                  type="datetime-local"
+                  value={newQuiz.start_at}
+                  onChange={e => setNewQuiz({ ...newQuiz, start_at: e.target.value })}
+                  placeholder="Start Date"
+                />
+                <input
+                  className="input"
+                  type="datetime-local"
+                  value={newQuiz.end_at}
+                  onChange={e => setNewQuiz({ ...newQuiz, end_at: e.target.value })}
+                  placeholder="End Date"
+                />
               </div>
-              <input className="input" type="number" value={newQuiz.time_limit} onChange={(e) => setNewQuiz({ ...newQuiz, time_limit: e.target.value })} placeholder="Time Limit (minutes, optional)" />
+              <input
+                className="input"
+                type="number"
+                value={newQuiz.time_limit}
+                onChange={e => setNewQuiz({ ...newQuiz, time_limit: e.target.value })}
+                placeholder="Time Limit (minutes, optional)"
+              />
               <label style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                 <input
                   type="checkbox"
                   checked={newQuiz.is_proctored}
-                  onChange={(e) => setNewQuiz({ ...newQuiz, is_proctored: e.target.checked })}
+                  onChange={e => setNewQuiz({ ...newQuiz, is_proctored: e.target.checked })}
                 />
                 Is Proctored
               </label>
@@ -2488,19 +3662,27 @@ const paginatedDepartments = filteredDepartments.slice((deptCurrentPage - 1) * d
                 <input
                   type="checkbox"
                   checked={newQuiz.allow_suspension_resume}
-                  onChange={(e) => setNewQuiz({ ...newQuiz, allow_suspension_resume: e.target.checked })}
+                  onChange={e =>
+                    setNewQuiz({ ...newQuiz, allow_suspension_resume: e.target.checked })
+                  }
                 />
                 Allow Suspension & Resume
               </label>
             </div>
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 12, marginTop: 24 }}>
-              <button className="btn btn-secondary" onClick={() => setShowCreateQuiz(false)} disabled={creatingQuiz}>Cancel</button>
+              <button
+                className="btn btn-secondary"
+                onClick={() => setShowCreateQuiz(false)}
+                disabled={creatingQuiz}
+              >
+                Cancel
+              </button>
               <button
                 className="btn btn-primary"
                 onClick={async () => {
-                  if (!newQuiz.course_offering_id || !newQuiz.max_score) return
+                  if (!newQuiz.course_offering_id || !newQuiz.max_score) return;
                   try {
-                    setCreatingQuiz(true)
+                    setCreatingQuiz(true);
                     await createQuiz({
                       course_offering_id: Number(newQuiz.course_offering_id),
                       title: newQuiz.title || undefined,
@@ -2510,9 +3692,11 @@ const paginatedDepartments = filteredDepartments.slice((deptCurrentPage - 1) * d
                       is_proctored: newQuiz.is_proctored,
                       time_limit: newQuiz.time_limit ? Number(newQuiz.time_limit) : undefined,
                       allow_suspension_resume: newQuiz.allow_suspension_resume,
-                      proctoring_config_id: newQuiz.proctoring_config_id ? Number(newQuiz.proctoring_config_id) : undefined,
-                    })
-                    setShowCreateQuiz(false)
+                      proctoring_config_id: newQuiz.proctoring_config_id
+                        ? Number(newQuiz.proctoring_config_id)
+                        : undefined,
+                    });
+                    setShowCreateQuiz(false);
                     setNewQuiz({
                       course_offering_id: '',
                       title: '',
@@ -2522,14 +3706,14 @@ const paginatedDepartments = filteredDepartments.slice((deptCurrentPage - 1) * d
                       is_proctored: false,
                       time_limit: '',
                       allow_suspension_resume: true,
-                      proctoring_config_id: ''
-                    })
-                    push({ kind: 'success', message: 'Quiz created successfully' })
-                    loadQuizzes()
+                      proctoring_config_id: '',
+                    });
+                    push({ kind: 'success', message: 'Quiz created successfully' });
+                    loadQuizzes();
                   } catch (e: unknown) {
-                    push({ kind: 'error', message: e?.message || 'Failed to create quiz' })
+                    push({ kind: 'error', message: e?.message || 'Failed to create quiz' });
                   } finally {
-                    setCreatingQuiz(false)
+                    setCreatingQuiz(false);
                   }
                 }}
                 disabled={creatingQuiz || !newQuiz.course_offering_id || !newQuiz.max_score}
@@ -2542,21 +3726,58 @@ const paginatedDepartments = filteredDepartments.slice((deptCurrentPage - 1) * d
       )}
 
       {showUserDetailsModal && selectedUser && (
-        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, backdropFilter: 'blur(4px)', padding: '20px', overflowY: 'auto' }}>
-          <div className="card" style={{ width: '100%', maxWidth: 600, background: 'var(--surface)', borderRadius: 'var(--radius-lg)', padding: 24, boxShadow: '0 20px 50px rgba(0,0,0,0.3)', border: '1px solid var(--border)', margin: 'auto', maxHeight: '90vh', overflowY: 'auto' }}>
-            <h3 className="h4" style={{ marginTop: 0, marginBottom: 20, color: 'var(--text)' }}>User Details</h3>
+        <div
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: 'rgba(0,0,0,0.5)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 1000,
+            backdropFilter: 'blur(4px)',
+            padding: '20px',
+            overflowY: 'auto',
+          }}
+        >
+          <div
+            className="card"
+            style={{
+              width: '100%',
+              maxWidth: 600,
+              background: 'var(--surface)',
+              borderRadius: 'var(--radius-lg)',
+              padding: 24,
+              boxShadow: '0 20px 50px rgba(0,0,0,0.3)',
+              border: '1px solid var(--border)',
+              margin: 'auto',
+              maxHeight: '90vh',
+              overflowY: 'auto',
+            }}
+          >
+            <h3 className="h4" style={{ marginTop: 0, marginBottom: 20, color: 'var(--text)' }}>
+              User Details
+            </h3>
             {!selectedOverview ? (
               <p>Loading…</p>
             ) : (
               <div>
                 <h4 style={{ marginTop: 0 }}>{selectedUser.name || selectedUser.email}</h4>
-                <div className="muted" style={{ marginBottom: 8 }}>{selectedUser.email} — {selectedUser.role}</div>
+                <div className="muted" style={{ marginBottom: 8 }}>
+                  {selectedUser.email} — {selectedUser.role}
+                </div>
                 {selectedOverview.student && (
                   <>
                     <h5>Enrolled Courses</h5>
                     <ul className="list">
                       {selectedOverview.student.enrollments.map((e: unknown) => (
-                        <li key={e.offering_id}>{e.course_code} — {e.course_title} [{e.term}{e.section ? '-' + e.section : ''}] · Faculty: {e.faculty_name}</li>
+                        <li key={e.offering_id}>
+                          {e.course_code} — {e.course_title} [{e.term}
+                          {e.section ? '-' + e.section : ''}] · Faculty: {e.faculty_name}
+                        </li>
                       ))}
                     </ul>
                   </>
@@ -2567,14 +3788,19 @@ const paginatedDepartments = filteredDepartments.slice((deptCurrentPage - 1) * d
                     <ul className="list">
                       {selectedOverview.faculty.offerings.map((o: unknown) => (
                         <li key={o.offering_id}>
-                          {o.course_code} — {o.course_title} [{o.term}{o.section ? '-' + o.section : ''}]
+                          {o.course_code} — {o.course_title} [{o.term}
+                          {o.section ? '-' + o.section : ''}]
                           {o.students?.length ? (
                             <ul className="list" style={{ marginTop: 6 }}>
                               {o.students.map((s: unknown) => (
-                                <li key={s.id}>{s.name || s.email} <span className="muted">({s.email})</span></li>
+                                <li key={s.id}>
+                                  {s.name || s.email} <span className="muted">({s.email})</span>
+                                </li>
                               ))}
                             </ul>
-                          ) : <div className="muted">No enrolled students yet.</div>}
+                          ) : (
+                            <div className="muted">No enrolled students yet.</div>
+                          )}
                         </li>
                       ))}
                     </ul>
@@ -2585,21 +3811,31 @@ const paginatedDepartments = filteredDepartments.slice((deptCurrentPage - 1) * d
                     <h5>TA Assignments</h5>
                     <ul className="list">
                       {selectedOverview.ta.assignments.map((a: unknown) => (
-                        <li key={a.offering_id}>{a.course_code} — {a.course_title} [{a.term}{a.section ? '-' + a.section : ''}]</li>
+                        <li key={a.offering_id}>
+                          {a.course_code} — {a.course_title} [{a.term}
+                          {a.section ? '-' + a.section : ''}]
+                        </li>
                       ))}
                     </ul>
                   </>
                 )}
               </div>
             )}
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 24 }}>
+            <div
+              style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                marginTop: 24,
+              }}
+            >
               <div>
                 {selectedUser.department_id && (
                   <button
                     className="btn btn-primary"
                     onClick={() => {
-                      setTab('departments')
-                      setShowUserDetailsModal(false)
+                      setTab('departments');
+                      setShowUserDetailsModal(false);
                     }}
                     style={{
                       fontWeight: '600',
@@ -2610,14 +3846,14 @@ const paginatedDepartments = filteredDepartments.slice((deptCurrentPage - 1) * d
                       transition: 'all 0.2s ease',
                       boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
                       fontSize: '14px',
-                      letterSpacing: '0.5px'
+                      letterSpacing: '0.5px',
                     }}
-                    onMouseEnter={(e) => {
+                    onMouseEnter={e => {
                       e.currentTarget.style.backgroundColor = 'var(--primary-hover, #0056b3)';
                       e.currentTarget.style.boxShadow = '0 4px 8px rgba(0,0,0,0.15)';
                       e.currentTarget.style.transform = 'translateY(-1px)';
                     }}
-                    onMouseLeave={(e) => {
+                    onMouseLeave={e => {
                       e.currentTarget.style.backgroundColor = 'var(--primary)';
                       e.currentTarget.style.boxShadow = '0 2px 4px rgba(0,0,0,0.1)';
                       e.currentTarget.style.transform = 'translateY(0)';
@@ -2638,13 +3874,13 @@ const paginatedDepartments = filteredDepartments.slice((deptCurrentPage - 1) * d
                   border: '1px solid var(--border)',
                   cursor: 'pointer',
                   transition: 'all 0.2s ease',
-                  fontSize: '14px'
+                  fontSize: '14px',
                 }}
-                onMouseEnter={(e) => {
+                onMouseEnter={e => {
                   e.currentTarget.style.backgroundColor = 'var(--surface-secondary)';
                   e.currentTarget.style.borderColor = 'var(--border-hover, #999)';
                 }}
-                onMouseLeave={(e) => {
+                onMouseLeave={e => {
                   e.currentTarget.style.backgroundColor = 'var(--surface)';
                   e.currentTarget.style.borderColor = 'var(--border)';
                 }}
@@ -2657,46 +3893,115 @@ const paginatedDepartments = filteredDepartments.slice((deptCurrentPage - 1) * d
       )}
 
       {showManageOfferings && selectedCourse && (
-        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, backdropFilter: 'blur(4px)', padding: '20px', overflowY: 'auto' }}>
-          <div className="card" style={{ width: '100%', maxWidth: 800, background: 'var(--surface)', borderRadius: 'var(--radius-lg)', padding: 24, boxShadow: '0 20px 50px rgba(0,0,0,0.3)', border: '1px solid var(--border)', margin: 'auto', maxHeight: '90vh', overflowY: 'auto' }}>
-            <h3 className="h4" style={{ marginTop: 0, marginBottom: 20, color: 'var(--text)' }}>Manage Offerings for {selectedCourse.code} - {selectedCourse.title}</h3>
+        <div
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: 'rgba(0,0,0,0.5)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 1000,
+            backdropFilter: 'blur(4px)',
+            padding: '20px',
+            overflowY: 'auto',
+          }}
+        >
+          <div
+            className="card"
+            style={{
+              width: '100%',
+              maxWidth: 800,
+              background: 'var(--surface)',
+              borderRadius: 'var(--radius-lg)',
+              padding: 24,
+              boxShadow: '0 20px 50px rgba(0,0,0,0.3)',
+              border: '1px solid var(--border)',
+              margin: 'auto',
+              maxHeight: '90vh',
+              overflowY: 'auto',
+            }}
+          >
+            <h3 className="h4" style={{ marginTop: 0, marginBottom: 20, color: 'var(--text)' }}>
+              Manage Offerings for {selectedCourse.code} - {selectedCourse.title}
+            </h3>
             <div style={{ marginBottom: 16 }}>
-              <button className="btn btn-primary" onClick={() => {
-                setNewOffering(prev => ({ ...prev, course_id: selectedCourse.id.toString() }))
-                setShowCreateOffering(true)
-              }}>Create New Offering</button>
+              <button
+                className="btn btn-primary"
+                onClick={() => {
+                  setNewOffering(prev => ({ ...prev, course_id: selectedCourse.id.toString() }));
+                  setShowCreateOffering(true);
+                }}
+              >
+                Create New Offering
+              </button>
             </div>
             <div className="offerings-list">
               {selectedCourse.offerings && selectedCourse.offerings.length > 0 ? (
                 selectedCourse.offerings.map((offering: unknown) => (
-                  <div key={offering.offering_id} className="card offering-admin-card" style={{ marginBottom: 12 }}>
+                  <div
+                    key={offering.offering_id}
+                    className="card offering-admin-card"
+                    style={{ marginBottom: 12 }}
+                  >
                     <div className="offering-header">
-                      <h4 className="offering-title">{selectedCourse.code} - {selectedCourse.title}</h4>
-                      <p className="offering-details">Term: {offering.term} {offering.section ? `Section ${offering.section}` : ''}</p>
+                      <h4 className="offering-title">
+                        {selectedCourse.code} - {selectedCourse.title}
+                      </h4>
+                      <p className="offering-details">
+                        Term: {offering.term}{' '}
+                        {offering.section ? `Section ${offering.section}` : ''}
+                      </p>
                       <p className="offering-details">Faculty: {offering.faculty_name || 'N/A'}</p>
-                      <p className="offering-details">Capacity: {offering.max_capacity || 'Unlimited'}</p>
+                      <p className="offering-details">
+                        Capacity: {offering.max_capacity || 'Unlimited'}
+                      </p>
                       <p className="offering-details">Enrolled: {offering.students?.length || 0}</p>
                     </div>
-                    <div style={{ marginTop: 12, display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
+                    <div
+                      style={{
+                        marginTop: 12,
+                        display: 'flex',
+                        justifyContent: 'flex-end',
+                        gap: '8px',
+                      }}
+                    >
                       <button
                         className="btn btn-secondary"
                         onClick={async () => {
-                          const newTerm = prompt('Enter new term:', offering.term)
-                          const newSection = prompt('Enter new section:', offering.section || '')
-                          const newFacultyId = prompt('Enter new faculty ID:', offering.faculty_id?.toString() || '')
-                          const newCapacity = prompt('Enter new max capacity:', offering.max_capacity?.toString() || '')
-                          if (newTerm !== null || newSection !== null || newFacultyId !== null || newCapacity !== null) {
+                          const newTerm = prompt('Enter new term:', offering.term);
+                          const newSection = prompt('Enter new section:', offering.section || '');
+                          const newFacultyId = prompt(
+                            'Enter new faculty ID:',
+                            offering.faculty_id?.toString() || ''
+                          );
+                          const newCapacity = prompt(
+                            'Enter new max capacity:',
+                            offering.max_capacity?.toString() || ''
+                          );
+                          if (
+                            newTerm !== null ||
+                            newSection !== null ||
+                            newFacultyId !== null ||
+                            newCapacity !== null
+                          ) {
                             try {
                               await updateOffering(offering.offering_id, {
                                 term: newTerm || undefined,
                                 section: newSection || undefined,
                                 faculty_id: newFacultyId ? Number(newFacultyId) : undefined,
                                 max_capacity: newCapacity ? Number(newCapacity) : undefined,
-                              })
-                              push({ kind: 'success', message: 'Offering updated successfully' })
-                              loadAdminCourses()
+                              });
+                              push({ kind: 'success', message: 'Offering updated successfully' });
+                              loadAdminCourses();
                             } catch (e: unknown) {
-                              push({ kind: 'error', message: e?.message || 'Failed to update offering' })
+                              push({
+                                kind: 'error',
+                                message: e?.message || 'Failed to update offering',
+                              });
                             }
                           }
                         }}
@@ -2706,14 +4011,16 @@ const paginatedDepartments = filteredDepartments.slice((deptCurrentPage - 1) * d
                       <button
                         className="btn btn-danger"
                         onClick={async () => {
-                          console.log('Delete button clicked for offering:', offering)
-                          console.log('Students:', offering.students)
-                          const hasEnrollments = offering.students && offering.students.length > 0
-                          setOfferingToDelete(offering)
-                          setOfferingToDeleteMessage(hasEnrollments
-                            ? `Delete offering "${selectedCourse.code} ${offering.term}${offering.section ? '-' + offering.section : ''}"? This will permanently delete all enrollments, assignments, quizzes, and related data. This action cannot be undone.`
-                            : `Delete offering "${selectedCourse.code} ${offering.term}${offering.section ? '-' + offering.section : ''}"? This action cannot be undone.`)
-                          setShowDeleteOfferingConfirm(true)
+                          console.log('Delete button clicked for offering:', offering);
+                          console.log('Students:', offering.students);
+                          const hasEnrollments = offering.students && offering.students.length > 0;
+                          setOfferingToDelete(offering);
+                          setOfferingToDeleteMessage(
+                            hasEnrollments
+                              ? `Delete offering "${selectedCourse.code} ${offering.term}${offering.section ? '-' + offering.section : ''}"? This will permanently delete all enrollments, assignments, quizzes, and related data. This action cannot be undone.`
+                              : `Delete offering "${selectedCourse.code} ${offering.term}${offering.section ? '-' + offering.section : ''}"? This action cannot be undone.`
+                          );
+                          setShowDeleteOfferingConfirm(true);
                         }}
                       >
                         Delete
@@ -2726,26 +4033,68 @@ const paginatedDepartments = filteredDepartments.slice((deptCurrentPage - 1) * d
               )}
             </div>
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 12, marginTop: 24 }}>
-              <button className="btn btn-secondary" onClick={() => setShowManageOfferings(false)}>Close</button>
+              <button className="btn btn-secondary" onClick={() => setShowManageOfferings(false)}>
+                Close
+              </button>
             </div>
           </div>
         </div>
       )}
 
       {showManageEnrollments && selectedCourse && (
-        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, backdropFilter: 'blur(4px)', padding: '20px', overflowY: 'auto' }}>
-          <div className="card" style={{ width: '100%', maxWidth: 800, background: 'var(--surface)', borderRadius: 'var(--radius-lg)', padding: 24, boxShadow: '0 20px 50px rgba(0,0,0,0.3)', border: '1px solid var(--border)', margin: 'auto', maxHeight: '90vh', overflowY: 'auto' }}>
-            <h3 className="h4" style={{ marginTop: 0, marginBottom: 20, color: 'var(--text)' }}>Manage Enrollments for {selectedCourse.code} - {selectedCourse.title}</h3>
+        <div
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: 'rgba(0,0,0,0.5)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 1000,
+            backdropFilter: 'blur(4px)',
+            padding: '20px',
+            overflowY: 'auto',
+          }}
+        >
+          <div
+            className="card"
+            style={{
+              width: '100%',
+              maxWidth: 800,
+              background: 'var(--surface)',
+              borderRadius: 'var(--radius-lg)',
+              padding: 24,
+              boxShadow: '0 20px 50px rgba(0,0,0,0.3)',
+              border: '1px solid var(--border)',
+              margin: 'auto',
+              maxHeight: '90vh',
+              overflowY: 'auto',
+            }}
+          >
+            <h3 className="h4" style={{ marginTop: 0, marginBottom: 20, color: 'var(--text)' }}>
+              Manage Enrollments for {selectedCourse.code} - {selectedCourse.title}
+            </h3>
             <div style={{ marginBottom: 16 }}>
-              <button className="btn btn-primary" onClick={() => {
-                setEnrollmentFromManage(true)
-                // Pre-fill with first offering for this course
-                const courseOfferings = selectedCourse.offerings || []
-                if (courseOfferings.length > 0) {
-                  setNewEnrollment(prev => ({ ...prev, course_offering_id: courseOfferings[0].offering_id.toString() }))
-                }
-                setShowCreateEnrollment(true)
-              }}>Add Enrollment</button>
+              <button
+                className="btn btn-primary"
+                onClick={() => {
+                  setEnrollmentFromManage(true);
+                  // Pre-fill with first offering for this course
+                  const courseOfferings = selectedCourse.offerings || [];
+                  if (courseOfferings.length > 0) {
+                    setNewEnrollment(prev => ({
+                      ...prev,
+                      course_offering_id: courseOfferings[0].offering_id.toString(),
+                    }));
+                  }
+                  setShowCreateEnrollment(true);
+                }}
+              >
+                Add Enrollment
+              </button>
             </div>
             {loadingCourseEnrollments ? (
               <p>Loading enrollments...</p>
@@ -2753,19 +4102,32 @@ const paginatedDepartments = filteredDepartments.slice((deptCurrentPage - 1) * d
               <div className="enrollments-list">
                 {courseEnrollments.length > 0 ? (
                   courseEnrollments.map((enrollment: unknown) => (
-                    <div key={enrollment.id} className="card enrollment-admin-card" style={{ marginBottom: 12 }}>
+                    <div
+                      key={enrollment.id}
+                      className="card enrollment-admin-card"
+                      style={{ marginBottom: 12 }}
+                    >
                       <div className="enrollment-header">
-                        <h4 className="enrollment-title">{enrollment.student_name || enrollment.student_email}</h4>
-                        <p className="enrollment-details">Roll Number: {enrollment.roll_number || 'N/A'}</p>
-                        <p className="enrollment-details">Term: {enrollment.term} {enrollment.section ? `Section ${enrollment.section}` : ''}</p>
-                        <p className="enrollment-details">Enrolled: {new Date(enrollment.enrolled_at).toLocaleDateString()}</p>
+                        <h4 className="enrollment-title">
+                          {enrollment.student_name || enrollment.student_email}
+                        </h4>
+                        <p className="enrollment-details">
+                          Roll Number: {enrollment.roll_number || 'N/A'}
+                        </p>
+                        <p className="enrollment-details">
+                          Term: {enrollment.term}{' '}
+                          {enrollment.section ? `Section ${enrollment.section}` : ''}
+                        </p>
+                        <p className="enrollment-details">
+                          Enrolled: {new Date(enrollment.enrolled_at).toLocaleDateString()}
+                        </p>
                       </div>
                       <div style={{ marginTop: 12, display: 'flex', justifyContent: 'flex-end' }}>
                         <button
                           className="btn btn-danger"
                           onClick={() => {
-                            setEnrollmentToDelete(enrollment)
-                            setShowDeleteEnrollmentConfirm(true)
+                            setEnrollmentToDelete(enrollment);
+                            setShowDeleteEnrollmentConfirm(true);
                           }}
                         >
                           Remove Enrollment
@@ -2779,61 +4141,128 @@ const paginatedDepartments = filteredDepartments.slice((deptCurrentPage - 1) * d
               </div>
             )}
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 12, marginTop: 24 }}>
-              <button className="btn btn-secondary" onClick={() => setShowManageEnrollments(false)}>Close</button>
+              <button className="btn btn-secondary" onClick={() => setShowManageEnrollments(false)}>
+                Close
+              </button>
             </div>
           </div>
         </div>
       )}
 
       {showEditUser && editingUser && (
-        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, backdropFilter: 'blur(4px)', padding: '20px', overflowY: 'auto' }}>
-          <div className="card" style={{ width: '100%', maxWidth: 520, background: 'var(--surface)', borderRadius: 'var(--radius-lg)', padding: 24, boxShadow: '0 20px 50px rgba(0,0,0,0.3)', border: '1px solid var(--border)', margin: 'auto', maxHeight: '90vh', overflowY: 'auto' }}>
-            <h3 className="h4" style={{ marginTop: 0, marginBottom: 20, color: 'var(--text)' }}>Edit User — {editingUser.name || editingUser.email}</h3>
+        <div
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: 'rgba(0,0,0,0.5)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 1000,
+            backdropFilter: 'blur(4px)',
+            padding: '20px',
+            overflowY: 'auto',
+          }}
+        >
+          <div
+            className="card"
+            style={{
+              width: '100%',
+              maxWidth: 520,
+              background: 'var(--surface)',
+              borderRadius: 'var(--radius-lg)',
+              padding: 24,
+              boxShadow: '0 20px 50px rgba(0,0,0,0.3)',
+              border: '1px solid var(--border)',
+              margin: 'auto',
+              maxHeight: '90vh',
+              overflowY: 'auto',
+            }}
+          >
+            <h3 className="h4" style={{ marginTop: 0, marginBottom: 20, color: 'var(--text)' }}>
+              Edit User — {editingUser.name || editingUser.email}
+            </h3>
             <div className="form" style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-              <input className="input" value={editUserData.name} onChange={(e) => setEditUserData({ ...editUserData, name: e.target.value })} placeholder="Full Name" />
-              <select className="input" value={editUserData.role} onChange={(e) => setEditUserData({ ...editUserData, role: e.target.value as 'student'|'faculty'|'ta'|'admin' })}>
+              <input
+                className="input"
+                value={editUserData.name}
+                onChange={e => setEditUserData({ ...editUserData, name: e.target.value })}
+                placeholder="Full Name"
+              />
+              <select
+                className="input"
+                value={editUserData.role}
+                onChange={e =>
+                  setEditUserData({
+                    ...editUserData,
+                    role: e.target.value as 'student' | 'faculty' | 'ta' | 'admin',
+                  })
+                }
+              >
                 <option value="student">Student</option>
                 <option value="faculty">Faculty</option>
                 <option value="ta">Teaching Assistant</option>
                 <option value="admin">Admin</option>
               </select>
-              <select className="input" value={editUserData.department_id} onChange={(e) => setEditUserData({ ...editUserData, department_id: e.target.value })}>
+              <select
+                className="input"
+                value={editUserData.department_id}
+                onChange={e => setEditUserData({ ...editUserData, department_id: e.target.value })}
+              >
                 <option value="">Select Department (Optional)</option>
                 {departments.map((d: unknown) => (
-                  <option key={d.id} value={d.id}>{d.name}</option>
+                  <option key={d.id} value={d.id}>
+                    {d.name}
+                  </option>
                 ))}
               </select>
-              <input className="input" value={editUserData.roll_number} onChange={(e) => setEditUserData({ ...editUserData, roll_number: e.target.value })} placeholder="Roll Number (Optional)" />
+              <input
+                className="input"
+                value={editUserData.roll_number}
+                onChange={e => setEditUserData({ ...editUserData, roll_number: e.target.value })}
+                placeholder="Roll Number (Optional)"
+              />
               <label style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                 <input
                   type="checkbox"
                   checked={editUserData.is_active}
-                  onChange={(e) => setEditUserData({ ...editUserData, is_active: e.target.checked })}
+                  onChange={e => setEditUserData({ ...editUserData, is_active: e.target.checked })}
                 />
                 Is Active (Approve/Reject Account)
               </label>
             </div>
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 12, marginTop: 24 }}>
-              <button className="btn btn-secondary" onClick={() => setShowEditUser(false)} disabled={updatingUser}>Cancel</button>
+              <button
+                className="btn btn-secondary"
+                onClick={() => setShowEditUser(false)}
+                disabled={updatingUser}
+              >
+                Cancel
+              </button>
               <button
                 className="btn btn-primary"
                 onClick={async () => {
                   try {
-                    setUpdatingUser(true)
+                    setUpdatingUser(true);
                     await updateUser(editingUser.id, {
                       name: editUserData.name || undefined,
                       role: editUserData.role,
-                      department_id: editUserData.department_id ? Number(editUserData.department_id) : null,
+                      department_id: editUserData.department_id
+                        ? Number(editUserData.department_id)
+                        : null,
                       roll_number: editUserData.roll_number || undefined,
-                      is_active: editUserData.is_active
-                    })
-                    setShowEditUser(false)
-                    push({ kind: 'success', message: 'User updated successfully' })
-                    loadUsers()
+                      is_active: editUserData.is_active,
+                    });
+                    setShowEditUser(false);
+                    push({ kind: 'success', message: 'User updated successfully' });
+                    loadUsers();
                   } catch (e: unknown) {
-                    push({ kind: 'error', message: e?.message || 'Failed to update user' })
+                    push({ kind: 'error', message: e?.message || 'Failed to update user' });
                   } finally {
-                    setUpdatingUser(false)
+                    setUpdatingUser(false);
                   }
                 }}
                 disabled={updatingUser}
@@ -2848,23 +4277,23 @@ const paginatedDepartments = filteredDepartments.slice((deptCurrentPage - 1) * d
       <ConfirmationModal
         isOpen={showDeleteConfirm}
         onClose={() => {
-          setShowDeleteConfirm(false)
-          setUserToDelete(null)
+          setShowDeleteConfirm(false);
+          setUserToDelete(null);
         }}
         onConfirm={async () => {
-          if (!userToDelete) return
+          if (!userToDelete) return;
 
           try {
-            setDeletingUser(true)
-            await deleteUser(userToDelete.id)
-            push({ kind: 'success', message: 'User deleted successfully' })
-            loadUsers()
-            setShowDeleteConfirm(false)
-            setUserToDelete(null)
+            setDeletingUser(true);
+            await deleteUser(userToDelete.id);
+            push({ kind: 'success', message: 'User deleted successfully' });
+            loadUsers();
+            setShowDeleteConfirm(false);
+            setUserToDelete(null);
           } catch (e: unknown) {
-            push({ kind: 'error', message: e?.message || 'Failed to delete user' })
+            push({ kind: 'error', message: e?.message || 'Failed to delete user' });
           } finally {
-            setDeletingUser(false)
+            setDeletingUser(false);
           }
         }}
         title="Delete User"
@@ -2879,23 +4308,23 @@ const paginatedDepartments = filteredDepartments.slice((deptCurrentPage - 1) * d
       <ConfirmationModal
         isOpen={showDeleteCourseConfirm}
         onClose={() => {
-          setShowDeleteCourseConfirm(false)
-          setCourseToDelete(null)
+          setShowDeleteCourseConfirm(false);
+          setCourseToDelete(null);
         }}
         onConfirm={async () => {
-          if (!courseToDelete) return
+          if (!courseToDelete) return;
 
           try {
-            setDeletingCourse(true)
-            await deleteCourse(courseToDelete.id)
-            push({ kind: 'success', message: 'Course deleted successfully' })
-            loadAdminCourses()
-            setShowDeleteCourseConfirm(false)
-            setCourseToDelete(null)
+            setDeletingCourse(true);
+            await deleteCourse(courseToDelete.id);
+            push({ kind: 'success', message: 'Course deleted successfully' });
+            loadAdminCourses();
+            setShowDeleteCourseConfirm(false);
+            setCourseToDelete(null);
           } catch (e: unknown) {
-            push({ kind: 'error', message: e?.message || 'Failed to delete course' })
+            push({ kind: 'error', message: e?.message || 'Failed to delete course' });
           } finally {
-            setDeletingCourse(false)
+            setDeletingCourse(false);
           }
         }}
         title="Delete Course"
@@ -2910,23 +4339,23 @@ const paginatedDepartments = filteredDepartments.slice((deptCurrentPage - 1) * d
       <ConfirmationModal
         isOpen={showDeleteDeptConfirm}
         onClose={() => {
-          setShowDeleteDeptConfirm(false)
-          setDeptToDelete(null)
+          setShowDeleteDeptConfirm(false);
+          setDeptToDelete(null);
         }}
         onConfirm={async () => {
-          if (!deptToDelete) return
+          if (!deptToDelete) return;
 
           try {
-            setDeletingDept(true)
-            await deleteDepartment(deptToDelete.id)
-            push({ kind: 'success', message: 'Department deleted successfully' })
-            loadDepartments()
-            setShowDeleteDeptConfirm(false)
-            setDeptToDelete(null)
+            setDeletingDept(true);
+            await deleteDepartment(deptToDelete.id);
+            push({ kind: 'success', message: 'Department deleted successfully' });
+            loadDepartments();
+            setShowDeleteDeptConfirm(false);
+            setDeptToDelete(null);
           } catch (e: unknown) {
-            push({ kind: 'error', message: e?.message || 'Failed to delete department' })
+            push({ kind: 'error', message: e?.message || 'Failed to delete department' });
           } finally {
-            setDeletingDept(false)
+            setDeletingDept(false);
           }
         }}
         title="Delete Department"
@@ -2941,26 +4370,26 @@ const paginatedDepartments = filteredDepartments.slice((deptCurrentPage - 1) * d
       <ConfirmationModal
         isOpen={showDeleteOfferingConfirm}
         onClose={() => {
-          setShowDeleteOfferingConfirm(false)
-          setOfferingToDelete(null)
-          setOfferingToDeleteMessage('')
+          setShowDeleteOfferingConfirm(false);
+          setOfferingToDelete(null);
+          setOfferingToDeleteMessage('');
         }}
         onConfirm={async () => {
-          if (!offeringToDelete) return
+          if (!offeringToDelete) return;
 
           try {
-            setDeletingOffering(true)
-            await deleteOffering(offeringToDelete.offering_id)
-            push({ kind: 'success', message: 'Offering deleted successfully' })
-            loadAdminCourses()
-            setShowManageOfferings(false)
-            setShowDeleteOfferingConfirm(false)
-            setOfferingToDelete(null)
-            setOfferingToDeleteMessage('')
+            setDeletingOffering(true);
+            await deleteOffering(offeringToDelete.offering_id);
+            push({ kind: 'success', message: 'Offering deleted successfully' });
+            loadAdminCourses();
+            setShowManageOfferings(false);
+            setShowDeleteOfferingConfirm(false);
+            setOfferingToDelete(null);
+            setOfferingToDeleteMessage('');
           } catch (e: unknown) {
-            push({ kind: 'error', message: e?.message || 'Failed to delete offering' })
+            push({ kind: 'error', message: e?.message || 'Failed to delete offering' });
           } finally {
-            setDeletingOffering(false)
+            setDeletingOffering(false);
           }
         }}
         title="Delete Offering"
@@ -2975,23 +4404,23 @@ const paginatedDepartments = filteredDepartments.slice((deptCurrentPage - 1) * d
       <ConfirmationModal
         isOpen={showDeleteEnrollmentConfirm}
         onClose={() => {
-          setShowDeleteEnrollmentConfirm(false)
-          setEnrollmentToDelete(null)
+          setShowDeleteEnrollmentConfirm(false);
+          setEnrollmentToDelete(null);
         }}
         onConfirm={async () => {
-          if (!enrollmentToDelete) return
+          if (!enrollmentToDelete) return;
 
           try {
-            setDeletingEnrollment(true)
-            await deleteEnrollment(enrollmentToDelete.id)
-            push({ kind: 'success', message: 'Enrollment removed successfully' })
-            loadCourseEnrollments(selectedCourse.id)
-            setShowDeleteEnrollmentConfirm(false)
-            setEnrollmentToDelete(null)
+            setDeletingEnrollment(true);
+            await deleteEnrollment(enrollmentToDelete.id);
+            push({ kind: 'success', message: 'Enrollment removed successfully' });
+            loadCourseEnrollments(selectedCourse.id);
+            setShowDeleteEnrollmentConfirm(false);
+            setEnrollmentToDelete(null);
           } catch (e: unknown) {
-            push({ kind: 'error', message: e?.message || 'Failed to remove enrollment' })
+            push({ kind: 'error', message: e?.message || 'Failed to remove enrollment' });
           } finally {
-            setDeletingEnrollment(false)
+            setDeletingEnrollment(false);
           }
         }}
         title="Remove Enrollment"
@@ -3014,29 +4443,70 @@ const paginatedDepartments = filteredDepartments.slice((deptCurrentPage - 1) * d
       )}
 
       {showDeptDetailsModal && selectedDeptDetails && (
-        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, backdropFilter: 'blur(4px)', padding: '20px', overflowY: 'auto' }}>
-          <div className="card" style={{ width: '100%', maxWidth: 600, background: 'var(--surface)', borderRadius: 'var(--radius-lg)', padding: 24, boxShadow: '0 20px 50px rgba(0,0,0,0.3)', border: '1px solid var(--border)', margin: 'auto', maxHeight: '90vh', overflowY: 'auto' }}>
-            <h3 className="h4" style={{ marginTop: 0, marginBottom: 20, color: 'var(--text)' }}>Department Details: {selectedDeptDetails.code} - {selectedDeptDetails.name}</h3>
+        <div
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: 'rgba(0,0,0,0.5)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 1000,
+            backdropFilter: 'blur(4px)',
+            padding: '20px',
+            overflowY: 'auto',
+          }}
+        >
+          <div
+            className="card"
+            style={{
+              width: '100%',
+              maxWidth: 600,
+              background: 'var(--surface)',
+              borderRadius: 'var(--radius-lg)',
+              padding: 24,
+              boxShadow: '0 20px 50px rgba(0,0,0,0.3)',
+              border: '1px solid var(--border)',
+              margin: 'auto',
+              maxHeight: '90vh',
+              overflowY: 'auto',
+            }}
+          >
+            <h3 className="h4" style={{ marginTop: 0, marginBottom: 20, color: 'var(--text)' }}>
+              Department Details: {selectedDeptDetails.code} - {selectedDeptDetails.name}
+            </h3>
             <div>
               <h4>Courses in this Department</h4>
               {deptDetailsCourses.length > 0 ? (
                 <ul className="list">
                   {deptDetailsCourses.map((course: unknown) => (
-                    <li key={course.id}>{course.code} - {course.title}</li>
+                    <li key={course.id}>
+                      {course.code} - {course.title}
+                    </li>
                   ))}
                 </ul>
               ) : (
                 <p>No courses yet.</p>
               )}
             </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 24 }}>
+            <div
+              style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                marginTop: 24,
+              }}
+            >
               <div>
                 <button
                   className="btn btn-primary"
                   onClick={() => {
-                    setTab('users')
-                    setUserDeptFilter(selectedDeptDetails.id.toString())
-                    setShowDeptDetailsModal(false)
+                    setTab('users');
+                    setUserDeptFilter(selectedDeptDetails.id.toString());
+                    setShowDeptDetailsModal(false);
                   }}
                   style={{
                     fontWeight: '600',
@@ -3047,14 +4517,14 @@ const paginatedDepartments = filteredDepartments.slice((deptCurrentPage - 1) * d
                     transition: 'all 0.2s ease',
                     boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
                     fontSize: '14px',
-                    letterSpacing: '0.5px'
+                    letterSpacing: '0.5px',
                   }}
-                  onMouseEnter={(e) => {
+                  onMouseEnter={e => {
                     e.currentTarget.style.backgroundColor = 'var(--primary-hover, #0056b3)';
                     e.currentTarget.style.boxShadow = '0 4px 8px rgba(0,0,0,0.15)';
                     e.currentTarget.style.transform = 'translateY(-1px)';
                   }}
-                  onMouseLeave={(e) => {
+                  onMouseLeave={e => {
                     e.currentTarget.style.backgroundColor = 'var(--primary)';
                     e.currentTarget.style.boxShadow = '0 2px 4px rgba(0,0,0,0.1)';
                     e.currentTarget.style.transform = 'translateY(0)';
@@ -3074,13 +4544,13 @@ const paginatedDepartments = filteredDepartments.slice((deptCurrentPage - 1) * d
                   border: '1px solid var(--border)',
                   cursor: 'pointer',
                   transition: 'all 0.2s ease',
-                  fontSize: '14px'
+                  fontSize: '14px',
                 }}
-                onMouseEnter={(e) => {
+                onMouseEnter={e => {
                   e.currentTarget.style.backgroundColor = 'var(--surface-secondary)';
                   e.currentTarget.style.borderColor = 'var(--border-hover, #999)';
                 }}
-                onMouseLeave={(e) => {
+                onMouseLeave={e => {
                   e.currentTarget.style.backgroundColor = 'var(--surface)';
                   e.currentTarget.style.borderColor = 'var(--border)';
                 }}
@@ -3092,7 +4562,5 @@ const paginatedDepartments = filteredDepartments.slice((deptCurrentPage - 1) * d
         </div>
       )}
     </div>
-  )
+  );
 }
-           
-

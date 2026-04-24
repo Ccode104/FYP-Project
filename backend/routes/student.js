@@ -10,7 +10,6 @@ import {
   getAssignmentSubmissions,
   getCourseGrades,
   getCourseQuizzes,
-  attemptQuiz,
   enrollInCourse,
   getStudentQuizAttempts,
   getGradedAssignment,
@@ -226,51 +225,6 @@ router.get('/courses/:offeringId/grades', getCourseGrades);
  *         description: Unauthorized
  */
 router.get('/courses/:offeringId/quizzes', getCourseQuizzes);
-
-/**
- * @swagger
- * /api/student/quizzes/{quizId}/attempt:
- *   post:
- *     summary: Submit a quiz attempt
- *     tags: [Student]
- *     security:
- *       - bearerAuth: []
- *     parameters:
- *       - in: path
- *         name: quizId
- *         required: true
- *         schema:
- *           type: string
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             required:
- *               - answers
- *             properties:
- *               answers:
- *                 type: array
- *                 items:
- *                   type: object
- *                   required:
- *                     - questionId
- *                     - answer
- *                   properties:
- *                     questionId:
- *                       type: string
- *                     answer:
- *                       type: string
- *     responses:
- *       201:
- *         description: Quiz submitted successfully
- *       401:
- *         description: Unauthorized
- *       404:
- *         description: Quiz not found
- */
-router.post('/quizzes/:quizId/attempt', attemptQuiz);
 
 // List the current student's quiz attempts (optionally filtered by quizId via query param)
 router.get('/:studentId/quiz-attempts', getStudentQuizAttempts);

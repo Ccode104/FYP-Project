@@ -77,12 +77,79 @@ export default function QuizManagement() {
     google_form_url: '',
   });
   const [creating, setCreating] = useState(false);
+  const [deletingQuizId, setDeletingQuizId] = useState<number | null>(null);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [quizToDelete, setQuizToDelete] = useState<Quiz | null>(null);
 
-  const isTeacher = user?.role === 'teacher' || user?.role === 'ta' || user?.role === 'faculty';
+  const [reloadKey, setReloadKey] = useState(0);
+  const reloadQuizzes = () => setReloadKey(prev => prev + 1);
+
+  const isTeacher =
+    user?.role === 'teacher' ||
+    user?.role === 'ta' ||
+    user?.role === 'faculty' ||
+    user?.role === 'admin';
+
+  const handleDeleteClick = (quiz: Quiz) => {
+    setQuizToDelete(quiz);
+    setShowDeleteConfirm(true);
+  };
+
+  const deleteQuiz = async (quizId: number) => {
+    setDeletingQuizId(quizId);
+    try {
+      await apiFetch(`/api/quiz-builder/quizzes/${quizId}`, { method: 'DELETE' });
+      reloadQuizzes();
+      setShowDeleteConfirm(false);
+      setQuizToDelete(null);
+      // Simple toast
+      setError(`Quiz "${quizzes.find(q => q.id === quizId)?.title}" deleted successfully`);
+      setTimeout(() => setError(null), 3000);
+    } catch (err) {
+      console.error('Delete failed:', err);
+      setError('Failed to delete quiz');
+    } finally {
+      setDeletingQuizId(null);
+    }
+  };
 
   const extractGoogleFormId = (url: string): string => {
-    const match = url.match(/forms\.google\.com\/forms\/u\/0\/d\/([a-zA-Z0-9_-]+)/);
+    const match = url.match(/\/forms(?:\/u\/\d+)?\/d(?:\/e)?\/([a-zA-Z0-9_-]+)/);
     return match ? match[1] : '';
+  };
+
+  const getGoogleFormEditUrl = (quiz: Quiz): string => {
+    console.debug('QuizManagement: resolving edit URL', {
+      quizId: quiz.id,
+      google_form_url: quiz.google_form_url,
+      google_form_id: quiz.google_form_id,
+    });
+
+    if (quiz.google_form_url?.includes('/edit')) {
+      return quiz.google_form_url;
+    }
+
+    const formId = quiz.google_form_id || extractGoogleFormId(quiz.google_form_url || '');
+    const resolvedUrl = formId ? `https://docs.google.com/forms/d/${formId}/edit` : '';
+
+    console.debug('QuizManagement: resolved edit URL', {
+      quizId: quiz.id,
+      resolvedUrl,
+    });
+
+    return resolvedUrl;
+  };
+
+  const openGoogleFormEditor = (quiz: Quiz) => {
+    const editUrl = getGoogleFormEditUrl(quiz);
+    if (!editUrl) {
+      setError('This quiz does not have a linked Google Form editor URL');
+      return;
+    }
+    const opened = window.open(editUrl, '_blank', 'noopener,noreferrer');
+    if (!opened) {
+      window.location.assign(editUrl);
+    }
   };
 
   const handleCreateQuiz = async () => {
@@ -101,7 +168,7 @@ export default function QuizManagement() {
 
     setCreating(true);
     try {
-      const created = await apiFetch<Quiz>(`/api/quizzes/`, {
+        const created = await apiFetch<{ quiz: Quiz }>(`/api/quizzes/`, {
         method: 'POST',
         body: {
           course_offering_id: Number(courseId),
@@ -117,7 +184,7 @@ export default function QuizManagement() {
           google_form_id: googleFormId,
         },
       });
-      setQuizzes(prev => [...prev, created]);
+      setQuizzes(prev => [...prev, created.quiz]);
       setShowCreateModal(false);
       setNewQuiz({
         title: '',
@@ -146,22 +213,25 @@ export default function QuizManagement() {
       setError(null);
 
       try {
-        const courseData = await apiFetch<CourseInfo>(`/api/student/courses/${courseId}`);
-        setCourse(courseData);
+        // Fetch course data
+        const course = await apiFetch<CourseInfo>(`/api/student/courses/${courseId}`);
+        setCourse(course);
 
-        const quizzesData = await apiFetch<Quiz[]>(
-          `/api/student/courses/${courseId}/quizzes`
-        ).catch(() => []);
-        setQuizzes(Array.isArray(quizzesData) ? quizzesData : []);
+        // Fetch quizzes
+        const quizzesData = await apiFetch<Quiz[]>(`/api/quiz-builder/courses/${courseId}/quizzes`);
+        console.debug('QuizManagement: loaded quizzes', quizzesData);
+        setQuizzes(quizzesData);
       } catch (err) {
         console.error('Failed to load quizzes:', err);
+        setError('Failed to load course data');
+        setQuizzes([]);
       } finally {
         setLoading(false);
       }
     };
 
     loadData();
-  }, [courseId]);
+  }, [courseId, reloadKey]);
 
   const upcomingQuizzes = quizzes.filter(q => getQuizStatus(q) === 'scheduled');
   const completedQuizzes = quizzes.filter(q => getQuizStatus(q) === 'completed');
@@ -225,10 +295,10 @@ export default function QuizManagement() {
             </div>
             <button
               className="btn btn-primary quiz-create-btn"
-              onClick={() => navigate(`/courses/${courseId}/quiz-builder`)}
+              onClick={() => setShowCreateModal(true)}
             >
               <span className="material-symbols-outlined">add</span>
-              <span>Create New Quiz</span>
+              <span>Link Google Form Quiz</span>
             </button>
           </div>
 
@@ -288,35 +358,52 @@ export default function QuizManagement() {
                             </div>
                             {quiz.google_form_url && (
                               <a
-                                href={quiz.google_form_url}
+                                href={getGoogleFormEditUrl(quiz)}
                                 target="_blank"
                                 rel="noopener noreferrer"
                                 className="quiz-google-link"
                               >
                                 <span className="material-symbols-outlined">open_in_new</span>
-                                View Google Form
+                                Open Google Form
                               </a>
                             )}
                           </div>
                         </div>
                         <div className="quiz-card-actions">
                           <button
-                            className="action-btn view"
-                            title="View Quiz"
-                            onClick={() => window.open(quiz.google_form_url, '_blank')}
+                            className="action-btn"
+                            title="View Results"
+                            onClick={() => navigate(`/quizzes/${quiz.id}/results`)}
                           >
-                            <span className="material-symbols-outlined">visibility</span>
+                            <span className="material-symbols-outlined">analytics</span>
                           </button>
-                          <button
+                          <a
                             className="action-btn"
                             title="Edit in Google Forms"
-                            onClick={() => window.open(quiz.google_form_url, '_blank')}
+                            href={getGoogleFormEditUrl(quiz) || quiz.google_form_url || '#'}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            onClick={e => {
+                              if (!getGoogleFormEditUrl(quiz) && !quiz.google_form_url) {
+                                e.preventDefault();
+                                setError('This quiz does not have a linked Google Form editor URL');
+                              }
+                            }}
                           >
                             <span className="material-symbols-outlined">edit</span>
-                          </button>
-                          <button className="action-btn delete" title="Delete">
-                            <span className="material-symbols-outlined">delete</span>
-                          </button>
+                          </a>
+                          {isTeacher && (
+                            <button
+                              className="action-btn delete"
+                              title="Delete Quiz"
+                              onClick={() => handleDeleteClick(quiz)}
+                              disabled={deletingQuizId === quiz.id}
+                            >
+                              <span className="material-symbols-outlined">
+                                {deletingQuizId === quiz.id ? 'hourglass_empty' : 'delete'}
+                              </span>
+                            </button>
+                          )}
                           <div className="action-divider"></div>
                           <button className="btn-schedule">Schedule</button>
                         </div>
@@ -348,7 +435,7 @@ export default function QuizManagement() {
                         <p className="quiz-history-avg">Class Avg: {quiz.average_score || 0}%</p>
                         {quiz.google_form_url && (
                           <a
-                            href={quiz.google_form_url}
+                            href={getGoogleFormEditUrl(quiz)}
                             target="_blank"
                             rel="noopener noreferrer"
                             className="quiz-history-google-link"
@@ -371,7 +458,7 @@ export default function QuizManagement() {
                                 d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.96 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
                               />
                             </svg>
-                            Google Form
+                            Edit Form
                           </a>
                         )}
                         <div className="quiz-history-footer">
@@ -382,22 +469,41 @@ export default function QuizManagement() {
                           </div>
                           <div className="quiz-history-actions">
                             <button
-                              className="action-btn view"
-                              title="View Responses"
-                              onClick={() => window.open(quiz.google_form_url, '_blank')}
-                            >
-                              <span className="material-symbols-outlined">visibility</span>
-                            </button>
-                            <button
                               className="action-btn"
-                              title="View in Google Forms"
-                              onClick={() => window.open(quiz.google_form_url, '_blank')}
+                              title="View Results"
+                              onClick={() => navigate(`/quizzes/${quiz.id}/results`)}
+                            >
+                              <span className="material-symbols-outlined">analytics</span>
+                            </button>
+                            <a
+                              className="action-btn"
+                              title="Edit in Google Forms"
+                              href={getGoogleFormEditUrl(quiz) || quiz.google_form_url || '#'}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              onClick={e => {
+                                if (!getGoogleFormEditUrl(quiz) && !quiz.google_form_url) {
+                                  e.preventDefault();
+                                  setError(
+                                    'This quiz does not have a linked Google Form editor URL'
+                                  );
+                                }
+                              }}
                             >
                               <span className="material-symbols-outlined">edit</span>
-                            </button>
-                            <button className="action-btn delete" title="Delete">
-                              <span className="material-symbols-outlined">delete</span>
-                            </button>
+                            </a>
+                            {isTeacher && (
+                              <button
+                                className="action-btn delete"
+                                title="Delete Quiz"
+                                onClick={() => handleDeleteClick(quiz)}
+                                disabled={deletingQuizId === quiz.id}
+                              >
+                                <span className="material-symbols-outlined">
+                                  {deletingQuizId === quiz.id ? 'hourglass_empty' : 'delete'}
+                                </span>
+                              </button>
+                            )}
                           </div>
                         </div>
                       </div>
@@ -481,6 +587,28 @@ export default function QuizManagement() {
           </footer>
         </div>
       </div>
+
+      {/* Delete Confirmation Modal */}
+      {showDeleteConfirm && quizToDelete && (
+        <div className="modal-overlay" onClick={() => setShowDeleteConfirm(false)}>
+          <div className="delete-confirm-modal" onClick={e => e.stopPropagation()}>
+            <h3>Delete Quiz</h3>
+            <p>Are you sure you want to delete "{quizToDelete.title}"? This cannot be undone.</p>
+            <div className="delete-actions">
+              <button className="btn-cancel" onClick={() => setShowDeleteConfirm(false)}>
+                Cancel
+              </button>
+              <button
+                className="btn-danger"
+                onClick={() => deleteQuiz(quizToDelete.id)}
+                disabled={deletingQuizId !== null}
+              >
+                {deletingQuizId === quizToDelete.id ? 'Deleting...' : 'Delete Quiz'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Create Quiz Modal */}
       {showCreateModal && (

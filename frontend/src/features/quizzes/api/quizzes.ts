@@ -34,6 +34,50 @@ export interface QuizAttempt {
   answers: Record<string, unknown>;
 }
 
+export interface QuizResultsSummary {
+  quiz: {
+    id: number;
+    title: string;
+    description?: string | null;
+    course_offering_id: number;
+    course_code?: string;
+    course_title?: string;
+    max_score: number;
+    start_at?: string | null;
+    end_at?: string | null;
+    is_proctored?: boolean;
+    time_limit?: number | null;
+    google_form_url?: string | null;
+    google_form_id?: string | null;
+  };
+  summary: {
+    total_attempts: number;
+    scored_attempts: number;
+    average_score: number | null;
+    highest_score: number | null;
+    lowest_score: number | null;
+    pass_rate: number | null;
+    violated_attempts: number;
+    pending_manual_grading: number;
+  };
+  attempts: Array<{
+    id: string | number;
+    student_id: number | null;
+    student_name: string;
+    student_email: string | null;
+    started_at: string | null;
+    finished_at: string | null;
+    score: number | null;
+    grade?: number | null;
+    feedback?: string | null;
+    graded_at?: string | null;
+    violated: boolean;
+    suspended_at?: string | null;
+    resumed_at?: string | null;
+    needs_manual_grading: boolean;
+  }>;
+}
+
 export async function listCourseQuizzes(offeringId: number): Promise<Partial<Quiz>[]> {
   return apiFetch(`/api/student/courses/${offeringId}/quizzes`);
 }
@@ -123,6 +167,14 @@ export async function getQuizAnalytics(quizId: number) {
 
 export async function getStudentProctoringHistory(studentId: number) {
   return apiFetch(`/api/proctoring-analytics/student/${studentId}`);
+}
+
+export async function getQuizResultsSummary(quizId: number): Promise<QuizResultsSummary> {
+  return apiFetch(`/api/quizzes/${quizId}/results/summary`);
+}
+
+export async function getQuizResultsSheet(quizId: number): Promise<{ spreadsheetId: string; spreadsheetUrl: string }> {
+  return apiFetch(`/api/sheets/quizzes/${quizId}`);
 }
 
 // Runtime shims for TS-only exports (kept for compatibility with existing imports)

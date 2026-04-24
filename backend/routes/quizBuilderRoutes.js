@@ -99,7 +99,7 @@ router.post('/quizzes', requireAuth, requireRole('faculty', 'ta', 'admin'), crea
  *       401:
  *         description: Unauthorized
  */
-router.get('/quizzes/:course_offering_id', requireAuth, listQuizzes);
+router.get('/courses/:course_offering_id/quizzes', requireAuth, listQuizzes);
 
 /**
  * @swagger

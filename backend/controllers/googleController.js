@@ -6,10 +6,213 @@ const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID;
 const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET;
 const GOOGLE_REDIRECT_URI =
   process.env.GOOGLE_REDIRECT_URI || 'http://localhost:4000/api/auth/google/callback';
-const SPREADSHEET_ID_STORE_KEY = 'google_sheets_assignment';
 
 function getOAuth2Client() {
   return new google.auth.OAuth2(GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, GOOGLE_REDIRECT_URI);
+}
+
+let ensureQuizSheetsTablePromise = null;
+
+async function ensureQuizSheetsTable() {
+  if (!ensureQuizSheetsTablePromise) {
+    ensureQuizSheetsTablePromise = (async () => {
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS quiz_sheets (
+          id BIGSERIAL PRIMARY KEY,
+          quiz_id BIGINT UNIQUE NOT NULL REFERENCES quizzes(id) ON DELETE CASCADE,
+          spreadsheet_id TEXT UNIQUE NOT NULL,
+          spreadsheet_url TEXT NOT NULL,
+          created_by BIGINT REFERENCES users(id),
+          created_at TIMESTAMPTZ DEFAULT NOW()
+        )
+      `);
+    })().catch(error => {
+      ensureQuizSheetsTablePromise = null;
+      throw error;
+    });
+  }
+
+  return ensureQuizSheetsTablePromise;
+}
+
+function extractGoogleFormId(url) {
+  if (!url) return null;
+  const match = String(url).match(/\/forms(?:\/u\/\d+)?\/d(?:\/e)?\/([a-zA-Z0-9_-]+)/);
+  return match ? match[1] : null;
+}
+
+function getFormQuestionTitleMap(form) {
+  const questionTitles = new Map();
+
+  for (const item of form?.items || []) {
+    const question = item?.questionItem?.question;
+    if (question?.questionId) {
+      questionTitles.set(question.questionId, item.title || question.questionId);
+    }
+  }
+
+  return questionTitles;
+}
+
+function getFormMaxScore(form) {
+  let total = 0;
+
+  for (const item of form?.items || []) {
+    const pointValue = item?.questionItem?.question?.grading?.pointValue;
+    if (typeof pointValue === 'number') {
+      total += pointValue;
+    }
+  }
+
+  return total > 0 ? total : null;
+}
+
+function readAnswerValue(answer) {
+  const textAnswers = answer?.textAnswers?.answers;
+  if (Array.isArray(textAnswers) && textAnswers.length > 0) {
+    return textAnswers.map(entry => entry.value).filter(Boolean).join(', ');
+  }
+
+  const fileUploadAnswers = answer?.fileUploadAnswers?.answers;
+  if (Array.isArray(fileUploadAnswers) && fileUploadAnswers.length > 0) {
+    return fileUploadAnswers.map(entry => entry.fileId || entry.fileName).filter(Boolean).join(', ');
+  }
+
+  return '';
+}
+
+function getResponseScore(response) {
+  if (typeof response?.totalScore === 'number') {
+    return response.totalScore;
+  }
+
+  const answers = Object.values(response?.answers || {});
+  let total = 0;
+  let hasGrades = false;
+
+  for (const answer of answers) {
+    const gradeScore = answer?.grade?.score;
+    if (typeof gradeScore === 'number') {
+      total += gradeScore;
+      hasGrades = true;
+    }
+  }
+
+  return hasGrades ? total : null;
+}
+
+export async function getGoogleFormQuizResultsData(quizId, userId) {
+  const quizResult = await pool.query(
+    `
+      SELECT q.*, c.code AS course_code, c.title AS course_title
+      FROM quizzes q
+      JOIN course_offerings co ON q.course_offering_id = co.id
+      JOIN courses c ON co.course_id = c.id
+      WHERE q.id = $1
+    `,
+    [quizId]
+  );
+
+  if (quizResult.rowCount === 0) {
+    throw new Error('Quiz not found');
+  }
+
+  const quiz = quizResult.rows[0];
+  const formId = quiz.google_form_id || extractGoogleFormId(quiz.google_form_url);
+
+  if (!formId) {
+    throw new Error('Linked Google Form is missing for this quiz');
+  }
+
+  const auth = await getAuthenticatedClient(userId);
+  const forms = google.forms({ version: 'v1', auth });
+
+  const [formResponse, responsesResponse] = await Promise.all([
+    forms.forms.get({ formId }),
+    forms.forms.responses.list({ formId }),
+  ]);
+
+  const form = formResponse.data || {};
+  const responses = responsesResponse.data.responses || [];
+  const questionTitles = getFormQuestionTitleMap(form);
+  const derivedMaxScore = getFormMaxScore(form);
+  const maxScore = Number(quiz.max_score || derivedMaxScore || 100);
+
+  const attempts = responses.map(response => {
+    const score = getResponseScore(response);
+    const answers = Object.entries(response.answers || {}).map(([questionId, answer]) => ({
+      question_id: questionId,
+      question_title: questionTitles.get(questionId) || questionId,
+      answer: readAnswerValue(answer),
+      score: typeof answer?.grade?.score === 'number' ? answer.grade.score : null,
+    }));
+    const email = response.respondentEmail || null;
+    const fallbackName = email ? email.split('@')[0] : 'Google Forms respondent';
+
+    return {
+      id: response.responseId,
+      student_id: null,
+      student_name: fallbackName,
+      student_email: email,
+      started_at: response.createTime || null,
+      finished_at: response.lastSubmittedTime || response.createTime || null,
+      score,
+      grade: score,
+      feedback: null,
+      graded_at: response.lastSubmittedTime || null,
+      violated: false,
+      suspended_at: null,
+      resumed_at: null,
+      needs_manual_grading: score === null,
+      answers,
+    };
+  });
+
+  const scoredAttempts = attempts.filter(attempt => typeof attempt.score === 'number');
+  const passThreshold = maxScore * 0.6;
+  const averageScore = scoredAttempts.length
+    ? scoredAttempts.reduce((sum, attempt) => sum + Number(attempt.score), 0) / scoredAttempts.length
+    : null;
+  const highestScore = scoredAttempts.length
+    ? Math.max(...scoredAttempts.map(attempt => Number(attempt.score)))
+    : null;
+  const lowestScore = scoredAttempts.length
+    ? Math.min(...scoredAttempts.map(attempt => Number(attempt.score)))
+    : null;
+  const passRate = scoredAttempts.length
+    ? (scoredAttempts.filter(attempt => Number(attempt.score) >= passThreshold).length /
+        scoredAttempts.length) *
+      100
+    : null;
+
+  return {
+    quiz: {
+      id: quiz.id,
+      title: quiz.title,
+      description: quiz.description,
+      course_offering_id: quiz.course_offering_id,
+      course_code: quiz.course_code,
+      course_title: quiz.course_title,
+      max_score: maxScore,
+      start_at: quiz.start_at,
+      end_at: quiz.end_at,
+      is_proctored: false,
+      time_limit: null,
+      google_form_url: quiz.google_form_url || null,
+      google_form_id: formId,
+    },
+    summary: {
+      total_attempts: attempts.length,
+      scored_attempts: scoredAttempts.length,
+      average_score: averageScore,
+      highest_score: highestScore,
+      lowest_score: lowestScore,
+      pass_rate: passRate,
+      violated_attempts: 0,
+      pending_manual_grading: attempts.filter(attempt => attempt.score === null).length,
+    },
+    attempts,
+  };
 }
 
 export async function initiateGoogleOAuth(req, res) {
@@ -29,6 +232,8 @@ export async function initiateGoogleOAuth(req, res) {
       'https://www.googleapis.com/auth/drive.appdata', // For Application Data folder
       'https://www.googleapis.com/auth/calendar.events',
       'https://www.googleapis.com/auth/userinfo.email',
+      'https://www.googleapis.com/auth/forms', // Google Forms API
+      'https://www.googleapis.com/auth/forms.body', // Google Forms body
     ];
 
     const authUrl = oauth2Client.generateAuthUrl({
@@ -285,6 +490,172 @@ export async function getOrCreateGradingSheet(req, res) {
   } catch (error) {
     console.error('Error creating grading sheet:', error);
     res.status(500).json({ error: error.message || 'Failed to create grading sheet' });
+  }
+}
+
+export async function getOrCreateQuizResultsSheet(req, res) {
+  try {
+    const { quizId } = req.params;
+    const userId = req.user.id;
+
+    if (!quizId) {
+      return res.status(400).json({ error: 'Missing quiz ID' });
+    }
+
+    await ensureQuizSheetsTable();
+
+    const quizResult = await pool.query(
+      `SELECT q.*, c.code as course_code, c.title as course_title, co.faculty_id
+       FROM quizzes q
+       JOIN course_offerings co ON q.course_offering_id = co.id
+       JOIN courses c ON co.course_id = c.id
+       WHERE q.id = $1`,
+      [quizId]
+    );
+
+    if (quizResult.rowCount === 0) {
+      return res.status(404).json({ error: 'Quiz not found' });
+    }
+
+    const quiz = quizResult.rows[0];
+
+    if (req.user.role !== 'admin') {
+      if (req.user.role === 'faculty' && Number(req.user.id) !== Number(quiz.faculty_id)) {
+        return res.status(403).json({ error: 'Not authorized' });
+      }
+
+      if (req.user.role === 'ta') {
+        const taCheck = await pool.query(
+          'SELECT 1 FROM ta_assignments WHERE ta_id = $1 AND course_offering_id = $2',
+          [req.user.id, quiz.course_offering_id]
+        );
+        if (taCheck.rowCount === 0) {
+          return res.status(403).json({ error: 'Not authorized' });
+        }
+      }
+    }
+
+    const results = await getGoogleFormQuizResultsData(quizId, userId);
+    const attempts = results.attempts;
+    const scoredAttempts = attempts.filter(attempt => typeof attempt.score === 'number');
+    const pendingManualGrading = results.summary.pending_manual_grading;
+    const averageScore = results.summary.average_score;
+    const passRate = results.summary.pass_rate;
+
+    const auth = await getAuthenticatedClient(userId);
+    const sheets = google.sheets({ version: 'v4', auth });
+
+    const existingSheet = await pool.query(
+      'SELECT spreadsheet_id, spreadsheet_url FROM quiz_sheets WHERE quiz_id = $1',
+      [quizId]
+    );
+
+    let spreadsheetId = existingSheet.rows[0]?.spreadsheet_id;
+    let spreadsheetUrl = existingSheet.rows[0]?.spreadsheet_url;
+
+    if (!spreadsheetId) {
+      const spreadsheet = await sheets.spreadsheets.create({
+        requestBody: {
+          properties: {
+            title: `${quiz.course_code} - ${quiz.title} - Quiz Results`,
+          },
+          sheets: [{ properties: { title: 'Summary' } }, { properties: { title: 'Attempts' } }],
+        },
+      });
+
+      spreadsheetId = spreadsheet.data.spreadsheetId;
+      spreadsheetUrl = `https://docs.google.com/spreadsheets/d/${spreadsheetId}`;
+
+      await pool.query(
+        `INSERT INTO quiz_sheets (quiz_id, spreadsheet_id, spreadsheet_url, created_by)
+         VALUES ($1, $2, $3, $4)
+         ON CONFLICT (quiz_id) DO UPDATE
+         SET spreadsheet_id = EXCLUDED.spreadsheet_id,
+             spreadsheet_url = EXCLUDED.spreadsheet_url,
+             created_by = EXCLUDED.created_by`,
+        [quizId, spreadsheetId, spreadsheetUrl, userId]
+      );
+    }
+
+    const summaryRows = [
+      ['Quiz Title', quiz.title || ''],
+      ['Course', `${quiz.course_code || ''} - ${quiz.course_title || ''}`.trim()],
+      ['Max Score', String(results.quiz.max_score || 100)],
+      ['Total Attempts', String(attempts.length)],
+      ['Scored Attempts', String(scoredAttempts.length)],
+      ['Average Score', averageScore === null ? '' : Number(averageScore).toFixed(2)],
+      ['Pass Rate', passRate === null ? '' : `${Number(passRate).toFixed(1)}%`],
+      ['Pending Manual Grading', String(pendingManualGrading)],
+      ['Violated Attempts', '0'],
+      ['Linked Google Form', quiz.google_form_url || 'Not linked'],
+    ];
+
+    const attemptRows = attempts.map(attempt => [
+      attempt.student_name || '',
+      attempt.student_email || '',
+      String(attempt.id),
+      attempt.started_at ? new Date(attempt.started_at).toLocaleString() : '',
+      attempt.finished_at ? new Date(attempt.finished_at).toLocaleString() : '',
+      attempt.score === null || attempt.score === undefined ? '' : String(attempt.score),
+      String(results.quiz.max_score || 100),
+      attempt.score === null || attempt.score === undefined || !results.quiz.max_score
+        ? ''
+        : `${((Number(attempt.score) / Number(results.quiz.max_score)) * 100).toFixed(1)}%`,
+      'Completed',
+      attempt.needs_manual_grading ? 'Yes' : 'No',
+    ]);
+
+    await sheets.spreadsheets.values.clear({
+      spreadsheetId,
+      range: 'Summary!A:Z',
+    });
+    await sheets.spreadsheets.values.clear({
+      spreadsheetId,
+      range: 'Attempts!A:Z',
+    });
+
+    await sheets.spreadsheets.values.update({
+      spreadsheetId,
+      range: 'Summary!A1',
+      valueInputOption: 'USER_ENTERED',
+      requestBody: {
+        values: [['Metric', 'Value'], ...summaryRows],
+      },
+    });
+
+    await sheets.spreadsheets.values.update({
+      spreadsheetId,
+      range: 'Attempts!A1',
+      valueInputOption: 'USER_ENTERED',
+      requestBody: {
+        values: [
+          [
+            'Student Name',
+            'Email',
+            'Attempt ID',
+            'Started At',
+            'Submitted At',
+            'Score',
+            'Max Score',
+            'Percentage',
+            'Status',
+            'Needs Manual Grading',
+          ],
+          ...attemptRows,
+        ],
+      },
+    });
+
+    res.json({ spreadsheetId, spreadsheetUrl });
+  } catch (error) {
+    console.error('Error creating quiz results sheet:', error);
+    if (error.message === 'Google not connected') {
+      return res.status(403).json({ error: 'Connect Google to create the Google quiz results sheet' });
+    }
+    if (error.message === 'Linked Google Form is missing for this quiz') {
+      return res.status(400).json({ error: error.message });
+    }
+    res.status(500).json({ error: error.message || 'Failed to create quiz results sheet' });
   }
 }
 

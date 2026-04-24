@@ -32,7 +32,7 @@ export default function PresentAssignmentsSection({
   presentAssignments: AssignmentItem[];
   isBackend: boolean;
   onTeacherDelete: (assignmentId: number) => Promise<void>;
-  onAttemptQuiz: (quizId: unknown) => void;
+  onAttemptQuiz: (quiz: AssignmentItem) => void;
   onSubmitSuccess?: () => void;
 }) {
   const navigate = useNavigate();
@@ -124,7 +124,7 @@ export default function PresentAssignmentsSection({
                     className="btn-assignment attempt-quiz"
                     onClick={(e) => {
                       e.stopPropagation();
-                      onAttemptQuiz(a.quiz_id);
+                      onAttemptQuiz(a);
                     }}
                   >
                     <span>Start Quiz</span>

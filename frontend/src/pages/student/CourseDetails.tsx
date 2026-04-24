@@ -10,7 +10,6 @@ import './CourseDetails.overrides.css';
 import './CodeSubmissionView.css';
 import { useToast } from '../../components/ToastProvider';
 import { apiFetch } from '../../services/api';
-import QuizCreator from '../../components/QuizCreator';
 import VideoUpload from '../../components/VideoUpload';
 import InteractiveVideoPlayer from '../../components/InteractiveVideoPlayer';
 import VideoQuestionManager from '../../components/VideoQuestionManager';
@@ -39,8 +38,6 @@ import {
   getLiveLecturesByCourse,
   type LiveLecture,
 } from '../../features/live-lecture/api/liveLectures';
-import SuspendedQuizzes from '../../components/SuspendedQuizzes';
-import ProctoringAnalytics from '../../components/ProctoringAnalytics';
 
 // Add CodeQuestion type for frontend usage
 interface CodeQuestion {
@@ -121,6 +118,23 @@ export default function CourseDetails() {
       (toast as unknown).push(opts);
     } else {
       console.log(opts);
+    }
+  };
+
+  const openGoogleQuiz = (quizLike: any) => {
+    const googleFormUrl = quizLike?.google_form_url || quizLike?.quiz_data?.google_form_url;
+
+    if (!googleFormUrl) {
+      push({
+        kind: 'error',
+        message: 'Linked Google Form is missing for this quiz.',
+      });
+      return;
+    }
+
+    const opened = window.open(googleFormUrl, '_blank', 'noopener,noreferrer');
+    if (!opened) {
+      window.location.assign(googleFormUrl);
     }
   };
 
@@ -373,9 +387,9 @@ export default function CourseDetails() {
       { id: 'quizzes', label: 'Quizzes', icon: '❓', tooltip: 'Manage quizzes' },
       {
         id: 'manage',
-        label: 'Create Assignment and Quiz',
+        label: 'Create Assignment',
         icon: '➕',
-        tooltip: 'Create new assignments and quizzes',
+        tooltip: 'Create new assignments',
       },
       {
         id: 'resources',
@@ -384,18 +398,6 @@ export default function CourseDetails() {
         tooltip: 'Upload course resources',
       },
       { id: 'submissions', label: 'Submissions', icon: '📥', tooltip: 'View student submissions' },
-      {
-        id: 'suspended-quizzes',
-        label: 'Suspended Quizzes',
-        icon: '🚫',
-        tooltip: 'Manage suspended quiz attempts',
-      },
-      {
-        id: 'proctoring-analytics',
-        label: 'Proctoring Analytics',
-        icon: '📊',
-        tooltip: 'View proctoring analytics',
-      },
       { id: 'videos', label: 'Videos', icon: '🎥', tooltip: 'Manage video lectures' },
       { id: 'live-lectures', label: 'Live Lectures', icon: '📺', tooltip: 'Manage live lectures' },
       {
@@ -1289,8 +1291,8 @@ export default function CourseDetails() {
                     push({ kind: 'error', message: e?.message || 'Failed' });
                   }
                 }}
-                onAttemptQuiz={(quizId: unknown) => {
-                  location.assign(`/quizzes/${quizId}`);
+                onAttemptQuiz={(quiz: unknown) => {
+                  openGoogleQuiz(quiz);
                 }}
                 onStartCodeAttempt={(assignment: unknown) => {
                   void startCodeAttempt(assignment);
@@ -1537,7 +1539,6 @@ export default function CourseDetails() {
                                   <button
                                     className="btn btn-sm btn-primary"
                                     onClick={() => {
-                                      // Navigate to quiz details/results page
                                       navigate(`/quizzes/${quiz.id}/results`);
                                     }}
                                   >
@@ -1545,15 +1546,9 @@ export default function CourseDetails() {
                                   </button>
                                   <button
                                     className="btn btn-sm"
-                                    onClick={() => {
-                                      // TODO: Implement edit quiz functionality
-                                      push({
-                                        kind: 'info',
-                                        message: 'Edit functionality coming soon',
-                                      });
-                                    }}
+                                    onClick={() => navigate(`/courses/${courseId}/quizzes`)}
                                   >
-                                    Edit
+                                    Manage Quiz
                                   </button>
                                   <button
                                     className="btn btn-sm btn-danger"
@@ -1564,7 +1559,7 @@ export default function CourseDetails() {
                                         )
                                       ) {
                                         try {
-                                          await apiFetch(`/api/quizzes/${quiz.id}`, {
+                                          await apiFetch(`/api/quiz-builder/quizzes/${quiz.id}`, {
                                             method: 'DELETE',
                                           });
                                           push({
@@ -1704,27 +1699,27 @@ export default function CourseDetails() {
                                 !quiz.isActive && (
                                   <button
                                     className="btn btn-primary"
-                                    onClick={() => location.assign(`/quizzes/${quiz.quiz_id}`)}
+                                    onClick={() => openGoogleQuiz(quiz)}
                                   >
-                                    Start Quiz
+                                    Open Google Form
                                   </button>
                                 )}
                               {quiz.isActive && !quiz.isSuspended && (
                                 <button
                                   className="btn btn-warning"
-                                  onClick={() => location.assign(`/quizzes/${quiz.quiz_id}`)}
-                                  title="Resume your in-progress quiz"
+                                  onClick={() => openGoogleQuiz(quiz)}
+                                  title="Open the linked Google Form"
                                 >
-                                  Resume Quiz
+                                  Open Google Form
                                 </button>
                               )}
                               {quiz.isSuspended && (
                                 <button
                                   className="btn"
                                   disabled
-                                  title="Quiz is suspended. Contact your instructor to resume."
+                                  title="This quiz is managed through Google Forms."
                                 >
-                                  Resume Quiz (Suspended)
+                                  Google Form Unavailable
                                 </button>
                               )}
                               {quiz.isSubmitted && (
@@ -2690,14 +2685,6 @@ export default function CourseDetails() {
             </section>
           )}
 
-          {(user?.role === 'teacher' || user?.role === 'ta') && tab === 'suspended-quizzes' && (
-            <SuspendedQuizzes courseId={courseId || ''} />
-          )}
-
-          {(user?.role === 'teacher' || user?.role === 'ta') && tab === 'proctoring-analytics' && (
-            <ProctoringAnalytics courseId={courseId || ''} />
-          )}
-
           {tab === 'discussion' && isBackend && (
             <section className="assignments-section">
               <div className="section-header">
@@ -2763,13 +2750,16 @@ export default function CourseDetails() {
                 </button>
                 <h3 style={{ margin: 0 }}>Create Quiz</h3>
               </div>
-              <QuizCreator
-                courseOfferingId={courseId || ''}
-                onComplete={() => {
-                  setAssignmentCreationType('selection');
-                  push({ kind: 'success', message: 'Quiz created' });
-                }}
-              />
+              <p className="muted" style={{ marginBottom: 16 }}>
+                Quizzes now use Google Forms only. Create and manage them from the course quiz
+                management page.
+              </p>
+              <button
+                className="btn btn-primary"
+                onClick={() => navigate(`/courses/${courseId}/quizzes`)}
+              >
+                Open Quiz Management
+              </button>
             </section>
           )}
 

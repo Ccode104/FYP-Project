@@ -119,3 +119,19 @@ export async function generateMeetLink(lectureId: number): Promise<{
 }> {
   return apiFetch(`/api/live-lectures/${lectureId}/meet-link`, { method: 'POST' });
 }
+
+export async function updateLiveLecture(
+  lectureId: number,
+  data: {
+    title?: string;
+    description?: string;
+    scheduled_at?: string;
+    duration_minutes?: number;
+  }
+): Promise<{ success: boolean; message: string; lecture: LiveLecture }> {
+  return apiFetch(`/api/live-lectures/${lectureId}`, { method: 'PUT', body: data });
+}
+
+export async function deleteLiveLecture(lectureId: number): Promise<{ success: boolean; message: string }> {
+  return apiFetch(`/api/live-lectures/${lectureId}`, { method: 'DELETE' });
+}

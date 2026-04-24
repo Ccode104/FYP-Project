@@ -194,7 +194,8 @@ export async function getCourseQuizzes(req, res) {
   try {
     const { offeringId } = req.params;
     const result = await pool.query(
-      `SELECT q.id, q.title, q.start_at, q.end_at, q.max_score, q.time_limit,
+      `SELECT q.id, q.title, q.description, q.start_at, q.end_at, q.max_score, q.time_limit,
+              q.is_proctored, q.google_form_url, q.google_form_id,
               COALESCE((
                 SELECT COUNT(*)::int FROM quiz_attempts a WHERE a.quiz_id = q.id
               ), 0) as total_submissions,

@@ -37,10 +37,8 @@ const ProtectedRoute = lazy(() => import('./routes/ProtectedRoute'));
 const Layout = lazy(() => import('./components/Layout'));
 
 // Quiz-related pages
-const QuizTake = lazy(() => import('./pages/student/QuizTake'));
-const QuizGrader = lazy(() => import('./pages/teacher/QuizGrader'));
+const QuizResultsPage = lazy(() => import('./pages/teacher/QuizResultsPage'));
 const QuizManagement = lazy(() => import('./pages/teacher/QuizManagement'));
-const QuizBuilderPage = lazy(() => import('./pages/teacher/QuizBuilderPage'));
 const AssignmentGitHubSubmit = lazy(() => import('./pages/student/AssignmentGitHubSubmit'));
 const AssignmentGrading = lazy(() => import('./pages/teacher/AssignmentGrading'));
 const AssignmentManagement = lazy(() => import('./pages/teacher/AssignmentManagement'));
@@ -48,8 +46,6 @@ const MixedSubmissionUpload = lazy(() => import('./components/student/MixedSubmi
 const VideoManagement = lazy(() => import('./pages/teacher/VideoManagement'));
 const VideoQuizEditor = lazy(() => import('./pages/teacher/VideoQuizEditor'));
 const VideoLibrary = lazy(() => import('./pages/student/VideoLibrary'));
-const SuspendedQuizzes = lazy(() => import('./pages/teacher/SuspendedQuizzes'));
-const ProctoringDashboard = lazy(() => import('./pages/teacher/ProctoringDashboard'));
 const ReviewQueue = lazy(() => import('./pages/teacher/ReviewQueue'));
 
 // Progress / analytics pages
@@ -236,24 +232,6 @@ function App() {
               }
             />
 
-            {/* Quiz builder (teacher, faculty, or TA only) */}
-            <Route
-              path="/courses/:courseId/quiz-builder"
-              element={
-                <ProtectedRoute roles={['teacher', 'ta', 'faculty']}>
-                  <QuizBuilderPage />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/courses/:courseId/quiz-builder/:quizId"
-              element={
-                <ProtectedRoute roles={['teacher', 'ta', 'faculty']}>
-                  <QuizBuilderPage />
-                </ProtectedRoute>
-              }
-            />
-
             {/* Assignment details page (accessible by student, teacher, TA) */}
 
             <Route
@@ -387,42 +365,11 @@ function App() {
               }
             />
 
-            {/* Student taking a quiz */}
             <Route
-              path="/quizzes/:quizId"
+              path="/quizzes/:quizId/results"
               element={
-                <ProtectedRoute roles={['student']}>
-                  <QuizTake />
-                </ProtectedRoute>
-              }
-            />
-
-            {/* Quiz grading (teacher or TA only) */}
-            <Route
-              path="/quizzes/:quizId/grading"
-              element={
-                <ProtectedRoute roles={['teacher', 'ta']}>
-                  <QuizGrader />
-                </ProtectedRoute>
-              }
-            />
-
-            {/* Suspended quizzes management (teacher or TA only) */}
-            <Route
-              path="/teacher/suspended-quizzes"
-              element={
-                <ProtectedRoute roles={['teacher', 'ta']}>
-                  <SuspendedQuizzes />
-                </ProtectedRoute>
-              }
-            />
-
-            {/* Proctoring analytics dashboard (teacher or TA only) */}
-            <Route
-              path="/teacher/proctoring-dashboard"
-              element={
-                <ProtectedRoute roles={['teacher', 'ta']}>
-                  <ProctoringDashboard />
+                <ProtectedRoute roles={['teacher', 'ta', 'admin']}>
+                  <QuizResultsPage />
                 </ProtectedRoute>
               }
             />

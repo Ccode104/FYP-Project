@@ -5,6 +5,7 @@ import {
   handleGoogleOAuthCallback,
   checkGoogleConnection,
   getOrCreateGradingSheet,
+  getOrCreateQuizResultsSheet,
   disconnectGoogle,
 } from '../controllers/googleController.js';
 
@@ -93,6 +94,13 @@ router.get(
   requireAuth,
   requireRole('faculty', 'ta', 'admin'),
   getOrCreateGradingSheet
+);
+
+router.get(
+  '/quizzes/:quizId',
+  requireAuth,
+  requireRole('faculty', 'ta', 'admin'),
+  getOrCreateQuizResultsSheet
 );
 
 export default router;

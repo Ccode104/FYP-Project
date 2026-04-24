@@ -1,31 +1,40 @@
-# Fix Video Upload Errors - Progress Tracker
+# Fix Quiz Management Buttons (Delete/View/Edit) - Progress Tracker
 
-## Plan Status: ✅ APPROVED (Revised: Reuse cloudinary_public_id for Drive IDs, no DB migration)
+## Plan Status: ✅ APPROVED
+Fix non-functional buttons in frontend/src/pages/teacher/QuizManagement.tsx by integrating with existing quiz-builder APIs.
 
 ### Step 1: ✅ Create this TODO.md **DONE**
 
-### Step 2: ✅ Edit backend/controllers/videosController.js **DONE**
+### Step 2: ✅ Fix quiz data loading
+### Step 2: [ ] Fix quiz data loading
+- Added reloadQuizzes(), reloadKey dependency, error handling
+- Change useEffect fetch from `/api/student/courses/${courseId}/quizzes` → `/api/quiz-builder/quizzes/${courseId}`
+- Update Quiz interface if needed (add questions_count, etc.)
 
-- ✅ Removed `v.drive_file_id,` from getMyVideos, getVideosByCourseOffering, getVideoById queries
-- ✅ Fixed uploadVideoToDrive ESM issue: `require('stream').Readable.from(buffer)`
-- ✅ Drive upload stores fileId in existing `cloudinary_public_id` column
+### Step 3: ✅ Implement deleteQuiz function + button handlers
+- ✅ `async deleteQuiz(quizId)`: apiFetch DELETE `/api/quiz-builder/quizzes/${quizId}`
+- ✅ Confirmation modal with cancel/confirm
+- ✅ Attached to delete buttons (upcoming + completed sections)
+- ✅ Loading state, success toast, error handling
 
-### Step 3: [READY] Test fixes
+### Step 4: [ ] Implement viewQuizDetails modal + button
+- Add `async getQuizDetails(quizId)`: apiFetch GET `/api/quiz-builder/quizzes/${quizId}`
+- Create ViewQuizModal component showing title, dates, questions list
+- Attach onClick to view buttons
 
+### Step 5: [ ] Implement edit functionality
+- Add edit button handler: navigate(`/courses/${courseId}/quiz-builder/${quizId}`) or inline modal
+- Ensure quiz-builder supports edit mode (?quizId=xxx)
+
+### Step 6: [ ] Add loading/error states + toasts
+- Show loading on operations
+- Error handling + user feedback
+- Success messages after delete/view
+
+### Step 7: [ ] Test quiz management
 ```
-cd backend && npm run start
-
-# Test Cloudinary upload (unchanged, should work)
-curl -F "title=TestCloudinary" -F "course_offering_id=302" -F "video=@test.mp4" http://localhost:4000/api/videos
-
-# Test Drive upload
-curl -H "Authorization: Bearer YOUR_TOKEN" -F "title=TestDrive" -F "course_offering_id=302" -F "video=@BGP.mp4" http://localhost:4000/api/drive-upload
+npm run dev
+# Login teacher → /teacher/courses/:id/quizzes → test all buttons
 ```
 
-### Step 4: [READY] Verify no more DB errors
-
-```
-curl -H "Authorization: Bearer TOKEN" "http://localhost:4000/api/videos/course/302"
-```
-
-### Step 5: [PENDING] User testing → attempt_completion
+### Step 8: [ ] Update TODO progress → attempt_completion
