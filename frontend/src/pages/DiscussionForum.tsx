@@ -5,6 +5,7 @@ import { useAuth } from '../context/AuthContext';
 import {
   listDiscussionMessages,
   postDiscussionMessage,
+  requestDiscussionAiAssist,
   type DiscussionMessage,
 } from '../features/discussion/api/discussion';
 import './DiscussionForum.css';
@@ -25,6 +26,13 @@ interface ThreadWithMeta extends DiscussionMessage {
   reply_count: number;
   view_count: number;
   teacher_answered?: boolean;
+}
+
+function extractAiQuery(content: string): string | null {
+  const match = content.match(/@ai\b([\s\S]*)/i);
+  if (!match) return null;
+  const query = match[1]?.trim();
+  return query || 'Please help with this discussion thread.';
 }
 
 function formatTimeAgo(dateStr: string): string {
@@ -58,10 +66,12 @@ export default function DiscussionForum() {
   const [anonymityEnabled, setAnonymityEnabled] = useState(true);
   const [replyingTo, setReplyingTo] = useState<number | null>(null);
   const [replyContent, setReplyContent] = useState('');
+  const [repliesMap, setRepliesMap] = useState<Map<number, DiscussionMessage[]>>(new Map());
   const [showNewThreadModal, setShowNewThreadModal] = useState(false);
   const [newThreadCategory, setNewThreadCategory] = useState<'general' | 'assignments' | 'exams'>(
     'general'
   );
+  const [aiLoadingByThread, setAiLoadingByThread] = useState<Record<number, boolean>>({});
 
   const isTeacher = user?.role === 'teacher' || user?.role === 'ta';
   const roleLabel = user?.role === 'teacher' ? 'Teacher' : user?.role === 'ta' ? 'TA' : 'Student';
@@ -117,6 +127,7 @@ export default function DiscussionForum() {
         });
 
         setThreads(threadArray);
+        setRepliesMap(repliesMap);
       } catch (err) {
         console.error('Failed to load discussion:', err);
         setError('Failed to load discussion threads');
@@ -150,6 +161,50 @@ export default function DiscussionForum() {
     };
   }, [threads]);
 
+  const appendReplyToThread = (threadId: number, reply: DiscussionMessage) => {
+    setRepliesMap(prev => {
+      const next = new Map(prev);
+      const replies = next.get(threadId) || [];
+      next.set(threadId, [...replies, reply]);
+      return next;
+    });
+
+    setThreads(prev =>
+      prev.map(thread =>
+        thread.id === threadId ? { ...thread, reply_count: thread.reply_count + 1 } : thread
+      )
+    );
+  };
+
+  const handleAiAssist = async (threadId: number, messageId: number, userQuery?: string | null) => {
+    if (!courseId) return;
+
+    setAiLoadingByThread(prev => ({ ...prev, [threadId]: true }));
+    setError(null);
+
+    try {
+      const result = await requestDiscussionAiAssist(courseId, messageId, userQuery || undefined);
+      appendReplyToThread(
+        threadId,
+        result.ai_message || {
+          id: -Date.now(),
+          course_offering_id: Number(courseId),
+          user_id: null,
+          parent_id: threadId,
+          content: result.content,
+          created_at: new Date().toISOString(),
+          author_name: 'AI Assistant',
+          author_role: 'assistant',
+        }
+      );
+    } catch (err) {
+      console.error('Failed to get AI assist:', err);
+      setError(err instanceof Error ? err.message : 'Failed to get AI assistance');
+    } finally {
+      setAiLoadingByThread(prev => ({ ...prev, [threadId]: false }));
+    }
+  };
+
   const handlePostThread = async () => {
     if (!newThreadContent.trim() || !courseId) return;
 
@@ -166,8 +221,12 @@ export default function DiscussionForum() {
         teacher_answered: false,
       };
       setThreads(prev => [newThread, ...prev]);
+      const aiQuery = extractAiQuery(newThreadContent);
       setNewThreadContent('');
       setShowNewThreadModal(false);
+      if (aiQuery) {
+        await handleAiAssist(newThread.id, newThread.id, aiQuery);
+      }
     } catch (err) {
       console.error('Failed to post thread:', err);
       setError('Failed to post thread');
@@ -181,7 +240,14 @@ export default function DiscussionForum() {
 
     setPosting(true);
     try {
-      await postDiscussionMessage(courseId, replyContent, threadId);
+      const result = await postDiscussionMessage(courseId, replyContent, threadId);
+      const newReply = result.message;
+      setRepliesMap(prev => {
+        const next = new Map(prev);
+        const list = next.get(threadId) || [];
+        next.set(threadId, [...list, newReply]);
+        return next;
+      });
       setThreads(prev =>
         prev.map(t => {
           if (t.id === threadId) {
@@ -190,8 +256,12 @@ export default function DiscussionForum() {
           return t;
         })
       );
+      const aiQuery = extractAiQuery(replyContent);
       setReplyContent('');
       setReplyingTo(null);
+      if (aiQuery) {
+        await handleAiAssist(threadId, newReply.id, aiQuery);
+      }
     } catch (err) {
       console.error('Failed to reply:', err);
     } finally {
@@ -396,6 +466,22 @@ export default function DiscussionForum() {
                       </div>
                     </div>
                     <div className="thread-actions">
+                      <button
+                        className="action-btn ai-action-btn"
+                        title="Ask AI"
+                        onClick={() =>
+                          handleAiAssist(
+                            thread.id,
+                            thread.id,
+                            extractAiQuery(thread.content) || thread.content
+                          )
+                        }
+                        disabled={!!aiLoadingByThread[thread.id]}
+                      >
+                        <span className="material-symbols-outlined">
+                          {aiLoadingByThread[thread.id] ? 'hourglass_top' : 'smart_toy'}
+                        </span>
+                      </button>
                       {isTeacher && (
                         <button className="action-btn" title={thread.is_pinned ? 'Unpin' : 'Pin'}>
                           <span className="material-symbols-outlined">
@@ -419,11 +505,34 @@ export default function DiscussionForum() {
                     </div>
                   </div>
 
+                  {/* Replies */}
+                  {(() => {
+                    const replies = repliesMap.get(thread.id) || [];
+                    return replies.length > 0 ? (
+                      <div className="thread-replies">
+                        {replies.map(reply => (
+                          <div
+                            key={reply.id}
+                            className={`thread-reply ${reply.author_role === 'assistant' ? 'ai-reply' : ''}`}
+                          >
+                            <div className="reply-meta">
+                              <strong>{reply.author_name || 'Anonymous'}</strong>
+                              {reply.author_role && ` (${reply.author_role})`}
+                              {' • '}
+                              {formatTimeAgo(reply.created_at)}
+                            </div>
+                            <div className="reply-content">{reply.content}</div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : null;
+                  })()}
+
                   {replyingTo === thread.id ? (
                     <div className="reply-form">
                       <textarea
                         className="reply-textarea"
-                        placeholder="Write a reply..."
+                        placeholder="Write a reply... Use @ai to invite the assistant into the thread."
                         value={replyContent}
                         onChange={e => setReplyContent(e.target.value)}
                         disabled={posting}
@@ -496,7 +605,7 @@ export default function DiscussionForum() {
                 <label>Content</label>
                 <textarea
                   className="thread-textarea"
-                  placeholder="Share your thoughts, ask questions, or start a conversation..."
+                  placeholder="Share your thoughts, ask questions, or start a conversation... Use @ai to summon the assistant."
                   value={newThreadContent}
                   onChange={e => setNewThreadContent(e.target.value)}
                   rows={6}

@@ -37,14 +37,8 @@ export default function AppHeader() {
           onChange={e => setSearchValue(e.target.value)}
         />
       </div>
-      <div className="app-header__actions">
-        <button className="app-header__icon-btn">
-          <span className="material-symbols-outlined">notifications</span>
-        </button>
-        <button className="app-header__icon-btn">
-          <span className="material-symbols-outlined">help</span>
-        </button>
-        <div className="app-header__divider"></div>
+       <div className="app-header__actions">
+         <div className="app-header__divider"></div>
         <div className="app-header__user-dropdown" ref={dropdownRef}>
           <div 
             className="app-header__user" 

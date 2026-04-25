@@ -118,9 +118,9 @@ export default function AdminDashboard() {
   const checkSuperAdminStatus = async () => {
     if (!user?.id) return;
     try {
-      // We'll need to add a backend endpoint to check super admin status
-      // For now, we'll check if the user email is admin@gmail.com (the known super admin)
-      setIsSuperAdmin(user.email === 'admin@gmail.com');
+      setIsSuperAdmin(
+        user.email === 'admin@gmail.com' || user.email === 'superadmin@gmail.com'
+      );
     } catch (error) {
       console.error('Error checking super admin status:', error);
       setIsSuperAdmin(false);

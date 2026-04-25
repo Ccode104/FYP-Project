@@ -81,7 +81,8 @@ export default function AssignmentsLanding() {
   }
 
   return (
-    <div className="assignments-content">
+    <div className="assignments-page">
+      <div className="assignments-content">
       {error && (
         <div className="error-message">
           <strong>Error</strong>
@@ -165,102 +166,107 @@ export default function AssignmentsLanding() {
         </div>
       </div>
 
-      {/* Assignment List - Following HTML design exactly */}
-      <div className="assignment-list">
-        {/* Dynamic Real Assignments from API */}
-        {loadingAssignments ? (
-          <div className="assignments-loading">Loading your assignments...</div>
-        ) : assignments.length === 0 ? (
-          <div className="assignments-empty">
-            <p>No assignments yet for this course.</p>
-          </div>
-        ) : (
-          assignments.slice(0, 3).map(assignment => (
-            <div key={assignment.id} className="assignments-card">
-              <div className="assignments-icon">
-                <span className="material-symbols-outlined text-3xl">
-                  {assignment.assignment_type === 'code'
-                    ? 'terminal'
-                    : assignment.assignment_type === 'pdf'
-                      ? 'description'
-                      : 'assignment'}
-                </span>
-              </div>
-              <div className="assignments-content">
-                <div className="assignments-meta">
-                  <span
-                    className={`assignments-badge ${assignment.is_submitted ? 'completed' : 'pending'}`}
-                  >
-                    {assignment.is_submitted
-                      ? 'Submitted'
-                      : 'Due ' + (assignment.due_in_days || 'Soon')}
-                  </span>
-                  <span className="assignments-course">• {assignment.course_code}</span>
-                </div>
-                <h4 className="assignments-title">{assignment.title}</h4>
-                <p className="assignments-description">
-                  {assignment.description || 'No description'}
-                </p>
-              </div>
-              <div className="assignments-actions">
-                <div className="assignments-deadline">
-                  <p className="assignments-deadline-label">Deadline</p>
-                  <p className="assignments-deadline-value">
-                    {assignment.due_at ? new Date(assignment.due_at).toLocaleDateString() : 'TBD'}
-                  </p>
-                </div>
-                <button
-                  className="assignments-button"
-                  onClick={() => {
-                    // For teachers/TAs, navigate to management page
-                    if (user?.role === 'teacher' || user?.role === 'ta') {
-                      navigate(`/courses/${courseId}/assignments/${assignment.id}/submissions`);
-                    } else if (assignment.assignment_type === 'code') {
-                      navigate(`/courses/${courseId}/assignments/${assignment.id}/editor`);
-                    } else if (assignment.assignment_type === 'github') {
-                      navigate(`/courses/${courseId}/assignments/${assignment.id}/github-submit`);
-                    } else if (assignment.assignment_type === 'mixed') {
-                      navigate(`/courses/${courseId}/assignments/${assignment.id}/mixed`);
-                    } else {
-                      navigate(`/courses/${courseId}/assignments/${assignment.id}`);
-                    }
-                  }}
-                >
-                  {user?.role === 'teacher' || user?.role === 'ta'
-                    ? 'Manage Assignment'
-                    : assignment.is_submitted
-                      ? 'View Submission'
-                      : 'Submit Now'}
-                </button>
-              </div>
-            </div>
-          ))
-        )}
-      </div>
+       {/* Assignment List - Following HTML design exactly */}
+       <div className="assignment-list">
+         {/* Dynamic Real Assignments from API */}
+         {loadingAssignments ? (
+           <div className="assignments-loading">Loading your assignments...</div>
+         ) : assignments.length === 0 ? (
+           <div className="assignments-empty">
+             <p>No assignments yet for this course.</p>
+           </div>
+         ) : (
+           assignments.slice(0, 3).map(assignment => (
+             <div key={assignment.id} className="assignments-card">
+               <div className="assignments-icon">
+                 <span className="material-symbols-outlined text-3xl">
+                   {assignment.assignment_type === 'code'
+                     ? 'terminal'
+                     : assignment.assignment_type === 'pdf'
+                       ? 'description'
+                       : 'assignment'}
+                 </span>
+               </div>
+               <div className="assignments-content">
+                 <div className="assignments-meta">
+                   <span
+                     className={`assignments-badge ${assignment.is_submitted ? 'completed' : 'pending'}`}
+                   >
+                     {assignment.is_submitted
+                       ? 'Submitted'
+                       : 'Due ' + (assignment.due_in_days || 'Soon')}
+                   </span>
+                   <span className="assignments-course">• {assignment.course_code}</span>
+                 </div>
+                 <h4 className="assignments-title">{assignment.title}</h4>
+                 <p className="assignments-description">
+                   {assignment.description || 'No description'}
+                 </p>
+               </div>
+               <div className="assignments-actions">
+                 <div className="assignments-deadline">
+                   <p className="assignments-deadline-label">Deadline</p>
+                   <p className="assignments-deadline-value">
+                     {assignment.due_at ? new Date(assignment.due_at).toLocaleDateString() : 'TBD'}
+                   </p>
+                 </div>
+                 <button
+                   className="assignments-button"
+                   onClick={() => {
+                     // For teachers/TAs, navigate to management page
+                     if (user?.role === 'teacher' || user?.role === 'ta') {
+                       navigate(`/courses/${courseId}/assignments/${assignment.id}/submissions`);
+                     } else if (assignment.assignment_type === 'code') {
+                       navigate(`/courses/${courseId}/assignments/${assignment.id}/editor`);
+                     } else if (assignment.assignment_type === 'github') {
+                       navigate(`/courses/${courseId}/assignments/${assignment.id}/github-submit`);
+                     } else if (assignment.assignment_type === 'mixed') {
+                       navigate(`/courses/${courseId}/assignments/${assignment.id}/mixed`);
+                     } else {
+                       navigate(`/courses/${courseId}/assignments/${assignment.id}`);
+                     }
+                   }}
+                 >
+                   {user?.role === 'teacher' || user?.role === 'ta'
+                     ? 'Manage Assignment'
+                     : assignment.is_submitted
+                       ? 'View Submission'
+                       : 'Submit Now'}
+                 </button>
+               </div>
+             </div>
+           ))
+         )}
+       </div>
 
-      {/* Up Next Section - Following HTML design exactly */}
-      <div className="assignments-resources">
-        <div>
-          <h3 className="assignments-section-title">
-            <span className="material-symbols-outlined">auto_stories</span>
-            Recommended Resources
-          </h3>
-          <div className="assignments-resource-grid">
-            <div className="assignments-resource-card">
-              <img
-                alt="Resource"
-                className="assignments-resource-image"
-                src="https://lh3.googleusercontent.com/aida-public/AB6AXuB7XLbUBh_R4l0-Wjj7qa3gxfhwS60yXXT8BeYWn21TmZkNvEFLghUexYDYjb8zbRuN4wl01fQdneNe3ZYM9Cone_lrKeOU665vmEGb3U0PWKPcVk6SOLIT0V_CfOFdTH-Yl5PktT2orsG82sOV_Pvg5IBqKC3nt_Wt8ossEfBhiolEiyWlIwl8Kc6a61XAMG0B7ZWnsMbkDUSVrPlBjlDF_AcFuspZnh3TbEE5pEVtPd5S2HXvG98fkJK4tbnAwG73rrrPjjUhrSI"
-                data-alt="Close up of a person typing on a mechanical keyboard in a dimly lit room with blue ambient neon light"
-              />
-              <div className="assignments-resource-content">
-                <h5 className="assignments-resource-title">Git Workflow Guide</h5>
-                <p className="assignments-resource-description">For your OS Assignment</p>
-                <a className="assignments-resource-link" href="#">
-                  Read Now →
-                </a>
+        {/* Up Next Section - Following HTML design exactly */}
+        <div className="assignments-resources">
+          <div>
+            <h3 className="assignments-section-title">
+              <span className="material-symbols-outlined">event</span>
+              Timeline
+            </h3>
+            <div className="assignments-timeline">
+              <div className="assignments-timeline-item">
+                <div className="assignments-timeline-dot indigo"></div>
+                <p className="assignments-timeline-date">TOMORROW</p>
+                <h6 className="assignments-timeline-title">Office Hours: Dr. Chen</h6>
+                <p className="assignments-timeline-description">2:00 PM - 3:30 PM (Zoom)</p>
+              </div>
+              <div className="assignments-timeline-item">
+                <div className="assignments-timeline-dot slate"></div>
+                <p className="assignments-timeline-date">OCT 24</p>
+                <h6 className="assignments-timeline-title">Lab Submission Deadline</h6>
+                <p className="assignments-timeline-description">11:59 PM (Canvas)</p>
               </div>
             </div>
+          </div>
+          
+          <div>
+            <h3 className="assignments-section-title">
+              <span className="material-symbols-outlined">menu_book</span>
+              Resources
+            </h3>
             <div className="assignments-resource-card">
               <img
                 alt="Resource"
@@ -275,26 +281,6 @@ export default function AssignmentsLanding() {
                   Open Deck →
                 </a>
               </div>
-            </div>
-          </div>
-        </div>
-        <div>
-          <h3 className="assignments-section-title">
-            <span className="material-symbols-outlined">event</span>
-            Timeline
-          </h3>
-          <div className="assignments-timeline">
-            <div className="assignments-timeline-item">
-              <div className="assignments-timeline-dot indigo"></div>
-              <p className="assignments-timeline-date">TOMORROW</p>
-              <h6 className="assignments-timeline-title">Office Hours: Dr. Chen</h6>
-              <p className="assignments-timeline-description">2:00 PM - 3:30 PM (Zoom)</p>
-            </div>
-            <div className="assignments-timeline-item">
-              <div className="assignments-timeline-dot slate"></div>
-              <p className="assignments-timeline-date">OCT 24</p>
-              <h6 className="assignments-timeline-title">Lab Submission Deadline</h6>
-              <p className="assignments-timeline-description">11:59 PM (Canvas)</p>
             </div>
           </div>
         </div>

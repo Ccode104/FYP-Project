@@ -1,8 +1,8 @@
-import { useEffect, useState, useMemo } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
-import { apiFetch } from '../../services/api';
-import { useToast } from '../../components/ToastProvider';
+import { useEffect, useMemo, useState } from 'react';
+import { useNavigate, useParams } from 'react-router-dom';
 import Editor from '@monaco-editor/react';
+import { useToast } from '../../components/ToastProvider';
+import { apiFetch } from '../../services/api';
 import './GitHubCodeEditor.css';
 
 interface CodeQuestion {
@@ -52,23 +52,77 @@ interface FileItem {
   path: string;
   type: 'file' | 'dir';
   size?: number;
+  content?: string;
+  encoding?: string;
+}
+
+interface VisibleTestCase {
+  id: string;
+  questionId: string | number;
+  questionTitle: string;
+  input: string;
+  expected: string;
+}
+
+interface JudgeResponse {
+  stdout?: string;
+  stderr?: string;
+  compile_output?: string;
+  status?: {
+    id?: number;
+    description?: string;
+  };
 }
 
 interface TestResult {
-  testIndex: number;
+  id: string;
   input: string;
   expected: string;
   actual: string;
   passed: boolean;
+  message: string;
 }
 
-const languageMap: { [key: string]: string } = {
+const languageMap: Record<string, string> = {
   python: 'python',
   java: 'java',
   cpp: 'cpp',
   javascript: 'javascript',
   c: 'c',
 };
+
+function getFileExtension(filename: string) {
+  const parts = filename.split('.');
+  return parts.length > 1 ? parts.pop()?.toLowerCase() || '' : filename.toLowerCase();
+}
+
+function decodeBase64Utf8(value: string) {
+  try {
+    const binary = atob(value.replace(/\n/g, ''));
+    const bytes = Uint8Array.from(binary, char => char.charCodeAt(0));
+    return new TextDecoder().decode(bytes);
+  } catch {
+    return atob(value.replace(/\n/g, ''));
+  }
+}
+
+function resolveLanguage(selectedLanguage: string, file?: FileItem | null) {
+  const extension = file ? getFileExtension(file.name) : '';
+  if (extension === 'py') return 'python';
+  if (extension === 'java') return 'java';
+  if (extension === 'c') return 'c';
+  if (extension === 'cpp' || extension === 'cc' || extension === 'cxx' || extension === 'hpp') {
+    return 'cpp';
+  }
+  if (extension === 'js' || extension === 'jsx') return 'javascript';
+  if (extension === 'ts' || extension === 'tsx') return 'typescript';
+  if (extension === 'json') return 'json';
+  if (extension === 'md') return 'markdown';
+  if (extension === 'html') return 'html';
+  if (extension === 'css' || extension === 'scss') return 'css';
+  if (extension === 'sql') return 'sql';
+  return languageMap[selectedLanguage] || 'plaintext';
+}
 
 export default function GitHubCodeEditor() {
   const { courseId, assignmentId } = useParams<{ courseId: string; assignmentId: string }>();
@@ -82,77 +136,76 @@ export default function GitHubCodeEditor() {
   const [repos, setRepos] = useState<GitHubRepo[]>([]);
   const [selectedRepo, setSelectedRepo] = useState<GitHubRepo | null>(null);
   const [files, setFiles] = useState<FileItem[]>([]);
+  const [currentPath, setCurrentPath] = useState('');
   const [loadingFiles, setLoadingFiles] = useState(false);
   const [selectedFile, setSelectedFile] = useState<FileItem | null>(null);
   const [code, setCode] = useState('');
+  const [fileMessage, setFileMessage] = useState('Select a file to preview it.');
   const [language, setLanguage] = useState('python');
-  const [hasChanges, setHasChanges] = useState(false);
 
-  const [testResults, setTestResults] = useState<TestResult[]>([]);
+  const [testResults, setTestResults] = useState<Record<string, TestResult>>({});
   const [runningTests, setRunningTests] = useState(false);
   const [output, setOutput] = useState('');
-  const [saving, setSaving] = useState(false);
-  const [submitting, setSubmitting] = useState(false);
 
   const [githubConnected, setGithubConnected] = useState(false);
   const [checkingStatus, setCheckingStatus] = useState(true);
   const [githubUsername, setGithubUsername] = useState<string | null>(null);
 
+  const visibleTestCases = useMemo<VisibleTestCase[]>(() => {
+    if (!assignment?.questions?.length) return [];
+
+    return assignment.questions.flatMap((question, questionIndex) => {
+      if (question.test_cases && Array.isArray(question.test_cases) && question.test_cases.length > 0) {
+        return question.test_cases
+          .filter(testCase => testCase.is_sample)
+          .map((testCase, testIndex) => ({
+            id: `${question.id}-${testIndex}`,
+            questionId: question.id,
+            questionTitle: question.title || `Question ${questionIndex + 1}`,
+            input: testCase.input_text || '',
+            expected: testCase.expected_text || '',
+          }));
+      }
+
+      if (question.sample_input || question.sample_output) {
+        return [
+          {
+            id: `${question.id}-sample-0`,
+            questionId: question.id,
+            questionTitle: question.title || `Question ${questionIndex + 1}`,
+            input: question.sample_input || '',
+            expected: question.sample_output || '',
+          },
+        ];
+      }
+
+      return [];
+    });
+  }, [assignment]);
+
+  const breadcrumbSegments = useMemo(() => currentPath.split('/').filter(Boolean), [currentPath]);
+
   const allTestsPassed = useMemo(() => {
-    if (testResults.length === 0) return false;
-    return testResults.every(tr => tr.passed);
+    const results = Object.values(testResults);
+    return results.length > 0 && results.every(result => result.passed);
   }, [testResults]);
 
   useEffect(() => {
     const checkGitHubStatus = async () => {
       try {
-        const data = await apiFetch<{ connected: boolean; username?: string }>(
-          '/api/github/status'
-        );
+        const data = await apiFetch<{ connected: boolean; username?: string }>('/api/github/status');
         setGithubConnected(data.connected);
         setGithubUsername(data.username || null);
-      } catch (e) {
+      } catch {
         setGithubConnected(false);
+        setGithubUsername(null);
       } finally {
         setCheckingStatus(false);
       }
     };
+
     checkGitHubStatus();
   }, []);
-
-  const initiateGitHubConnect = async () => {
-    try {
-      const response = await apiFetch<{ authUrl: string }>('/api/auth/github');
-      const authWindow = window.open(
-        response.authUrl,
-        'github-auth',
-        'width=600,height=700,scrollbars=yes,resizable=yes'
-      );
-      if (authWindow) {
-        const checkClosed = setInterval(() => {
-          if (authWindow.closed) {
-            clearInterval(checkClosed);
-            setTimeout(async () => {
-              try {
-                const data = await apiFetch<{ connected: boolean; username?: string }>(
-                  '/api/github/status'
-                );
-                setGithubConnected(data.connected);
-                setGithubUsername(data.username || null);
-                if (!data.connected) {
-                  toast?.push?.({ kind: 'error', message: 'Failed to connect GitHub' });
-                }
-              } catch {
-                toast?.push?.({ kind: 'error', message: 'Failed to connect GitHub' });
-              }
-            }, 2000);
-          }
-        }, 1000);
-      }
-    } catch (err) {
-      toast?.push?.({ kind: 'error', message: 'Failed to initiate GitHub connection' });
-    }
-  };
 
   useEffect(() => {
     if (!assignmentId) return;
@@ -160,14 +213,15 @@ export default function GitHubCodeEditor() {
     const loadData = async () => {
       try {
         setLoading(true);
-        const [assignmentData, reposData] = await Promise.all([
+        const [assignmentData, questionsData, reposData] = await Promise.all([
           apiFetch<AssignmentDetails>(`/api/assignments/${assignmentId}`),
+          apiFetch<CodeQuestion[]>(`/api/assignments/${assignmentId}/questions`).catch(() => []),
           apiFetch<{ repositories: GitHubRepo[] }>('/api/github/repositories').catch(() => ({
             repositories: [],
           })),
         ]);
 
-        setAssignment(assignmentData);
+        setAssignment({ ...assignmentData, questions: questionsData || [] });
         setRepos(reposData.repositories || []);
 
         if (assignmentData.language) {
@@ -189,186 +243,222 @@ export default function GitHubCodeEditor() {
     const loadFiles = async () => {
       setLoadingFiles(true);
       try {
-        const owner = selectedRepo.full_name.split('/')[0];
-        const repoName = selectedRepo.full_name.split('/')[1];
-        const data = await apiFetch<FileItem[]>(`/api/github/repos/${owner}/${repoName}/contents`);
-        setFiles(data || []);
+        const [owner, repoName] = selectedRepo.full_name.split('/');
+        const encodedPath = currentPath
+          .split('/')
+          .map(segment => encodeURIComponent(segment))
+          .join('/');
+        const url = encodedPath
+          ? `/api/github/repos/${owner}/${repoName}/contents/${encodedPath}`
+          : `/api/github/repos/${owner}/${repoName}/contents`;
+        const data = await apiFetch<FileItem[] | FileItem>(url);
+        const items = Array.isArray(data) ? data : [];
+        const sortedItems = [...items].sort((a, b) => {
+          if (a.type !== b.type) return a.type === 'dir' ? -1 : 1;
+          return a.name.localeCompare(b.name);
+        });
+        setFiles(sortedItems);
       } catch (err) {
         console.error('Failed to load files:', err);
         setFiles([]);
+        toast?.push?.({ kind: 'error', message: 'Failed to load repository contents' });
       } finally {
         setLoadingFiles(false);
       }
     };
 
     loadFiles();
-  }, [selectedRepo]);
+  }, [currentPath, selectedRepo, toast]);
 
   useEffect(() => {
     if (!selectedFile || !selectedRepo) return;
 
     const loadFileContent = async () => {
       try {
-        const owner = selectedRepo.full_name.split('/')[0];
-        const repoName = selectedRepo.full_name.split('/')[1];
-        const dataArray = await apiFetch<any[]>(
-          `/api/github/repos/${owner}/${repoName}/contents/${selectedFile.path}`
-        );
-        if (dataArray && dataArray.length > 0) {
-          const data = dataArray[0];
-          if (data.content) {
-            const decodedContent = atob(data.content);
-            setCode(decodedContent);
-            setHasChanges(false);
-          }
+        const [owner, repoName] = selectedRepo.full_name.split('/');
+        const encodedPath = selectedFile.path
+          .split('/')
+          .map(segment => encodeURIComponent(segment))
+          .join('/');
+        const data = await apiFetch<FileItem>(`/api/github/repos/${owner}/${repoName}/contents/${encodedPath}`);
+
+        if (!data?.content) {
+          setCode('');
+          setFileMessage('This file cannot be previewed inline.');
+          return;
         }
+
+        const decodedContent =
+          data.encoding === 'base64' ? decodeBase64Utf8(data.content) : data.content || '';
+        setCode(decodedContent);
+        setFileMessage(decodedContent ? '' : 'This file is empty.');
       } catch (err) {
         console.error('Failed to load file:', err);
+        setCode('');
+        setFileMessage('Failed to load file content.');
         toast?.push?.({ kind: 'error', message: 'Failed to load file content' });
       }
     };
 
     loadFileContent();
-  }, [selectedFile, selectedRepo]);
+  }, [selectedFile, selectedRepo, toast]);
+
+  const initiateGitHubConnect = async () => {
+    try {
+      const response = await apiFetch<{ authUrl: string }>('/api/auth/github');
+      const authWindow = window.open(
+        response.authUrl,
+        'github-auth',
+        'width=600,height=700,scrollbars=yes,resizable=yes'
+      );
+
+      if (authWindow) {
+        const checkClosed = setInterval(() => {
+          if (authWindow.closed) {
+            clearInterval(checkClosed);
+            setTimeout(async () => {
+              try {
+                const data = await apiFetch<{ connected: boolean; username?: string }>(
+                  '/api/github/status'
+                );
+                setGithubConnected(data.connected);
+                setGithubUsername(data.username || null);
+                if (!data.connected) {
+                  toast?.push?.({ kind: 'error', message: 'Failed to connect GitHub' });
+                }
+              } catch {
+                toast?.push?.({ kind: 'error', message: 'Failed to connect GitHub' });
+              }
+            }, 2000);
+          }
+        }, 1000);
+      }
+    } catch {
+      toast?.push?.({ kind: 'error', message: 'Failed to initiate GitHub connection' });
+    }
+  };
+
+  const handleRepoChange = (repoId: number) => {
+    const repo = repos.find(item => item.id === repoId) || null;
+    setSelectedRepo(repo);
+    setCurrentPath('');
+    setFiles([]);
+    setSelectedFile(null);
+    setCode('');
+    setFileMessage('Select a file to preview it.');
+    setTestResults({});
+    setOutput('');
+  };
 
   const handleFileSelect = (file: FileItem) => {
     if (file.type === 'dir') {
+      setCurrentPath(file.path);
       return;
     }
-    const ext = file.name.split('.').pop()?.toLowerCase();
-    if (!['py', 'java', 'cpp', 'c', 'js', 'ts'].includes(ext || '')) {
-      return;
-    }
+
     setSelectedFile(file);
+    setCode('');
+    setFileMessage('Loading file...');
   };
 
-  const handleCodeChange = (value: string | undefined) => {
-    const newCode = value || '';
-    setCode(newCode);
-    setHasChanges(true);
-  };
-
-  const handleSaveToGitHub = async () => {
-    if (!selectedRepo || !selectedFile || !code.trim()) return;
-
-    setSaving(true);
-    try {
-      const owner = selectedRepo.full_name.split('/')[0];
-      const repoName = selectedRepo.full_name.split('/')[1];
-
-      await apiFetch(`/api/github/repos/${owner}/${repoName}/contents/${selectedFile.path}`, {
-        method: 'PUT',
-        body: {
-          message: `Update ${selectedFile.name}`,
-          content: btoa(code),
-          branch: 'main',
-        },
-      });
-
-      setHasChanges(false);
-      toast?.push?.({ kind: 'success', message: 'File saved to GitHub' });
-    } catch (err) {
-      toast?.push?.({ kind: 'error', message: 'Failed to save file' });
-    } finally {
-      setSaving(false);
+  const navigateToBreadcrumb = (index: number) => {
+    if (index < 0) {
+      setCurrentPath('');
+      return;
     }
+    setCurrentPath(breadcrumbSegments.slice(0, index + 1).join('/'));
+  };
+
+  const handleGoUp = () => {
+    if (!breadcrumbSegments.length) return;
+    navigateToBreadcrumb(breadcrumbSegments.length - 2);
   };
 
   const handleRunTests = async () => {
-    if (!code.trim() || !assignment?.questions?.length) return;
+    if (!code.trim()) {
+      toast?.push?.({ kind: 'error', message: 'Open a file with code before running tests' });
+      return;
+    }
+
+    if (visibleTestCases.length === 0) {
+      toast?.push?.({ kind: 'error', message: 'No sample test cases are available for this assignment' });
+      return;
+    }
 
     setRunningTests(true);
     setOutput('Running tests...\n');
-    setTestResults([]);
+    setTestResults({});
 
     try {
-      const allQuestions = assignment.questions;
-      const results: TestResult[] = [];
+      const nextResults: Record<string, TestResult> = {};
 
-      for (let i = 0; i < allQuestions.length; i++) {
-        const question = allQuestions[i];
-        const testCases = question.test_cases?.filter(tc => tc.is_sample) || [];
+      for (const testCase of visibleTestCases) {
+        try {
+          const response = await apiFetch<JudgeResponse>('/api/judge', {
+            method: 'POST',
+            body: {
+              source_code: code,
+              language,
+              stdin: testCase.input,
+            },
+          });
 
-        for (let j = 0; j < testCases.length; j++) {
-          const testCase = testCases[j];
-          try {
-            const execResult = await apiFetch<{ output: string; error?: string }>(
-              '/api/code/execute',
-              {
-                method: 'POST',
-                body: {
-                  code,
-                  language,
-                  input: testCase.input_text,
-                },
-              }
-            );
+          const stdout = (response.stdout ?? '').toString().trim();
+          const stderr = (response.stderr ?? '').toString().trim();
+          const compileOutput = (response.compile_output ?? '').toString().trim();
+          const actual = stdout || stderr || compileOutput;
+          const passed = stdout === testCase.expected.trim();
 
-            const actual = execResult.output?.trim() || execResult.error || '';
-            const expected = testCase.expected_text?.trim() || '';
-
-            results.push({
-              testIndex: j,
-              input: testCase.input_text || '',
-              expected,
-              actual,
-              passed: actual === expected,
-            });
-          } catch (err) {
-            results.push({
-              testIndex: j,
-              input: testCase.input_text || '',
-              expected: testCase.expected_text || '',
-              actual: err instanceof Error ? err.message : 'Error',
-              passed: false,
-            });
+          let message = response.status?.description || 'Finished';
+          if (response.status?.id === 3) {
+            message = passed ? 'Passed' : 'Output mismatch';
+          } else if (response.status?.id === 6) {
+            message = 'Compilation error';
+          } else if (response.status?.id === 7) {
+            message = 'Runtime error';
           }
+
+          nextResults[testCase.id] = {
+            id: testCase.id,
+            input: testCase.input,
+            expected: testCase.expected,
+            actual,
+            passed,
+            message,
+          };
+        } catch (err) {
+          nextResults[testCase.id] = {
+            id: testCase.id,
+            input: testCase.input,
+            expected: testCase.expected,
+            actual: '',
+            passed: false,
+            message: err instanceof Error ? err.message : 'Test execution failed',
+          };
         }
       }
 
-      setTestResults(results);
-      const passedCount = results.filter(r => r.passed).length;
-      const totalCount = results.length;
+      setTestResults(nextResults);
+
+      const results = Object.values(nextResults);
+      const passedCount = results.filter(result => result.passed).length;
       setOutput(
-        `Tests completed: ${passedCount}/${totalCount} passed\n\n${results
-          .map(
-            r =>
-              `Test ${r.testIndex + 1}: ${r.passed ? 'PASSED' : 'FAILED'}\nInput: ${r.input}\nExpected: ${r.expected}\nActual: ${r.actual}`
-          )
-          .join('\n\n')}`
+        [
+          `Tests completed: ${passedCount}/${results.length} passed`,
+          '',
+          ...results.map((result, index) =>
+            [
+              `Test ${index + 1}: ${result.passed ? 'PASSED' : 'FAILED'}`,
+              `Input: ${result.input || '(empty)'}`,
+              `Expected: ${result.expected || '(empty)'}`,
+              `Actual: ${result.actual || '(empty)'}`,
+              `Status: ${result.message}`,
+            ].join('\n')
+          ),
+        ].join('\n\n')
       );
-    } catch (err) {
-      setOutput(`Error running tests: ${err instanceof Error ? err.message : 'Unknown error'}`);
     } finally {
       setRunningTests(false);
-    }
-  };
-
-  const handleSubmit = async () => {
-    if (!assignmentId || !allTestsPassed) return;
-
-    setSubmitting(true);
-    try {
-      await apiFetch('/api/submissions/submit/code', {
-        method: 'POST',
-        body: {
-          assignment_id: Number(assignmentId),
-          language,
-          code,
-          repo_url: selectedRepo?.html_url,
-          file_path: selectedFile?.path,
-        },
-      });
-
-      toast?.push?.({ kind: 'success', message: 'Assignment submitted successfully!' });
-      navigate(`/courses/${courseId}/assignments`);
-    } catch (err) {
-      toast?.push?.({
-        kind: 'error',
-        message: err instanceof Error ? err.message : 'Failed to submit',
-      });
-    } finally {
-      setSubmitting(false);
     }
   };
 
@@ -405,12 +495,15 @@ export default function GitHubCodeEditor() {
         </button>
         <div className="header-title">
           <h2>{assignment.title}</h2>
-          <span className="language-badge">{language}</span>
+          <div className="header-meta">
+            <span className="language-badge">{language}</span>
+            {githubUsername && <span className="github-user">@{githubUsername}</span>}
+          </div>
         </div>
         <div className="header-actions">
           <select
             value={language}
-            onChange={e => setLanguage(e.target.value)}
+            onChange={event => setLanguage(event.target.value)}
             className="language-select"
           >
             <option value="python">Python</option>
@@ -423,14 +516,14 @@ export default function GitHubCodeEditor() {
       </div>
 
       <div className="editor-layout">
-        <div className="left-panel">
+        <aside className="left-panel">
           <div className="panel-section repo-selector">
             <h3>Repository</h3>
             {checkingStatus ? (
               <div className="loading-files">Checking GitHub status...</div>
             ) : !githubConnected ? (
               <div className="github-connect-prompt">
-                <p>Connect your GitHub account to select a repository</p>
+                <p>Connect your GitHub account to browse a repository.</p>
                 <button className="btn btn-primary" onClick={initiateGitHubConnect}>
                   Connect GitHub
                 </button>
@@ -438,19 +531,13 @@ export default function GitHubCodeEditor() {
             ) : (
               <select
                 value={selectedRepo?.id || ''}
-                onChange={e => {
-                  const repo = repos.find(r => r.id === Number(e.target.value));
-                  setSelectedRepo(repo || null);
-                  setSelectedFile(null);
-                  setCode('');
-                  setFiles([]);
-                }}
+                onChange={event => handleRepoChange(Number(event.target.value))}
                 className="repo-select"
               >
                 <option value="">Select a repository</option>
                 {repos.map(repo => (
                   <option key={repo.id} value={repo.id}>
-                    {repo.name}
+                    {repo.full_name}
                   </option>
                 ))}
               </select>
@@ -458,17 +545,41 @@ export default function GitHubCodeEditor() {
           </div>
 
           <div className="panel-section file-browser">
-            <h3>Files</h3>
+            <div className="panel-section-header">
+              <h3>Files</h3>
+              <button className="up-btn" onClick={handleGoUp} disabled={!breadcrumbSegments.length}>
+                Up
+              </button>
+            </div>
+
+            <div className="breadcrumbs">
+              <button className="breadcrumb" onClick={() => navigateToBreadcrumb(-1)}>
+                root
+              </button>
+              {breadcrumbSegments.map((segment, index) => (
+                <button
+                  key={`${segment}-${index}`}
+                  className="breadcrumb"
+                  onClick={() => navigateToBreadcrumb(index)}
+                >
+                  {segment}
+                </button>
+              ))}
+            </div>
+
             {loadingFiles ? (
               <div className="loading-files">Loading files...</div>
             ) : (
               <div className="file-list">
-                {files.length === 0 ? (
-                  <p className="no-files">No files found</p>
+                {!selectedRepo ? (
+                  <p className="no-files">Choose a repository to start browsing.</p>
+                ) : files.length === 0 ? (
+                  <p className="no-files">No files found in this folder.</p>
                 ) : (
                   files.map(file => (
-                    <div
+                    <button
                       key={file.path}
+                      type="button"
                       className={`file-item ${selectedFile?.path === file.path ? 'selected' : ''} ${file.type}`}
                       onClick={() => handleFileSelect(file)}
                     >
@@ -476,111 +587,117 @@ export default function GitHubCodeEditor() {
                         {file.type === 'dir' ? 'folder' : 'description'}
                       </span>
                       <span className="file-name">{file.name}</span>
-                    </div>
+                    </button>
                   ))
                 )}
               </div>
             )}
           </div>
-        </div>
+        </aside>
 
-        <div className="main-panel">
+        <main className="main-panel">
           {!selectedFile ? (
             <div className="no-file-selected">
-              <span className="material-symbols-outlined">code</span>
-              <p>Select a file to edit</p>
+              <span className="material-symbols-outlined">description</span>
+              <p>Select any file from the repository to preview it.</p>
             </div>
           ) : (
             <>
               <div className="file-tabs">
-                <span className="file-tab">
-                  {selectedFile.name}
-                  {hasChanges && <span className="unsaved-indicator">*</span>}
-                </span>
+                <span className="file-tab">{selectedFile.path}</span>
+                <span className="viewer-badge">View only</span>
               </div>
               <div className="code-editor-wrapper">
-                <Editor
-                  height="100%"
-                  language={languageMap[language] || 'python'}
-                  value={code}
-                  onChange={handleCodeChange}
-                  theme="vs-light"
-                  options={{
-                    minimap: { enabled: false },
-                    fontSize: 14,
-                    lineNumbers: 'on',
-                    roundedSelection: false,
-                    scrollBeyondLastLine: false,
-                    automaticLayout: true,
-                    tabSize: 2,
-                    insertSpaces: true,
-                    wordWrap: 'on',
-                    folding: true,
-                    lineDecorationsWidth: 10,
-                    lineNumbersMinChars: 3,
-                    renderWhitespace: 'selection',
-                    cursorBlinking: 'blink',
-                    cursorStyle: 'line',
-                    contextmenu: true,
-                    mouseWheelZoom: true,
-                    scrollbar: {
-                      vertical: 'visible',
-                      horizontal: 'visible',
-                      useShadows: false,
-                    },
-                  }}
-                />
+                {code || !fileMessage ? (
+                  <Editor
+                    height="100%"
+                    language={resolveLanguage(language, selectedFile)}
+                    value={code}
+                    theme="vs-light"
+                    options={{
+                      readOnly: true,
+                      minimap: { enabled: false },
+                      fontSize: 14,
+                      lineNumbers: 'on',
+                      roundedSelection: false,
+                      scrollBeyondLastLine: false,
+                      automaticLayout: true,
+                      tabSize: 2,
+                      insertSpaces: true,
+                      wordWrap: 'on',
+                      folding: true,
+                      lineDecorationsWidth: 10,
+                      lineNumbersMinChars: 3,
+                      renderWhitespace: 'selection',
+                      contextmenu: true,
+                      mouseWheelZoom: true,
+                      scrollbar: {
+                        vertical: 'visible',
+                        horizontal: 'visible',
+                        useShadows: false,
+                      },
+                    }}
+                  />
+                ) : (
+                  <div className="file-message">
+                    <span className="material-symbols-outlined">info</span>
+                    <p>{fileMessage}</p>
+                  </div>
+                )}
               </div>
             </>
           )}
-        </div>
+        </main>
 
-        <div className="right-panel">
+        <aside className="right-panel">
           <div className="panel-section test-cases">
-            <h3>Test Cases</h3>
+            <div className="panel-section-header">
+              <h3>Test Cases</h3>
+              <span className="tests-summary">
+                {visibleTestCases.length} sample {visibleTestCases.length === 1 ? 'case' : 'cases'}
+              </span>
+            </div>
+
             <div className="test-list">
-              {assignment.questions?.length === 0 ? (
-                <p className="no-tests">No test cases available</p>
+              {visibleTestCases.length === 0 ? (
+                <p className="no-tests">No sample test cases available for this assignment.</p>
               ) : (
-                assignment.questions?.map((q, qIdx) => (
-                  <div key={q.id} className="question-tests">
-                    <h4>
-                      Question {qIdx + 1}: {q.title}
-                    </h4>
-                    {q.test_cases
-                      ?.filter(tc => tc.is_sample)
-                      .map((tc, tcIdx) => {
-                        const result = testResults.find(r => r.testIndex === tcIdx);
-                        return (
-                          <div
-                            key={tcIdx}
-                            className={`test-case ${result?.passed ? 'passed' : result ? 'failed' : ''}`}
-                          >
-                            <div className="test-header">
-                              <span>Test Case {tcIdx + 1}</span>
-                              {result && (
-                                <span
-                                  className={`test-status ${result.passed ? 'passed' : 'failed'}`}
-                                >
-                                  {result.passed ? 'PASSED' : 'FAILED'}
-                                </span>
-                              )}
-                            </div>
-                            <div className="test-content">
-                              <div className="test-input">
-                                <strong>Input:</strong>
-                                <pre>{tc.input_text}</pre>
-                              </div>
-                              <div className="test-output">
-                                <strong>Expected:</strong>
-                                <pre>{tc.expected_text}</pre>
-                              </div>
-                            </div>
+                visibleTestCases.map((testCase, index) => {
+                  const result = testResults[testCase.id];
+                  return (
+                    <div
+                      key={testCase.id}
+                      className={`test-case ${result?.passed ? 'passed' : result ? 'failed' : ''}`}
+                    >
+                      <div className="test-header">
+                        <span>
+                          Test Case {index + 1} - {testCase.questionTitle}
+                        </span>
+                        {result && (
+                          <span className={`test-status ${result.passed ? 'passed' : 'failed'}`}>
+                            {result.passed ? 'Passed' : 'Failed'}
+                          </span>
+                        )}
+                      </div>
+                      <div className="test-content">
+                        <div className="test-input">
+                          <strong>Input</strong>
+                          <pre>{testCase.input || '(empty)'}</pre>
+                        </div>
+                        <div className="test-output">
+                          <strong>Expected</strong>
+                          <pre>{testCase.expected || '(empty)'}</pre>
+                        </div>
+                        {result && (
+                          <div className="test-output">
+                            <strong>Actual</strong>
+                            <pre>{result.actual || result.message}</pre>
                           </div>
-                        );
-                      })}
-                  </div>
-                ))
+                        )}
+                      </div>
+                    </div>
+                  );
+                })
               )}
             </div>
           </div>
@@ -589,31 +706,24 @@ export default function GitHubCodeEditor() {
             <button
               className="btn-run-tests"
               onClick={handleRunTests}
-              disabled={runningTests || !code.trim() || !selectedFile}
+              disabled={runningTests || !selectedFile || !code.trim()}
             >
               {runningTests ? 'Running...' : 'Run Tests'}
             </button>
-            <button
-              className="btn-save"
-              onClick={handleSaveToGitHub}
-              disabled={saving || !hasChanges || !selectedFile}
-            >
-              {saving ? 'Saving...' : 'Save to GitHub'}
-            </button>
-            <button
-              className="btn-submit"
-              onClick={handleSubmit}
-              disabled={submitting || !allTestsPassed}
-            >
-              {submitting ? 'Submitting...' : 'Submit'}
-            </button>
+            <div className={`run-summary ${allTestsPassed ? 'passed' : ''}`}>
+              {Object.keys(testResults).length === 0
+                ? 'Run tests against the selected file.'
+                : allTestsPassed
+                  ? 'All loaded sample tests passed.'
+                  : 'Some sample tests failed.'}
+            </div>
           </div>
-        </div>
+        </aside>
       </div>
 
       <div className="output-console">
         <h3>Output</h3>
-        <pre className="output-content">{output || 'Run tests to see output'}</pre>
+        <pre className="output-content">{output || 'Run tests to see output.'}</pre>
       </div>
     </div>
   );

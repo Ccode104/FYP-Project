@@ -8,6 +8,24 @@ const SAFE_LIMIT = 4000;
 const WARNING_LIMIT = 6000;
 const MAX_LIMIT = 8000;
 
+function looksLikeLongFormRequest(query) {
+  if (!query) return false;
+  const normalized = query.toLowerCase();
+  return [
+    'explain in detail',
+    'detailed answer',
+    'long answer',
+    'step by step',
+    'elaborate',
+    'deep dive',
+    'comprehensive',
+    'in depth',
+    'compare',
+    'discuss',
+    'walk me through',
+  ].some(keyword => normalized.includes(keyword));
+}
+
 /**
  * Sanitizes text to remove potential PII
  */
@@ -39,7 +57,6 @@ function estimateTokens(text) {
  * Returns { context_used_summary, full_context_text, context_token_count }
  */
 export async function buildContextTree(messageId, offeringId) {
-  // 1. Fetch the parent chain up to the root
   const chainQuery = `
     WITH RECURSIVE message_chain AS (
       SELECT id, parent_id, content, created_at, user_id, 1 as depth
@@ -58,30 +75,39 @@ export async function buildContextTree(messageId, offeringId) {
   
   const chainResult = await pool.query(chainQuery, [messageId, offeringId]);
   const chainMessages = chainResult.rows;
+  const rootMessage = chainMessages[0] || null;
+  const rootMessageId = rootMessage?.id || messageId;
 
-  // 2. Fetch direct replies to this message (excluding the message itself)
-  const repliesQuery = `
-    SELECT id, parent_id, content, created_at, user_id
-    FROM discussion_messages
-    WHERE parent_id = $1 AND course_offering_id = $2
-    ORDER BY created_at ASC
-  `;
-  const repliesResult = await pool.query(repliesQuery, [messageId, offeringId]);
-  const replyMessages = repliesResult.rows;
+  const threadQuery = `
+    WITH RECURSIVE thread_tree AS (
+      SELECT id, parent_id, content, created_at, user_id, 0 AS depth
+      FROM discussion_messages
+      WHERE id = $1 AND course_offering_id = $2
 
-  // 3. Fetch top K (e.g. 10) most recent messages in the offering for general context
-  const recentQuery = `
-    SELECT id, parent_id, content, created_at, user_id
-    FROM discussion_messages
-    WHERE course_offering_id = $1
-    ORDER BY created_at DESC
-    LIMIT 10
+      UNION ALL
+
+      SELECT m.id, m.parent_id, m.content, m.created_at, m.user_id, tt.depth + 1
+      FROM discussion_messages m
+      INNER JOIN thread_tree tt ON m.parent_id = tt.id
+      WHERE m.course_offering_id = $2
+    )
+    SELECT * FROM thread_tree ORDER BY created_at ASC, id ASC
   `;
-  const recentResult = await pool.query(recentQuery, [offeringId]);
-  
-  // Create a merged map of messages to avoid duplicates
+
+  const threadResult = await pool.query(threadQuery, [rootMessageId, offeringId]);
+  const threadMessages = threadResult.rows;
+
+  const directRepliesResult = await pool.query(
+    `
+      SELECT COUNT(*)::int AS count
+      FROM discussion_messages
+      WHERE parent_id = $1 AND course_offering_id = $2
+    `,
+    [messageId, offeringId]
+  );
+
   const msgMap = new Map();
-  const allRawMessages = [...chainMessages, ...replyMessages, ...recentResult.rows];
+  const allRawMessages = [...chainMessages, ...threadMessages];
   
   for (const msg of allRawMessages) {
     if (!msgMap.has(msg.id)) {
@@ -94,24 +120,34 @@ export async function buildContextTree(messageId, offeringId) {
   
   let formattedContext = '';
   for (const msg of finalMessages) {
-    // Remove very short / low-value messages unless it's the target message
     const rawContent = (msg.content || '').trim();
     if (rawContent.length < 5 && msg.id !== messageId) {
       continue;
     }
     
     const sanitized = sanitizeContent(rawContent);
-    const roleStr = msg.id === messageId ? '[TARGET MESSAGE (TAGGED AI)]' : '[Context]';
+    const roleStr =
+      msg.id === rootMessageId
+        ? '[THREAD ROOT]'
+        : msg.id === messageId
+          ? '[TARGET MESSAGE]'
+          : '[THREAD REPLY]';
     formattedContext += `--- Message ID: ${msg.id} ${roleStr} ---\n${sanitized}\n\n`;
   }
 
   const tokenCount = estimateTokens(formattedContext);
-  const summary = `Fetched parent chain (${chainMessages.length}), direct replies (${replyMessages.length}), and recent messages. Total context messages deduped: ${finalMessages.length}.`;
+  const summary = `Fetched thread root, ancestor chain (${chainMessages.length}), and thread messages (${threadMessages.length}). Total context messages deduped: ${finalMessages.length}.`;
 
   return {
     full_context_text: formattedContext,
     context_token_count: tokenCount,
-    context_used_summary: summary
+    context_used_summary: summary,
+    thread_stats: {
+      root_message_id: rootMessageId,
+      target_message_id: messageId,
+      total_thread_messages: threadMessages.length,
+      direct_reply_count_for_target: directRepliesResult.rows[0]?.count || 0,
+    },
   };
 }
 
@@ -120,13 +156,21 @@ export async function buildContextTree(messageId, offeringId) {
  */
 export async function generateAiResponse(messageId, offeringId, userQuery) {
   const contextData = await buildContextTree(messageId, offeringId);
-  let { full_context_text, context_token_count, context_used_summary } = contextData;
+  let { full_context_text, context_token_count, context_used_summary, thread_stats } = contextData;
 
   const extractedQuery = userQuery ? sanitizeContent(userQuery) : "Please assist with the tagged message.";
   const queryTokens = estimateTokens(extractedQuery);
   const instructionTokens = 500; // rough estimate for system prompts
   
   let totalEstimated = context_token_count + queryTokens + instructionTokens;
+
+  if (looksLikeLongFormRequest(extractedQuery)) {
+    return {
+      mode: 'fallback_prompt',
+      content: generateFallbackPrompt(full_context_text, extractedQuery),
+      context_used: context_used_summary + ' (Used fallback because the request appears to need a long-form answer.)',
+    };
+  }
 
   // WARNING_LIMIT: Apply aggressive summarization / trimming
   if (totalEstimated >= WARNING_LIMIT && totalEstimated < MAX_LIMIT) {
@@ -148,8 +192,13 @@ export async function generateAiResponse(messageId, offeringId, userQuery) {
 
   // Proceed with LLM Call
   const systemPrompt = `You are an AI assistant in an educational discussion forum.
-Your task is to respond to a user who tagged you.
-You are given the context of the discussion thread, including parent messages and recent replies.
+Your task is to respond to a user who tagged you inside a single discussion thread.
+You are given only the context for that thread.
+Do not count or describe unrelated course messages as part of the thread.
+If the user asks about counts, use the provided thread statistics exactly.
+Thread statistics:
+- Total messages in this thread: ${thread_stats.total_thread_messages}
+- Direct replies to the target message: ${thread_stats.direct_reply_count_for_target}
 Provide a concise, helpful, and highly relevant answer based on the context.
 Do NOT reveal sensitive data.`;
 

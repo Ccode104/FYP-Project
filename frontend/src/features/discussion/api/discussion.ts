@@ -23,3 +23,24 @@ export async function postDiscussionMessage(offeringId: string | number, content
   });
 }
 
+export interface DiscussionAiAssistResponse {
+  mode: 'direct_answer' | 'fallback_prompt';
+  content: string;
+  context_used?: string;
+  ai_message?: DiscussionMessage;
+}
+
+export async function requestDiscussionAiAssist(
+  offeringId: string | number,
+  messageId: number,
+  user_query?: string
+) {
+  return apiFetch<DiscussionAiAssistResponse>(
+    `/api/discussions/${offeringId}/messages/${messageId}/ai-assist`,
+    {
+      method: 'POST',
+      body: { user_query },
+    }
+  );
+}
+

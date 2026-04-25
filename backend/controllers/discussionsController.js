@@ -1,5 +1,19 @@
 import { pool } from '../db/index.js';
 import { generateAiResponse } from '../services/discussionAiService.js';
+
+const messageSelect = `
+  SELECT m.id, m.course_offering_id, m.user_id, m.parent_id, m.content, m.created_at,
+         CASE
+           WHEN m.user_id IS NULL THEN 'AI Assistant'
+           ELSE u.name
+         END AS author_name,
+         CASE
+           WHEN m.user_id IS NULL THEN 'assistant'
+           ELSE u.role
+         END AS author_role
+  FROM discussion_messages m
+  LEFT JOIN users u ON u.id = m.user_id
+`;
 async function hasAccess(offeringId, user) {
   if (!user) {return false;}
   if (user.role === 'admin') {return true;}
@@ -41,10 +55,7 @@ export async function listMessages(req, res) {
     }
 
     const q = `
-      SELECT m.id, m.course_offering_id, m.user_id, m.parent_id, m.content, m.created_at,
-             u.name AS author_name, u.role AS author_role
-      FROM discussion_messages m
-      LEFT JOIN users u ON u.id = m.user_id
+      ${messageSelect}
       ${where}
       ORDER BY m.created_at ASC, m.id ASC
       LIMIT ${limit}
@@ -79,12 +90,15 @@ export async function postMessage(req, res) {
       if (p.rowCount === 0) {return res.status(400).json({ error: 'Invalid parent_id' });}
     }
 
-    const r = await pool.query(
+    const insertResult = await pool.query(
       `INSERT INTO discussion_messages (course_offering_id, user_id, parent_id, content)
        VALUES ($1,$2,$3,$4)
-       RETURNING id, course_offering_id, user_id, parent_id, content, created_at`,
+       RETURNING id`,
       [offeringId, user.id || null, parentId, text]
     );
+
+    const newId = insertResult.rows[0].id;
+    const r = await pool.query(`${messageSelect} WHERE m.id = $1`, [newId]);
 
     res.status(201).json({ message: r.rows[0] });
   } catch (err) {
@@ -108,9 +122,46 @@ export async function getAiAssist(req, res) {
       return res.status(403).json({ error: 'Forbidden' });
     }
 
-    // Call AI Service
+    const rootResult = await pool.query(
+      `
+        WITH RECURSIVE message_chain AS (
+          SELECT id, parent_id
+          FROM discussion_messages
+          WHERE id = $1 AND course_offering_id = $2
+
+          UNION ALL
+
+          SELECT m.id, m.parent_id
+          FROM discussion_messages m
+          INNER JOIN message_chain mc ON m.id = mc.parent_id
+          WHERE m.course_offering_id = $2
+        )
+        SELECT id
+        FROM message_chain
+        ORDER BY parent_id NULLS FIRST, id ASC
+        LIMIT 1
+      `,
+      [messageId, offeringId]
+    );
+
+    const threadRootId = rootResult.rows[0]?.id || messageId;
+
     const aiResult = await generateAiResponse(messageId, offeringId, user_query);
-    res.json(aiResult);
+    const insertResult = await pool.query(
+      `INSERT INTO discussion_messages (course_offering_id, user_id, parent_id, content)
+       VALUES ($1, NULL, $2, $3)
+       RETURNING id`,
+      [offeringId, threadRootId, aiResult.content]
+    );
+
+    const aiMessageResult = await pool.query(`${messageSelect} WHERE m.id = $1`, [
+      insertResult.rows[0].id,
+    ]);
+
+    res.json({
+      ...aiResult,
+      ai_message: aiMessageResult.rows[0],
+    });
 
   } catch (err) {
     console.error('getAiAssist error', err);
