@@ -5,7 +5,6 @@ import { useAuth } from '../../hooks/useAuth';
 import { apiFetch } from '../../services/api';
 import { fetchPlannerTasks, type PlannerTask } from '../../features/planner/api/planner';
 import { getCourseProgress, getMyProgress, type ProgressRow } from '../../features/progress/api/progress';
-import ProgressShell from './ProgressShell';
 import './ProgressExperience.css';
 
 type CourseCardData = {
@@ -199,17 +198,6 @@ export default function CourseProgress() {
       })[0];
   }, [plannerTasks]);
 
-  const handleSectionChange = (section: 'overview' | 'academics' | 'leaderboard' | 'achievements') => {
-    if (section === 'overview') {
-      navigate('/progress');
-      return;
-    }
-    if (section === 'academics') {
-      return;
-    }
-    navigate(section === 'achievements' ? '/progress/leaderboard?view=achievements' : '/progress/leaderboard');
-  };
-
   if (!isStudent) {
     return (
       <>
@@ -221,7 +209,7 @@ export default function CourseProgress() {
   }
 
   return (
-    <ProgressShell activeSection="academics" onSectionChange={handleSectionChange}>
+    <div className="progress-experience">
       {loading && <div className="progress-page__loading">Loading course intelligence...</div>}
       {!loading && error && <div className="progress-page__error">{error}</div>}
 
@@ -460,6 +448,6 @@ export default function CourseProgress() {
           </section>
         </div>
       )}
-    </ProgressShell>
+    </div>
   );
 }

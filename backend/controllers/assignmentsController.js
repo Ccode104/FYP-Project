@@ -55,7 +55,7 @@ export async function createAssignment(req, res) {
     // Prepare data for insertion
     const created_by = req.user?.id || null;
     const final_total_points = total_points || max_score || 100;
-    const final_allow_multiple = allow_multiple_submissions || false;
+    const final_allow_multiple = false;
     const final_is_graded = is_graded !== undefined ? is_graded : true;
 
     // Handle both legacy and new assignment formats

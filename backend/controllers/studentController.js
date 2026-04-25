@@ -114,14 +114,39 @@ export async function submitAssignment(req, res) {
     const studentId = req.user.id;
     const { assignmentId } = req.params;
     const { comments } = req.body; // Optionally accept comments
-    // Insert a new submission (basic, no file upload)
-    const result = await pool.query(
-      `INSERT INTO assignment_submissions (assignment_id, student_id, comments, submitted_at)
-       VALUES ($1, $2, $3, NOW())
-       RETURNING *`,
-      [assignmentId, studentId, comments || null]
+    const existing = await pool.query(
+      `SELECT id
+       FROM assignment_submissions
+       WHERE assignment_id = $1 AND student_id = $2
+       ORDER BY submitted_at DESC NULLS LAST, id DESC
+       LIMIT 1`,
+      [assignmentId, studentId]
     );
-    res.status(201).json({ message: 'Assignment submitted', submission: result.rows[0] });
+
+    let submission;
+    if (existing.rowCount > 0) {
+      const updated = await pool.query(
+        `UPDATE assignment_submissions
+         SET comments = $1,
+             submitted_at = NOW(),
+             status = 'submitted',
+             attempt = 1
+         WHERE id = $2
+         RETURNING *`,
+        [comments || null, existing.rows[0].id]
+      );
+      submission = updated.rows[0];
+    } else {
+      const inserted = await pool.query(
+        `INSERT INTO assignment_submissions (assignment_id, student_id, comments, submitted_at, status, attempt)
+         VALUES ($1, $2, $3, NOW(), 'submitted', 1)
+         RETURNING *`,
+        [assignmentId, studentId, comments || null]
+      );
+      submission = inserted.rows[0];
+    }
+
+    res.status(201).json({ message: 'Assignment submitted', submission });
   } catch (err) {
     console.error('submitAssignment error:', err);
     res.status(500).json({ error: 'Internal server error' });

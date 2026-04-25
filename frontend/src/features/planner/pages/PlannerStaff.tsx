@@ -129,10 +129,15 @@ export default function PlannerStaff() {
     return grouped;
   }, [filteredTasks]);
 
+  const completedVisibleCount = useMemo(
+    () => filteredTasks.filter((task) => task.status === 'done').length,
+    [filteredTasks]
+  );
+
   const progress = useMemo(() => {
-    if (tasks.length === 0) return 0;
-    return Math.round((tasks.filter((task) => task.status === 'done').length / tasks.length) * 100);
-  }, [tasks]);
+    if (filteredTasks.length === 0) return 0;
+    return Math.round((completedVisibleCount / filteredTasks.length) * 100);
+  }, [completedVisibleCount, filteredTasks]);
 
   const generateWorkflow = async () => {
     try {
@@ -426,7 +431,7 @@ export default function PlannerStaff() {
               <div className="planner-progress-bar">
                 <div className="planner-progress-bar-fill" style={{ width: `${progress}%` }} />
               </div>
-              <p>{tasks.filter((task) => task.status === 'done').length} of {tasks.length} tasks completed</p>
+              <p>{completedVisibleCount} of {filteredTasks.length} tasks completed</p>
             </section>
 
             {recommendations.length > 0 ? (

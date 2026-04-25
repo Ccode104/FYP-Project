@@ -158,6 +158,58 @@ async function createZipFromFiles(files, assignmentId, studentId) {
   });
 }
 
+async function getOrCreateSingleAssignmentSubmission(db, assignmentId, studentId, comments = null) {
+  const existingResult = await db.query(
+    `SELECT *
+     FROM assignment_submissions
+     WHERE assignment_id = $1 AND student_id = $2
+     ORDER BY submitted_at DESC NULLS LAST, id DESC
+     LIMIT 1`,
+    [assignmentId, studentId]
+  );
+
+  if (existingResult.rowCount > 0) {
+    const updated = await db.query(
+      `UPDATE assignment_submissions
+       SET submitted_at = NOW(),
+           status = 'submitted',
+           comments = COALESCE($3, comments),
+           attempt = 1
+       WHERE id = $1
+       RETURNING *`,
+      [existingResult.rows[0].id, studentId, comments]
+    );
+    return updated.rows[0];
+  }
+
+  const inserted = await db.query(
+    `INSERT INTO assignment_submissions (assignment_id, student_id, comments, submitted_at, status, attempt)
+     VALUES ($1, $2, $3, NOW(), 'submitted', 1)
+     RETURNING *`,
+    [assignmentId, studentId, comments]
+  );
+  return inserted.rows[0];
+}
+
+async function clearSubmissionArtifacts(db, submissionId) {
+  const cleanupStatements = [
+    'DELETE FROM submission_files WHERE submission_id = $1',
+    'DELETE FROM file_submissions WHERE submission_id = $1',
+    'DELETE FROM github_submissions WHERE submission_id = $1',
+    'DELETE FROM mixed_submissions WHERE submission_id = $1',
+  ];
+
+  for (const statement of cleanupStatements) {
+    try {
+      await db.query(statement, [submissionId]);
+    } catch (error) {
+      if (!String(error.message || '').includes('does not exist')) {
+        throw error;
+      }
+    }
+  }
+}
+
 export async function submitFileAssignment(req, res) {
   const assignment_id = Number(req.body.assignment_id);
   const student_id = Number(req.user?.id || req.body.student_id);
@@ -192,38 +244,8 @@ export async function submitFileAssignment(req, res) {
         }
       }
     }
-    let submission;
-
-    if (assignment.allow_multiple_submissions) {
-      // Create new submission for each attempt
-      const q = `INSERT INTO assignment_submissions (assignment_id, student_id, attempt)
-                  VALUES ($1, $2, (SELECT COALESCE(MAX(attempt), 0) + 1 FROM assignment_submissions WHERE assignment_id = $1 AND student_id = $2))
-                  RETURNING *`;
-      const r = await pool.query(q, [assignment_id, student_id]);
-      submission = r.rows[0];
-    } else {
-      // Check if submission already exists
-      const existingQ =
-        'SELECT * FROM assignment_submissions WHERE assignment_id = $1 AND student_id = $2';
-      const existingR = await pool.query(existingQ, [assignment_id, student_id]);
-
-      if (existingR.rowCount > 0) {
-        // For assignments allowing GitHub repo, allow updating existing submission with additional files
-        if (assignment.allow_github_repo) {
-          submission = existingR.rows[0];
-          console.log(
-            `[DEBUG] submitFileAssignment: Updating existing submission with GitHub repo option id=${submission.id}`
-          );
-        } else {
-          return res.status(400).json({ error: 'You have already submitted this assignment' });
-        }
-      } else {
-        const q = `INSERT INTO assignment_submissions (assignment_id, student_id, attempt)
-                    VALUES ($1, $2, 1) RETURNING *`;
-        const r = await pool.query(q, [assignment_id, student_id]);
-        submission = r.rows[0];
-      }
-    }
+    const submission = await getOrCreateSingleAssignmentSubmission(pool, assignment_id, student_id);
+    await clearSubmissionArtifacts(pool, submission.id);
 
     const files = req.files || [];
 
@@ -232,8 +254,7 @@ export async function submitFileAssignment(req, res) {
       try {
         const zipUrl = await createZipFromFiles(files, assignment_id, student_id);
         await pool.query(
-          `INSERT INTO file_submissions (submission_id, zip_file_url, submission_type) VALUES ($1, $2, $3)
-           ON CONFLICT (submission_id) DO UPDATE SET zip_file_url = EXCLUDED.zip_file_url`,
+          `INSERT INTO file_submissions (submission_id, zip_file_url, submission_type) VALUES ($1, $2, $3)`,
           [submission.id, zipUrl, 'file']
         );
         console.log(`[DEBUG] submitFileAssignment: Created zip for multiple files, url=${zipUrl}`);
@@ -301,27 +322,13 @@ export async function submitMixedAssignment(req, res) {
 
     const assignment = assignmentCheck.rows[0];
 
-    let submission;
-    if (assignment.allow_multiple_submissions) {
-      const q = `INSERT INTO assignment_submissions (assignment_id, student_id, attempt)
-                 VALUES ($1, $2, (SELECT COALESCE(MAX(attempt), 0) + 1 FROM assignment_submissions WHERE assignment_id = $1 AND student_id = $2))
-                 RETURNING *`;
-      const r = await pool.query(q, [assignment_id, student_id]);
-      submission = r.rows[0];
-    } else {
-      const existingQ =
-        'SELECT * FROM assignment_submissions WHERE assignment_id = $1 AND student_id = $2';
-      const existingR = await pool.query(existingQ, [assignment_id, student_id]);
-
-      if (existingR.rowCount > 0) {
-        submission = existingR.rows[0];
-      } else {
-        const q = `INSERT INTO assignment_submissions (assignment_id, student_id, attempt)
-                   VALUES ($1, $2, 1) RETURNING *`;
-        const r = await pool.query(q, [assignment_id, student_id]);
-        submission = r.rows[0];
-      }
-    }
+    const submission = await getOrCreateSingleAssignmentSubmission(
+      pool,
+      assignment_id,
+      student_id,
+      content?.trim() || null
+    );
+    await clearSubmissionArtifacts(pool, submission.id);
 
     if (content && content.trim()) {
       await pool.query('UPDATE assignment_submissions SET content = $1 WHERE id = $2', [
@@ -336,8 +343,7 @@ export async function submitMixedAssignment(req, res) {
       try {
         const zipUrl = await createZipFromFiles(files, assignment_id, student_id);
         await pool.query(
-          `INSERT INTO file_submissions (submission_id, zip_file_url, submission_type) VALUES ($1, $2, $3)
-           ON CONFLICT (submission_id) DO UPDATE SET zip_file_url = EXCLUDED.zip_file_url`,
+          `INSERT INTO file_submissions (submission_id, zip_file_url, submission_type) VALUES ($1, $2, $3)`,
           [submission.id, zipUrl, 'mixed']
         );
       } catch (zipError) {
@@ -434,29 +440,7 @@ export async function submitCodeAssignment(req, res) {
     const assignment = assignmentCheck.rows[0];
 
     // Get or create submission
-    let submission;
-    if (assignment.allow_multiple_submissions) {
-      // Create new submission for each attempt
-      const q = `INSERT INTO assignment_submissions (assignment_id, student_id, attempt)
-                 VALUES ($1, $2, (SELECT COALESCE(MAX(attempt), 0) + 1 FROM assignment_submissions WHERE assignment_id = $1 AND student_id = $2))
-                 RETURNING *`;
-      const r = await pool.query(q, [assignment_id, student_id]);
-      submission = r.rows[0];
-    } else {
-      // Check if submission already exists
-      const existingQ =
-        'SELECT * FROM assignment_submissions WHERE assignment_id = $1 AND student_id = $2';
-      const existingR = await pool.query(existingQ, [assignment_id, student_id]);
-
-      if (existingR.rowCount > 0) {
-        submission = existingR.rows[0];
-      } else {
-        const q = `INSERT INTO assignment_submissions (assignment_id, student_id, attempt)
-                   VALUES ($1, $2, 1) RETURNING *`;
-        const r = await pool.query(q, [assignment_id, student_id]);
-        submission = r.rows[0];
-      }
-    }
+    const submission = await getOrCreateSingleAssignmentSubmission(pool, assignment_id, student_id);
 
     // Get assignment_question_id if question_id is provided
     let assignment_question_id = null;
@@ -763,11 +747,8 @@ export async function submitLinkAssignment(req, res) {
     return res.status(400).json({ error: 'Missing' });
   }
   try {
-    const r = await pool.query(
-      'INSERT INTO assignment_submissions (assignment_id, student_id, attempt) VALUES ($1,$2,$3) RETURNING *',
-      [assignment_id, student_id, 1]
-    );
-    const submission = r.rows[0];
+    const submission = await getOrCreateSingleAssignmentSubmission(pool, assignment_id, student_id);
+    await clearSubmissionArtifacts(pool, submission.id);
     const filename = url.split('/').pop() || url;
     await pool.query(
       'INSERT INTO submission_files (submission_id, storage_path, filename) VALUES ($1,$2,$3)',
@@ -877,33 +858,8 @@ export async function submitGitHubRepoAssignment(req, res) {
     );
 
     // Get or create submission
-    let submission;
-    if (assignment.allow_multiple_submissions) {
-      // Create new submission for each attempt
-      const q = `INSERT INTO assignment_submissions (assignment_id, student_id, attempt)
-                 VALUES ($1, $2, (SELECT COALESCE(MAX(attempt), 0) + 1 FROM assignment_submissions WHERE assignment_id = $1 AND student_id = $2))
-                 RETURNING *`;
-      const r = await pool.query(q, [assignment_id, student_id]);
-      submission = r.rows[0];
-    } else {
-      // Check if submission already exists
-      const existingQ =
-        'SELECT * FROM assignment_submissions WHERE assignment_id = $1 AND student_id = $2';
-      const existingR = await pool.query(existingQ, [assignment_id, student_id]);
-
-      if (existingR.rowCount > 0) {
-        submission = existingR.rows[0];
-        console.log(
-          `[DEBUG] submitGitHubRepoAssignment: Using existing submission id=${submission.id}`
-        );
-      } else {
-        // Create new submission
-        const q =
-          'INSERT INTO assignment_submissions (assignment_id, student_id, attempt) VALUES ($1, $2, 1) RETURNING *';
-        const r = await pool.query(q, [assignment_id, student_id]);
-        submission = r.rows[0];
-      }
-    }
+    const submission = await getOrCreateSingleAssignmentSubmission(pool, assignment_id, student_id);
+    console.log(`[DEBUG] submitGitHubRepoAssignment: Using canonical submission id=${submission.id}`);
 
     // Insert GitHub submission data - check if exists first
     const checkExisting = await pool.query(

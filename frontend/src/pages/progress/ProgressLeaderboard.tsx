@@ -3,7 +3,6 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
 import { useToast } from '../../components/ToastProvider';
 import { apiFetch } from '../../services/api';
-import ProgressShell from './ProgressShell';
 import {
   fetchAllGamificationAchievements,
   fetchGamificationAchievements,
@@ -13,6 +12,7 @@ import {
   type GamificationSummaryResponse,
   type LeaderboardResponse,
 } from '../../features/gamification/api/gamification';
+import './ProgressExperience.css';
 
 type CourseCardData = {
   id: number;
@@ -194,23 +194,8 @@ export default function ProgressLeaderboard() {
     });
   }, [achievements]);
 
-  const handleSectionChange = (section: 'overview' | 'academics' | 'leaderboard' | 'achievements') => {
-    if (section === 'overview') {
-      navigate('/progress');
-      return;
-    }
-    if (section === 'academics') {
-      if (selectedCourseId) navigate(`/progress/course/${selectedCourseId}`);
-      return;
-    }
-    setSearchParams(section === 'achievements' ? { view: 'achievements' } : {});
-  };
-
   return (
-    <ProgressShell
-      activeSection={view === 'achievements' ? 'achievements' : 'leaderboard'}
-      onSectionChange={handleSectionChange}
-    >
+    <div className="progress-experience">
       {loading && <div className="progress-page__loading">Loading leaderboard and achievements...</div>}
       {!loading && error && <div className="progress-page__error">{error}</div>}
 
@@ -470,6 +455,6 @@ export default function ProgressLeaderboard() {
           </section>
         </div>
       )}
-    </ProgressShell>
+    </div>
   );
 }

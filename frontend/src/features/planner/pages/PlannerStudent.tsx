@@ -196,10 +196,15 @@ export default function PlannerStudent() {
     });
   }, [tasks]);
 
+  const completedVisibleCount = useMemo(
+    () => filteredTasks.filter((task) => task.status === 'done').length,
+    [filteredTasks]
+  );
+
   const progress = useMemo(() => {
-    if (tasks.length === 0) return 0;
-    return Math.round((tasks.filter((task) => task.status === 'done').length / tasks.length) * 100);
-  }, [tasks]);
+    if (filteredTasks.length === 0) return 0;
+    return Math.round((completedVisibleCount / filteredTasks.length) * 100);
+  }, [completedVisibleCount, filteredTasks]);
 
   const pinnedTasks = useMemo(() => {
     return tasks.filter((task) => pinnedIds.includes(task.id)).slice(0, 4);
@@ -517,7 +522,7 @@ export default function PlannerStudent() {
     }
   };
 
-  const completedCount = tasks.filter((task) => task.status === 'done').length;
+  const completedCount = completedVisibleCount;
 
   return (
     <div className="planner-shell">
@@ -994,7 +999,7 @@ export default function PlannerStudent() {
               <div className="planner-progress-bar">
                 <div className="planner-progress-bar-fill" style={{ width: `${progress}%` }} />
               </div>
-              <p>{completedCount} of {tasks.length} tasks completed</p>
+              <p>{completedCount} of {filteredTasks.length} tasks completed</p>
             </section>
 
             <section className="planner-rail-card">

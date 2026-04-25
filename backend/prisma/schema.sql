@@ -102,7 +102,7 @@ CREATE TABLE IF NOT EXISTS assignment_submissions (
   graded_at TIMESTAMPTZ,
   comments TEXT,
   attempt INT DEFAULT 1,
-  UNIQUE(assignment_id, student_id, attempt)
+  UNIQUE(assignment_id, student_id)
 );
 
 CREATE TABLE IF NOT EXISTS submission_files (

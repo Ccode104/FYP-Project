@@ -14,7 +14,7 @@ import {
   type GamificationSummaryResponse,
   type LeaderboardResponse,
 } from '../../features/gamification/api/gamification';
-import ProgressShell from './ProgressShell';
+import './ProgressExperience.css';
 
 type CourseCardData = {
   id: number;
@@ -335,12 +335,30 @@ export default function StudentProgress() {
   };
 
   return (
-    <ProgressShell activeSection="overview" onSectionChange={handleSectionChange}>
+    <div className="progress-experience">
       {loading && <div className="progress-page__loading">Loading progress experience...</div>}
       {!loading && error && <div className="progress-page__error">{error}</div>}
 
       {!loading && !error && (
         <>
+          <section className="progress-page__section-head" style={{ marginBottom: '2rem' }}>
+            <div>
+              <p className="progress-page__eyebrow">Progress Overview</p>
+              <h1 className="progress-page__section-title">My Progress</h1>
+            </div>
+            <div className="progress-page__filter-actions">
+              <button className="progress-page__action-button" onClick={() => handleSectionChange('leaderboard')}>
+                Leaderboard
+              </button>
+              <button className="progress-page__ghost-button" onClick={() => handleSectionChange('academics')}>
+                Course Drilldown
+              </button>
+              <button className="progress-page__ghost-button" onClick={() => handleSectionChange('achievements')}>
+                Achievements
+              </button>
+            </div>
+          </section>
+
           <section className="progress-page__grid">
             <article className="progress-page__hero-card progress-page__identity">
               <div className="progress-page__identity-header">
@@ -716,6 +734,6 @@ export default function StudentProgress() {
           </section>
         </>
       )}
-    </ProgressShell>
+    </div>
   );
 }

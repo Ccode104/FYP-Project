@@ -772,7 +772,7 @@ export async function adminListAssignments(req, res) {
 
 export async function adminCreateAssignment(req, res) {
   try {
-    const { course_offering_id, title, description, assignment_type, release_at, due_at, max_score, allow_multiple_submissions } = req.body || {};
+    const { course_offering_id, title, description, assignment_type, release_at, due_at, max_score } = req.body || {};
     if (!course_offering_id || !title || !assignment_type) {
       return res.status(400).json({ error: 'course_offering_id, title, and assignment_type are required' });
     }
@@ -780,7 +780,7 @@ export async function adminCreateAssignment(req, res) {
       INSERT INTO assignments (course_offering_id, title, description, assignment_type, release_at, due_at, max_score, allow_multiple_submissions, created_by)
       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
       RETURNING *
-    `, [Number(course_offering_id), title, description || null, assignment_type, release_at || null, due_at || null, max_score ? Number(max_score) : 100, allow_multiple_submissions || false, req.user.id]);
+    `, [Number(course_offering_id), title, description || null, assignment_type, release_at || null, due_at || null, max_score ? Number(max_score) : 100, false, req.user.id]);
     res.status(201).json({ assignment: r.rows[0] });
   } catch (err) {
     console.error('adminCreateAssignment', err);
@@ -792,7 +792,7 @@ export async function adminUpdateAssignment(req, res) {
   try {
     const id = Number(req.params.id);
     if (!id) {return res.status(400).json({ error: 'Invalid id' });}
-    const { title, description, assignment_type, release_at, due_at, max_score, allow_multiple_submissions } = req.body || {};
+    const { title, description, assignment_type, release_at, due_at, max_score } = req.body || {};
     const fields = [];
     const params = [];
     function set(col, val) { params.push(val); fields.push(`${col} = $${params.length}`); }
@@ -802,7 +802,7 @@ export async function adminUpdateAssignment(req, res) {
     if (release_at !== undefined) {set('release_at', release_at);}
     if (due_at !== undefined) {set('due_at', due_at);}
     if (max_score !== undefined) {set('max_score', Number(max_score));}
-    if (allow_multiple_submissions !== undefined) {set('allow_multiple_submissions', !!allow_multiple_submissions);}
+    if ('allow_multiple_submissions' in (req.body || {})) {set('allow_multiple_submissions', false);}
     if (!fields.length) {return res.status(400).json({ error: 'No updates provided' });}
     params.push(id);
     const r = await pool.query(`UPDATE assignments SET ${fields.join(', ')} WHERE id=$${params.length} RETURNING *`, params);
