@@ -24,6 +24,13 @@ function formatDuration(minutes?: number): string {
   return `${m}m`;
 }
 
+function getSessionDurationMinutes(lecture: LiveLecture): number {
+  if (!lecture.started_at) return 0;
+  const start = new Date(lecture.started_at).getTime();
+  const end = lecture.ended_at ? new Date(lecture.ended_at).getTime() : Date.now();
+  return Math.max(0, Math.round((end - start) / 60000));
+}
+
 function attendancePercent(lecture: LiveLecture): number {
   // Use average attendance as a proxy, or fallback to a reasonable estimate
   const avg = lecture.average_attendance_minutes || 0;
@@ -66,7 +73,7 @@ const LectureTable: React.FC<LectureTableProps> = ({ lectures }) => {
                   </div>
                 </td>
                 <td>{formatDate(lecture.ended_at || lecture.scheduled_at)}</td>
-                <td>{formatDuration(lecture.total_attendance_minutes)}</td>
+                <td>{formatDuration(getSessionDurationMinutes(lecture))}</td>
                 <td>
                   <div className="ll-attendance">
                     <div className="ll-attendance__bar">

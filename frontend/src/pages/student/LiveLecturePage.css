@@ -1,0 +1,147 @@
+.ll-detail-page {
+  min-height: 100vh;
+  background: #f8f9ff;
+}
+
+.ll-detail-shell {
+  max-width: 1160px;
+  margin: 0 auto;
+  padding: 2rem 1.25rem 3rem;
+  display: grid;
+  gap: 1.5rem;
+}
+
+.ll-detail-topbar {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+}
+
+.ll-detail-hero {
+  background: linear-gradient(135deg, #ffffff 0%, #eef4ff 100%);
+  border: 1px solid #dbe7ff;
+  border-radius: 1rem;
+  padding: 1.5rem;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1.5rem;
+  flex-wrap: wrap;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+}
+
+.ll-detail-hero__main {
+  min-width: 0;
+  flex: 1;
+}
+
+.ll-detail-hero__title {
+  margin: 0.75rem 0 0.5rem;
+  font-size: clamp(1.75rem, 3vw, 2.5rem);
+  line-height: 1.1;
+  color: #0d1c2e;
+}
+
+.ll-detail-hero__subtitle {
+  margin: 0;
+  max-width: 720px;
+  color: #556274;
+  font-size: 0.98rem;
+  line-height: 1.7;
+}
+
+.ll-detail-hero__meta {
+  display: flex;
+  gap: 1rem;
+  flex-wrap: wrap;
+  margin-top: 1rem;
+}
+
+.ll-detail-hero__actions {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.ll-detail-metrics {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 1rem;
+}
+
+.ll-detail-metric {
+  background: #ffffff;
+  border: 1px solid #e7edf7;
+  border-radius: 1rem;
+  padding: 1rem 1.1rem;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+  display: grid;
+  gap: 0.45rem;
+}
+
+.ll-detail-metric__label {
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #64748b;
+}
+
+.ll-detail-metric__value {
+  font-size: 1rem;
+  line-height: 1.4;
+  color: #0f172a;
+}
+
+.ll-detail-table {
+  overflow: hidden;
+}
+
+.ll-detail-table__header {
+  padding: 1.25rem 1.25rem 0;
+}
+
+.ll-detail-table__title {
+  margin: 0;
+  font-size: 1.1rem;
+  color: #0f172a;
+}
+
+.ll-detail-table__subtitle {
+  margin: 0.35rem 0 0;
+  color: #64748b;
+  font-size: 0.92rem;
+}
+
+.ll-detail-table__scroll {
+  overflow-x: auto;
+}
+
+.ll-detail-empty {
+  margin: 1.25rem;
+}
+
+.ll-detail-role {
+  text-transform: capitalize;
+}
+
+@media (max-width: 768px) {
+  .ll-detail-shell {
+    padding: 1.25rem 1rem 2rem;
+  }
+
+  .ll-detail-hero {
+    padding: 1.15rem;
+  }
+
+  .ll-detail-hero__actions {
+    width: 100%;
+  }
+
+  .ll-detail-hero__actions .ll-btn,
+  .ll-detail-topbar .ll-btn {
+    width: 100%;
+    justify-content: center;
+  }
+}

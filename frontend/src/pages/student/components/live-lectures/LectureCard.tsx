@@ -33,6 +33,8 @@ const LectureCard: React.FC<LectureCardProps> = ({ lecture, isStaff }) => {
 
   const thumbIndex = lecture.id % fallbackThumbs.length;
   const thumb = fallbackThumbs[thumbIndex];
+  const studentCount = lecture.active_student_count ?? lecture.total_student_count ?? 0;
+  const studentLabel = `${studentCount} Student${studentCount === 1 ? '' : 's'}`;
 
   const handleJoin = () => {
     if (!courseId) return;
@@ -62,7 +64,7 @@ const LectureCard: React.FC<LectureCardProps> = ({ lecture, isStaff }) => {
           <div className="ll-card__meta">
             <div className="ll-card__meta-item">
               <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>group</span>
-              {lecture.total_participant_count || 0} Students
+              {studentLabel}
             </div>
             <div className="ll-card__meta-item ll-card__meta-item--green">
               <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>wifi</span>

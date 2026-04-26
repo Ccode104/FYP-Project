@@ -393,6 +393,8 @@ export async function getLiveLecturesByCourse(req, res) {
           u.email AS created_by_email,
           COUNT(llp.id) FILTER (WHERE llp.left_at IS NULL) AS active_participant_count,
           COUNT(llp.id) AS total_participant_count,
+          COUNT(llp.id) FILTER (WHERE llp.role = 'student' AND llp.left_at IS NULL) AS active_student_count,
+          COUNT(llp.id) FILTER (WHERE llp.role = 'student') AS total_student_count,
           COALESCE(
             ROUND(AVG(EXTRACT(EPOCH FROM (COALESCE(llp.left_at, NOW()) - llp.joined_at)) / 60.0)),
             0
@@ -418,6 +420,8 @@ export async function getLiveLecturesByCourse(req, res) {
       ...row,
       active_participant_count: Number(row.active_participant_count || 0),
       total_participant_count: Number(row.total_participant_count || 0),
+      active_student_count: Number(row.active_student_count || 0),
+      total_student_count: Number(row.total_student_count || 0),
       average_attendance_minutes: Number(row.average_attendance_minutes || 0),
     }));
 

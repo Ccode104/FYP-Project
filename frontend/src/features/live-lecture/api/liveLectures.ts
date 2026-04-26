@@ -39,6 +39,8 @@ export interface LiveLecture {
   created_by_email?: string;
   active_participant_count?: number;
   total_participant_count?: number;
+  active_student_count?: number;
+  total_student_count?: number;
   average_attendance_minutes?: number;
   total_attendance_minutes?: number;
 }
