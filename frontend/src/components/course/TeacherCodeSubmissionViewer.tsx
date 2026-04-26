@@ -65,6 +65,7 @@ interface TeacherCodeSubmissionViewerProps {
   push: (opts: { kind?: string; message?: string }) => void;
   openGradeForm?: boolean;
   onToggleGradeForm?: (open: boolean) => void;
+  isLocked?: boolean;
 }
 
 function TeacherCodeSubmissionViewer({
@@ -73,6 +74,7 @@ function TeacherCodeSubmissionViewer({
   push,
   openGradeForm = false,
   onToggleGradeForm,
+  isLocked = false,
 }: TeacherCodeSubmissionViewerProps) {
   const [showGradingForm, setShowGradingForm] = useState(true);
   const [score, setScore] = useState('85');
@@ -201,6 +203,10 @@ function TeacherCodeSubmissionViewer({
 
   const handleGradeSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (isLocked) {
+      push({ kind: 'error', message: 'Grading is locked. Please unlock the grading sheet first.' });
+      return;
+    }
     const numScore = parseFloat(score);
     if (isNaN(numScore) || numScore < 0 || numScore > 100) {
       push({ kind: 'error', message: 'Please enter a valid score between 0 and 100' });
@@ -255,7 +261,22 @@ function TeacherCodeSubmissionViewer({
   const formatCode = (code: unknown) => {
     if (code === null || code === undefined) return '';
     if (typeof code === 'string') {
-      return code.replace(/\r?\n/g, '\n');
+      let processed = code;
+      
+      // Handle escaped newlines and tabs if they were double-escaped
+      processed = processed.replace(/\\n/g, '\n').replace(/\\t/g, '\t');
+      
+      // Try parsing if it looks like JSON
+      if ((processed.trim().startsWith('[') && processed.trim().endsWith(']')) || 
+          (processed.trim().startsWith('{') && processed.trim().endsWith('}'))) {
+        try {
+          const parsed = JSON.parse(processed);
+          return JSON.stringify(parsed, null, 2);
+        } catch (e) {
+          // Not valid JSON, return as string
+        }
+      }
+      return processed.replace(/\r?\n/g, '\n');
     }
     if (typeof code === 'object') {
       return JSON.stringify(code, null, 2);
@@ -381,18 +402,29 @@ function TeacherCodeSubmissionViewer({
             </button>
           </div>
           <div className="tc-code-content">
-            {submission.code?.map((codeSub, idx) => {
-              const code = formatCode(codeSub.code);
-              const lineNumbers = getLineNumbers(code);
+            {(() => {
+              let codeArray = submission.code;
+              if (typeof codeArray === 'string') {
+                try {
+                  codeArray = JSON.parse(codeArray);
+                } catch (e) {
+                  codeArray = [];
+                }
+              }
+              if (!Array.isArray(codeArray)) return null;
+              
+              return codeArray.map((codeSub, idx) => {
+                const code = formatCode(codeSub.code);
+                const lineNumbers = getLineNumbers(code);
 
-              return (
-                <div key={codeSub.id || idx} className="tc-code-block">
+                return (
+                  <div key={codeSub.id || idx} className="tc-code-block">
                   <div className="tc-line-numbers">
                     {lineNumbers.split('\n').map((n, i) => (
                       <div key={i}>{n}</div>
                     ))}
                   </div>
-                  <pre className="tc-code-text">
+                  <div className="tc-code-text">
                     {code.split('\n').map((line, lineIdx) => {
                       let highlighted = line
                         .replace(/&/g, '&amp;')
@@ -401,16 +433,19 @@ function TeacherCodeSubmissionViewer({
                       
                       const stashes: string[] = [];
                       
+                      // Stash strings
                       highlighted = highlighted.replace(/(["'`])(?:(?!\1)[^\\]|\\.)*\1/g, (match) => {
                           stashes.push(`<span class="tc-string">${match}</span>`);
                           return `__STASH_${stashes.length - 1}__`;
                       });
 
+                      // Stash comments
                       highlighted = highlighted.replace(/(#.*)$/g, (match) => {
                           stashes.push(`<span class="tc-comment">${match}</span>`);
                           return `__STASH_${stashes.length - 1}__`;
                       });
 
+                      // Keywords
                       highlighted = highlighted
                         .replace(
                           /\b(class|def|if|elif|else|return|import|from|for|while|in|is|try|except|finally|with|as|pass|break|continue|lambda|yield|raise|async|await)\b/g,
@@ -419,19 +454,28 @@ function TeacherCodeSubmissionViewer({
                         .replace(/\b(self|None|True|False)\b/g, '<span class="tc-func">$1</span>')
                         .replace(/\b(\d+(?:\.\d+)?)\b/g, '<span class="tc-number">$1</span>');
 
+                      // Unstash
                       highlighted = highlighted.replace(/__STASH_(\d+)__/g, (_, idx) => stashes[Number(idx)]);
 
                       return (
                         <div
                           key={lineIdx}
+                          className="code-line"
+                          style={{ 
+                            minHeight: '1.625em', 
+                            whiteSpace: 'pre-wrap', 
+                            wordBreak: 'break-all',
+                            display: 'block' 
+                          }}
                           dangerouslySetInnerHTML={{ __html: highlighted || ' ' }}
                         />
                       );
                     })}
-                  </pre>
+                  </div>
                 </div>
-              );
-            })}
+                );
+              });
+            })()}
           </div>
         </section>
 
@@ -549,8 +593,8 @@ function TeacherCodeSubmissionViewer({
                   runHiddenTestCases(primaryCode, primaryQuestion.id as number);
                 }
               }}
-              disabled={isRunningPrimaryTests || !canRunHiddenTests}
-              title={!canRunHiddenTests ? 'Question details are still loading' : undefined}
+              disabled={isRunningPrimaryTests || !canRunHiddenTests || isLocked}
+              title={isLocked ? 'Unlock the grading sheet to run hidden test cases' : !canRunHiddenTests ? 'Question details are still loading' : undefined}
             >
               {isRunningPrimaryTests ? (
                 <>
@@ -566,12 +610,10 @@ function TeacherCodeSubmissionViewer({
             </button>
           </div>
 
-          <div className="tc-grade-card">
-            <h2 className="tc-card-title">Grading & Feedback</h2>
-
+          <div className="grading-panel-card">
             {!showGradingForm ? (
               <button
-                className="tc-grade-btn"
+                className="btn-grade-submit"
                 onClick={() => {
                   setShowGradingForm(true);
                   onToggleGradeForm?.(true);
@@ -581,65 +623,61 @@ function TeacherCodeSubmissionViewer({
                 Grade Submission
               </button>
             ) : (
-              <form className="tc-grade-form" onSubmit={handleGradeSubmit}>
-                <div className="tc-form-group">
-                  <label className="tc-label">Feedback for Student</label>
-                  <textarea
-                    className="tc-textarea"
-                    value={feedback}
-                    onChange={e => setFeedback(e.target.value)}
-                    placeholder="Excellent logic. Minor oversight on the duplicate key edge case..."
-                    rows={4}
-                  />
+              <form onSubmit={handleGradeSubmit}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
+                  <h3 style={{ margin: 0 }}>Grading & Feedback</h3>
+                  {isLocked && (
+                    <span className="material-symbols-outlined" style={{ color: '#dc2626' }}>lock</span>
+                  )}
                 </div>
-                <div className="tc-form-group">
-                  <label className="tc-label">Internal Notes</label>
-                  <input
-                    className="tc-input"
-                    type="text"
-                    value={internalNotes}
-                    onChange={e => setInternalNotes(e.target.value)}
-                    placeholder="Check for plagiarism in next lab."
-                  />
-                </div>
-                <div className="tc-score-row">
-                  <div className="tc-score-group">
-                    <label className="tc-label">Raw Score</label>
-                    <div className="tc-score-input-group">
-                      <input
-                        type="number"
-                        min="0"
-                        max="100"
-                        step="1"
-                        value={score}
-                        onChange={e => setScore(e.target.value)}
-                        className="tc-score-input"
-                        required
-                      />
-                      <span className="tc-score-total">/ 100</span>
-                    </div>
+
+                {isLocked && (
+                  <div className="tc-lock-message" style={{ padding: '12px', background: 'rgba(59, 130, 246, 0.05)', borderRadius: '8px', border: '1px solid var(--primary)', marginBottom: '16px', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--primary)' }}>
+                    <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>info</span>
+                    Unlock grading sheet to submit grades.
                   </div>
-                  <div className="tc-score-group">
-                    <label className="tc-label">Late Penalty</label>
-                    <div className="tc-penalty-display">-{latePenalty}</div>
+                )}
+                
+                <fieldset disabled={isLocked} style={{ border: 'none', padding: 0, margin: 0, opacity: isLocked ? 0.7 : 1 }}>
+                  <div className="form-group">
+                    <label>Marks (out of 100)</label>
+                    <input
+                      type="number"
+                      min="0"
+                      max="100"
+                      step="1"
+                      value={score}
+                      onChange={e => setScore(e.target.value)}
+                      required
+                      placeholder="Enter marks..."
+                    />
                   </div>
-                </div>
-                <div className="tc-form-actions">
-                  <button type="submit" className="tc-grade-btn">
-                    <span className="material-symbols-outlined">verified_user</span>
-                    Grade Submission
-                  </button>
-                  <button
-                    type="button"
-                    className="tc-cancel-btn"
-                    onClick={() => {
-                      setShowGradingForm(false);
-                      onToggleGradeForm?.(false);
-                    }}
-                  >
-                    Cancel
-                  </button>
-                </div>
+                  <div className="form-group">
+                    <label>Comment / Feedback</label>
+                    <textarea
+                      value={feedback}
+                      onChange={e => setFeedback(e.target.value)}
+                      placeholder="Enter feedback for the student..."
+                      rows={6}
+                    />
+                  </div>
+                  <div style={{ display: 'flex', gap: 12 }}>
+                    <button type="submit" className="btn-grade-submit" style={{ flex: 1, marginTop: 0 }}>
+                      Submit Grade
+                    </button>
+                    <button
+                      type="button"
+                      className="btn-back"
+                      style={{ flex: 1, marginTop: 0, justifyContent: 'center' }}
+                      onClick={() => {
+                        setShowGradingForm(false);
+                        onToggleGradeForm?.(false);
+                      }}
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </fieldset>
               </form>
             )}
           </div>

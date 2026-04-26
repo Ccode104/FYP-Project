@@ -6,7 +6,13 @@ import {
   checkGoogleConnection,
   getOrCreateGradingSheet,
   getOrCreateQuizResultsSheet,
+  getOrCreateLiveLectureAttendanceSheet,
   disconnectGoogle,
+  updateGradingSheetRow,
+  deleteGradingSheet,
+  evaluateQuizResults,
+  deleteQuizAttemptByTeacher,
+  markQuizAttemptViolatedByTeacher,
 } from '../controllers/googleController.js';
 
 const router = express.Router();
@@ -101,6 +107,48 @@ router.get(
   requireAuth,
   requireRole('faculty', 'ta', 'admin'),
   getOrCreateQuizResultsSheet
+);
+
+router.get(
+  '/live-lecture-attendance/:courseOfferingId',
+  requireAuth,
+  requireRole('faculty', 'ta', 'admin'),
+  getOrCreateLiveLectureAttendanceSheet
+);
+
+router.post(
+  '/assignments/:assignmentId/update-row',
+  requireAuth,
+  requireRole('faculty', 'ta', 'admin'),
+  updateGradingSheetRow
+);
+
+router.delete(
+  '/assignments/:assignmentId',
+  requireAuth,
+  requireRole('faculty', 'ta', 'admin'),
+  deleteGradingSheet
+);
+
+router.post(
+  '/quizzes/:quizId/evaluate',
+  requireAuth,
+  requireRole('faculty', 'ta', 'admin'),
+  evaluateQuizResults
+);
+
+router.delete(
+  '/quizzes/attempts/:attemptId',
+  requireAuth,
+  requireRole('faculty', 'ta', 'admin'),
+  deleteQuizAttemptByTeacher
+);
+
+router.post(
+  '/quizzes/attempts/:attemptId/violate',
+  requireAuth,
+  requireRole('faculty', 'ta', 'admin'),
+  markQuizAttemptViolatedByTeacher
 );
 
 export default router;

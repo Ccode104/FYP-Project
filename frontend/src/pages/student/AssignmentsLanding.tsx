@@ -1,4 +1,4 @@
-﻿import { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { apiFetch } from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
@@ -93,8 +93,8 @@ export default function AssignmentsLanding() {
       {/* Page Header */}
       <div className="page-header">
         <div className="page-title">
-          <h2>Assignment Portfolio</h2>
-          <p>Track your progress and upcoming deadlines across all enrolled courses.</p>
+          <h2>{user?.role === 'student' ? 'Assignment Portfolio' : 'Assignment Management'}</h2>
+          <p>{user?.role === 'student' ? 'Track your progress and upcoming deadlines across all enrolled courses.' : 'Manage assignments, track submissions, and evaluate student progress.'}</p>
         </div>
         <div className="view-tabs">
           {(['active', 'completed', 'archived'] as const).map(view => (
@@ -106,6 +106,27 @@ export default function AssignmentsLanding() {
               {viewLabels[view] || view.charAt(0).toUpperCase() + view.slice(1)}
             </button>
           ))}
+          {(user?.role === 'teacher' || user?.role === 'ta') && (
+            <button
+              className="view-tab create-btn"
+              onClick={() => navigate(`/courses/${courseId}/assignments/new`)}
+              style={{
+                marginLeft: 'auto',
+                background: 'var(--primary)',
+                color: 'white',
+                border: 'none',
+                padding: '8px 16px',
+                borderRadius: '8px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                fontWeight: '600'
+              }}
+            >
+              <span className="material-symbols-outlined">add</span>
+              Create New
+            </button>
+          )}
         </div>
       </div>
 
@@ -173,10 +194,21 @@ export default function AssignmentsLanding() {
            <div className="assignments-loading">Loading your assignments...</div>
          ) : assignments.length === 0 ? (
            <div className="assignments-empty">
-             <p>No assignments yet for this course.</p>
+             <h3 style={{ margin: '0 0 8px 0', color: 'var(--text)' }}>No Assignments Yet</h3>
+             <p style={{ color: 'var(--muted)', margin: 0 }}>{user?.role === 'student' ? "Your instructor hasn't posted any assignments for this course yet." : "Get started by creating your first assignment for this course."}</p>
+              {(user?.role === 'teacher' || user?.role === 'ta') && (
+                <button 
+                  className="create-btn" 
+                  onClick={() => navigate(`/courses/${courseId}/assignments/new`)}
+                  style={{ marginTop: '12px', padding: '12px 28px', borderRadius: '10px', border: 'none', cursor: 'pointer', fontWeight: '600', background: 'var(--primary)', color: 'white', display: 'flex', alignItems: 'center', gap: '8px' }}
+                >
+                  <span className="material-symbols-outlined">add</span>
+                  Create Assignment
+                </button>
+              )}
            </div>
          ) : (
-           assignments.slice(0, 3).map(assignment => (
+           assignments.map(assignment => (
              <div key={assignment.id} className="assignments-card">
                <div className="assignments-icon">
                  <span className="material-symbols-outlined text-3xl">
@@ -239,51 +271,7 @@ export default function AssignmentsLanding() {
          )}
        </div>
 
-        {/* Up Next Section - Following HTML design exactly */}
-        <div className="assignments-resources">
-          <div>
-            <h3 className="assignments-section-title">
-              <span className="material-symbols-outlined">event</span>
-              Timeline
-            </h3>
-            <div className="assignments-timeline">
-              <div className="assignments-timeline-item">
-                <div className="assignments-timeline-dot indigo"></div>
-                <p className="assignments-timeline-date">TOMORROW</p>
-                <h6 className="assignments-timeline-title">Office Hours: Dr. Chen</h6>
-                <p className="assignments-timeline-description">2:00 PM - 3:30 PM (Zoom)</p>
-              </div>
-              <div className="assignments-timeline-item">
-                <div className="assignments-timeline-dot slate"></div>
-                <p className="assignments-timeline-date">OCT 24</p>
-                <h6 className="assignments-timeline-title">Lab Submission Deadline</h6>
-                <p className="assignments-timeline-description">11:59 PM (Canvas)</p>
-              </div>
-            </div>
-          </div>
-          
-          <div>
-            <h3 className="assignments-section-title">
-              <span className="material-symbols-outlined">menu_book</span>
-              Resources
-            </h3>
-            <div className="assignments-resource-card">
-              <img
-                alt="Resource"
-                className="assignments-resource-image"
-                src="https://lh3.googleusercontent.com/aida-public/AB6AXuB5FZzZxh3vv48VN8D6hI0tkPdSkTRbQxXd0k44ZcPnNOwCEVXmrLw7Fb_KYftwg9UtWg9iTmL5j_Z9DxSZ325vNIfzRH5UiwDRDLgo-awdQSV35dXDfyPUXm1BJ_oVb5Adn1BajYHq3QI6xkgmpCFjvs6-0Qm2LpCnIZRt9NI6mXIL6ngtJSv1xPmHRoOCoDTgqdDeWpyzSKgtWD3Ljl25imde_4tr5vyQUdz0ayURuj-M4g30fU2ISxfe1JhoM-V3ZiNV9zze4LY"
-                data-alt="Students studying in a modern bright library with large windows and books in background"
-              />
-              <div className="assignments-resource-content">
-                <h5 className="assignments-resource-title">Genetics Flashcards</h5>
-                <p className="assignments-resource-description">240 terms to master</p>
-                <a className="assignments-resource-link" href="#">
-                  Open Deck →
-                </a>
-              </div>
-            </div>
-          </div>
-        </div>
+        {/* Dynamic section for future use if needed, currently empty to remove dummy content */}
       </div>
     </div>
   );

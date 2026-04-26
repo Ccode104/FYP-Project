@@ -2,7 +2,14 @@ import { useEffect, useMemo, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { useToast } from '../../components/ToastProvider';
 import { apiFetch } from '../../services/api';
-import { getQuizResultsSheet, getQuizResultsSummary, type QuizResultsSummary } from '../../features/quizzes/api/quizzes';
+import { 
+  getQuizResultsSheet, 
+  getQuizResultsSummary, 
+  evaluateQuizResults,
+  deleteQuizAttempt,
+  markAttemptAsViolated,
+  type QuizResultsSummary 
+} from '../../features/quizzes/api/quizzes';
 
 function formatScore(value: number | null | undefined) {
   if (value === null || value === undefined || Number.isNaN(value)) return 'N/A';
@@ -22,38 +29,31 @@ export default function QuizResultsPage() {
   const [loading, setLoading] = useState(true);
   const [googleConnected, setGoogleConnected] = useState(false);
   const [sheetLoading, setSheetLoading] = useState(false);
+  const [evalLoading, setEvalLoading] = useState(false);
   const [sheetUrl, setSheetUrl] = useState<string | null>(null);
 
-  useEffect(() => {
-    let cancelled = false;
+  const loadData = async (silent = false) => {
+    if (!quizId) return;
+    if (!silent) setLoading(true);
+    try {
+      const [summary, googleStatus] = await Promise.all([
+        getQuizResultsSummary(Number(quizId)),
+        apiFetch<{ connected: boolean }>('/api/auth/google/status').catch(() => ({ connected: false })),
+      ]);
 
-    async function load() {
-      if (!quizId) return;
-      setLoading(true);
-      try {
-        const [summary, googleStatus] = await Promise.all([
-          getQuizResultsSummary(Number(quizId)),
-          apiFetch<{ connected: boolean }>('/api/auth/google/status').catch(() => ({ connected: false })),
-        ]);
-
-        if (cancelled) return;
-        setData(summary);
-        setGoogleConnected(Boolean(googleStatus.connected));
-      } catch (error) {
-        console.error('Failed to load quiz results:', error);
-        if (!cancelled) {
-          push({ kind: 'error', message: (error as Error)?.message || 'Failed to load quiz results' });
-        }
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
+      setData(summary);
+      setGoogleConnected(Boolean(googleStatus.connected));
+    } catch (error) {
+      console.error('Failed to load quiz results:', error);
+      push({ kind: 'error', message: (error as Error)?.message || 'Failed to load quiz results' });
+    } finally {
+      if (!silent) setLoading(false);
     }
+  };
 
-    void load();
-    return () => {
-      cancelled = true;
-    };
-  }, [quizId, push]);
+  useEffect(() => {
+    void loadData();
+  }, [quizId]);
 
   useEffect(() => {
     let cancelled = false;
@@ -102,6 +102,47 @@ export default function QuizResultsPage() {
     }
   };
 
+  const handleEvaluate = async () => {
+    if (!quizId) return;
+    setEvalLoading(true);
+    try {
+      const response = await evaluateQuizResults(Number(quizId));
+      setSheetUrl(response.spreadsheetUrl);
+      push({ kind: 'success', message: 'Scores evaluated and synced to portal & Google Sheet.' });
+      await loadData(true);
+    } catch (error) {
+      console.error('Failed to evaluate quiz results:', error);
+      push({ kind: 'error', message: (error as Error)?.message || 'Failed to evaluate scores' });
+    } finally {
+      setEvalLoading(true); // Keep it true for a bit or just reset
+      setTimeout(() => setEvalLoading(false), 500);
+    }
+  };
+
+  const handleDeleteAttempt = async (attemptId: string | number) => {
+    if (!confirm('Are you sure you want to delete this submission? This will allow the student to reattempt the quiz in the portal.')) return;
+    try {
+      await deleteQuizAttempt(attemptId);
+      push({ kind: 'success', message: 'Submission deleted. Student can now reattempt.' });
+      await loadData(true);
+    } catch (error) {
+      console.error('Failed to delete attempt:', error);
+      push({ kind: 'error', message: (error as Error)?.message || 'Failed to delete submission' });
+    }
+  };
+
+  const handleMarkViolated = async (attemptId: string | number) => {
+    if (!confirm('Mark this attempt as violated? This will set the score to 0.')) return;
+    try {
+      await markAttemptAsViolated(attemptId);
+      push({ kind: 'success', message: 'Attempt marked as violated.' });
+      await loadData(true);
+    } catch (error) {
+      console.error('Failed to mark violation:', error);
+      push({ kind: 'error', message: (error as Error)?.message || 'Failed to mark violation' });
+    }
+  };
+
   if (loading) {
     return <div className="container"><p className="muted">Loading quiz results...</p></div>;
   }
@@ -119,7 +160,17 @@ export default function QuizResultsPage() {
             {data.quiz.course_code} - {data.quiz.course_title}
           </div>
         </div>
-        <div className="muted">Google Form quiz results</div>
+        <div style={{ display: 'flex', gap: 12 }}>
+          <button 
+            className="btn btn-secondary" 
+            onClick={handleEvaluate} 
+            disabled={evalLoading || !googleConnected}
+            title="Sync latest responses from Google Forms and recalculate stats"
+          >
+            {evalLoading ? 'Syncing...' : 'Evaluate & Sync Scores'}
+          </button>
+          <div className="muted" style={{ alignSelf: 'center' }}>Google Form quiz results</div>
+        </div>
       </header>
 
       <div className="card" style={{ marginBottom: 16 }}>
@@ -196,11 +247,12 @@ export default function QuizResultsPage() {
                   <th>Submitted</th>
                   <th>Score</th>
                   <th>Status</th>
+                  <th>Actions</th>
                 </tr>
               </thead>
               <tbody>
                 {data.attempts.map(attempt => (
-                  <tr key={attempt.id}>
+                  <tr key={attempt.google_response_id || attempt.id}>
                     <td>
                       <div>{attempt.student_name || 'Unknown'}</div>
                       <div className="muted" style={{ fontSize: '0.85rem' }}>{attempt.student_email}</div>
@@ -212,7 +264,39 @@ export default function QuizResultsPage() {
                         : `${formatScore(attempt.score)} / ${data.quiz.max_score}`}
                     </td>
                     <td>
-                      {attempt.violated ? 'Violated' : attempt.suspended_at ? 'Suspended' : 'Completed'}
+                      <span style={{ 
+                        color: attempt.violated ? 'var(--error-color, #f44336)' : 'inherit',
+                        fontWeight: attempt.violated ? 600 : 400
+                      }}>
+                        {attempt.violated ? 'Violated' : attempt.suspended_at ? 'Suspended' : 'Completed'}
+                      </span>
+                    </td>
+                    <td>
+                      <div style={{ display: 'flex', gap: 8 }}>
+                        {!attempt.violated && (
+                          <button 
+                            className="btn btn-sm btn-outline-danger" 
+                            onClick={() => handleMarkViolated(attempt.id)}
+                            title="Mark as violated"
+                            disabled={isNaN(Number(attempt.id))}
+                          >
+                            Violate
+                          </button>
+                        )}
+                        <button 
+                          className="btn btn-sm btn-outline-danger" 
+                          onClick={() => handleDeleteAttempt(attempt.id)}
+                          title="Delete submission and allow reattempt"
+                          disabled={isNaN(Number(attempt.id))}
+                        >
+                          Delete
+                        </button>
+                      </div>
+                      {isNaN(Number(attempt.id)) && (
+                        <div className="muted" style={{ fontSize: '0.75rem', marginTop: 4 }}>
+                          Sync first to enable actions
+                        </div>
+                      )}
                     </td>
                   </tr>
                 ))}

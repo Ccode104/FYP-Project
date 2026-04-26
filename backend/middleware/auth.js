@@ -4,8 +4,18 @@ const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret';
 
 export function requireAuth(req, res, next) {
   const auth = req.headers.authorization;
-  if (!auth) {return res.status(401).json({ error: 'Missing token' });}
-  const token = auth.replace(/^Bearer\s+/i, '');
+  let token = '';
+
+  if (auth) {
+    token = auth.replace(/^Bearer\s+/i, '');
+  } else if (req.query.token) {
+    token = req.query.token;
+  }
+
+  if (!token) {
+    return res.status(401).json({ error: 'Missing token' });
+  }
+
   try {
     const payload = jwt.verify(token, JWT_SECRET);
     req.user = { id: payload.id, role: payload.role, email: payload.email };

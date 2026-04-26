@@ -212,35 +212,41 @@ Please provide your answer.`;
 
   try {
     if (!OPENROUTER_API_KEY) {
-      console.warn('OPENROUTER_API_KEY not set, returning fallback simulation');
+      console.warn('OPENROUTER_API_KEY not set, returning fallback prompt');
       return {
-         mode: 'direct_answer',
-         content: '[Simulation Mode - No API Key] This is a mock AI response to the query: ' + extractedQuery,
-         context_used: context_used_summary
+        mode: 'fallback_prompt',
+        content: generateFallbackPrompt(full_context_text, extractedQuery),
+        context_used: context_used_summary + ' (Fell back because API Key is missing).',
       };
     }
+
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 120000); // 2 minute timeout
 
     const response = await fetch(OPENROUTER_API_URL, {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${OPENROUTER_API_KEY}`,
+        Authorization: `Bearer ${OPENROUTER_API_KEY}`,
         'Content-Type': 'application/json',
         'HTTP-Referer': 'http://localhost:3000', // Update with actual site URL
-        'X-Title': 'Discussion AI Assistant'
+        'X-Title': 'Discussion AI Assistant',
       },
       body: JSON.stringify({
         model: 'minimax/minimax-m2.5:free',
         messages: [
           { role: 'system', content: systemPrompt },
-          { role: 'user', content: userPrompt }
+          { role: 'user', content: userPrompt },
         ],
         temperature: 0.7,
-        max_tokens: 1024
-      })
+        max_tokens: 1024,
+      }),
+      signal: controller.signal,
     });
 
+    clearTimeout(timeoutId);
+
     if (!response.ok) {
-      const errorData = await response.json();
+      const errorData = await response.json().catch(() => ({}));
       throw new Error(`OpenRouter API error: ${errorData.error?.message || 'Unknown error'}`);
     }
 
@@ -250,16 +256,100 @@ Please provide your answer.`;
     return {
       mode: 'direct_answer',
       content: answer,
-      context_used: context_used_summary
+      context_used: context_used_summary,
     };
-
   } catch (err) {
-    console.error('generateAiResponse OpenRouter error:', err);
-    // On error, fallback to prompt
+    console.error('generateAiResponse error:', err);
+    const isTimeout = err.name === 'AbortError';
     return {
       mode: 'fallback_prompt',
       content: generateFallbackPrompt(full_context_text, extractedQuery),
-      context_used: context_used_summary + ' (Fell back due to API Error).'
+      context_used: context_used_summary + (isTimeout ? ' (Request timed out after 2m).' : ' (Fell back due to API Error).'),
+    };
+  }
+}
+
+/**
+ * Streaming version of AI response generation
+ */
+export async function generateAiResponseStream(messageId, offeringId, userQuery) {
+  const contextData = await buildContextTree(messageId, offeringId);
+  let { full_context_text, context_token_count, context_used_summary, thread_stats } = contextData;
+
+  const extractedQuery = userQuery ? sanitizeContent(userQuery) : 'Please assist with the tagged message.';
+  const queryTokens = estimateTokens(extractedQuery);
+  const instructionTokens = 500;
+
+  let totalEstimated = context_token_count + queryTokens + instructionTokens;
+
+  // Fallback checks (same as non-streaming)
+  if (looksLikeLongFormRequest(extractedQuery) || totalEstimated >= MAX_LIMIT || !OPENROUTER_API_KEY) {
+    return {
+      mode: 'fallback_prompt',
+      content: generateFallbackPrompt(full_context_text, extractedQuery),
+      context_used: context_used_summary + ' (Immediate fallback triggered).',
+    };
+  }
+
+  if (totalEstimated >= WARNING_LIMIT) {
+    const maxContextChars = (SAFE_LIMIT - queryTokens - instructionTokens) * 4;
+    full_context_text = '... [TRUNCATED] ...\n' + full_context_text.slice(-maxContextChars);
+    context_used_summary += ' (Aggressively truncated).';
+  }
+
+  const systemPrompt = `You are an AI assistant in an educational discussion forum.
+Your task is to respond to a user who tagged you inside a single discussion thread.
+Thread statistics:
+- Total messages in this thread: ${thread_stats.total_thread_messages}
+- Direct replies to the target message: ${thread_stats.direct_reply_count_for_target}
+Provide a concise, helpful answer based on the context.`;
+
+  const userPrompt = `Context:\n${full_context_text}\n\nUser Query:\n${extractedQuery}\n\nPlease provide your answer.`;
+
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 120000);
+
+  try {
+    const response = await fetch(OPENROUTER_API_URL, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${OPENROUTER_API_KEY}`,
+        'Content-Type': 'application/json',
+        'HTTP-Referer': 'http://localhost:3000',
+        'X-Title': 'Discussion AI Assistant',
+      },
+      body: JSON.stringify({
+        model: 'minimax/minimax-m2.5:free',
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: userPrompt },
+        ],
+        stream: true,
+        temperature: 0.7,
+        max_tokens: 1024,
+      }),
+      signal: controller.signal,
+    });
+
+    clearTimeout(timeoutId);
+
+    if (!response.ok) {
+      throw new Error(`OpenRouter API error: ${response.statusText}`);
+    }
+
+    return {
+      mode: 'stream',
+      stream: response.body,
+      context_used: context_used_summary,
+      fallback_prompt: generateFallbackPrompt(full_context_text, extractedQuery),
+    };
+  } catch (err) {
+    clearTimeout(timeoutId);
+    console.error('generateAiResponseStream error:', err);
+    return {
+      mode: 'fallback_prompt',
+      content: generateFallbackPrompt(full_context_text, extractedQuery),
+      context_used: context_used_summary + ' (Stream fell back due to error or timeout).',
     };
   }
 }

@@ -38,11 +38,43 @@ type QuizSummary = {
 };
 
 type ActivityItem = {
-  id: number;
-  type: 'submission' | 'comment' | 'video';
+  id: string | number;
+  type: 'submission' | 'comment' | 'video' | 'quiz';
   title: string;
   description: string;
   time: string;
+  date: Date;
+};
+
+type Submission = {
+  id: number;
+  assignment_id: number;
+  assignment_title: string;
+  submitted_at: string;
+  status: string;
+};
+
+type QuizAttempt = {
+  id: number;
+  quiz_id: number;
+  quiz_title: string;
+  finished_at: string;
+  started_at: string;
+  score: number;
+};
+
+type Grade = {
+  assignment_title: string;
+  score: number;
+  feedback: string;
+  graded_at: string;
+};
+
+type Video = {
+  id: number;
+  title: string;
+  description?: string;
+  created_at: string;
 };
 
 function fmtDateShort(value?: string | null) {
@@ -57,6 +89,21 @@ function fmtDateShort(value?: string | null) {
   });
 }
 
+function timeAgo(date: Date | string) {
+  const d = typeof date === 'string' ? new Date(date) : date;
+  const now = new Date();
+  const seconds = Math.floor((now.getTime() - d.getTime()) / 1000);
+
+  if (seconds < 60) return 'Just now';
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) return `${minutes}m ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.floor(hours / 24);
+  if (days < 7) return `${days}d ago`;
+  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+}
+
 export default function CourseHub() {
   const { courseId } = useParams();
   const navigate = useNavigate();
@@ -69,6 +116,10 @@ export default function CourseHub() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [activeNav, setActiveNav] = useState('courses');
+  const [submissions, setSubmissions] = useState<Submission[]>([]);
+  const [quizAttempts, setQuizAttempts] = useState<QuizAttempt[]>([]);
+  const [grades, setGrades] = useState<Grade[]>([]);
+  const [videos, setVideos] = useState<Video[]>([]);
 
   const id = courseId || '';
   const isBackendOfferingId = useMemo(() => /^\d+$/.test(id), [id]);
@@ -82,17 +133,31 @@ export default function CourseHub() {
 
       try {
         if (isBackendOfferingId) {
-          const [o, a, q, l] = await Promise.all([
+          const [o, a, q, l, sub, gr, vid, attempts] = await Promise.all([
             apiFetch<OfferingSummary>(`/api/student/courses/${id}`),
             apiFetch<AssignmentSummary[]>(`/api/student/courses/${id}/assignments`).catch(() => []),
             apiFetch<QuizSummary[]>(`/api/student/courses/${id}/quizzes`).catch(() => []),
             getLiveLecturesByCourse(Number(id)).catch(() => ({ lectures: [] })),
+            apiFetch<Submission[]>(`/api/student/courses/${id}/submissions`).catch(() => []),
+            apiFetch<Grade[]>(`/api/student/courses/${id}/grades`).catch(() => []),
+            apiFetch<Video[]>(`/api/videos/course/${id}`).catch(() => []),
+            apiFetch<QuizAttempt[]>(`/api/student/${user?.id}/quiz-attempts`).catch(() => []),
           ]);
           if (!cancelled) {
             setOffering(o);
             setAssignments(Array.isArray(a) ? a : []);
             setQuizzes(Array.isArray(q) ? q : []);
             setLiveLectures(Array.isArray((l as any).lectures) ? (l as any).lectures : []);
+            setSubmissions(Array.isArray(sub) ? sub : []);
+            setGrades(Array.isArray(gr) ? gr : []);
+            setVideos(Array.isArray(vid) ? vid : []);
+
+            // Filter quiz attempts for THIS course
+            const courseQuizIds = new Set(Array.isArray(q) ? q.map(quiz => Number(quiz.id)) : []);
+            const filteredAttempts = Array.isArray(attempts)
+              ? attempts.filter(att => courseQuizIds.has(Number(att.quiz_id)))
+              : [];
+            setQuizAttempts(filteredAttempts);
           }
         } else {
           navigate(`/courses/${id}`);
@@ -116,56 +181,61 @@ export default function CourseHub() {
   ).length;
   const nextQuiz = quizzes.find(q => q.status === 'scheduled');
 
-  const recentActivity: ActivityItem[] = [
-    {
-      id: 1,
-      type: 'submission',
-      title: 'Assignment 4 Submitted',
-      description: "You submitted 'Complexity Analysis Paper' successfully.",
-      time: '2 hours ago',
-    },
-    {
-      id: 2,
-      type: 'comment',
-      title: 'Feedback Received',
-      description: 'Dr. Mitchell left a comment on your Quiz 3 results.',
-      time: 'Yesterday',
-    },
-    {
-      id: 3,
-      type: 'video',
-      title: 'Lecture Video Uploaded',
-      description: "Recording for 'Dynamic Programming' is now available.",
-      time: 'Oct 24, 2023',
-    },
-  ];
+  const recentActivity = useMemo((): ActivityItem[] => {
+    const items: ActivityItem[] = [];
 
-  const upcomingDeadlines = [
-    {
-      id: 1,
-      title: 'Greedy Algorithms Problem Set',
-      course: offering?.course_code || 'CS-402',
-      type: 'assignment',
-      date: 'Oct 26, 23:59',
-      color: 'amber',
-    },
-    {
-      id: 2,
-      title: 'Midterm Project Proposal',
-      course: offering?.course_code || 'CS-402',
-      type: 'project',
-      date: 'Oct 28, 14:00',
-      color: 'rose',
-    },
-    {
-      id: 3,
-      title: 'Guest Lecture: P vs NP',
-      course: offering?.course_code || 'CS-402',
-      type: 'live',
-      date: 'Nov 02, 10:00',
-      color: 'indigo',
-    },
-  ];
+    // Add submissions
+    submissions.forEach(s => {
+      items.push({
+        id: `sub-${s.id}`,
+        type: 'submission',
+        title: 'Assignment Submitted',
+        description: `You submitted '${s.assignment_title}' successfully.`,
+        time: timeAgo(s.submitted_at),
+        date: new Date(s.submitted_at),
+      });
+    });
+
+    // Add quiz attempts
+    quizAttempts.forEach(qa => {
+      items.push({
+        id: `quiz-${qa.id}`,
+        type: 'quiz',
+        title: 'Quiz Attempted',
+        description: `You completed '${qa.quiz_title}'.`,
+        time: timeAgo(qa.finished_at || qa.started_at),
+        date: new Date(qa.finished_at || qa.started_at),
+      });
+    });
+
+    // Add feedback (grades)
+    grades.forEach((g, idx) => {
+      items.push({
+        id: `grade-${idx}`,
+        type: 'comment',
+        title: 'Feedback Received',
+        description: `Feedback received for '${g.assignment_title}': ${g.score} points.`,
+        time: timeAgo(g.graded_at),
+        date: new Date(g.graded_at),
+      });
+    });
+
+    // Add videos
+    videos.forEach(v => {
+      items.push({
+        id: `vid-${v.id}`,
+        type: 'video',
+        title: 'New Video Uploaded',
+        description: `Lecture video '${v.title}' is now available.`,
+        time: timeAgo(v.created_at),
+        date: new Date(v.created_at),
+      });
+    });
+
+    // Sort by date descending and take top 5
+    return items.sort((a, b) => b.date.getTime() - a.date.getTime()).slice(0, 5);
+  }, [submissions, quizAttempts, grades, videos]);
+
 
   const navItems = [
     { id: 'dashboard', label: 'Dashboard', icon: 'dashboard' },
@@ -233,7 +303,7 @@ export default function CourseHub() {
         navigate(`/courses/${id}/assignments`);
         break;
       case 'quizzes':
-        navigate(`/courses/${id}/quizzes`);
+        navigate(`/courses/${id}/quiz-management`);
         break;
       case 'discussion':
         navigate(`/courses/${id}/discussion`);
@@ -249,7 +319,7 @@ export default function CourseHub() {
         navigate(`/courses/${id}/live`);
         break;
       case 'progress':
-        navigate(`/courses/${id}/progress`);
+        navigate(`/progress/course/${id}`);
         break;
     }
   };
@@ -390,7 +460,9 @@ export default function CourseHub() {
                       ? 'upload_file'
                       : item.type === 'comment'
                         ? 'comment'
-                        : 'play_circle'}
+                        : item.type === 'quiz'
+                          ? 'quiz'
+                          : 'play_circle'}
                   </span>
                 </div>
                 <div className="course-hub-activity__info">
@@ -405,66 +477,6 @@ export default function CourseHub() {
           </div>
         </section>
 
-        {/* Right Sidebar */}
-        <aside className="course-hub-sidebar__right">
-          <div className="course-hub-calendar">
-            <div className="course-hub-calendar__header">
-              <h3 className="course-hub-calendar__title">Calendar</h3>
-              <span className="course-hub-calendar__month">October 2023</span>
-            </div>
-            <div className="course-hub-calendar__weekdays">
-              <span>S</span>
-              <span>M</span>
-              <span>T</span>
-              <span>W</span>
-              <span>T</span>
-              <span>F</span>
-              <span>S</span>
-            </div>
-            <div className="course-hub-calendar__days">
-              <span className="course-hub-calendar__day course-hub-calendar__day--gray">22</span>
-              <span className="course-hub-calendar__day course-hub-calendar__day--gray">23</span>
-              <span className="course-hub-calendar__day course-hub-calendar__day--gray">24</span>
-              <span className="course-hub-calendar__day course-hub-calendar__day--today">25</span>
-              <span className="course-hub-calendar__day course-hub-calendar__day--event">26</span>
-              <span className="course-hub-calendar__day">27</span>
-              <span className="course-hub-calendar__day">28</span>
-            </div>
-          </div>
-
-          <div>
-            <h3 className="course-hub-deadlines__title">Upcoming Deadlines</h3>
-            <div className="course-hub-deadlines__list">
-              {upcomingDeadlines.map(deadline => (
-                <div key={deadline.id} className="course-hub-deadline">
-                  <div className="course-hub-deadline__header">
-                    <div
-                      className={`course-hub-deadline__dot course-hub-deadline__dot--${deadline.color}`}
-                    ></div>
-                    <span className="course-hub-deadline__time">{deadline.date}</span>
-                  </div>
-                  <h4 className="course-hub-deadline__title">{deadline.title}</h4>
-                  <p className="course-hub-deadline__tag">
-                    {deadline.course} • {deadline.type}
-                  </p>
-                </div>
-              ))}
-            </div>
-            <button className="course-hub-deadlines__expand">Expand Schedule</button>
-          </div>
-
-          {/* Support Card */}
-          <div className="course-hub-support">
-            <span className="material-symbols-outlined course-hub-support__icon">info</span>
-            <h4 className="course-hub-support__title">Scholaris Support</h4>
-            <p className="course-hub-support__desc">
-              Need help with this course? Access the 24/7 student success center.
-            </p>
-            <a className="course-hub-support__link" href="#">
-              Contact Support
-            </a>
-          </div>
-        </aside>
       </main>
     </div>
   );

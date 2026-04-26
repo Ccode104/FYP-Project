@@ -243,3 +243,9 @@
   margin: 0 auto;
   width: 100%;
 }
+
+.app-main--full-width {
+  max-width: 100%;
+  padding: 24px;
+  margin: 0;
+}

@@ -202,12 +202,16 @@
 .tc-code-text {
   flex: 1;
   margin: 0;
-  white-space: pre;
+  white-space: pre-wrap;
   font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  display: block;
 }
 
-.tc-code-text div {
+.tc-code-text div,
+.code-line {
   min-height: 1.625em;
+  white-space: pre;
+  display: block;
 }
 
 .tc-keyword {

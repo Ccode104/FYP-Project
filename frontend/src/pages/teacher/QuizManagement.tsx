@@ -155,15 +155,14 @@ export default function QuizManagement() {
   const handleCreateQuiz = async () => {
     if (!newQuiz.title || !newQuiz.start_at || !newQuiz.end_at || !courseId) return;
 
-    if (!newQuiz.google_form_url) {
-      setError('Please provide a Google Form URL');
-      return;
-    }
-
-    const googleFormId = extractGoogleFormId(newQuiz.google_form_url);
-    if (!googleFormId) {
-      setError('Invalid Google Form URL. Please provide a valid Google Form link.');
-      return;
+    // Make Google Form URL optional
+    let googleFormId = '';
+    if (newQuiz.google_form_url) {
+      googleFormId = extractGoogleFormId(newQuiz.google_form_url);
+      if (!googleFormId) {
+        setError('Invalid Google Form URL. Please provide a valid Google Form link or leave it blank.');
+        return;
+      }
     }
 
     setCreating(true);
@@ -188,6 +187,7 @@ export default function QuizManagement() {
       setShowCreateModal(false);
       setNewQuiz({
         title: '',
+        description: '',
         course_offering_id: Number(courseId),
         start_at: '',
         end_at: '',
@@ -197,6 +197,8 @@ export default function QuizManagement() {
         allow_suspension_resume: false,
         google_form_url: '',
       });
+      // Navigate to Quiz Builder Page
+      navigate(`/courses/${courseId}/quizzes/${created.quiz.id}/builder`);
     } catch (err) {
       console.error('Failed to create quiz:', err);
       setError('Failed to create quiz');
@@ -260,7 +262,9 @@ export default function QuizManagement() {
           <header className="quiz-topbar">
             <div className="quiz-topbar-left">
               <div className="quiz-course-info">
-                <span className="quiz-course-label">Course Management</span>
+                <span className="quiz-course-label">
+                  {isTeacher ? 'Course Management' : 'Course Overview'}
+                </span>
                 <h2 className="quiz-course-title">
                   {course?.course_code}: {course?.course_title}
                 </h2>
@@ -287,19 +291,24 @@ export default function QuizManagement() {
           {/* Hero Header / Action Bar */}
           <div className="quiz-hero">
             <div className="quiz-hero-content">
-              <h3 className="quiz-hero-title">Quiz Management</h3>
+              <h3 className="quiz-hero-title">
+                {isTeacher ? 'Quiz Management' : 'Course Assessments'}
+              </h3>
               <p className="quiz-hero-subtitle">
-                Manage assessments, schedule new evaluations, and analyze student performance across
-                the {course?.course_code} curriculum.
+                {isTeacher
+                  ? `Manage assessments, schedule new evaluations, and analyze student performance across the ${course?.course_code} curriculum.`
+                  : `View upcoming quizzes, track your scores, and access assessment materials for the ${course?.course_code} curriculum.`}
               </p>
             </div>
-            <button
-              className="btn btn-primary quiz-create-btn"
-              onClick={() => setShowCreateModal(true)}
-            >
-              <span className="material-symbols-outlined">add</span>
-              <span>Link Google Form Quiz</span>
-            </button>
+            {isTeacher && (
+              <button
+                className="btn btn-primary quiz-create-btn"
+                onClick={() => setShowCreateModal(true)}
+              >
+                <span className="material-symbols-outlined">add</span>
+                <span>Create New Quiz</span>
+              </button>
+            )}
           </div>
 
           {/* Bento Grid Layout */}
@@ -370,42 +379,72 @@ export default function QuizManagement() {
                           </div>
                         </div>
                         <div className="quiz-card-actions">
-                          <button
-                            className="action-btn"
-                            title="View Results"
-                            onClick={() => navigate(`/quizzes/${quiz.id}/results`)}
-                          >
-                            <span className="material-symbols-outlined">analytics</span>
-                          </button>
+                          {isTeacher && (
+                            <button
+                              className="action-btn"
+                              title="View Results"
+                              onClick={() => navigate(`/quizzes/${quiz.id}/results`)}
+                            >
+                              <span className="material-symbols-outlined">analytics</span>
+                            </button>
+                          )}
                           <a
                             className="action-btn"
-                            title="Edit in Google Forms"
-                            href={getGoogleFormEditUrl(quiz) || quiz.google_form_url || '#'}
+                            title={isTeacher ? 'Edit in Google Forms' : 'Take Quiz'}
+                            href={
+                              isTeacher
+                                ? getGoogleFormEditUrl(quiz) || quiz.google_form_url || '#'
+                                : quiz.google_form_url || '#'
+                            }
                             target="_blank"
                             rel="noopener noreferrer"
                             onClick={e => {
-                              if (!getGoogleFormEditUrl(quiz) && !quiz.google_form_url) {
+                              if (isTeacher && !getGoogleFormEditUrl(quiz) && !quiz.google_form_url) {
                                 e.preventDefault();
                                 setError('This quiz does not have a linked Google Form editor URL');
+                              } else if (!isTeacher && !quiz.google_form_url) {
+                                e.preventDefault();
+                                setError('This quiz does not have a linked Google Form URL');
                               }
                             }}
                           >
-                            <span className="material-symbols-outlined">edit</span>
+                            <span className="material-symbols-outlined">
+                              {isTeacher ? 'edit' : 'login'}
+                            </span>
                           </a>
                           {isTeacher && (
-                            <button
-                              className="action-btn delete"
-                              title="Delete Quiz"
-                              onClick={() => handleDeleteClick(quiz)}
-                              disabled={deletingQuizId === quiz.id}
-                            >
-                              <span className="material-symbols-outlined">
-                                {deletingQuizId === quiz.id ? 'hourglass_empty' : 'delete'}
-                              </span>
-                            </button>
+                            <>
+                              <button
+                                className="action-btn delete"
+                                title="Delete Quiz"
+                                onClick={() => handleDeleteClick(quiz)}
+                                disabled={deletingQuizId === quiz.id}
+                              >
+                                <span className="material-symbols-outlined">
+                                  {deletingQuizId === quiz.id ? 'hourglass_empty' : 'delete'}
+                                </span>
+                              </button>
+                              <div className="action-divider"></div>
+                              <button className="btn-schedule">Schedule</button>
+                            </>
                           )}
-                          <div className="action-divider"></div>
-                          <button className="btn-schedule">Schedule</button>
+                          {!isTeacher && (
+                            <>
+                              <div className="action-divider"></div>
+                              <button
+                                className="btn-schedule"
+                                onClick={() => {
+                                  if (quiz.google_form_url) {
+                                    window.open(quiz.google_form_url, '_blank');
+                                  } else {
+                                    setError('Quiz link unavailable');
+                                  }
+                                }}
+                              >
+                                Attempt
+                              </button>
+                            </>
+                          )}
                         </div>
                       </div>
                     ))
@@ -427,13 +466,17 @@ export default function QuizManagement() {
                       <div key={quiz.id} className="quiz-history-card">
                         <div className="quiz-history-header">
                           <span className={`quiz-status-badge ${getQuizStatus(quiz)}`}>
-                            {getQuizStatus(quiz) === 'completed' ? 'TEACHER REVIEW' : 'ARCHIVED'}
+                            {getQuizStatus(quiz) === 'completed'
+                              ? isTeacher
+                                ? 'TEACHER REVIEW'
+                                : 'FINISHED'
+                              : 'ARCHIVED'}
                           </span>
                           <span className="quiz-date">{formatDate(quiz.start_at)}</span>
                         </div>
                         <h6 className="quiz-history-title">{quiz.title}</h6>
                         <p className="quiz-history-avg">Class Avg: {quiz.average_score || 0}%</p>
-                        {quiz.google_form_url && (
+                        {quiz.google_form_url && isTeacher && (
                           <a
                             href={getGoogleFormEditUrl(quiz)}
                             target="_blank"
@@ -468,40 +511,51 @@ export default function QuizManagement() {
                             <div className="quiz-avatar-more">+{quiz.total_submissions || 0}</div>
                           </div>
                           <div className="quiz-history-actions">
-                            <button
-                              className="action-btn"
-                              title="View Results"
-                              onClick={() => navigate(`/quizzes/${quiz.id}/results`)}
-                            >
-                              <span className="material-symbols-outlined">analytics</span>
-                            </button>
-                            <a
-                              className="action-btn"
-                              title="Edit in Google Forms"
-                              href={getGoogleFormEditUrl(quiz) || quiz.google_form_url || '#'}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              onClick={e => {
-                                if (!getGoogleFormEditUrl(quiz) && !quiz.google_form_url) {
-                                  e.preventDefault();
-                                  setError(
-                                    'This quiz does not have a linked Google Form editor URL'
-                                  );
-                                }
-                              }}
-                            >
-                              <span className="material-symbols-outlined">edit</span>
-                            </a>
                             {isTeacher && (
+                              <>
+                                <button
+                                  className="action-btn"
+                                  title="View Results"
+                                  onClick={() => navigate(`/quizzes/${quiz.id}/results`)}
+                                >
+                                  <span className="material-symbols-outlined">analytics</span>
+                                </button>
+                                <a
+                                  className="action-btn"
+                                  title="Edit in Google Forms"
+                                  href={getGoogleFormEditUrl(quiz) || quiz.google_form_url || '#'}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  onClick={e => {
+                                    if (!getGoogleFormEditUrl(quiz) && !quiz.google_form_url) {
+                                      e.preventDefault();
+                                      setError(
+                                        'This quiz does not have a linked Google Form editor URL'
+                                      );
+                                    }
+                                  }}
+                                >
+                                  <span className="material-symbols-outlined">edit</span>
+                                </a>
+                                <button
+                                  className="action-btn delete"
+                                  title="Delete Quiz"
+                                  onClick={() => handleDeleteClick(quiz)}
+                                  disabled={deletingQuizId === quiz.id}
+                                >
+                                  <span className="material-symbols-outlined">
+                                    {deletingQuizId === quiz.id ? 'hourglass_empty' : 'delete'}
+                                  </span>
+                                </button>
+                              </>
+                            )}
+                            {!isTeacher && (
                               <button
-                                className="action-btn delete"
-                                title="Delete Quiz"
-                                onClick={() => handleDeleteClick(quiz)}
-                                disabled={deletingQuizId === quiz.id}
+                                className="action-btn"
+                                title="View Feedback"
+                                onClick={() => navigate(`/progress/course/${courseId}`)}
                               >
-                                <span className="material-symbols-outlined">
-                                  {deletingQuizId === quiz.id ? 'hourglass_empty' : 'delete'}
-                                </span>
+                                <span className="material-symbols-outlined">reviews</span>
                               </button>
                             )}
                           </div>
@@ -516,19 +570,21 @@ export default function QuizManagement() {
             {/* Control Panel (Right Column) */}
             <div className="quiz-control-panel">
               {/* Batch Actions */}
-              <div className="quiz-batch-section">
-                <h4 className="quiz-batch-title">Batch Actions</h4>
-                <div className="quiz-batch-buttons">
-                  <button className="quiz-batch-btn">
-                    <span className="material-symbols-outlined">download</span>
-                    Export All
-                  </button>
-                  <button className="quiz-batch-btn">
-                    <span className="material-symbols-outlined">mail</span>
-                    Remind Class
-                  </button>
+              {isTeacher && (
+                <div className="quiz-batch-section">
+                  <h4 className="quiz-batch-title">Batch Actions</h4>
+                  <div className="quiz-batch-buttons">
+                    <button className="quiz-batch-btn">
+                      <span className="material-symbols-outlined">download</span>
+                      Export All
+                    </button>
+                    <button className="quiz-batch-btn">
+                      <span className="material-symbols-outlined">mail</span>
+                      Remind Class
+                    </button>
+                  </div>
                 </div>
-              </div>
+              )}
 
               {/* Statistics Snapshot */}
               <div className="quiz-progress-section">
@@ -563,16 +619,18 @@ export default function QuizManagement() {
               </div>
 
               {/* Quick Insights */}
-              <div className="quiz-insight-section">
-                <h5 className="quiz-insight-title">Teacher Insight</h5>
-                <p className="quiz-insight-text">
-                  "Student performance in Dynamic Programming is 12% lower than usual. Consider
-                  adding a supplemental practice quiz."
-                </p>
-                <button className="quiz-insight-btn">
-                  GENERATE PRACTICE <span className="material-symbols-outlined">chevron_right</span>
-                </button>
-              </div>
+              {isTeacher && (
+                <div className="quiz-insight-section">
+                  <h5 className="quiz-insight-title">Teacher Insight</h5>
+                  <p className="quiz-insight-text">
+                    "Student performance in Dynamic Programming is 12% lower than usual. Consider
+                    adding a supplemental practice quiz."
+                  </p>
+                  <button className="quiz-insight-btn">
+                    GENERATE PRACTICE <span className="material-symbols-outlined">chevron_right</span>
+                  </button>
+                </div>
+              )}
             </div>
           </div>
 
@@ -621,7 +679,7 @@ export default function QuizManagement() {
                 <span>Back to Management</span>
               </button>
               <h2>Create New Quiz</h2>
-              <p>Link a Google Form to create and manage your quiz.</p>
+              <p>Set up quiz details below, then build your questions in the Quiz Builder.</p>
             </div>
 
             {/* Form */}
@@ -657,8 +715,8 @@ export default function QuizManagement() {
                       </svg>
                     </div>
                     <div>
-                      <h3>Google Form Quiz</h3>
-                      <p>Link your existing Google Form or create a new one</p>
+                      <h3>Google Form Quiz (Optional)</h3>
+                      <p>Link your existing Google Form or create a new one, or leave blank to build the quiz here.</p>
                     </div>
                   </div>
                   <div className="form-group">
@@ -671,8 +729,9 @@ export default function QuizManagement() {
                       onChange={e => setNewQuiz({ ...newQuiz, google_form_url: e.target.value })}
                     />
                     <span className="input-hint">
-                      Paste your Google Form link here. Students will take the quiz via Google
-                      Forms.
+                      Paste your Google Form link here. Students will take the quiz via Google Forms.
+                      <br />
+                      <strong>Important:</strong> Please ensure your Google Form settings are set to <strong>"Limit to 1 response"</strong> to prevent multiple attempts.
                     </span>
                   </div>
                   <a
@@ -797,7 +856,6 @@ export default function QuizManagement() {
                     !newQuiz.title ||
                     !newQuiz.start_at ||
                     !newQuiz.end_at ||
-                    !newQuiz.google_form_url ||
                     creating
                   }
                 >

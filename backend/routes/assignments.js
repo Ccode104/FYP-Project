@@ -119,7 +119,7 @@ router.put('/:id', requireAuth, requireRole('faculty', 'ta', 'admin'), async (re
     }
     if (due_at !== undefined) {
       updates.push(`due_at = $${paramIndex++}`);
-      values.push(due_at);
+      values.push(due_at === '' ? null : due_at);
     }
     if (max_score !== undefined) {
       updates.push(`max_score = $${paramIndex++}`);
@@ -130,8 +130,16 @@ router.put('/:id', requireAuth, requireRole('faculty', 'ta', 'admin'), async (re
       return res.status(400).json({ error: 'No fields to update' });
     }
 
-    values.push(id);
+    const assignmentId = parseInt(id);
+    if (isNaN(assignmentId)) {
+      return res.status(400).json({ error: 'Invalid assignment ID' });
+    }
+
+    values.push(assignmentId);
     const q = `UPDATE assignments SET ${updates.join(', ')}, updated_at = NOW() WHERE id = $${paramIndex} RETURNING *`;
+    
+    console.log('[DEBUG] Updating assignment:', { q, values });
+    
     const result = await pool.query(q, values);
 
     if (result.rowCount === 0) {
@@ -141,7 +149,7 @@ router.put('/:id', requireAuth, requireRole('faculty', 'ta', 'admin'), async (re
     res.json(result.rows[0]);
   } catch (err) {
     console.error('Error updating assignment:', err);
-    res.status(500).json({ error: 'Internal server error' });
+    res.status(500).json({ error: 'Internal server error', details: err.message });
   }
 });
 

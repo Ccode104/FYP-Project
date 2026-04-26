@@ -40,12 +40,35 @@ export interface PendingItem {
   scheduled_at?: string;
 }
 
-export async function getTAAssignments(courseId?: string): Promise<unknown[]> {
+export interface GradingTask {
+  id: number;
+  title: string;
+  due_at: string;
+  course_code: string;
+  course_title: string;
+  course_offering_id: number;
+  assigned_students: number;
+  graded_students: number;
+}
+
+export interface GradingSubmission {
+  submission_id: number;
+  student_id: number;
+  student_name: string;
+  student_email: string;
+  roll_number: string;
+  submitted_at: string;
+  final_score: number | null;
+  comments: string | null;
+  grading_status: string;
+}
+
+export async function getTAAssignments(courseId?: string): Promise<GradingTask[]> {
   const url = courseId ? `/api/ta/assignments?courseId=${courseId}` : '/api/ta/assignments';
   return apiFetch(url);
 }
 
-export async function getGradingSubmissions(assignmentId: number): Promise<unknown[]> {
+export async function getGradingSubmissions(assignmentId: number): Promise<GradingSubmission[]> {
   return apiFetch(`/api/ta/grading/${assignmentId}/submissions`);
 }
 

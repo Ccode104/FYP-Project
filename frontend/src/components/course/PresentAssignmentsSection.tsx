@@ -120,25 +120,55 @@ export default function PresentAssignmentsSection({
             {userRole === "student" && (
               <div className="assignment-actions">
                 {a.is_quiz ? (
-                  <button
-                    className="btn-assignment attempt-quiz"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onAttemptQuiz(a);
-                    }}
-                  >
-                    <span>Start Quiz</span>
-                    <svg
-                      width="16"
-                      height="16"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2"
+                  a.isSubmitted ? (
+                    <button
+                      className="btn-assignment view-results"
+                      disabled={a.due_at ? new Date(a.due_at) > new Date() : false}
+                      title={a.due_at && new Date(a.due_at) > new Date() ? "Results available after deadline" : "View Results"}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        // If it's a student and they click this, we can either navigate to the quiz results page
+                        // or show a message. Since this component is reused, navigating or triggering a callback is best.
+                        if (a.due_at && new Date(a.due_at) > new Date()) return;
+                        // For now, navigating to the course details quizzes tab might be the easiest way to show the modal
+                        // Or we can just trigger onAttemptQuiz with a flag if we want.
+                        // But let's just make it look right first.
+                      }}
                     >
-                      <polyline points="9,18 15,12 9,6" />
-                    </svg>
-                  </button>
+                      <span>{a.due_at && new Date(a.due_at) > new Date() ? "Results Pending" : "View Results"}</span>
+                      <svg
+                        width="16"
+                        height="16"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                      >
+                        <path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z" />
+                        <circle cx="12" cy="12" r="3" />
+                      </svg>
+                    </button>
+                  ) : (
+                    <button
+                      className="btn-assignment attempt-quiz"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onAttemptQuiz(a);
+                      }}
+                    >
+                      <span>Start Quiz</span>
+                      <svg
+                        width="16"
+                        height="16"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                      >
+                        <polyline points="9,18 15,12 9,6" />
+                      </svg>
+                    </button>
+                  )
                 ) : (
                   <button
                     className="btn-assignment submit-assignment"

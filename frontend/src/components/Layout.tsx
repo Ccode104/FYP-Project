@@ -4,7 +4,6 @@ import './AppLayout.css';
 import { useLocation } from 'react-router-dom';
 import ThemeToggle from './ThemeToggle';
 import Chatbot from './Chatbot';
-import TAAgentChat from './TAAgentChat';
 import { useAuth, getDashboardPathForRole } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import { useCallback, useEffect } from 'react';
@@ -156,7 +155,11 @@ export default function Layout({ children }: { children: ReactNode }) {
           </div>
         )}
 
-        <main className="app-content app-main">{children}</main>
+        <main
+          className={`app-content app-main ${pathname.startsWith('/videos/') ? 'app-main--full-width' : ''}`}
+        >
+          {children}
+        </main>
 
         {/* Chatbots mapping */}
         <Chatbot
@@ -164,12 +167,6 @@ export default function Layout({ children }: { children: ReactNode }) {
           isOpen={false} // State controlled internally or via context (simplified here, since button moved)
           onClose={() => {}}
         />
-        {user?.role === 'ta' && (
-          <TAAgentChat
-            courseId={getCurrentCourseId() ? parseInt(getCurrentCourseId()!) : undefined}
-            onClose={() => {}}
-          />
-        )}
       </div>
     </div>
   );

@@ -1,4 +1,4 @@
-import { apiFetch } from '../../../services/api';
+import { apiFetch, API_URL } from '../../../services/api';
 
 export interface DiscussionMessage {
   id: number;
@@ -12,11 +12,17 @@ export interface DiscussionMessage {
 }
 
 export async function listDiscussionMessages(offeringId: string | number) {
-  const data = await apiFetch<{ messages: DiscussionMessage[] }>(`/api/discussions/${offeringId}/messages`);
+  const data = await apiFetch<{ messages: DiscussionMessage[] }>(
+    `/api/discussions/${offeringId}/messages`
+  );
   return data.messages;
 }
 
-export async function postDiscussionMessage(offeringId: string | number, content: string, parent_id?: number | null) {
+export async function postDiscussionMessage(
+  offeringId: string | number,
+  content: string,
+  parent_id?: number | null
+) {
   return apiFetch<{ message: DiscussionMessage }>(`/api/discussions/${offeringId}/messages`, {
     method: 'POST',
     body: { content, parent_id: parent_id ?? null },
@@ -24,7 +30,7 @@ export async function postDiscussionMessage(offeringId: string | number, content
 }
 
 export interface DiscussionAiAssistResponse {
-  mode: 'direct_answer' | 'fallback_prompt';
+  mode: 'direct_answer' | 'fallback_prompt' | 'stream';
   content: string;
   context_used?: string;
   ai_message?: DiscussionMessage;
@@ -33,8 +39,27 @@ export interface DiscussionAiAssistResponse {
 export async function requestDiscussionAiAssist(
   offeringId: string | number,
   messageId: number,
-  user_query?: string
+  user_query?: string,
+  stream?: boolean
 ) {
+  if (stream) {
+    const token = localStorage.getItem('auth:token') || '';
+    const response = await fetch(`${API_URL}/api/discussions/${offeringId}/messages/${messageId}/ai-assist`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ user_query, stream: true }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`AI Assist failed: ${response.statusText}`);
+    }
+
+    return response; // Return raw response for streaming
+  }
+
   return apiFetch<DiscussionAiAssistResponse>(
     `/api/discussions/${offeringId}/messages/${messageId}/ai-assist`,
     {

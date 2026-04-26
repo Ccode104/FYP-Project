@@ -188,7 +188,22 @@ export async function getAssignmentSubmissions(req, res) {
        ORDER BY s.submitted_at DESC`,
       [studentId, assignmentId]
     );
-    res.json(result.rows);
+
+    // Fetch files for each submission
+    const submissionsWithFiles = await Promise.all(
+      result.rows.map(async submission => {
+        const filesResult = await pool.query(
+          'SELECT id, storage_path, filename, file_size, mime_type FROM submission_files WHERE submission_id = $1',
+          [submission.id]
+        );
+        return {
+          ...submission,
+          files: filesResult.rows,
+        };
+      })
+    );
+
+    res.json(submissionsWithFiles);
   } catch (err) {
     console.error('getAssignmentSubmissions error:', err);
     res.status(500).json({ error: 'Internal server error' });

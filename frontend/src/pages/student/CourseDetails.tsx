@@ -123,6 +123,7 @@ export default function CourseDetails() {
 
   const openGoogleQuiz = (quizLike: any) => {
     const googleFormUrl = quizLike?.google_form_url || quizLike?.quiz_data?.google_form_url;
+    const quizId = quizLike?.quiz_id || quizLike?.id;
 
     if (!googleFormUrl) {
       push({
@@ -130,6 +131,25 @@ export default function CourseDetails() {
         message: 'Linked Google Form is missing for this quiz.',
       });
       return;
+    }
+
+    if (quizId && user?.id) {
+      try {
+        const localKey = `localQuizAttempts:${user.id}`;
+        const localAttemptsStr = localStorage.getItem(localKey) || '{}';
+        const localAttempts = JSON.parse(localAttemptsStr);
+        
+        // Store as { quizId: timestamp }
+        if (!localAttempts[quizId]) {
+          localAttempts[quizId] = Date.now();
+          localStorage.setItem(localKey, JSON.stringify(localAttempts));
+          
+          // Add a dummy attempt to myQuizAttempts to immediately trigger UI update
+          setMyQuizAttempts(prev => [...prev, { quiz_id: quizId, score: null, _local: true }]);
+        }
+      } catch (e) {
+        console.error('Failed to save local attempt', e);
+      }
     }
 
     const opened = window.open(googleFormUrl, '_blank', 'noopener,noreferrer');
@@ -145,8 +165,7 @@ export default function CourseDetails() {
   const [backendQuizzes, setBackendQuizzes] = useState<unknown[]>([]);
   const [myQuizAttempts, setMyQuizAttempts] = useState<unknown[]>([]);
   const [mySubmissions, setMySubmissions] = useState<unknown[] | null>(null); // Track student's submissions - null means not loaded yet
-  const [suspendedQuizIds, setSuspendedQuizIds] = useState<Set<string>>(new Set());
-  const [activeQuizIds, setActiveQuizIds] = useState<Set<string>>(new Set());
+
   const [discussionMessages, setDiscussionMessages] = useState<DiscussionMessage[]>([]);
   const [discussionLoading, setDiscussionLoading] = useState(false);
   const [newPostContent, setNewPostContent] = useState('');
@@ -157,7 +176,11 @@ export default function CourseDetails() {
 
   // Auto-close sidebar when switching tabs
   const handleTabChange = (tabId: string) => {
-    setTab(tabId as unknown);
+    if (tabId === 'manage') {
+      navigate(`/courses/${courseId}/assignments/new`);
+      return;
+    }
+    setTab(tabId as any);
     setSidebarOpen(false);
   };
   const [readMessageIds, setReadMessageIds] = useState<Set<number>>(() => {
@@ -291,6 +314,18 @@ export default function CourseDetails() {
     const quizzesWithStatus = (backendQuizzes || []).map((q: unknown) => {
       const quizAttempts = myQuizAttempts.filter((a: unknown) => a.quiz_id === q.id);
       const hasViolatedAttempt = quizAttempts.some((a: unknown) => a.violated);
+      let localSubmitted = false;
+      if (user?.id) {
+        try {
+          const localAttempts = JSON.parse(localStorage.getItem(`localQuizAttempts:${user.id}`) || '{}');
+          if (localAttempts[q.id] || localAttempts[`quiz_${q.id}`]) {
+            localSubmitted = true;
+          }
+        } catch (e) {
+          // ignore
+        }
+      }
+
       return {
         id: `quiz_${q.id}`,
         title: q.title,
@@ -302,7 +337,7 @@ export default function CourseDetails() {
         quiz_data: q,
         is_proctored: q.is_proctored,
         time_limit: q.time_limit,
-        isSubmitted: attemptedQuizIds.has(String(q.id)),
+        isSubmitted: attemptedQuizIds.has(String(q.id)) || localSubmitted,
         isViolated: hasViolatedAttempt,
         isSuspended: suspendedQuizIds.has(String(q.id)),
         isActive: activeQuizIds.has(String(q.id)),
@@ -787,7 +822,50 @@ export default function CourseDetails() {
         if (!cancelled) setBackendQuizzes(quizzes);
         if (!cancelled && user?.role === 'student' && user?.id) {
           const attempts = await quizzesMod.getQuizAttempts(Number(user.id));
-          if (!cancelled) setMyQuizAttempts(attempts);
+          if (!cancelled) {
+            setMyQuizAttempts(attempts);
+            
+            // Cleanup localStorage if backend confirms no attempt exists
+            try {
+              const localKey = `localQuizAttempts:${user.id}`;
+              const localAttempts = JSON.parse(localStorage.getItem(localKey) || '{}');
+              const quizIdsInLocal = Object.keys(localAttempts);
+              
+              if (quizIdsInLocal.length > 0) {
+                const dbAttemptIds = new Set(attempts.map((a: any) => String(a.quiz_id)));
+                const updatedLocal = { ...localAttempts };
+                let hasChanges = false;
+                const now = Date.now();
+
+                quizIdsInLocal.forEach((idStr: string) => {
+                  const numericId = idStr.startsWith('quiz_') 
+                    ? idStr.replace('quiz_', '') 
+                    : idStr;
+                  
+                  // If it's in DB, we can safely remove the local "pending" flag
+                  if (dbAttemptIds.has(numericId)) {
+                    delete updatedLocal[idStr];
+                    hasChanges = true;
+                  } else {
+                    // If it's NOT in DB:
+                    // 1. If it's older than 10 minutes, assume it was deleted or never finished
+                    const startedAt = localAttempts[idStr];
+                    if (now - startedAt > 10 * 60 * 1000) {
+                      delete updatedLocal[idStr];
+                      hasChanges = true;
+                    }
+                    // 2. We don't clear it immediately if it's recent, to allow time for teacher sync
+                  }
+                });
+                
+                if (hasChanges) {
+                  localStorage.setItem(localKey, JSON.stringify(updatedLocal));
+                }
+              }
+            } catch (e) {
+              console.error('Failed to cleanup local quiz attempts', e);
+            }
+          }
         }
       } catch {
         /* ignore */
@@ -828,49 +906,7 @@ export default function CourseDetails() {
     }
   }, [tab, isBackend, courseId]);
 
-  // Load suspended and active quiz IDs for students
-  useEffect(() => {
-    if (user?.role === 'student' && user?.id && isBackend && courseId) {
-      (async () => {
-        try {
-          const suspendedSessionsResponse = await fetch(
-            `/api/proctoring/sessions/suspended/${user.id}`,
-            {
-              headers: {
-                Authorization: `Bearer ${localStorage.getItem('auth:token')}`,
-              },
-            }
-          );
-          if (suspendedSessionsResponse.ok) {
-            const suspendedData = await suspendedSessionsResponse.json();
-            const suspendedIds = new Set(
-              (suspendedData.sessions?.map((s: unknown) => String(s.quiz_id)) || []) as string[]
-            );
-            setSuspendedQuizIds(suspendedIds);
-          }
-        } catch (error) {
-          console.warn('Failed to check suspended quiz sessions:', error);
-        }
 
-        try {
-          const activeSessionsResponse = await fetch(`/api/proctoring/sessions/active/${user.id}`, {
-            headers: {
-              Authorization: `Bearer ${localStorage.getItem('auth:token')}`,
-            },
-          });
-          if (activeSessionsResponse.ok) {
-            const activeData = await activeSessionsResponse.json();
-            const activeIds = new Set(
-              (activeData.sessions?.map((s: unknown) => String(s.quiz_id)) || []) as string[]
-            );
-            setActiveQuizIds(activeIds);
-          }
-        } catch (error) {
-          console.warn('Failed to check active quiz sessions:', error);
-        }
-      })();
-    }
-  }, [user?.role, user?.id, isBackend, courseId]);
 
   // Mark all current discussion messages as read when viewing the discussion tab
   useEffect(() => {
@@ -1449,7 +1485,7 @@ export default function CourseDetails() {
                       <span className="assignment-count">{backendQuizzes.length} quizzes</span>
                       <button
                         className="btn btn-primary"
-                        onClick={() => navigate(`/courses/${courseId}/quizzes`)}
+                        onClick={() => navigate(`/courses/${courseId}/quiz-management`)}
                       >
                         <span
                           className="material-symbols-outlined"
@@ -1546,7 +1582,7 @@ export default function CourseDetails() {
                                   </button>
                                   <button
                                     className="btn btn-sm"
-                                    onClick={() => navigate(`/courses/${courseId}/quizzes`)}
+                                    onClick={() => navigate(`/courses/${courseId}/quiz-management`)}
                                   >
                                     Manage Quiz
                                   </button>
@@ -1704,7 +1740,7 @@ export default function CourseDetails() {
                                     Open Google Form
                                   </button>
                                 )}
-                              {quiz.isActive && !quiz.isSuspended && (
+                              {!quiz.isSubmitted && quiz.isActive && !quiz.isSuspended && (
                                 <button
                                   className="btn btn-warning"
                                   onClick={() => openGoogleQuiz(quiz)}
@@ -1725,18 +1761,22 @@ export default function CourseDetails() {
                               {quiz.isSubmitted && (
                                 <button
                                   className="btn"
+                                  disabled={quiz.due_at ? new Date(quiz.due_at) > new Date() : false}
+                                  title={quiz.due_at && new Date(quiz.due_at) > new Date() ? "Results will be available after the deadline ends" : "View Results"}
                                   onClick={() => {
                                     // Find the attempt and show results
                                     const attempt = myQuizAttempts.find(
-                                      (a: unknown) => a.quiz_id === quiz.quiz_id
+                                      (a: unknown) => a.quiz_id === quiz.quiz_id && !a._local
                                     );
                                     if (attempt) {
                                       setSelectedQuizResult(attempt);
                                       setShowQuizResultModal(true);
+                                    } else {
+                                      push({ kind: 'error', message: 'Results are not yet available or graded.' });
                                     }
                                   }}
                                 >
-                                  View Results
+                                  {quiz.due_at && new Date(quiz.due_at) > new Date() ? "Results Pending" : "View Results"}
                                 </button>
                               )}
                             </div>
@@ -2756,7 +2796,7 @@ export default function CourseDetails() {
               </p>
               <button
                 className="btn btn-primary"
-                onClick={() => navigate(`/courses/${courseId}/quizzes`)}
+                onClick={() => navigate(`/courses/${courseId}/quiz-management`)}
               >
                 Open Quiz Management
               </button>

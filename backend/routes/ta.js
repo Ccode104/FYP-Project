@@ -1,7 +1,12 @@
 import express from 'express';
 import { requireAuth, requireRole } from '../middleware/auth.js';
-import { assignTA, removeTA, getTADashboardData, getActiveProctoringSessions, getSessionViolations, suspendSessionByTA, getResumeRequests } from '../controllers/taController.js';
-import { getTAAssignments, getGradingSubmissions, submitGrading } from '../controllers/taController.js';
+import { 
+  assignTA, removeTA, getTADashboardData, 
+  getActiveProctoringSessions, getSessionViolations, 
+  suspendSessionByTA, getResumeRequests,
+  getTAAssignments, getGradingSubmissions, 
+  submitGrading, bulkAllocateTasks, getCourseTAs 
+} from '../controllers/taController.js';
 import { chatWithTAAgent, getTAAgentSuggestions, generateVivaQuestions, generateDebugQuestions } from '../controllers/taAgentController.js';
 
 const router = express.Router();
@@ -405,5 +410,63 @@ router.post('/proctoring/sessions/:sessionId/suspend', requireAuth, requireRole(
  *         description: Forbidden - Requires TA role
  */
 router.get('/proctoring/resume-requests', requireAuth, requireRole('ta'), getResumeRequests);
+
+/**
+ * @swagger
+ * /api/ta/offering/{offeringId}/tas:
+ *   get:
+ *     summary: Get TAs assigned to an offering
+ *     tags: [TA]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: offeringId
+ *         required: true
+ *         schema:
+ *           type: integer
+ *     responses:
+ *       200:
+ *         description: List of TAs
+ */
+router.get('/offering/:offeringId/tas', requireAuth, requireRole('faculty', 'admin'), getCourseTAs);
+
+/**
+ * @swagger
+ * /api/ta/grading/allocate:
+ *   post:
+ *     summary: Bulk allocate grading tasks to TAs
+ *     tags: [TA]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - assignmentId
+ *               - mode
+ *             properties:
+ *               assignmentId:
+ *                 type: integer
+ *               mode:
+ *                 type: string
+ *                 enum: [equal, manual]
+ *               allocations:
+ *                 type: array
+ *                 items:
+ *                   type: object
+ *                   properties:
+ *                     taId:
+ *                       type: integer
+ *                     count:
+ *                       type: integer
+ *     responses:
+ *       200:
+ *         description: Tasks allocated successfully
+ */
+router.post('/grading/allocate', requireAuth, requireRole('faculty', 'admin'), bulkAllocateTasks);
 
 export default router;

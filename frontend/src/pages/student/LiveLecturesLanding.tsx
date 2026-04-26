@@ -151,7 +151,12 @@ export default function LiveLecturesLanding() {
 
       {/* Completed Section */}
       {(activeTab === 'all' || activeTab === 'completed') && (
-        <CompletedSessionsSection lectures={completedLectures} loading={loading} />
+        <CompletedSessionsSection 
+          lectures={completedLectures} 
+          loading={loading} 
+          isStaff={isStaff}
+          courseOfferingId={courseId}
+        />
       )}
 
       {/* Schedule Modal */}

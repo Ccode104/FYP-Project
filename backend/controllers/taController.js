@@ -1,5 +1,101 @@
 import { pool } from '../db/index.js';
 
+export async function getCourseTAs(req, res) {
+  const { offeringId } = req.params;
+  
+  try {
+    const q = `
+      SELECT u.id, u.name, u.email, ta.role
+      FROM ta_assignments ta
+      JOIN users u ON ta.ta_id = u.id
+      WHERE ta.course_offering_id = $1
+    `;
+    const r = await pool.query(q, [offeringId]);
+    res.json(r.rows);
+  } catch (err) {
+    console.error('Error fetching course TAs:', err);
+    res.status(500).json({ error: 'Failed to fetch course TAs' });
+  }
+}
+
+export async function bulkAllocateTasks(req, res) {
+  const { assignmentId, allocations, mode } = req.body; // mode: 'equal' or 'manual'
+  // allocations: if manual, array of { taId, count }
+
+  try {
+    // 1. Verify faculty owns the assignment
+    const verifyQ = `
+      SELECT a.id, a.course_offering_id, co.faculty_id
+      FROM assignments a
+      JOIN course_offerings co ON a.course_offering_id = co.id
+      WHERE a.id = $1
+    `;
+    const verifyR = await pool.query(verifyQ, [assignmentId]);
+    if (verifyR.rowCount === 0) return res.status(404).json({ error: 'Assignment not found' });
+    
+    if (req.user.role === 'faculty' && verifyR.rows[0].faculty_id !== req.user.id) {
+      return res.status(403).json({ error: 'Unauthorized to allocate tasks for this course' });
+    }
+
+    const offeringId = verifyR.rows[0].course_offering_id;
+
+    // 2. Get all students enrolled in the course
+    const studentsQ = 'SELECT student_id FROM enrollments WHERE course_offering_id = $1';
+    const studentsR = await pool.query(studentsQ, [offeringId]);
+    const students = studentsR.rows.map(s => s.student_id);
+
+    if (students.length === 0) return res.status(400).json({ error: 'No students enrolled in this course' });
+
+    // 3. Get all TAs assigned to the course
+    const tasQ = 'SELECT ta_id FROM ta_assignments WHERE course_offering_id = $1';
+    const tasR = await pool.query(tasQ, [offeringId]);
+    const tas = tasR.rows.map(t => t.ta_id);
+
+    if (tas.length === 0) return res.status(400).json({ error: 'No TAs assigned to this course' });
+
+    await pool.query('BEGIN');
+
+    // Clear existing allocations for this assignment
+    await pool.query('DELETE FROM grading_tasks WHERE assignment_id = $1', [assignmentId]);
+
+    let studentIndex = 0;
+
+    if (mode === 'equal') {
+      const perTA = Math.ceil(students.length / tas.length);
+      for (let i = 0; i < tas.length; i++) {
+        const taId = tas[i];
+        const taStudents = students.slice(i * perTA, (i + 1) * perTA);
+        for (const studentId of taStudents) {
+          await pool.query(
+            'INSERT INTO grading_tasks (assignment_id, student_id, ta_id, status) VALUES ($1, $2, $3, $4)',
+            [assignmentId, studentId, taId, 'pending']
+          );
+        }
+      }
+    } else if (mode === 'manual') {
+      // allocations is array of { taId, count }
+      for (const alloc of allocations) {
+        if (!tas.includes(alloc.taId)) continue; // Only assigned TAs
+        const taStudents = students.slice(studentIndex, studentIndex + alloc.count);
+        for (const studentId of taStudents) {
+          await pool.query(
+            'INSERT INTO grading_tasks (assignment_id, student_id, ta_id, status) VALUES ($1, $2, $3, $4)',
+            [assignmentId, studentId, alloc.taId, 'pending']
+          );
+        }
+        studentIndex += alloc.count;
+      }
+    }
+
+    await pool.query('COMMIT');
+    res.json({ success: true, message: 'Tasks allocated successfully' });
+  } catch (err) {
+    await pool.query('ROLLBACK');
+    console.error('Error allocating tasks:', err);
+    res.status(500).json({ error: 'Failed to allocate tasks' });
+  }
+}
+
 export async function assignTA(req, res) {
   const { course_offering_id, ta_id, role } = req.body;
   if (!course_offering_id || !ta_id) {return res.status(400).json({ error: 'Missing required fields' });}

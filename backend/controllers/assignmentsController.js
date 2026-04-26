@@ -261,7 +261,7 @@ export async function listAssignmentSubmissions(req, res) {
     return res.status(404).json({ error: 'Assignment not found' });
   }
 
-  // Check if current user is faculty for this offering (skip check for admin/ta)
+  // Check if current user is faculty/TA for this offering (skip check for admin)
   const assignment = checkR.rows[0];
   if (req.user.role === 'faculty' && req.user.id !== assignment.faculty_id) {
     return res
@@ -269,21 +269,54 @@ export async function listAssignmentSubmissions(req, res) {
       .json({ error: 'Not authorized - you can only view submissions in your own courses' });
   }
 
-  // Fetch only the latest submission per student with student info
-  const q = `
-    SELECT s.*, u.name as student_name, u.email as student_email,
-           g.repo_url, g.repo_name
-    FROM assignment_submissions s 
-    JOIN users u ON s.student_id = u.id
-    LEFT JOIN github_submissions g ON s.id = g.submission_id
-    WHERE s.assignment_id = $1 
-    AND s.submitted_at = (
-      SELECT MAX(s2.submitted_at) 
-      FROM assignment_submissions s2 
-      WHERE s2.assignment_id = s.assignment_id AND s2.student_id = s.student_id
-    )
-    ORDER BY s.submitted_at DESC`;
-  const r = await pool.query(q, [id]);
+  if (req.user.role === 'ta') {
+    const taCheck = await pool.query(
+      'SELECT 1 FROM ta_assignments WHERE ta_id = $1 AND course_offering_id = $2',
+      [req.user.id, assignment.course_offering_id]
+    );
+    if (taCheck.rowCount === 0) {
+      return res.status(403).json({ error: 'Not authorized - you are not assigned to this course' });
+    }
+  }
+
+  // Fetch submissions
+  let subsQuery;
+  let queryParams;
+
+  if (req.user.role === 'ta') {
+    subsQuery = `
+      SELECT s.*, u.name as student_name, u.email as student_email, g.repo_url, g.repo_name
+      FROM assignment_submissions s
+      JOIN users u ON s.student_id = u.id
+      JOIN grading_tasks gt ON s.assignment_id = gt.assignment_id AND s.student_id = gt.student_id
+      LEFT JOIN github_submissions g ON s.id = g.submission_id
+      WHERE s.assignment_id = $1 AND gt.ta_id = $2
+      AND s.submitted_at = (
+        SELECT MAX(s2.submitted_at) 
+        FROM assignment_submissions s2 
+        WHERE s2.assignment_id = s.assignment_id AND s2.student_id = s.student_id
+      )
+      ORDER BY s.submitted_at DESC
+    `;
+    queryParams = [id, req.user.id];
+  } else {
+    subsQuery = `
+      SELECT s.*, u.name as student_name, u.email as student_email, g.repo_url, g.repo_name
+      FROM assignment_submissions s 
+      JOIN users u ON s.student_id = u.id
+      LEFT JOIN github_submissions g ON s.id = g.submission_id
+      WHERE s.assignment_id = $1 
+      AND s.submitted_at = (
+        SELECT MAX(s2.submitted_at) 
+        FROM assignment_submissions s2 
+        WHERE s2.assignment_id = s.assignment_id AND s2.student_id = s.student_id
+      )
+      ORDER BY s.submitted_at DESC
+    `;
+    queryParams = [id];
+  }
+
+  const r = await pool.query(subsQuery, queryParams);
   const submissions = r.rows || [];
 
   if (submissions.length === 0) {
@@ -312,10 +345,11 @@ export async function getAssignment(req, res) {
 
   // Get assignment with course offering details
   const q = `
-    SELECT a.*, o.faculty_id, o.term, c.code as course_code, c.title as course_name
+    SELECT a.*, o.faculty_id, o.term, c.code as course_code, c.title as course_name, ash.spreadsheet_id as google_sheet_id
     FROM assignments a
     JOIN course_offerings o ON a.course_offering_id = o.id
     JOIN courses c ON o.course_id = c.id
+    LEFT JOIN assignment_sheets ash ON a.id = ash.assignment_id
     WHERE a.id = $1
   `;
   const r = await pool.query(q, [id]);
@@ -360,6 +394,14 @@ export async function getAssignment(req, res) {
     }
   } else if (req.user.role === 'faculty' && req.user.id !== assignment.faculty_id) {
     return res.status(403).json({ error: 'Not authorized to view this assignment' });
+  } else if (req.user.role === 'ta') {
+    const taCheck = await pool.query(
+      'SELECT 1 FROM ta_assignments WHERE ta_id = $1 AND course_offering_id = $2',
+      [req.user.id, assignment.course_offering_id]
+    );
+    if (taCheck.rowCount === 0) {
+      return res.status(403).json({ error: 'Not authorized to view this assignment' });
+    }
   }
 
   res.json(assignment);
@@ -597,9 +639,19 @@ export async function gradeComponentSubmission(req, res) {
 
     const submission = checkR.rows[0];
 
-    // Check if current user is faculty for this offering or admin
-    if (req.user.role !== 'admin' && req.user.id !== submission.faculty_id) {
+    // Check if current user is faculty/TA for this offering or admin
+    if (req.user.role === 'faculty' && req.user.id !== submission.faculty_id) {
       return res.status(403).json({ error: 'Not authorized to grade this submission' });
+    }
+
+    if (req.user.role === 'ta') {
+      const taCheck = await pool.query(
+        'SELECT 1 FROM ta_assignments WHERE ta_id = $1 AND course_offering_id = $2',
+        [req.user.id, submission.course_offering_id]
+      );
+      if (taCheck.rowCount === 0) {
+        return res.status(403).json({ error: 'Not authorized - you are not assigned to this course' });
+      }
     }
 
     const client = await pool.connect();
@@ -720,9 +772,19 @@ export async function gradeSubmission(req, res) {
 
     const submission = checkR.rows[0];
 
-    // Check if current user is faculty for this offering or admin
-    if (req.user.role !== 'admin' && req.user.id !== submission.faculty_id) {
+    // Check if current user is faculty/TA for this offering or admin
+    if (req.user.role === 'faculty' && req.user.id !== submission.faculty_id) {
       return res.status(403).json({ error: 'Not authorized to grade this submission' });
+    }
+
+    if (req.user.role === 'ta') {
+      const taCheck = await pool.query(
+        'SELECT 1 FROM ta_assignments WHERE ta_id = $1 AND course_offering_id = $2',
+        [req.user.id, submission.course_offering_id]
+      );
+      if (taCheck.rowCount === 0) {
+        return res.status(403).json({ error: 'Not authorized - you are not assigned to this course' });
+      }
     }
 
     const client = await pool.connect();

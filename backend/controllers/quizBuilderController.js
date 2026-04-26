@@ -502,7 +502,7 @@ export async function getQuiz(req, res) {
 
 export async function generateAIQuestions(req, res) {
   try {
-    const { topic, difficulty, num_questions, question_types } = req.body;
+    const { topic, subtopics, difficulty, num_questions, question_types } = req.body;
 
     if (
       !topic ||
@@ -552,7 +552,12 @@ IMPORTANT RULES:
 5. Make questions clear and unambiguous
 6. Ensure correct_answers match exactly one of the options for mcq/checkbox`;
 
+    const subtopicsText = Array.isArray(subtopics) && subtopics.length > 0
+      ? `Focus specifically on these subtopics: ${subtopics.join(', ')}`
+      : ``;
+
     const userPrompt = `Generate ${num_questions} questions about "${topic}" at ${difficulty} difficulty.
+${subtopicsText}
 Question types: ${typeStr}
 
 Make sure questions are appropriate for ${difficulty} level.`;
@@ -588,7 +593,13 @@ Make sure questions are appropriate for ${difficulty} level.`;
 
     let parsed;
     try {
-      parsed = JSON.parse(content);
+      let cleanContent = content;
+      const firstBrace = cleanContent.indexOf('{');
+      const lastBrace = cleanContent.lastIndexOf('}');
+      if (firstBrace !== -1 && lastBrace !== -1 && lastBrace >= firstBrace) {
+        cleanContent = cleanContent.substring(firstBrace, lastBrace + 1);
+      }
+      parsed = JSON.parse(cleanContent);
     } catch (parseError) {
       console.error('Failed to parse AI response:', content);
       return res.status(500).json({ error: 'Failed to parse AI response' });

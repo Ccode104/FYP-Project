@@ -35,6 +35,30 @@ async function ensureQuizSheetsTable() {
   return ensureQuizSheetsTablePromise;
 }
 
+let ensureLiveLectureAttendanceSheetsTablePromise = null;
+
+async function ensureLiveLectureAttendanceSheetsTable() {
+  if (!ensureLiveLectureAttendanceSheetsTablePromise) {
+    ensureLiveLectureAttendanceSheetsTablePromise = (async () => {
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS live_lecture_attendance_sheets (
+          id BIGSERIAL PRIMARY KEY,
+          course_offering_id BIGINT UNIQUE NOT NULL REFERENCES course_offerings(id) ON DELETE CASCADE,
+          spreadsheet_id TEXT UNIQUE NOT NULL,
+          spreadsheet_url TEXT NOT NULL,
+          created_by BIGINT REFERENCES users(id),
+          created_at TIMESTAMPTZ DEFAULT NOW()
+        )
+      `);
+    })().catch(error => {
+      ensureLiveLectureAttendanceSheetsTablePromise = null;
+      throw error;
+    });
+  }
+
+  return ensureLiveLectureAttendanceSheetsTablePromise;
+}
+
 function extractGoogleFormId(url) {
   if (!url) return null;
   const match = String(url).match(/\/forms(?:\/u\/\d+)?\/d(?:\/e)?\/([a-zA-Z0-9_-]+)/);
@@ -138,6 +162,29 @@ export async function getGoogleFormQuizResultsData(quizId, userId) {
   const derivedMaxScore = getFormMaxScore(form);
   const maxScore = Number(quiz.max_score || derivedMaxScore || 100);
 
+  const emails = responses.map(r => r.respondentEmail).filter(Boolean);
+  let userMap = new Map();
+  let dbAttemptsMap = new Map();
+
+  if (emails.length > 0) {
+    const userResult = await pool.query(
+      'SELECT id, name, email FROM users WHERE email = ANY($1)',
+      [emails]
+    );
+    userResult.rows.forEach(user => {
+      userMap.set(user.email.toLowerCase(), user);
+    });
+
+    const studentIds = userResult.rows.map(u => u.id);
+    const dbAttempts = await pool.query(
+      'SELECT id, student_id, score, violated, suspended_at, finished_at FROM quiz_attempts WHERE quiz_id = $1 AND student_id = ANY($2)',
+      [quizId, studentIds]
+    );
+    dbAttempts.rows.forEach(att => {
+      dbAttemptsMap.set(att.student_id, att);
+    });
+  }
+
   const attempts = responses.map(response => {
     const score = getResponseScore(response);
     const answers = Object.entries(response.answers || {}).map(([questionId, answer]) => ({
@@ -146,25 +193,32 @@ export async function getGoogleFormQuizResultsData(quizId, userId) {
       answer: readAnswerValue(answer),
       score: typeof answer?.grade?.score === 'number' ? answer.grade.score : null,
     }));
-    const email = response.respondentEmail || null;
-    const fallbackName = email ? email.split('@')[0] : 'Google Forms respondent';
+    
+    const email = response.respondentEmail ? response.respondentEmail.toLowerCase() : null;
+    const dbUser = email ? userMap.get(email) : null;
+    const dbAttempt = dbUser ? dbAttemptsMap.get(dbUser.id) : null;
+    
+    const studentName = dbUser ? dbUser.name : (email ? email.split('@')[0] : 'Google Forms respondent');
+    const studentId = dbUser ? dbUser.id : null;
 
     return {
-      id: response.responseId,
-      student_id: null,
-      student_name: fallbackName,
+      id: dbAttempt ? dbAttempt.id : response.responseId,
+      google_response_id: response.responseId,
+      student_id: studentId,
+      student_name: studentName,
       student_email: email,
-      started_at: response.createTime || null,
-      finished_at: response.lastSubmittedTime || response.createTime || null,
-      score,
-      grade: score,
+      started_at: dbAttempt?.started_at || response.createTime || null,
+      finished_at: dbAttempt?.finished_at || response.lastSubmittedTime || response.createTime || null,
+      score: dbAttempt ? dbAttempt.score : score,
+      grade: dbAttempt ? dbAttempt.score : score,
       feedback: null,
       graded_at: response.lastSubmittedTime || null,
-      violated: false,
-      suspended_at: null,
+      violated: dbAttempt ? dbAttempt.violated : false,
+      suspended_at: dbAttempt ? dbAttempt.suspended_at : null,
       resumed_at: null,
-      needs_manual_grading: score === null,
+      needs_manual_grading: score === null && !dbAttempt,
       answers,
+      is_in_db: !!dbAttempt,
     };
   });
 
@@ -401,9 +455,10 @@ export async function getOrCreateGradingSheet(req, res) {
     // Get submissions
     const submissionsResult = await pool.query(
       `SELECT s.*, u.name as student_name, u.email as student_email,
-              COALESCE(s.github_repo_url, s.repo_url) as repository_url
+              gs.repo_url as repository_url
        FROM assignment_submissions s
        JOIN users u ON s.student_id = u.id
+       LEFT JOIN github_submissions gs ON s.id = gs.submission_id
        WHERE s.assignment_id = $1
        AND s.submitted_at = (
          SELECT MAX(s2.submitted_at) 
@@ -437,37 +492,57 @@ export async function getOrCreateGradingSheet(req, res) {
     const spreadsheetId = spreadsheet.data.spreadsheetId;
     const spreadsheetUrl = `https://docs.google.com/spreadsheets/d/${spreadsheetId}`;
 
+    // Determine columns based on assignment type
+    const assignmentType = assignment.assignment_type || 'file';
+    const isGithub = assignmentType === 'github';
+    
+    const headers = [
+      'Student Name',
+      'Email',
+      'Submitted At',
+      'Status',
+      'Score',
+      'Feedback',
+    ];
+
+    if (isGithub) {
+      headers.push('Repository URL');
+    } else {
+      headers.push('Files Count');
+      headers.push('Submission Notes');
+    }
+
     // Add header row
     await sheets.spreadsheets.values.update({
       spreadsheetId,
       range: 'Submissions!A1',
       valueInputOption: 'USER_ENTERED',
       requestBody: {
-        values: [
-          [
-            'Student Name',
-            'Email',
-            'Submitted At',
-            'Status',
-            'Score',
-            'Feedback',
-            'Repository URL',
-          ],
-        ],
+        values: [headers],
       },
     });
 
     // Add submission rows
     if (submissions.length > 0) {
-      const rows = submissions.map(sub => [
-        sub.student_name || '',
-        sub.student_email || '',
-        sub.submitted_at ? new Date(sub.submitted_at).toLocaleString() : '',
-        sub.status || 'pending',
-        sub.final_score?.toString() || '',
-        '',
-        sub.repository_url || '',
-      ]);
+      const rows = submissions.map(sub => {
+        const row = [
+          sub.student_name || '',
+          sub.student_email || '',
+          sub.submitted_at ? new Date(sub.submitted_at).toLocaleString() : '',
+          sub.status || 'pending',
+          sub.final_score?.toString() || '',
+          '', // Placeholder for Feedback
+        ];
+
+        if (isGithub) {
+          row.push(sub.repository_url || '');
+        } else {
+          const filesCount = Array.isArray(sub.files) ? sub.files.length : 0;
+          row.push(filesCount.toString());
+          row.push(sub.content || '');
+        }
+        return row;
+      });
 
       await sheets.spreadsheets.values.append({
         spreadsheetId,
@@ -659,6 +734,141 @@ export async function getOrCreateQuizResultsSheet(req, res) {
   }
 }
 
+export async function getOrCreateLiveLectureAttendanceSheet(req, res) {
+  try {
+    const { courseOfferingId } = req.params;
+    const userId = req.user.id;
+
+    if (!courseOfferingId) {
+      return res.status(400).json({ error: 'Missing course offering ID' });
+    }
+
+    await ensureLiveLectureAttendanceSheetsTable();
+
+    // Check if sheet already exists for this course
+    const existingSheet = await pool.query(
+      'SELECT spreadsheet_id, spreadsheet_url FROM live_lecture_attendance_sheets WHERE course_offering_id = $1',
+      [courseOfferingId]
+    );
+
+    // Fetch course details
+    const courseResult = await pool.query(
+      `SELECT c.code, c.title 
+       FROM course_offerings co 
+       JOIN courses c ON co.course_id = c.id 
+       WHERE co.id = $1`,
+      [courseOfferingId]
+    );
+
+    if (courseResult.rowCount === 0) {
+      return res.status(404).json({ error: 'Course offering not found' });
+    }
+
+    const course = courseResult.rows[0];
+
+    // Fetch all students enrolled in this course
+    const studentsResult = await pool.query(
+      `SELECT u.id, u.name, u.email 
+       FROM enrollments e 
+       JOIN users u ON e.student_id = u.id 
+       WHERE e.course_offering_id = $1 
+       ORDER BY u.name`,
+      [courseOfferingId]
+    );
+    const students = studentsResult.rows;
+
+    // Fetch all completed live lectures for this course
+    const lecturesResult = await pool.query(
+      `SELECT id, title, started_at 
+       FROM live_lectures 
+       WHERE course_offering_id = $1 AND status = 'ended' 
+       ORDER BY started_at ASC`,
+      [courseOfferingId]
+    );
+    const lectures = lecturesResult.rows;
+
+    // Fetch attendance data
+    const attendanceResult = await pool.query(
+      `SELECT live_lecture_id, user_id 
+       FROM live_lecture_participants 
+       WHERE live_lecture_id IN (SELECT id FROM live_lectures WHERE course_offering_id = $1)`,
+      [courseOfferingId]
+    );
+    const attendanceMap = new Set(attendanceResult.rows.map(r => `${r.live_lecture_id}-${r.user_id}`));
+
+    const auth = await getAuthenticatedClient(userId);
+    const sheets = google.sheets({ version: 'v4', auth });
+
+    let spreadsheetId = existingSheet.rows[0]?.spreadsheet_id;
+    let spreadsheetUrl = existingSheet.rows[0]?.spreadsheet_url;
+
+    if (!spreadsheetId) {
+      const spreadsheet = await sheets.spreadsheets.create({
+        requestBody: {
+          properties: {
+            title: `${course.code} - ${course.title} - Live Lecture Attendance`,
+          },
+          sheets: [{ properties: { title: 'Attendance' } }],
+        },
+      });
+
+      spreadsheetId = spreadsheet.data.spreadsheetId;
+      spreadsheetUrl = `https://docs.google.com/spreadsheets/d/${spreadsheetId}`;
+
+      await pool.query(
+        `INSERT INTO live_lecture_attendance_sheets (course_offering_id, spreadsheet_id, spreadsheet_url, created_by)
+         VALUES ($1, $2, $3, $4)
+         ON CONFLICT (course_offering_id) DO UPDATE
+         SET spreadsheet_id = EXCLUDED.spreadsheet_id,
+             spreadsheet_url = EXCLUDED.spreadsheet_url,
+             created_by = EXCLUDED.created_by`,
+        [courseOfferingId, spreadsheetId, spreadsheetUrl, userId]
+      );
+    }
+
+    // Prepare headers
+    const headers = ['Student Name', 'Email', ...lectures.map(l => l.title), 'Total Attendance'];
+
+    // Prepare rows
+    const rows = students.map(student => {
+      let presentCount = 0;
+      const studentRow = [student.name || '', student.email || ''];
+      
+      lectures.forEach(lecture => {
+        const isPresent = attendanceMap.has(`${lecture.id}-${student.id}`);
+        if (isPresent) presentCount++;
+        studentRow.push(isPresent ? 'Present' : 'Absent');
+      });
+      
+      studentRow.push(presentCount.toString());
+      return studentRow;
+    });
+
+    // Clear and update sheet
+    await sheets.spreadsheets.values.clear({
+      spreadsheetId,
+      range: 'Attendance!A:Z',
+    });
+
+    await sheets.spreadsheets.values.update({
+      spreadsheetId,
+      range: 'Attendance!A1',
+      valueInputOption: 'USER_ENTERED',
+      requestBody: {
+        values: [headers, ...rows],
+      },
+    });
+
+    res.json({ spreadsheetId, spreadsheetUrl });
+  } catch (error) {
+    console.error('Error creating live lecture attendance sheet:', error);
+    if (error.message === 'Google not connected') {
+      return res.status(403).json({ error: 'Connect Google to create the attendance sheet' });
+    }
+    res.status(500).json({ error: error.message || 'Failed to create attendance sheet' });
+  }
+}
+
 export async function disconnectGoogle(req, res) {
   try {
     const userId = req.user.id;
@@ -671,5 +881,305 @@ export async function disconnectGoogle(req, res) {
   } catch (error) {
     console.error('Error disconnecting Google:', error);
     res.status(500).json({ error: 'Failed to disconnect Google' });
+  }
+}
+
+export async function updateGradingSheetRow(req, res) {
+  try {
+    const { assignmentId } = req.params;
+    const { email, score, comments } = req.body;
+    const userId = req.user.id;
+
+    if (!assignmentId || !email) {
+      return res.status(400).json({ error: 'Missing assignment ID or student email' });
+    }
+
+    // Get spreadsheet ID
+    const sheetResult = await pool.query(
+      `SELECT spreadsheet_id FROM assignment_sheets WHERE assignment_id = $1`,
+      [assignmentId]
+    );
+
+    if (sheetResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Grading sheet not found for this assignment' });
+    }
+
+    const spreadsheetId = sheetResult.rows[0].spreadsheet_id;
+    const auth = await getAuthenticatedClient(userId);
+    const sheets = google.sheets({ version: 'v4', auth });
+
+    // Get all values to find the row
+    const response = await sheets.spreadsheets.values.get({
+      spreadsheetId,
+      range: 'Submissions!A:Z',
+    });
+
+    const rows = response.data.values;
+    if (!rows || rows.length === 0) {
+      return res.status(404).json({ error: 'No data found in the sheet' });
+    }
+
+    const headers = rows[0];
+    const emailIndex = headers.indexOf('Email');
+    const scoreIndex = headers.indexOf('Score');
+    const feedbackIndex = headers.indexOf('Feedback');
+
+    if (emailIndex === -1 || scoreIndex === -1 || feedbackIndex === -1) {
+      return res.status(400).json({ error: 'Sheet format is invalid (missing columns: Email, Score, or Feedback)' });
+    }
+
+    // Find student row
+    let rowIndex = -1;
+    for (let i = 1; i < rows.length; i++) {
+      if (rows[i][emailIndex] === email) {
+        rowIndex = i + 1; // 1-indexed for Google Sheets
+        break;
+      }
+    }
+
+    if (rowIndex === -1) {
+      return res.status(404).json({ error: `Student email ${email} not found in grading sheet` });
+    }
+
+    // Update Score and Feedback
+    // We update them one by one to avoid overwriting other columns in the row
+    
+    const updatePromises = [];
+    
+    // Update Score
+    updatePromises.push(
+      sheets.spreadsheets.values.update({
+        spreadsheetId,
+        range: `Submissions!${String.fromCharCode(65 + scoreIndex)}${rowIndex}`,
+        valueInputOption: 'USER_ENTERED',
+        requestBody: { values: [[score]] },
+      })
+    );
+    
+    // Update Feedback
+    updatePromises.push(
+      sheets.spreadsheets.values.update({
+        spreadsheetId,
+        range: `Submissions!${String.fromCharCode(65 + feedbackIndex)}${rowIndex}`,
+        valueInputOption: 'USER_ENTERED',
+        requestBody: { values: [[comments]] },
+      })
+    );
+
+    await Promise.all(updatePromises);
+
+    res.json({ success: true, message: 'Grading sheet updated successfully' });
+  } catch (error) {
+    console.error('Error updating grading sheet row:', error);
+    res.status(500).json({ error: error.message || 'Failed to update grading sheet' });
+  }
+}
+
+export async function deleteGradingSheet(req, res) {
+  try {
+    const { assignmentId } = req.params;
+    const userId = req.user.id;
+
+    if (!assignmentId) {
+      return res.status(400).json({ error: 'Missing assignment ID' });
+    }
+
+    // Check if sheet exists and get spreadsheet_id
+    const sheetResult = await pool.query(
+      `SELECT spreadsheet_id FROM assignment_sheets WHERE assignment_id = $1`,
+      [assignmentId]
+    );
+
+    if (sheetResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Grading sheet not found' });
+    }
+
+    const spreadsheetId = sheetResult.rows[0].spreadsheet_id;
+
+    // Optional: Delete from Google Drive
+    try {
+      const auth = await getAuthenticatedClient(userId);
+      const drive = google.drive({ version: 'v3', auth });
+      await drive.files.delete({ fileId: spreadsheetId });
+      console.log('Google Sheet deleted from Drive:', spreadsheetId);
+    } catch (driveError) {
+      console.warn('Failed to delete sheet from Drive (it might already be gone):', driveError.message);
+      // We continue even if Drive deletion fails, to clean up our DB
+    }
+
+    // Delete from database
+    await pool.query(`DELETE FROM assignment_sheets WHERE assignment_id = $1`, [assignmentId]);
+
+    res.json({ success: true, message: 'Grading sheet deleted successfully' });
+  } catch (error) {
+    console.error('Error deleting grading sheet:', error);
+    res.status(500).json({ error: error.message || 'Failed to delete grading sheet' });
+  }
+}
+
+export async function evaluateQuizResults(req, res) {
+  try {
+    const { quizId } = req.params;
+    const userId = req.user.id;
+
+    if (!quizId) {
+      return res.status(400).json({ error: 'Missing quiz ID' });
+    }
+
+    // 1. Fetch latest data from Google Forms
+    const results = await getGoogleFormQuizResultsData(quizId, userId);
+    const quiz = results.quiz;
+    const attempts = results.attempts;
+
+    // 2. Persist matched students into our quiz_attempts table
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      
+      for (const attempt of attempts) {
+        if (attempt.student_id) {
+          // Check if attempt exists (including deleted ones)
+          const existing = await client.query(
+            'SELECT id, google_response_id, deleted_at FROM quiz_attempts WHERE quiz_id = $1 AND student_id = $2',
+            [quizId, attempt.student_id]
+          );
+
+          if (existing.rowCount > 0) {
+            const dbRecord = existing.rows[0];
+            
+            // If it was deleted, ONLY re-sync if it's a NEW response from Google Forms
+            if (dbRecord.deleted_at && dbRecord.google_response_id === attempt.google_response_id) {
+              continue; // Skip this one, it was manually deleted by teacher
+            }
+
+            // Update existing record (clear deleted_at if it's a new response)
+            await client.query(
+              `UPDATE quiz_attempts 
+               SET score = $1, finished_at = $2, answers = $3, updated_at = NOW(), 
+                   google_response_id = $4, deleted_at = NULL
+               WHERE id = $5 AND violated = false`,
+              [attempt.score, attempt.finished_at, JSON.stringify(attempt.answers), attempt.google_response_id, dbRecord.id]
+            );
+          } else {
+            // Insert new record
+            await client.query(
+              `INSERT INTO quiz_attempts (quiz_id, student_id, started_at, finished_at, score, answers, violated, google_response_id)
+               VALUES ($1, $2, $3, $4, $5, $6, false, $7)`,
+              [quizId, attempt.student_id, attempt.started_at, attempt.finished_at, attempt.score, JSON.stringify(attempt.answers), attempt.google_response_id]
+            );
+          }
+        }
+      }
+      
+      await client.query('COMMIT');
+    } catch (dbError) {
+      await client.query('ROLLBACK');
+      throw dbError;
+    } finally {
+      client.release();
+    }
+
+    // 3. Re-generate/Update the Google Sheet
+    await getOrCreateQuizResultsSheet(req, res);
+    
+    // getOrCreateQuizResultsSheet already sends the response
+  } catch (error) {
+    console.error('Error evaluating quiz results:', error);
+    res.status(500).json({ error: error.message || 'Failed to evaluate quiz results' });
+  }
+}
+
+export async function deleteQuizAttemptByTeacher(req, res) {
+  try {
+    const { attemptId } = req.params;
+    const userId = req.user.id;
+    
+    if (isNaN(Number(attemptId))) {
+      return res.status(400).json({ error: 'Invalid attempt ID' });
+    }
+
+    // 1. Get attempt details before deleting (for email and quiz_id)
+    const attemptResult = await pool.query(
+      'SELECT a.quiz_id, u.email FROM quiz_attempts a JOIN users u ON a.student_id = u.id WHERE a.id = $1',
+      [attemptId]
+    );
+
+    if (attemptResult.rowCount === 0) {
+      return res.status(404).json({ error: 'Attempt not found' });
+    }
+
+    const { quiz_id, email } = attemptResult.rows[0];
+
+    // 2. Soft-delete in our DB
+    await pool.query('UPDATE quiz_attempts SET deleted_at = NOW() WHERE id = $1', [attemptId]);
+
+    // 3. Try to delete from Google Sheet if it exists
+    try {
+      const sheetResult = await pool.query(
+        'SELECT spreadsheet_id FROM assignment_sheets WHERE assignment_id = $1',
+        [quiz_id]
+      );
+
+      if (sheetResult.rowCount > 0) {
+        const spreadsheetId = sheetResult.rows[0].spreadsheet_id;
+        const auth = await getAuthenticatedClient(userId);
+        const sheets = google.sheets({ version: 'v4', auth });
+
+        // Get all rows
+        const response = await sheets.spreadsheets.values.get({
+          spreadsheetId,
+          range: 'Sheet1!A:Z',
+        });
+
+        const rows = response.data.values || [];
+        // Look for email in Column C (Index 2)
+        const rowIndex = rows.findIndex(row => row[2] && row[2].toLowerCase() === email.toLowerCase());
+
+        if (rowIndex !== -1) {
+          // Delete the row
+          await sheets.spreadsheets.batchUpdate({
+            spreadsheetId,
+            requestBody: {
+              requests: [
+                {
+                  deleteDimension: {
+                    range: {
+                      sheetId: 0, // Assuming first sheet
+                      dimension: 'ROWS',
+                      startIndex: rowIndex,
+                      endIndex: rowIndex + 1,
+                    },
+                  },
+                },
+              ],
+            },
+          });
+          console.log(`Deleted row ${rowIndex + 1} from spreadsheet ${spreadsheetId} for email ${email}`);
+        }
+      }
+    } catch (sheetError) {
+      console.warn('Failed to delete row from Google Sheet:', sheetError.message);
+      // We continue since the DB delete was successful
+    }
+
+    res.json({ success: true, message: 'Attempt deleted successfully from portal and Google Sheet. Student can now reattempt.' });
+  } catch (error) {
+    console.error('Error deleting quiz attempt:', error);
+    res.status(500).json({ error: error.message || 'Failed to delete attempt' });
+  }
+}
+
+export async function markQuizAttemptViolatedByTeacher(req, res) {
+  try {
+    const { attemptId } = req.params;
+    if (isNaN(Number(attemptId))) {
+      return res.status(400).json({ error: 'Invalid attempt ID. Only portal-synced attempts can be marked as violated.' });
+    }
+
+    await pool.query('UPDATE quiz_attempts SET violated = true, score = 0 WHERE id = $1', [attemptId]);
+    res.json({ success: true, message: 'Attempt marked as violated and score set to 0.' });
+  } catch (error) {
+    console.error('Error marking attempt as violated:', error);
+    res.status(500).json({ error: error.message || 'Failed to mark violation' });
   }
 }

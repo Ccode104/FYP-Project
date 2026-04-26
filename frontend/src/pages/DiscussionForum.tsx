@@ -26,6 +26,7 @@ interface ThreadWithMeta extends DiscussionMessage {
   reply_count: number;
   view_count: number;
   teacher_answered?: boolean;
+  is_streaming?: boolean;
 }
 
 function extractAiQuery(content: string): string | null {
@@ -176,6 +177,32 @@ export default function DiscussionForum() {
     );
   };
 
+  const updateMessageContent = (threadId: number, msgId: number, content: string) => {
+    setRepliesMap(prev => {
+      const next = new Map(prev);
+      const list = [...(next.get(threadId) || [])];
+      const idx = list.findIndex(m => m.id === msgId);
+      if (idx !== -1) {
+        list[idx] = { ...list[idx], content };
+      }
+      next.set(threadId, list);
+      return next;
+    });
+  };
+
+  const replaceMessage = (threadId: number, oldId: number, newMessage: DiscussionMessage) => {
+    setRepliesMap(prev => {
+      const next = new Map(prev);
+      const list = [...(next.get(threadId) || [])];
+      const idx = list.findIndex(m => m.id === oldId);
+      if (idx !== -1) {
+        list[idx] = newMessage;
+      }
+      next.set(threadId, list);
+      return next;
+    });
+  };
+
   const handleAiAssist = async (threadId: number, messageId: number, userQuery?: string | null) => {
     if (!courseId) return;
 
@@ -183,20 +210,78 @@ export default function DiscussionForum() {
     setError(null);
 
     try {
-      const result = await requestDiscussionAiAssist(courseId, messageId, userQuery || undefined);
-      appendReplyToThread(
-        threadId,
-        result.ai_message || {
-          id: -Date.now(),
+      const response = await requestDiscussionAiAssist(courseId, messageId, userQuery || undefined, true);
+
+      if (response instanceof Response) {
+        const reader = response.body?.getReader();
+        if (!reader) throw new Error('Failed to start AI stream');
+
+        const decoder = new TextDecoder();
+        let fullContent = '';
+        const tempId = -Date.now();
+
+        // Add placeholder message
+        appendReplyToThread(threadId, {
+          id: tempId,
           course_offering_id: Number(courseId),
           user_id: null,
           parent_id: threadId,
-          content: result.content,
+          content: '',
           created_at: new Date().toISOString(),
           author_name: 'AI Assistant',
           author_role: 'assistant',
+          // @ts-ignore
+          is_streaming: true,
+        });
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+
+          const chunkStr = decoder.decode(value, { stream: true });
+          const lines = chunkStr.split('\n');
+
+          for (const line of lines) {
+            const trimmed = line.trim();
+            if (!trimmed.startsWith('data: ')) continue;
+            
+            try {
+              const data = JSON.parse(trimmed.slice(6));
+              if (data.content) {
+                if (fullContent === '') {
+                  fullContent = data.content;
+                } else {
+                  fullContent += data.content;
+                }
+                updateMessageContent(threadId, tempId, fullContent);
+              }
+              if (data.done && data.ai_message) {
+                replaceMessage(threadId, tempId, data.ai_message);
+              }
+              if (data.mode === 'fallback_prompt') {
+                updateMessageContent(threadId, tempId, data.content);
+              }
+            } catch (e) {
+              // Ignore partial JSON
+            }
+          }
         }
-      );
+      } else {
+        // Handle non-streaming response
+        appendReplyToThread(
+          threadId,
+          response.ai_message || {
+            id: -Date.now(),
+            course_offering_id: Number(courseId),
+            user_id: null,
+            parent_id: threadId,
+            content: response.content,
+            created_at: new Date().toISOString(),
+            author_name: 'AI Assistant',
+            author_role: 'assistant',
+          }
+        );
+      }
     } catch (err) {
       console.error('Failed to get AI assist:', err);
       setError(err instanceof Error ? err.message : 'Failed to get AI assistance');
@@ -513,7 +598,10 @@ export default function DiscussionForum() {
                         {replies.map(reply => (
                           <div
                             key={reply.id}
-                            className={`thread-reply ${reply.author_role === 'assistant' ? 'ai-reply' : ''}`}
+                            className={`thread-reply ${reply.author_role === 'assistant' ? 'ai-reply' : ''} ${
+                              // @ts-ignore
+                              reply.is_streaming ? 'streaming' : ''
+                            }`}
                           >
                             <div className="reply-meta">
                               <strong>{reply.author_name || 'Anonymous'}</strong>
@@ -521,7 +609,11 @@ export default function DiscussionForum() {
                               {' • '}
                               {formatTimeAgo(reply.created_at)}
                             </div>
-                            <div className="reply-content">{reply.content}</div>
+                            <div className="reply-content">
+                              {reply.content}
+                              {/* @ts-ignore */}
+                              {reply.is_streaming && <span className=\"streaming-cursor\">|</span>}
+                            </div>
                           </div>
                         ))}
                       </div>

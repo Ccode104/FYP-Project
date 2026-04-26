@@ -479,8 +479,11 @@ export default function AdminDashboard() {
   }
 
   interface OverviewStats {
-    total_users?: number;
-    total_courses?: number;
+    totalUsers?: number;
+    inactiveUsers?: number;
+    activeCourses?: number;
+    totalAssignments?: number;
+    totalSubmissions?: number;
     [key: string]: unknown;
   }
 
@@ -775,42 +778,59 @@ export default function AdminDashboard() {
   }
 
   return (
-    <div className="container container-wide dashboard-page admin-theme">
-      <div className="dashboard-header">
-        <div className="welcome-section">
-          <h1 className="dashboard-title h2 text-primary">Welcome back, {user?.name}!</h1>
-          <p className="dashboard-subtitle text-lg text-secondary leading-relaxed">
-            Manage users, courses, and explore system data
-          </p>
+    <div className="admin-dashboard container container-wide">
+      <section className="admin-hero">
+        <div className="admin-hero__text">
+          <span className="admin-role-badge">Administrator</span>
+          <h2>Welcome back, {user?.name}!</h2>
+          <p>System Control & Management Hub</p>
         </div>
-        <div className="dashboard-actions">
-          <button
-            className="btn btn-secondary"
-            onClick={() => navigate('/profile')}
-            style={{
-              fontWeight: '500',
-              padding: '8px 16px',
-              borderRadius: '6px',
-              border: '1px solid var(--border)',
-              backgroundColor: 'var(--surface)',
-              color: 'var(--text)',
-              transition: 'all 0.2s ease',
-            }}
-          >
-            <span style={{ fontSize: '1.1em', marginRight: '6px' }}>👤</span> Profile
+        <div className="admin-hero__actions">
+          <button className="admin-hero-btn" onClick={() => navigate('/profile')}>
+            <span className="material-symbols-outlined">person</span> Profile
           </button>
-          <button className="btn btn-outline" onClick={() => navigate('/planner/admin')}>
-            Planner
+          <button className="admin-hero-btn" onClick={() => navigate('/planner/admin')}>
+            <span className="material-symbols-outlined">calendar_today</span> Planner
           </button>
+        </div>
+      </section>
+
+      <div className="admin-stats-grid">
+        <div className="admin-stat-card admin-stat-card--blue">
+          <div className="admin-stat-icon">
+            <span className="material-symbols-outlined">group</span>
+          </div>
+          <span className="admin-stat-value">{overviewStats?.totalUsers || 0}</span>
+          <span className="admin-stat-label">Total Users</span>
+        </div>
+        <div className="admin-stat-card admin-stat-card--purple">
+          <div className="admin-stat-icon">
+            <span className="material-symbols-outlined">book</span>
+          </div>
+          <span className="admin-stat-value">{overviewStats?.activeCourses || 0}</span>
+          <span className="admin-stat-label">Active Courses</span>
+        </div>
+        <div className="admin-stat-card admin-stat-card--emerald">
+          <div className="admin-stat-icon">
+            <span className="material-symbols-outlined">domain</span>
+          </div>
+          <span className="admin-stat-value">{departments.length}</span>
+          <span className="admin-stat-label">Departments</span>
+        </div>
+        <div className="admin-stat-card admin-stat-card--amber">
+          <div className="admin-stat-icon">
+            <span className="material-symbols-outlined">dns</span>
+          </div>
+          <span className="admin-stat-value">Healthy</span>
+          <span className="admin-stat-label">System Status</span>
         </div>
       </div>
 
-      {/* Tab Navigation */}
-      <div className="tabs">
+      <div className="admin-tabs">
         {tabConfigs.map(({ key, label }) => (
           <button
             key={key}
-            className={`tab ${tab === key ? 'active' : ''}`}
+            className={`admin-tab-btn ${tab === key ? 'active' : ''}`}
             onClick={() => setTab(key)}
           >
             {label}
@@ -819,34 +839,34 @@ export default function AdminDashboard() {
       </div>
 
       {tab === 'users' && (
-        <section className="card">
+        <section className="admin-table-container" style={{ padding: '24px' }}>
           <div
             className="section-header"
-            style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
+            style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}
           >
-            <h3>Users</h3>
-            <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+            <h3 style={{ fontSize: '20px', fontWeight: '700', color: '#0f172a' }}>System Users</h3>
+            <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
               <div
-                style={{ display: 'flex', border: '1px solid var(--border)', borderRadius: '6px' }}
+                style={{ display: 'flex', background: '#f1f5f9', padding: '4px', borderRadius: '8px' }}
               >
                 <button
-                  className={`btn ${viewMode === 'cards' ? 'btn-primary' : 'btn-secondary'}`}
+                  className={`admin-tab-btn ${viewMode === 'cards' ? 'active' : ''}`}
                   onClick={() => setViewMode('cards')}
-                  style={{ borderRadius: '6px 0 0 6px', borderRight: 'none' }}
+                  style={{ padding: '6px 12px', fontSize: '12px' }}
                 >
-                  <span style={{ fontSize: '1.1em' }}>☰</span> Cards
+                  <span className="material-symbols-outlined" style={{ fontSize: '16px', marginRight: '6px' }}>grid_view</span> Cards
                 </button>
                 <button
-                  className={`btn ${viewMode === 'table' ? 'btn-primary' : 'btn-secondary'}`}
+                  className={`admin-tab-btn ${viewMode === 'table' ? 'active' : ''}`}
                   onClick={() => setViewMode('table')}
-                  style={{ borderRadius: '0 6px 6px 0' }}
+                  style={{ padding: '6px 12px', fontSize: '12px' }}
                 >
-                  <span style={{ fontSize: '1.1em' }}>⊞</span> Table
+                  <span className="material-symbols-outlined" style={{ fontSize: '16px', marginRight: '6px' }}>table_chart</span> Table
                 </button>
               </div>
               {isSuperAdmin && (
-                <button className="btn btn-primary" onClick={() => setShowCreateUser(true)}>
-                  Create User
+                <button className="admin-hero-btn" style={{ background: '#00346f', color: 'white' }} onClick={() => setShowCreateUser(true)}>
+                  <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>person_add</span> Create User
                 </button>
               )}
             </div>
@@ -858,7 +878,7 @@ export default function AdminDashboard() {
                 <input
                   className="input"
                   type="text"
-                  placeholder="🔍 Search users..."
+                  placeholder="Search users..."
                   value={userSearch}
                   onChange={e => {
                     setUserSearch(e.target.value);
@@ -894,7 +914,7 @@ export default function AdminDashboard() {
                     }}
                     aria-label="Clear search"
                   >
-                    ×
+                    <span className="material-symbols-outlined">close</span>
                   </button>
                 )}
 
@@ -918,7 +938,7 @@ export default function AdminDashboard() {
                     {searchParameterHistory
                       .filter(item => item.keyword.toLowerCase().includes(userSearch.toLowerCase()))
                       .slice(0, 5)
-                      .map(item => (
+                      .map((item, index) => (
                         <button
                           key={index}
                           onMouseDown={e => {
@@ -948,7 +968,7 @@ export default function AdminDashboard() {
                           }
                         >
                           <div style={{ fontWeight: '500', marginBottom: '2px' }}>
-                            "{item.keyword}"
+                            Search: "{item.keyword}"
                           </div>
                           <div
                             style={{
@@ -1409,7 +1429,7 @@ export default function AdminDashboard() {
                     border: '2px dashed var(--border)',
                   }}
                 >
-                  <div style={{ fontSize: '3em', marginBottom: '16px' }}>🔎</div>
+                  <div style={{ fontSize: '3em', marginBottom: '16px' }}><span className="material-symbols-outlined" style={{ fontSize: '48px' }}>search_off</span></div>
                   <h3 style={{ margin: '0 0 8px 0', color: 'var(--text)' }}>No users found</h3>
                   <p style={{ margin: '0 0 16px 0' }}>Try adjusting your search terms or filters</p>
                   <button
@@ -1736,7 +1756,7 @@ export default function AdminDashboard() {
                 border: '2px dashed var(--border)',
               }}
             >
-              <div style={{ fontSize: '3em', marginBottom: '16px' }}>👥</div>
+              <div style={{ fontSize: '3em', marginBottom: '16px' }}><span className="material-symbols-outlined" style={{ fontSize: '48px' }}>group</span></div>
               <h3 style={{ margin: '0 0 8px 0', color: 'var(--text)' }}>No users yet</h3>
               <p style={{ margin: '0 0 16px 0' }}>Users will appear here once they register</p>
             </div>
@@ -1745,11 +1765,14 @@ export default function AdminDashboard() {
       )}
 
       {tab === 'courses' && (
-        <section className="card">
-          <div className="section-header">
-            <h3>Courses</h3>
-            <button className="btn btn-primary" onClick={() => setTab('departments')}>
-              Create Course
+        <section className="admin-table-container" style={{ padding: '24px' }}>
+          <div
+            className="section-header"
+            style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}
+          >
+            <h3 style={{ fontSize: '20px', fontWeight: '700', color: '#0f172a' }}>Academic Courses</h3>
+            <button className="admin-hero-btn" style={{ background: '#00346f', color: 'white' }} onClick={() => setTab('departments')}>
+              <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>add_box</span> Create Course
             </button>
           </div>
           <div className="filters" style={{ marginBottom: '16px' }}>
@@ -1897,33 +1920,33 @@ export default function AdminDashboard() {
       )}
 
       {tab === 'departments' && (
-        <section className="card">
+        <section className="admin-table-container" style={{ padding: '24px' }}>
           <div
             className="section-header"
-            style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
+            style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}
           >
-            <h3>Departments</h3>
-            <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+            <h3 style={{ fontSize: '20px', fontWeight: '700', color: '#0f172a' }}>System Departments</h3>
+            <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
               <div
-                style={{ display: 'flex', border: '1px solid var(--border)', borderRadius: '6px' }}
+                style={{ display: 'flex', background: '#f1f5f9', padding: '4px', borderRadius: '8px' }}
               >
                 <button
-                  className={`btn ${deptViewMode === 'cards' ? 'btn-primary' : 'btn-secondary'}`}
+                  className={`admin-tab-btn ${deptViewMode === 'cards' ? 'active' : ''}`}
                   onClick={() => setDeptViewMode('cards')}
-                  style={{ borderRadius: '6px 0 0 6px', borderRight: 'none' }}
+                  style={{ padding: '6px 12px', fontSize: '12px' }}
                 >
-                  <span style={{ fontSize: '1.1em' }}>☰</span> Cards
+                  <span className="material-symbols-outlined" style={{ fontSize: '16px', marginRight: '6px' }}>grid_view</span> Cards
                 </button>
                 <button
-                  className={`btn ${deptViewMode === 'table' ? 'btn-primary' : 'btn-secondary'}`}
+                  className={`admin-tab-btn ${deptViewMode === 'table' ? 'active' : ''}`}
                   onClick={() => setDeptViewMode('table')}
-                  style={{ borderRadius: '0 6px 6px 0' }}
+                  style={{ padding: '6px 12px', fontSize: '12px' }}
                 >
-                  <span style={{ fontSize: '1.1em' }}>⊞</span> Table
+                  <span className="material-symbols-outlined" style={{ fontSize: '16px', marginRight: '6px' }}>table_chart</span> Table
                 </button>
               </div>
-              <button className="btn btn-primary" onClick={() => setShowCreateDept(true)}>
-                Create Department
+              <button className="admin-hero-btn" style={{ background: '#00346f', color: 'white' }} onClick={() => setShowCreateDept(true)}>
+                <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>domain_add</span> Create Department
               </button>
             </div>
           </div>
@@ -1994,7 +2017,7 @@ export default function AdminDashboard() {
                     {deptSearchParameterHistory
                       .filter(item => item.keyword.toLowerCase().includes(deptSearch.toLowerCase()))
                       .slice(0, 5)
-                      .map(item => (
+                      .map((item, index) => (
                         <button
                           key={index}
                           onMouseDown={e => {
@@ -2021,7 +2044,7 @@ export default function AdminDashboard() {
                           }
                         >
                           <div style={{ fontWeight: '500', marginBottom: '2px' }}>
-                            "{item.keyword}"
+                            Search: "{item.keyword}"
                           </div>
                           <div
                             style={{
@@ -2116,7 +2139,7 @@ export default function AdminDashboard() {
                   transition: 'all 0.2s ease',
                 }}
               >
-                <span style={{ fontSize: '1.1em', marginRight: '6px' }}>🗑️</span> Clear All
+                <span className="material-symbols-outlined" style={{ fontSize: '18px', marginRight: '6px' }}>delete_sweep</span> Clear All
               </button>
               <button
                 className="btn btn-success"
@@ -2124,7 +2147,7 @@ export default function AdminDashboard() {
                 style={{ flex: 1 }}
                 disabled={filteredDepartments.length === 0}
               >
-                <span style={{ fontSize: '1.1em' }}>⤓</span> Export CSV
+                <span className="material-symbols-outlined" style={{ fontSize: '18px', marginRight: '6px' }}>download</span> Export CSV
               </button>
             </div>
 
@@ -2138,7 +2161,7 @@ export default function AdminDashboard() {
                   checked={deptLiveSearchEnabled}
                   onChange={e => setDeptLiveSearchEnabled(e.target.checked)}
                 />
-                ⟳ Enable live search (searches as you type)
+                Enable live search (searches as you type)
               </label>
             </div>
 
@@ -2231,7 +2254,7 @@ export default function AdminDashboard() {
                   color: 'var(--text-secondary)',
                 }}
               >
-                <span style={{ fontSize: '1.1em' }}>📈</span> Showing {paginatedDepartments.length}{' '}
+                <span className="material-symbols-outlined" style={{ fontSize: '18px', marginRight: '6px' }}>bar_chart</span> Showing {paginatedDepartments.length}{' '}
                 of {filteredDepartments.length} departments
                 {deptTotalPages > 1 && ` (Page ${deptCurrentPage} of ${deptTotalPages})`}
               </div>
@@ -2248,7 +2271,7 @@ export default function AdminDashboard() {
                     border: '2px dashed var(--border)',
                   }}
                 >
-                  <div style={{ fontSize: '3em', marginBottom: '16px' }}>🔎</div>
+                  <div style={{ fontSize: '3em', marginBottom: '16px' }}><span className="material-symbols-outlined" style={{ fontSize: '48px' }}>search_off</span></div>
                   <h3 style={{ margin: '0 0 8px 0', color: 'var(--text)' }}>
                     No departments found
                   </h3>
@@ -2261,7 +2284,7 @@ export default function AdminDashboard() {
                       setDeptCurrentPage(1);
                     }}
                   >
-                    🗑️ Clear all filters
+                    <span className="material-symbols-outlined" style={{ fontSize: '18px', marginRight: '6px' }}>filter_alt_off</span> Clear all filters
                   </button>
                 </div>
               ) : (
@@ -2513,7 +2536,7 @@ export default function AdminDashboard() {
                 border: '2px dashed var(--border)',
               }}
             >
-              <div style={{ fontSize: '3em', marginBottom: '16px' }}>🏢</div>
+              <div style={{ fontSize: '3em', marginBottom: '16px' }}><span className="material-symbols-outlined" style={{ fontSize: '48px' }}>domain</span></div>
               <h3 style={{ margin: '0 0 8px 0', color: 'var(--text)' }}>No departments yet</h3>
               <p style={{ margin: '0 0 16px 0' }}>
                 Departments will appear here once they are created
@@ -2524,9 +2547,9 @@ export default function AdminDashboard() {
       )}
 
       {tab === 'support' && (
-        <section className="card">
-          <div className="section-header">
-            <h3>Support Tickets</h3>
+        <section className="admin-table-container" style={{ padding: '24px' }}>
+          <div className="section-header" style={{ marginBottom: '24px' }}>
+            <h3 style={{ fontSize: '20px', fontWeight: '700', color: '#0f172a' }}>Support Tickets</h3>
           </div>
           <SupportTicketList showAllTickets={true} />
         </section>
@@ -2535,53 +2558,44 @@ export default function AdminDashboard() {
       {tab === 'reports' && <Reports />}
 
       {tab === 'overview' && (
-        <section className="overview-section">
-          <div className="stats-grid">
-            <div className="stat-card">
-              <h3>Total Users</h3>
-              <p className="stat-number">
-                {loadingOverview ? 'Loading...' : overviewStats?.totalUsers || 0}
-              </p>
+        <section className="admin-table-container" style={{ padding: '24px', border: 'none', background: 'transparent' }}>
+          <div className="admin-stats-grid">
+            <div className="admin-stat-card admin-stat-card--blue">
+              <div className="admin-stat-icon">
+                <span className="material-symbols-outlined">person_off</span>
+              </div>
+              <span className="admin-stat-value">{loadingOverview ? '...' : overviewStats?.inactiveUsers || 0}</span>
+              <span className="admin-stat-label">Inactive Users</span>
             </div>
-            <div className="stat-card">
-              <h3>Inactive Users</h3>
-              <p className="stat-number">
-                {loadingOverview ? 'Loading...' : overviewStats?.inactiveUsers || 0}
-              </p>
+            <div className="admin-stat-card admin-stat-card--emerald">
+              <div className="admin-stat-icon">
+                <span className="material-symbols-outlined">assignment</span>
+              </div>
+              <span className="admin-stat-value">{loadingOverview ? '...' : overviewStats?.totalAssignments || 0}</span>
+              <span className="admin-stat-label">Total Assignments</span>
             </div>
-            <div className="stat-card">
-              <h3>Active Courses</h3>
-              <p className="stat-number">
-                {loadingOverview ? 'Loading...' : overviewStats?.activeCourses || 0}
-              </p>
-            </div>
-            <div className="stat-card">
-              <h3>Assignments</h3>
-              <p className="stat-number">
-                {loadingOverview ? 'Loading...' : overviewStats?.totalAssignments || 0}
-              </p>
-            </div>
-            <div className="stat-card">
-              <h3>Submissions</h3>
-              <p className="stat-number">
-                {loadingOverview ? 'Loading...' : overviewStats?.totalSubmissions || 0}
-              </p>
+            <div className="admin-stat-card admin-stat-card--amber">
+              <div className="admin-stat-icon">
+                <span className="material-symbols-outlined">send</span>
+              </div>
+              <span className="admin-stat-value">{loadingOverview ? '...' : overviewStats?.totalSubmissions || 0}</span>
+              <span className="admin-stat-label">Total Submissions</span>
             </div>
           </div>
-          <div className="overview-content">
-            <div className="quick-actions">
-              <h3>Quick Actions</h3>
+          <div className="admin-table-container" style={{ padding: '32px' }}>
+            <div className="quick-actions" style={{ marginBottom: '40px' }}>
+              <h3 style={{ fontSize: '18px', fontWeight: '700', color: '#0f172a', marginBottom: '20px' }}>Quick Actions</h3>
               <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
-                <button className="btn btn-primary" onClick={() => setTab('users')}>
+                <button className="admin-hero-btn" style={{ background: '#00346f', color: 'white' }} onClick={() => setTab('users')}>
                   Manage Users
                 </button>
-                <button className="btn btn-primary" onClick={() => setTab('courses')}>
+                <button className="admin-hero-btn" style={{ background: '#00346f', color: 'white' }} onClick={() => setTab('courses')}>
                   Create Course
                 </button>
-                <button className="btn btn-primary" onClick={() => setTab('departments')}>
+                <button className="admin-hero-btn" style={{ background: '#00346f', color: 'white' }} onClick={() => setTab('departments')}>
                   Add Department
                 </button>
-                <button className="btn btn-primary" onClick={() => setTab('reports')}>
+                <button className="admin-hero-btn" style={{ background: '#00346f', color: 'white' }} onClick={() => setTab('reports')}>
                   View Reports
                 </button>
               </div>
@@ -3650,24 +3664,6 @@ export default function AdminDashboard() {
                 onChange={e => setNewQuiz({ ...newQuiz, time_limit: e.target.value })}
                 placeholder="Time Limit (minutes, optional)"
               />
-              <label style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <input
-                  type="checkbox"
-                  checked={newQuiz.is_proctored}
-                  onChange={e => setNewQuiz({ ...newQuiz, is_proctored: e.target.checked })}
-                />
-                Is Proctored
-              </label>
-              <label style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <input
-                  type="checkbox"
-                  checked={newQuiz.allow_suspension_resume}
-                  onChange={e =>
-                    setNewQuiz({ ...newQuiz, allow_suspension_resume: e.target.checked })
-                  }
-                />
-                Allow Suspension & Resume
-              </label>
             </div>
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 12, marginTop: 24 }}>
               <button
@@ -3692,9 +3688,7 @@ export default function AdminDashboard() {
                       is_proctored: newQuiz.is_proctored,
                       time_limit: newQuiz.time_limit ? Number(newQuiz.time_limit) : undefined,
                       allow_suspension_resume: newQuiz.allow_suspension_resume,
-                      proctoring_config_id: newQuiz.proctoring_config_id
-                        ? Number(newQuiz.proctoring_config_id)
-                        : undefined,
+                      proctoring_config_id: undefined,
                     });
                     setShowCreateQuiz(false);
                     setNewQuiz({
@@ -3703,10 +3697,6 @@ export default function AdminDashboard() {
                       start_at: '',
                       end_at: '',
                       max_score: '100',
-                      is_proctored: false,
-                      time_limit: '',
-                      allow_suspension_resume: true,
-                      proctoring_config_id: '',
                     });
                     push({ kind: 'success', message: 'Quiz created successfully' });
                     loadQuizzes();
@@ -3859,7 +3849,7 @@ export default function AdminDashboard() {
                       e.currentTarget.style.transform = 'translateY(0)';
                     }}
                   >
-                    <span style={{ fontSize: '1.1em', marginRight: '8px' }}>🏢</span>
+                    <span className="material-symbols-outlined" style={{ fontSize: '18px', marginRight: '8px' }}>corporate_fare</span>
                     Go to Department
                   </button>
                 )}
@@ -4530,7 +4520,7 @@ export default function AdminDashboard() {
                     e.currentTarget.style.transform = 'translateY(0)';
                   }}
                 >
-                  <span style={{ fontSize: '1.1em', marginRight: '8px' }}>👥</span>
+                  <span className="material-symbols-outlined" style={{ fontSize: '18px', marginRight: '8px' }}>groups</span>
                   View Users in Department
                 </button>
               </div>

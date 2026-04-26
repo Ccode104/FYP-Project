@@ -53,6 +53,12 @@ export default function AssignmentManagement() {
   const [googleConnected, setGoogleConnected] = useState(false);
   const [sheetLoading, setSheetLoading] = useState(false);
 
+  const [showAllocationModal, setShowAllocationModal] = useState(false);
+  const [courseTAs, setCourseTAs] = useState<any[]>([]);
+  const [allocationMode, setAllocationMode] = useState<'equal' | 'manual'>('equal');
+  const [manualAllocations, setManualAllocations] = useState<Record<number, number>>({});
+  const [allocating, setAllocating] = useState(false);
+
   useEffect(() => {
     let cancelled = false;
     async function load() {
@@ -105,12 +111,12 @@ export default function AssignmentManagement() {
     try {
       const updated = await apiFetch<Assignment>(`/api/assignments/${assignmentId}`, {
         method: 'PUT',
-        body: JSON.stringify({
+        body: {
           title: editForm.title,
           description: editForm.description,
           due_at: editForm.due_at || null,
           max_score: editForm.max_score,
-        }),
+        },
       });
       setAssignment(updated);
       setShowEditModal(false);
@@ -141,14 +147,11 @@ export default function AssignmentManagement() {
     if (!assignment || !assignmentId) return;
     setSheetLoading(true);
     try {
-      const response = await apiFetch<{ url: string }>(
-        `/api/assignments/${assignmentId}/grading-sheet`,
-        {
-          method: 'POST',
-        }
+      const response = await apiFetch<{ spreadsheetUrl: string }>(
+        `/api/sheets/assignments/${assignmentId}`
       );
-      if (response.url) {
-        window.open(response.url, '_blank');
+      if (response.spreadsheetUrl) {
+        window.open(response.spreadsheetUrl, '_blank');
       } else {
         alert('Failed to generate grading sheet');
       }
@@ -159,6 +162,47 @@ export default function AssignmentManagement() {
       setSheetLoading(false);
     }
   }, [assignment, assignmentId]);
+
+  const loadTAs = async () => {
+    if (!courseId) return;
+    try {
+      const data = await apiFetch<any[]>(`/api/ta/offering/${courseId}/tas`);
+      setCourseTAs(data);
+      // Initialize manual allocations with 0
+      const initial: Record<number, number> = {};
+      data.forEach(ta => { initial[ta.id] = 0; });
+      setManualAllocations(initial);
+    } catch (err) {
+      console.error('Failed to load TAs:', err);
+    }
+  };
+
+  const handleAllocate = async () => {
+    if (!assignmentId) return;
+    setAllocating(true);
+    try {
+      const allocations = Object.entries(manualAllocations).map(([taId, count]) => ({
+        taId: Number(taId),
+        count
+      }));
+
+      await apiFetch('/api/ta/grading/allocate', {
+        method: 'POST',
+        body: {
+          assignmentId: Number(assignmentId),
+          mode: allocationMode,
+          allocations
+        }
+      });
+      alert('Tasks allocated successfully');
+      setShowAllocationModal(false);
+    } catch (err) {
+      console.error('Allocation failed:', err);
+      alert('Failed to allocate tasks');
+    } finally {
+      setAllocating(false);
+    }
+  };
 
   if (loading) {
     return (
@@ -241,17 +285,20 @@ export default function AssignmentManagement() {
               <span className="material-symbols-outlined">edit</span>
               Edit Assignment
             </button>
+            <button
+              className="btn btn-secondary"
+              onClick={() => {
+                loadTAs();
+                setShowAllocationModal(true);
+              }}
+              style={{ marginLeft: '8px' }}
+            >
+              <span className="material-symbols-outlined">assignment_ind</span>
+              Allocate Tasks
+            </button>
             <button className="btn btn-danger" onClick={handleDelete} style={{ marginLeft: '8px' }}>
               <span className="material-symbols-outlined">delete</span>
               Delete
-            </button>
-            <button
-              className="btn btn-outline"
-              onClick={handleOpenSheet}
-              style={{ marginLeft: '8px' }}
-            >
-              <span className="material-symbols-outlined">table_chart</span>
-              Grading Sheet
             </button>
           </div>
         </div>
@@ -282,11 +329,13 @@ export default function AssignmentManagement() {
           >
             <div
               style={{
-                background: 'var(--bg-primary)',
-                padding: '24px',
-                borderRadius: '12px',
+                background: 'var(--surface, #ffffff)',
+                padding: '32px',
+                borderRadius: '16px',
                 width: '100%',
-                maxWidth: '500px',
+                maxWidth: '550px',
+                boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)',
+                border: '1px solid var(--border)',
               }}
             >
               <h2 style={{ marginBottom: '16px' }}>Edit Assignment</h2>
@@ -361,6 +410,87 @@ export default function AssignmentManagement() {
                 </button>
                 <button className="btn btn-primary" onClick={handleSaveEdit}>
                   Save
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Allocation Modal */}
+        {showAllocationModal && (
+          <div className="modal-overlay" style={{
+            position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+            background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center',
+            justifyContent: 'center', zIndex: 1000
+          }}>
+            <div className="modal-content" style={{
+              background: 'white', padding: '32px', borderRadius: '16px',
+              width: '100%', maxWidth: '500px', boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1)'
+            }}>
+              <h2 style={{ marginBottom: '8px' }}>Allocate Grading Tasks</h2>
+              <p style={{ color: '#666', marginBottom: '24px', fontSize: '14px' }}>
+                Distribute student submissions among assigned TAs for evaluation.
+              </p>
+
+              <div style={{ marginBottom: '20px' }}>
+                <label style={{ display: 'block', marginBottom: '8px', fontWeight: 600 }}>Allocation Mode</label>
+                <div style={{ display: 'flex', gap: '12px' }}>
+                  <button 
+                    className={`btn ${allocationMode === 'equal' ? 'btn-primary' : 'btn-secondary'}`}
+                    onClick={() => setAllocationMode('equal')}
+                    style={{ flex: 1 }}
+                  >
+                    Equal Distribution
+                  </button>
+                  <button 
+                    className={`btn ${allocationMode === 'manual' ? 'btn-primary' : 'btn-secondary'}`}
+                    onClick={() => setAllocationMode('manual')}
+                    style={{ flex: 1 }}
+                  >
+                    Manual Counts
+                  </button>
+                </div>
+              </div>
+
+              {allocationMode === 'manual' && (
+                <div style={{ marginBottom: '20px', maxHeight: '200px', overflowY: 'auto' }}>
+                  <label style={{ display: 'block', marginBottom: '8px', fontWeight: 600 }}>Set Student Counts</label>
+                  {courseTAs.length === 0 ? (
+                    <p style={{ fontSize: '12px', color: '#999' }}>No TAs assigned to this course yet.</p>
+                  ) : (
+                    courseTAs.map(ta => (
+                      <div key={ta.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px', padding: '8px', background: '#f8fafc', borderRadius: '8px' }}>
+                        <span style={{ fontSize: '14px', fontWeight: 500 }}>{ta.name}</span>
+                        <input 
+                          type="number" 
+                          min="0"
+                          value={manualAllocations[ta.id] || 0}
+                          onChange={(e) => setManualAllocations({...manualAllocations, [ta.id]: Number(e.target.value)})}
+                          style={{ width: '80px', padding: '4px 8px', borderRadius: '4px', border: '1px solid #ddd' }}
+                        />
+                      </div>
+                    ))
+                  )}
+                </div>
+              )}
+
+              {allocationMode === 'equal' && (
+                <div style={{ marginBottom: '24px', padding: '16px', background: '#f0f9ff', borderRadius: '8px', color: '#0369a1', fontSize: '14px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <span className="material-symbols-outlined">info</span>
+                    <span>Submissions will be divided equally among {courseTAs.length} TAs.</span>
+                  </div>
+                </div>
+              )}
+
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
+                <button className="btn btn-secondary" onClick={() => setShowAllocationModal(false)}>Cancel</button>
+                <button 
+                  className="btn btn-primary" 
+                  onClick={handleAllocate}
+                  disabled={allocating || (allocationMode === 'equal' && courseTAs.length === 0)}
+                >
+                  {allocating ? 'Allocating...' : 'Confirm Allocation'}
                 </button>
               </div>
             </div>

@@ -32,10 +32,11 @@ function getSessionDurationMinutes(lecture: LiveLecture): number {
 }
 
 function attendancePercent(lecture: LiveLecture): number {
-  // Use average attendance as a proxy, or fallback to a reasonable estimate
   const avg = lecture.average_attendance_minutes || 0;
-  // Assume 90 min lecture baseline for percentage calculation
-  return Math.min(100, Math.round((avg / 90) * 100));
+  const duration = getSessionDurationMinutes(lecture);
+
+  if (duration <= 0) return 0;
+  return Math.min(100, Math.round((avg / duration) * 100));
 }
 
 const LectureTable: React.FC<LectureTableProps> = ({ lectures }) => {
@@ -87,13 +88,6 @@ const LectureTable: React.FC<LectureTableProps> = ({ lectures }) => {
                 </td>
                 <td>
                   <div className="ll-table__actions">
-                    <button
-                      className="ll-table__action"
-                      onClick={() => handleView(lecture.id)}
-                    >
-                      View Recording
-                      <span className="material-symbols-outlined" style={{ fontSize: '14px' }}>play_circle</span>
-                    </button>
                     <button
                       className="ll-table__action ll-table__action--muted"
                       onClick={() => handleView(lecture.id)}

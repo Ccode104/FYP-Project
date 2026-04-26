@@ -20,7 +20,6 @@ const AssignmentsLanding = lazy(() => import('./pages/student/AssignmentsLanding
 // AssignmentDetails removed
 
 const SubmissionReview = lazy(() => import('./pages/student/SubmissionReview'));
-const CodeEditorPage = lazy(() => import('./pages/student/CodeEditorPage'));
 const GitHubCodeEditor = lazy(() => import('./pages/student/GitHubCodeEditor'));
 const CodeAssignmentView = lazy(() => import('./pages/student/CodeAssignmentView'));
 const ContestEditorPage = lazy(() => import('./pages/student/ContestEditorPage'));
@@ -36,17 +35,20 @@ const ProtectedRoute = lazy(() => import('./routes/ProtectedRoute'));
 // Layout wrapper for consistent UI across pages
 const Layout = lazy(() => import('./components/Layout'));
 
-// Quiz-related pages
 const QuizResultsPage = lazy(() => import('./pages/teacher/QuizResultsPage'));
 const QuizManagement = lazy(() => import('./pages/teacher/QuizManagement'));
+const QuizBuilder = lazy(() => import('./pages/teacher/QuizBuilder'));
 const AssignmentGitHubSubmit = lazy(() => import('./pages/student/AssignmentGitHubSubmit'));
 const AssignmentGrading = lazy(() => import('./pages/teacher/AssignmentGrading'));
 const AssignmentManagement = lazy(() => import('./pages/teacher/AssignmentManagement'));
+const AssignmentCreate = lazy(() => import('./pages/teacher/AssignmentCreate'));
 const MixedSubmissionUpload = lazy(() => import('./components/student/MixedSubmissionUpload'));
 const VideoManagement = lazy(() => import('./pages/teacher/VideoManagement'));
 const VideoQuizEditor = lazy(() => import('./pages/teacher/VideoQuizEditor'));
 const VideoLibrary = lazy(() => import('./pages/student/VideoLibrary'));
 const ReviewQueue = lazy(() => import('./pages/teacher/ReviewQueue'));
+const TAAssignmentDetails = lazy(() => import('./pages/teacher/TAAssignmentDetails'));
+const TASubmissionsList = lazy(() => import('./pages/teacher/TASubmissionsList'));
 
 // Progress / analytics pages
 const StudentProgress = lazy(() => import('./pages/progress/StudentProgress'));
@@ -193,6 +195,15 @@ function App() {
               }
             />
 
+            <Route
+              path="/courses/:courseId/assignments/new"
+              element={
+                <ProtectedRoute roles={['teacher', 'ta']}>
+                  <AssignmentCreate />
+                </ProtectedRoute>
+              }
+            />
+
             {/* Code assignment view for students */}
             <Route
               path="/courses/:courseId/assignments/:assignmentId"
@@ -225,10 +236,20 @@ function App() {
 
             {/* Quiz management (teacher, faculty, or TA only) */}
             <Route
-              path="/courses/:courseId/quizzes"
+              path="/courses/:courseId/quiz-management"
+              element={
+                <ProtectedRoute roles={['student', 'teacher', 'ta']}>
+                  <QuizManagement />
+                </ProtectedRoute>
+              }
+            />
+            
+            {/* Quiz builder (teacher, faculty, or TA only) */}
+            <Route
+              path="/courses/:courseId/quizzes/:quizId/builder"
               element={
                 <ProtectedRoute roles={['teacher', 'ta']}>
-                  <QuizManagement />
+                  <QuizBuilder />
                 </ProtectedRoute>
               }
             />
@@ -270,6 +291,24 @@ function App() {
               element={
                 <ProtectedRoute roles={['teacher', 'ta']}>
                   <AssignmentGrading />
+                </ProtectedRoute>
+              }
+            />
+
+            <Route
+              path="/courses/:courseId/assignments/:assignmentId/details"
+              element={
+                <ProtectedRoute roles={['ta']}>
+                  <TAAssignmentDetails />
+                </ProtectedRoute>
+              }
+            />
+
+            <Route
+              path="/courses/:courseId/assignments/:assignmentId/evaluate"
+              element={
+                <ProtectedRoute roles={['ta']}>
+                  <TASubmissionsList />
                 </ProtectedRoute>
               }
             />

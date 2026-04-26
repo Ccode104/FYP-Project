@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { apiFetch } from '../../services/api';
+import { useAuth } from '../../context/AuthContext';
 import './AssignmentGrading.css';
 
 interface Assignment {
@@ -12,6 +13,7 @@ interface Assignment {
   due_at?: string;
   course_name?: string;
   course_code?: string;
+  google_sheet_id?: string;
 }
 
 interface SubmissionFile {
@@ -47,6 +49,8 @@ interface RubricItem {
 export default function AssignmentGrading() {
   const { courseId, assignmentId } = useParams<{ courseId: string; assignmentId: string }>();
   const navigate = useNavigate();
+  const { user } = useAuth();
+  const isTA = user?.role === 'ta' || user?.role === 'TA';
 
   const [assignment, setAssignment] = useState<Assignment | null>(null);
   const [submissions, setSubmissions] = useState<Submission[]>([]);
@@ -65,6 +69,11 @@ export default function AssignmentGrading() {
   const [googleConnected, setGoogleConnected] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
   const [sheetLoading, setSheetLoading] = useState(false);
+  const [showSheetGrading, setShowSheetGrading] = useState(false);
+  const [syncingToSheet, setSyncingToSheet] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [deleteConfirmTitle, setDeleteConfirmTitle] = useState('');
+  const [deletingSheet, setDeletingSheet] = useState(false);
 
   useEffect(() => {
     if (!courseId || !assignmentId) return;
@@ -77,10 +86,24 @@ export default function AssignmentGrading() {
         setAssignment(assignmentData);
         setScore(assignmentData.max_score || 100);
 
-        const submissionsData = await apiFetch<{ submissions: Submission[] }>(
-          `/api/assignments/${assignmentId}/submissions`
+        const submissionsEndpoint = isTA 
+          ? `/api/ta/grading/${assignmentId}/submissions`
+          : `/api/assignments/${assignmentId}/submissions`;
+
+        const submissionsData = await apiFetch<{ submissions: Submission[] } | Submission[]>(
+          submissionsEndpoint
         );
-        const subs = submissionsData.submissions || [];
+        
+        let subs: Submission[] = [];
+        if (Array.isArray(submissionsData)) {
+          // TA endpoint returns array directly
+          subs = submissionsData.map((s: any) => ({
+            ...s,
+            id: s.submission_id // Mapping TA-specific field names if needed
+          }));
+        } else {
+          subs = submissionsData.submissions || [];
+        }
         setSubmissions(subs);
 
         if (subs.length > 0) {
@@ -117,16 +140,33 @@ export default function AssignmentGrading() {
 
   const handleGrade = async (publish: boolean = false) => {
     if (!selectedSubmission) return;
+    if (!showSheetGrading) {
+      alert('Grading is locked. Please unlock the grading sheet first.');
+      return;
+    }
 
     setSaving(true);
     try {
-      await apiFetch(`/api/assignments/submissions/${selectedSubmission.id}/grade`, {
+      const gradingEndpoint = isTA
+        ? `/api/ta/grading/submit`
+        : `/api/assignments/submissions/${selectedSubmission.id}/grade`;
+      
+      const payload = isTA 
+        ? {
+            submissionId: selectedSubmission.id,
+            score,
+            comments: feedback,
+            status: publish ? 'graded' : 'pending'
+          }
+        : {
+            score,
+            comments: feedback,
+            status: publish ? 'graded' : 'pending',
+          };
+
+      await apiFetch(gradingEndpoint, {
         method: 'POST',
-        body: JSON.stringify({
-          score,
-          comments: feedback,
-          status: publish ? 'graded' : 'pending',
-        }),
+        body: JSON.stringify(payload),
       });
 
       setSubmissions(prev =>
@@ -161,6 +201,9 @@ export default function AssignmentGrading() {
       );
       if (data.spreadsheetUrl) {
         window.open(data.spreadsheetUrl, '_blank');
+        // Update assignment state to reflect sheet exists
+        setAssignment(prev => prev ? { ...prev, google_sheet_id: 'pending_recheck' } : null);
+        // Better: re-fetch or just set a truthy value since we know it exists now
       }
     } catch (err) {
       console.error('Failed to get/create sheet:', err);
@@ -170,10 +213,63 @@ export default function AssignmentGrading() {
     }
   };
 
+  const handleDeleteSheet = async () => {
+    if (!assignmentId || !assignment) return;
+    if (deleteConfirmTitle !== assignment.title) {
+      alert('Assignment title does not match. Deletion cancelled.');
+      return;
+    }
+
+    setDeletingSheet(true);
+    try {
+      await apiFetch(`/api/sheets/assignments/${assignmentId}`, {
+        method: 'DELETE',
+      });
+      setAssignment(prev => prev ? { ...prev, google_sheet_id: undefined } : null);
+      setShowSheetGrading(false);
+      setShowDeleteConfirm(false);
+      setDeleteConfirmTitle('');
+      alert('Grading sheet deleted successfully');
+    } catch (err) {
+      console.error('Failed to delete grading sheet:', err);
+      alert('Failed to delete grading sheet');
+    } finally {
+      setDeletingSheet(false);
+    }
+  };
+
+  const handleSyncToSheet = async () => {
+    if (!selectedSubmission || !assignmentId) return;
+    if (!showSheetGrading) {
+      alert('Sync is locked. Please unlock the grading sheet first.');
+      return;
+    }
+    setSyncingToSheet(true);
+    try {
+      await apiFetch(`/api/sheets/assignments/${assignmentId}/update-row`, {
+        method: 'POST',
+        body: {
+          email: selectedSubmission.student_email,
+          score: score,
+          comments: feedback
+        },
+      });
+      alert('Grading sheet updated successfully!');
+    } catch (err) {
+      console.error('Failed to sync to sheet:', err);
+      alert('Failed to update grading sheet. Ensure the student is in the sheet.');
+    } finally {
+      setSyncingToSheet(false);
+    }
+  };
+
   const updateRubric = (index: number, newScore: number) => {
-    setRubrics(prev => prev.map((r, i) => (i === index ? { ...r, score: newScore } : r)));
-    const total = rubrics.reduce((sum, r) => sum + (r.index === index ? newScore : r.score), 0);
-    setScore(total);
+    setRubrics(prev => {
+      const updated = prev.map((r, i) => (i === index ? { ...r, score: newScore } : r));
+      const total = updated.reduce((sum, r) => sum + r.score, 0);
+      setScore(total);
+      return updated;
+    });
   };
 
   const getFileIcon = (mimeType?: string, filename?: string) => {
@@ -313,8 +409,8 @@ export default function AssignmentGrading() {
           </div>
           <h1 className="header-title">{assignment?.title}</h1>
           <div className="header-meta">
-            <span className="student-name">{selectedSubmission?.student_name}</span>
-            <span className="separator">•</span>
+            {!isTA && <span className="student-name">{selectedSubmission?.student_name}</span>}
+            {!isTA && <span className="separator">•</span>}
             <span className="submit-date">
               {selectedSubmission?.submitted_at
                 ? new Date(selectedSubmission.submitted_at).toLocaleDateString('en-US', {
@@ -515,77 +611,259 @@ export default function AssignmentGrading() {
         {/* Grading Sidebar */}
         <aside className="grading-sidebar-panel">
           <div className="sidebar-section">
-            <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '12px' }}>
-              <button
-                className="btn btn-secondary"
-                onClick={handleOpenOrCreateSheet}
-                disabled={sheetLoading}
-                style={{ display: 'flex', alignItems: 'center', gap: '4px' }}
-              >
-                <span className="material-symbols-outlined">table_chart</span>
-                {sheetLoading
-                  ? 'Loading...'
-                  : !googleConnected
-                    ? 'Authorize Google Sheets'
-                    : 'Open Grading Sheet'}
-              </button>
-            </div>
-            <h3 className="sidebar-title">Assessment</h3>
-
-            <div className="score-display">
-              <div className="score-value">
-                <span className="score-number">{score}</span>
-                <span className="score-divider">/</span>
-                <span className="score-max">{assignment?.max_score || 100}</span>
-              </div>
-              <p className="score-label">Current Grade</p>
-            </div>
-
-            <div className="rubric-section">
-              {rubrics.map((rubric, idx) => (
-                <div key={idx} className="rubric-item">
-                  <div className="rubric-header">
-                    <span className="rubric-name">{rubric.name}</span>
-                    <span className="rubric-score">
-                      {rubric.score}/{rubric.maxScore}
-                    </span>
+            {!isTA && (
+              <div className="grading-management-bar" style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                background: 'var(--surface)',
+                padding: '16px 20px',
+                borderRadius: '12px',
+                marginBottom: '20px',
+                border: '1px solid var(--border)',
+                boxShadow: 'var(--shadow-sm)',
+                animation: 'slideDown 0.4s ease'
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                  <div style={{ 
+                    width: '36px', 
+                    height: '36px', 
+                    borderRadius: '8px', 
+                    background: 'rgba(59, 130, 246, 0.1)', 
+                    display: 'flex', 
+                    alignItems: 'center', 
+                    justifyContent: 'center',
+                    color: 'var(--primary)'
+                  }}>
+                    <span className="material-symbols-outlined" style={{ fontSize: '20px' }}>analytics</span>
                   </div>
-                  <div className="rubric-bar">
-                    <div
-                      className="rubric-fill"
-                      style={{ width: `${(rubric.score / rubric.maxScore) * 100}%` }}
-                    ></div>
-                  </div>
+                  <span style={{ fontWeight: 600, fontSize: '14px' }}>Grading Management</span>
                 </div>
-              ))}
-            </div>
 
-            <div className="feedback-section">
-              <label className="feedback-label">Feedback</label>
-              <textarea
-                className="feedback-input"
-                value={feedback}
-                onChange={e => setFeedback(e.target.value)}
-                placeholder="Type private comment..."
-                rows={5}
-              />
-            </div>
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  <button
+                    className="premium-action-btn"
+                    onClick={() => setShowSheetGrading(!showSheetGrading)}
+                    disabled={!assignment?.google_sheet_id}
+                    style={{
+                      padding: '8px 16px',
+                      borderRadius: '8px',
+                      border: '1px solid ' + (showSheetGrading ? 'var(--primary)' : 'var(--border)'),
+                      background: showSheetGrading ? 'var(--primary)' : 'var(--surface)',
+                      color: showSheetGrading ? 'white' : 'var(--text)',
+                      fontSize: '13px',
+                      fontWeight: 600,
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                      cursor: !assignment?.google_sheet_id ? 'not-allowed' : 'pointer',
+                      opacity: !assignment?.google_sheet_id ? 0.6 : 1,
+                      transition: 'all 0.2s ease'
+                    }}
+                  >
+                    <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>
+                      {showSheetGrading ? 'lock' : 'lock_open'}
+                    </span>
+                    {showSheetGrading ? 'Lock' : 'Unlock'}
+                  </button>
 
-            <div className="action-buttons">
-              <button
-                className="btn-submit-grade"
-                onClick={() => handleGrade(true)}
-                disabled={saving}
+                  {assignment?.google_sheet_id ? (
+                    <button
+                      onClick={() => setShowDeleteConfirm(true)}
+                      disabled={deletingSheet}
+                      style={{
+                        padding: '8px 16px',
+                        borderRadius: '8px',
+                        border: '1px solid rgba(220, 38, 38, 0.2)',
+                        background: 'rgba(220, 38, 38, 0.05)',
+                        color: '#dc2626',
+                        fontSize: '13px',
+                        fontWeight: 600,
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '6px',
+                        cursor: 'pointer'
+                      }}
+                    >
+                      <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>delete_forever</span>
+                      Delete Sheet
+                    </button>
+                  ) : (
+                    <button
+                      onClick={handleOpenOrCreateSheet}
+                      disabled={sheetLoading}
+                      style={{
+                        padding: '8px 16px',
+                        borderRadius: '8px',
+                        border: 'none',
+                        background: 'linear-gradient(135deg, var(--primary), #4338ca)',
+                        color: 'white',
+                        fontSize: '13px',
+                        fontWeight: 600,
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '6px',
+                        cursor: 'pointer',
+                        boxShadow: '0 4px 10px rgba(99, 102, 241, 0.2)'
+                      }}
+                    >
+                      <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>add_table</span>
+                      {sheetLoading ? 'Creating...' : 'Create Sheet'}
+                    </button>
+                  )}
+                </div>
+              </div>
+            )}
+
+              {showSheetGrading && (
+                <div className="sheet-sync-status" style={{ padding: '12px', background: 'rgba(59, 130, 246, 0.05)', borderRadius: '12px', border: '1px solid var(--primary)', marginBottom: '20px', fontSize: '14px', display: 'flex', alignItems: 'center', gap: '10px', animation: 'fadeIn 0.3s ease' }}>
+                <span className="material-symbols-outlined" style={{ color: 'var(--primary)', fontSize: '20px' }}>{showSheetGrading ? 'sync' : 'lock'}</span>
+                <span style={{ fontWeight: 500, color: 'var(--text)' }}>
+                  {showSheetGrading 
+                    ? 'Sync Mode Active. Grading is enabled and will sync to Google Sheet.' 
+                    : 'Grading Locked. Unlock the grading sheet above to enable grading.'}
+                </span>
+              </div>
+              )}
+            <div className="grading-panel-card" style={{ opacity: showSheetGrading ? 1 : 0.7, pointerEvents: showSheetGrading ? 'all' : 'none' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
+                  <h3 style={{ margin: 0 }}>Grading & Feedback</h3>
+                  {!showSheetGrading && (
+                    <span className="material-symbols-outlined" style={{ color: '#dc2626' }}>lock</span>
+                  )}
+                </div>
+
+                {rubrics.length > 0 && (
+                  <div className="rubric-summary" style={{ marginBottom: '24px', padding: '16px', background: 'var(--bg-secondary)', borderRadius: '12px', border: '1px solid var(--border)' }}>
+                    <h4 style={{ margin: '0 0 12px 0', fontSize: '13px', textTransform: 'uppercase', color: 'var(--muted)', letterSpacing: '0.05em' }}>Rubric Assessment</h4>
+                    {rubrics.map((rubric, idx) => (
+                      <div key={idx} style={{ marginBottom: idx === rubrics.length - 1 ? 0 : '12px' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px', fontSize: '13px' }}>
+                          <span>{rubric.name}</span>
+                          <span style={{ fontWeight: 600 }}>{rubric.score}/{rubric.maxScore}</span>
+                        </div>
+                        <div style={{ height: '6px', background: 'var(--border)', borderRadius: '3px', overflow: 'hidden' }}>
+                          <div style={{ height: '100%', background: 'var(--primary)', width: `${(rubric.score / rubric.maxScore) * 100}%` }}></div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              
+              <fieldset disabled={!showSheetGrading} style={{ border: 'none', padding: 0, margin: 0 }}>
+              <form
+                onSubmit={e => {
+                  e.preventDefault();
+                  handleGrade(score, feedback);
+                }}
               >
-                {saving ? 'Submitting...' : 'Submit Final Grade'}
-              </button>
-              <button className="btn-revision" onClick={() => handleGrade(false)} disabled={saving}>
-                Request Revision
-              </button>
+                <div className="form-group">
+                  <label>Marks (out of 100)</label>
+                  <input
+                    type="number"
+                    name="score"
+                    value={score}
+                    onChange={e => setScore(Number(e.target.value))}
+                    min="0"
+                    max="100"
+                    required
+                  />
+                </div>
+                <div className="form-group">
+                  <label>Comment / Feedback</label>
+                  <textarea
+                    name="feedback"
+                    value={feedback}
+                    onChange={e => setFeedback(e.target.value)}
+                    rows={6}
+                    placeholder="Enter feedback for the student..."
+                  />
+                </div>
+                <button type="submit" className="btn-grade-submit">
+                  Submit Grade
+                </button>
+                
+                {showSheetGrading && (
+                  <button
+                    type="button"
+                    className="btn-grade-submit"
+                    onClick={handleSyncToSheet}
+                    disabled={syncingToSheet}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '8px',
+                      background: 'var(--primary)',
+                      marginTop: '12px'
+                    }}
+                  >
+                    <span className="material-symbols-outlined">sync</span>
+                    {syncingToSheet ? 'Syncing...' : 'Update Google Sheet'}
+                  </button>
+                )}
+              </form>
+              </fieldset>
             </div>
           </div>
         </aside>
       </div>
+
+      {/* Delete Confirmation Modal */}
+      {showDeleteConfirm && (
+        <div className="modal-overlay" style={{
+          position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+          background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center',
+          justifyContent: 'center', zIndex: 1001, backdropFilter: 'blur(4px)'
+        }}>
+          <div className="modal-content" style={{
+            background: 'var(--surface)', padding: '32px', borderRadius: '16px',
+            width: '100%', maxWidth: '450px', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)',
+            border: '1px solid var(--border)'
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', color: '#dc2626', marginBottom: '16px' }}>
+              <span className="material-symbols-outlined" style={{ fontSize: '32px' }}>warning</span>
+              <h2 style={{ margin: 0, fontSize: '20px' }}>Delete Grading Sheet?</h2>
+            </div>
+            
+            <p style={{ color: 'var(--muted)', marginBottom: '24px', lineHeight: '1.5' }}>
+              This will permanently delete the Google Sheet and remove all grading data synced to it. 
+              To confirm, please type the assignment title: <strong>{assignment?.title}</strong>
+            </p>
+
+            <input
+              type="text"
+              value={deleteConfirmTitle}
+              onChange={(e) => setDeleteConfirmTitle(e.target.value)}
+              placeholder="Type assignment title here..."
+              style={{
+                width: '100%', padding: '12px', borderRadius: '8px',
+                border: '1px solid var(--border)', background: 'var(--bg-secondary)',
+                marginBottom: '24px', outline: 'none', fontSize: '14px'
+              }}
+            />
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
+              <button 
+                className="btn btn-secondary" 
+                onClick={() => {
+                  setShowDeleteConfirm(false);
+                  setDeleteConfirmTitle('');
+                }}
+              >
+                Cancel
+              </button>
+              <button 
+                className="btn btn-danger" 
+                onClick={handleDeleteSheet}
+                disabled={deletingSheet || deleteConfirmTitle !== assignment?.title}
+              >
+                {deletingSheet ? 'Deleting...' : 'Delete Permanently'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Footer */}
       <footer className="submission-footer">

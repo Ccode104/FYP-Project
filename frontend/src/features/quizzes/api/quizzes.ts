@@ -90,19 +90,11 @@ export async function submitQuizAttempt(data: {
   quiz_id: number;
   student_id: number;
   answers: Record<number, unknown>;
-  proctoring_session_id?: number;
 }): Promise<{
   message: string;
   attempt: QuizAttempt;
   graded_answers: Record<number, unknown>;
   needs_manual_grading: boolean;
-  proctoring_result?: {
-    violated: boolean;
-    total_violations: number;
-    critical_violations: number;
-    score_penalty: number;
-    final_score: number | null;
-  };
 }> {
   return apiFetch('/api/quizzes/attempts', {
     method: 'POST',
@@ -126,11 +118,6 @@ export async function gradeQuizAttempt(attemptId: number, decisions: Record<numb
   });
 }
 
-export async function deleteQuizAttempt(attemptId: number) {
-  return apiFetch(`/api/quizzes/attempts/${attemptId}`, {
-    method: 'DELETE',
-  });
-}
 
 export async function suspendQuizAttempt(attemptId: number, reason: string, suspendedBy: number) {
   return apiFetch(`/api/quizzes/attempts/${attemptId}/suspend`, {
@@ -146,28 +133,11 @@ export async function resumeQuizAttempt(attemptId: number, resumedBy: number) {
   });
 }
 
-export async function markAttemptAsViolated(attemptId: number, markedBy: number) {
-  return apiFetch(`/api/quizzes/attempts/${attemptId}/mark-violated`, {
-    method: 'POST',
-    body: { markedBy },
-  });
-}
 
 export async function getSuspendedAttempts() {
   return apiFetch('/api/quizzes/suspended-attempts');
 }
 
-export async function getProctoringDashboard() {
-  return apiFetch('/api/proctoring-analytics/dashboard');
-}
-
-export async function getQuizAnalytics(quizId: number) {
-  return apiFetch(`/api/proctoring-analytics/quiz/${quizId}`);
-}
-
-export async function getStudentProctoringHistory(studentId: number) {
-  return apiFetch(`/api/proctoring-analytics/student/${studentId}`);
-}
 
 export async function getQuizResultsSummary(quizId: number): Promise<QuizResultsSummary> {
   return apiFetch(`/api/quizzes/${quizId}/results/summary`);
@@ -175,6 +145,24 @@ export async function getQuizResultsSummary(quizId: number): Promise<QuizResults
 
 export async function getQuizResultsSheet(quizId: number): Promise<{ spreadsheetId: string; spreadsheetUrl: string }> {
   return apiFetch(`/api/sheets/quizzes/${quizId}`);
+}
+
+export async function evaluateQuizResults(quizId: number): Promise<{ spreadsheetUrl: string }> {
+  return apiFetch(`/api/sheets/quizzes/${quizId}/evaluate`, {
+    method: 'POST',
+  });
+}
+
+export async function deleteQuizAttempt(attemptId: string | number) {
+  return apiFetch(`/api/sheets/quizzes/attempts/${attemptId}`, {
+    method: 'DELETE',
+  });
+}
+
+export async function markAttemptAsViolated(attemptId: string | number) {
+  return apiFetch(`/api/sheets/quizzes/attempts/${attemptId}/violate`, {
+    method: 'POST',
+  });
 }
 
 // Runtime shims for TS-only exports (kept for compatibility with existing imports)

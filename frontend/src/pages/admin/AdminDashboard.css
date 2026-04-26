@@ -1,139 +1,217 @@
-.dashboard-page {
+/* ===== Admin Dashboard Styles ===== */
+
+.admin-dashboard {
   min-height: 100vh;
   padding-bottom: 48px;
-  background: var(--bg);
+  background: #f8fafc;
 }
 
-.dashboard-header {
+/* Admin Hero Section */
+.admin-hero {
+  background: linear-gradient(135deg, #00346f 0%, #004a99 100%);
+  padding: 48px 32px;
+  margin: -32px -32px 40px -32px;
+  color: white;
   display: flex;
   justify-content: space-between;
-  align-items: flex-start;
-  gap: 24px;
-  margin-bottom: 40px;
-  padding: 32px;
-  background: linear-gradient(135deg, rgba(100, 116, 139, 0.05), rgba(148, 163, 184, 0.05));
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-sm);
-  animation: slideInDown 0.6s ease-out;
-}
-
-@keyframes slideInDown {
-  from {
-    opacity: 0;
-    transform: translateY(-20px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-@keyframes fadeInUp {
-  from {
-    opacity: 0;
-    transform: translateY(20px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-@keyframes float {
-  0%, 100% { transform: translateY(0px); }
-  50% { transform: translateY(-10px); }
-}
-
-.welcome-section {
-  flex: 1;
-}
-
-.dashboard-title {
-  font-size: 32px;
-  font-weight: 700;
-  color: var(--text);
-  margin: 0 0 8px;
-  letter-spacing: -0.03em;
-  background: linear-gradient(135deg, #7c3aed, #a855f7);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
-  animation: fadeInLeft 0.8s ease-out;
-  line-height: 1.2;
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-}
-
-@keyframes fadeInLeft {
-  from {
-    opacity: 0;
-    transform: translateX(-20px);
-  }
-  to {
-    opacity: 1;
-    transform: translateX(0);
-  }
-}
-
-.dashboard-subtitle {
-  font-size: 16px;
-  color: var(--muted);
-  margin: 0;
-  font-weight: 400;
-  animation: fadeInLeft 0.8s ease-out 0.2s both;
-  line-height: 1.5;
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-}
-
-.dashboard-actions {
-  display: flex;
-  gap: 12px;
-  align-items: flex-start;
-  animation: fadeInRight 0.8s ease-out 0.4s both;
-}
-
-@keyframes fadeInRight {
-  from {
-    opacity: 0;
-    transform: translateX(20px);
-  }
-  to {
-    opacity: 1;
-    transform: translateX(0);
-  }
-}
-
-.admin-theme .dashboard-actions .btn-primary {
-  background: linear-gradient(135deg, #7c3aed, #a855f7);
-  color: #ffffff;
-  border-color: transparent;
-  box-shadow: var(--shadow-sm);
-  padding: 12px 24px;
-  font-weight: 600;
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  align-items: flex-end;
   position: relative;
   overflow: hidden;
 }
 
-.admin-theme .dashboard-actions .btn-primary:hover {
-  background: linear-gradient(135deg, #5b21b6, #7c2d12);
-  transform: translateY(-2px);
-  box-shadow: var(--shadow-md);
-}
-
-.admin-theme .dashboard-actions .btn-primary::before {
+.admin-hero::after {
   content: '';
   position: absolute;
-  top: 0;
-  left: -100%;
-  width: 100%;
-  height: 100%;
-  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
-  transition: left 0.5s ease;
+  top: -50px;
+  right: -50px;
+  width: 200px;
+  height: 200px;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 50%;
 }
 
-.admin-theme .dashboard-actions .btn-primary:hover::before {
-  left: 100%;
+.admin-hero__text {
+  flex: 1;
+  z-index: 1;
+}
+
+.admin-role-badge {
+  display: inline-block;
+  padding: 6px 12px;
+  background: rgba(255, 255, 255, 0.2);
+  backdrop-filter: blur(8px);
+  color: white;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  border-radius: 9999px;
+  margin-bottom: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+}
+
+.admin-hero h2 {
+  font-size: 36px;
+  font-weight: 700;
+  margin: 0 0 8px 0;
+  letter-spacing: -0.02em;
+  color: white;
+}
+
+.admin-hero p {
+  font-size: 16px;
+  color: rgba(255, 255, 255, 0.8);
+  margin: 0;
+}
+
+.admin-hero__actions {
+  display: flex;
+  gap: 12px;
+  z-index: 1;
+}
+
+.admin-hero-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 18px;
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 8px;
+  color: white;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.admin-hero-btn:hover {
+  background: rgba(255, 255, 255, 0.2);
+  transform: translateY(-1px);
+}
+
+/* Stats Grid */
+.admin-stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 24px;
+  margin-bottom: 40px;
+}
+
+.admin-stat-card {
+  background: white;
+  padding: 24px;
+  border-radius: 16px;
+  border: 1px solid #e2e8f0;
+  display: flex;
+  flex-direction: column;
+  transition: all 0.3s ease;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+}
+
+.admin-stat-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+  border-color: #cbd5e1;
+}
+
+.admin-stat-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 16px;
+  font-size: 20px;
+}
+
+.admin-stat-card--blue .admin-stat-icon { background: #e0f2fe; color: #0369a1; }
+.admin-stat-card--purple .admin-stat-icon { background: #f3e8ff; color: #7e22ce; }
+.admin-stat-card--emerald .admin-stat-icon { background: #d1fae5; color: #059669; }
+.admin-stat-card--amber .admin-stat-icon { background: #fef3c7; color: #d97706; }
+
+.admin-stat-value {
+  font-size: 28px;
+  font-weight: 700;
+  color: #0f172a;
+  margin-bottom: 4px;
+}
+
+.admin-stat-label {
+  font-size: 14px;
+  color: #64748b;
+  font-weight: 500;
+}
+
+/* Tabs Restyling */
+.admin-tabs {
+  display: flex;
+  gap: 8px;
+  background: #f1f5f9;
+  padding: 4px;
+  border-radius: 12px;
+  margin-bottom: 32px;
+  width: fit-content;
+}
+
+.admin-tab-btn {
+  padding: 10px 20px;
+  border-radius: 8px;
+  border: none;
+  background: transparent;
+  color: #64748b;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.admin-tab-btn:hover {
+  color: #0f172a;
+}
+
+.admin-tab-btn.active {
+  background: white;
+  color: #00346f;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+}
+
+/* Table and Content Styling */
+.admin-table-container {
+  background: white;
+  border-radius: 16px;
+  border: 1px solid #e2e8f0;
+  overflow: hidden;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+}
+
+.admin-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.admin-table th {
+  background: #f8fafc;
+  padding: 16px 24px;
+  text-align: left;
+  font-size: 12px;
+  font-weight: 700;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.admin-table td {
+  padding: 16px 24px;
+  font-size: 14px;
+  color: #334155;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.admin-table tr:hover {
+  background: #f8fafc;
 }
 
 /* Courses Section */

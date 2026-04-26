@@ -10,6 +10,7 @@ import {
   getSubmissionById,
   deleteSubmission,
   submitMixedAssignment,
+  downloadSubmissionFile,
 } from '../controllers/submissionsController.js';
 
 const router = express.Router();
@@ -270,5 +271,8 @@ router.post(
 );
 
 router.delete('/:id', requireAuth, deleteSubmission);
+
+// Download/Preview a submission file
+router.get('/files/:id/download', requireAuth, downloadSubmissionFile);
 
 export default router;

@@ -1,198 +1,17 @@
-﻿/* Assignments Page CSS - Using global variables to match student dashboard */
+/* Assignments Page CSS - Using global variables to match student dashboard */
 
 .assignments-page {
-  min-height: 100vh;
-  background: var(--bg);
+  min-height: auto;
+  background: #f8fafc;
   color: var(--text);
-  display: flex;
+  padding: 0;
 }
 
-.assignments-sidebar {
-  width: 280px;
-  height: 100vh;
-  position: fixed;
-  left: 0;
-  top: 0;
-  background: var(--surface);
-  border-right: 1px solid var(--border);
-  z-index: 50;
-  display: flex;
-  flex-direction: column;
-  padding: 2rem 1.5rem;
-  gap: 2rem;
-  overflow-y: auto;
-  font-family: 'Public Sans', sans-serif;
-  font-size: 0.875rem;
-  font-weight: 500;
-}
-
-.assignments-logo-icon {
-  width: 2.5rem;
-  height: 2.5rem;
-  background: var(--primary);
-  border-radius: 0.5rem;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: var(--surface);
-  transform: translateY(-2px);
-}
-
-.assignments-logo-text h1 {
-  font-size: 1.5rem;
-  font-weight: 700;
-  letter-spacing: -0.025em;
-  color: var(--text);
-  margin: 0;
-}
-
-.assignments-logo-text p {
-  font-size: 0.75rem;
-  color: var(--muted);
-  font-weight: 400;
-  margin: 0;
-}
-
-.assignments-nav {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  gap: 0.25rem;
-}
-
-.assignments-nav-link {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  padding: 0.75rem 1rem;
-  border-radius: 0.5rem;
-  color: var(--text);
-  text-decoration: none;
-  transition: all 0.2s;
-  font-weight: 500;
-}
-
-.assignments-nav-link:hover {
-  background: rgba(0, 0, 0, 0.05);
-}
-
-.assignments-nav-link.active {
-  background: var(--primary);
-  color: var(--surface);
-  border-right: 4px solid var(--primary);
-  font-weight: 600;
-}
-
-.assignments-cta {
-  padding: 0 1rem;
-  margin-top: auto;
-}
-
-.assignments-cta-button {
-  width: 100%;
-  padding: 0.75rem 1rem;
-  background: var(--primary);
-  color: var(--surface);
-  border: none;
-  border-radius: 0.75rem;
-  font-weight: 600;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.5rem;
-  transition: background-color 0.2s;
-  cursor: pointer;
-  box-shadow: none;
-}
-
-.assignments-cta-button:hover {
-  background: var(--primary-hover);
-  box-shadow: none;
-}
-
-/* Header - Following project pattern */
-.assignments-topbar {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  height: 72px;
-  padding: 1rem 2rem;
-  background: var(--surface);
-  border-bottom: 1px solid var(--border);
-  box-shadow: none;
-  position: fixed;
-  top: 0;
-  left: 280px;
-  right: 0;
-  z-index: 5;
-}
-
-.assignments-breadcrumb {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  font-weight: 600;
-  color: var(--text);
-}
-
-.assignments-actions {
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-}
-
-.assignments-search {
-  position: relative;
-  display: none;
-}
-
-@media (min-width: 768px) {
-  .assignments-search {
-    display: block;
-  }
-}
-
-.assignments-search-input {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 0.75rem;
-  padding: 0.75rem 1rem 0.75rem 2.5rem;
-  font-size: 0.875rem;
-  width: 100%;
-  transition: all 0.2s;
-}
-
-.assignments-search-input:focus {
-  outline: none;
-  border-color: var(--primary);
-  box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.1);
-}
-
-.assignments-user-actions {
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-}
-
-.assignments-icon {
-  cursor: pointer;
-  padding: 0.5rem;
-  border-radius: 0.5rem;
-  transition: all 0.2s;
-  color: var(--muted);
-}
-
-.assignments-icon:hover {
-  background: rgba(79, 70, 229, 0.1);
-  color: var(--primary);
-  transform: translateY(-2px);
-}
-
-/* Main Content - Following project pattern */
+/* Sidebar and Topbar removed as they are provided by the global Layout */
+.assignments-sidebar,
+.assignments-topbar,
 .assignments-main {
-  flex: 1;
-  margin-left: 280px;
-  padding: 6rem 2rem 2rem;
+  display: none;
 }
 
 .assignments-content {
@@ -263,6 +82,19 @@
   color: var(--surface);
   font-weight: 600;
   box-shadow: none;
+}
+
+.create-btn {
+  background: var(--primary) !important;
+  color: white !important;
+  font-weight: 600 !important;
+  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.25) !important;
+  margin-left: 1rem;
+}
+
+.create-btn:hover {
+  background: var(--primary-hover, #2563eb) !important;
+  transform: translateY(-1px);
 }
 
 /* Stats Grid - Following project pattern */

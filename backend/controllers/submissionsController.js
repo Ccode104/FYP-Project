@@ -6,11 +6,12 @@ import {
   updateLeaderboards,
 } from '../utils/gamification.js';
 import { runPlagiarismCheck } from '../utils/plagiarism.js';
-import archiver from 'archiver';
-import { v2 as cloudinary } from 'cloudinary';
 import { v4 as uuidv4 } from 'uuid';
 import { google } from 'googleapis';
 import { getAuthenticatedClient } from './googleController.js';
+import { Readable } from 'stream';
+import archiver from 'archiver';
+import { v2 as cloudinary } from 'cloudinary';
 
 /**
  * Upload files to Google Drive and grant teacher access
@@ -40,6 +41,7 @@ async function uploadToGoogleDrive(files, studentId, assignmentId, teacherEmail)
 
   let driveFileUrl = `https://drive.google.com/drive/folders/${folderId}`;
   let driveFileId = folderId;
+  const uploadedFilesData = [];
 
   for (const file of files) {
     const fileMetadata = {
@@ -49,19 +51,26 @@ async function uploadToGoogleDrive(files, studentId, assignmentId, teacherEmail)
 
     const media = {
       mimeType: file.mimetype,
-      body: Buffer.from(file.buffer),
+      body: Readable.from(file.buffer),
     };
 
     const uploadedFile = await drive.files.create({
       resource: fileMetadata,
       media: media,
-      fields: 'id, webViewLink',
+      fields: 'id, webViewLink, webContentLink',
     });
 
     if (uploadedFile.data.webViewLink) {
       driveFileUrl = uploadedFile.data.webViewLink;
       driveFileId = uploadedFile.data.id;
     }
+
+    uploadedFilesData.push({
+      originalname: file.originalname,
+      fileId: uploadedFile.data.id,
+      webViewLink: uploadedFile.data.webViewLink,
+      webContentLink: uploadedFile.data.webContentLink,
+    });
 
     if (teacherEmail) {
       try {
@@ -91,7 +100,7 @@ async function uploadToGoogleDrive(files, studentId, assignmentId, teacherEmail)
     }
   }
 
-  return { driveUrl: driveFileUrl, driveFileId };
+  return { driveUrl: driveFileUrl, driveFileId, files: uploadedFilesData };
 }
 
 /**
@@ -158,6 +167,34 @@ async function createZipFromFiles(files, assignmentId, studentId) {
   });
 }
 
+/**
+ * Upload a single file to Cloudinary
+ * @param {Object} file - Multer file object
+ * @param {number} assignmentId - Assignment ID
+ * @param {number} studentId - Student ID
+ * @returns {Promise<string>} - Cloudinary URL
+ */
+async function uploadFileToCloudinary(file, assignmentId, studentId) {
+  return new Promise((resolve, reject) => {
+    const stream = cloudinary.uploader.upload_stream(
+      {
+        resource_type: 'auto',
+        folder: `assignment_submissions/assignment_${assignmentId}/student_${studentId}`,
+        public_id: `${uuidv4()}_${file.originalname.replace(/\.[^/.]+$/, '')}`,
+      },
+      (error, result) => {
+        if (error) {
+          console.error('[DEBUG] Cloudinary upload error:', error);
+          reject(error);
+        } else {
+          resolve(result.secure_url);
+        }
+      }
+    );
+    stream.end(file.buffer);
+  });
+}
+
 async function getOrCreateSingleAssignmentSubmission(db, assignmentId, studentId, comments = null) {
   const existingResult = await db.query(
     `SELECT *
@@ -173,18 +210,18 @@ async function getOrCreateSingleAssignmentSubmission(db, assignmentId, studentId
       `UPDATE assignment_submissions
        SET submitted_at = NOW(),
            status = 'submitted',
-           comments = COALESCE($3, comments),
+           comments = COALESCE($2::text, comments),
            attempt = 1
-       WHERE id = $1
+       WHERE id = $1::int
        RETURNING *`,
-      [existingResult.rows[0].id, studentId, comments]
+      [existingResult.rows[0].id, comments]
     );
     return updated.rows[0];
   }
 
   const inserted = await db.query(
     `INSERT INTO assignment_submissions (assignment_id, student_id, comments, submitted_at, status, attempt)
-     VALUES ($1, $2, $3, NOW(), 'submitted', 1)
+     VALUES ($1::int, $2::int, $3::text, NOW(), 'submitted', 1)
      RETURNING *`,
     [assignmentId, studentId, comments]
   );
@@ -249,32 +286,33 @@ export async function submitFileAssignment(req, res) {
 
     const files = req.files || [];
 
-    // For all assignments, create a zip file if multiple files are uploaded
-    if (files.length > 1) {
+    if (files.length > 0) {
       try {
-        const zipUrl = await createZipFromFiles(files, assignment_id, student_id);
-        await pool.query(
-          `INSERT INTO file_submissions (submission_id, zip_file_url, submission_type) VALUES ($1, $2, $3)`,
-          [submission.id, zipUrl, 'file']
-        );
-        console.log(`[DEBUG] submitFileAssignment: Created zip for multiple files, url=${zipUrl}`);
-      } catch (zipError) {
-        console.error('Error creating zip for multiple files:', zipError);
-        // Continue without zip, but still store individual files
-      }
-    }
+        const driveResults = await uploadToGoogleDrive(files, student_id, assignment_id);
+        
+        if (driveResults.driveUrl) {
+          await pool.query(
+            `INSERT INTO file_submissions (submission_id, zip_file_url, submission_type) VALUES ($1, $2, $3)`,
+            [submission.id, driveResults.driveUrl, 'file']
+          );
+        }
 
-    // Store individual files (for non-mixed assignments or as fallback)
-    for (const f of files) {
-      // TODO: Implement file upload to Cloudinary or another storage provider if needed
-      // const url = await uploadBufferToS3(f.buffer, f.originalname, f.mimetype);
-      // For now, store a placeholder path since Cloudinary is not configured
-      const url = `local://${f.originalname}`; // Placeholder for local storage
-      await pool.query(
-        `INSERT INTO submission_files (submission_id, storage_path, filename, file_size, mime_type)
-                         VALUES ($1,$2,$3,$4,$5)`,
-        [submission.id, url, f.originalname, f.size, f.mimetype]
-      );
+        for (const fileData of driveResults.files) {
+          const originalFile = files.find(f => f.originalname === fileData.originalname);
+          const url = `gdrive://${fileData.fileId}`;
+          await pool.query(
+            `INSERT INTO submission_files (submission_id, storage_path, filename, file_size, mime_type)
+                             VALUES ($1,$2,$3,$4,$5)`,
+            [submission.id, url, fileData.originalname, originalFile?.size || 0, originalFile?.mimetype || '']
+          );
+        }
+      } catch (err) {
+        console.error('Failed to upload files to Google Drive:', err);
+        if (err.message === 'Google not connected') {
+          return res.status(403).json({ error: 'Please connect Google Drive to submit files.' });
+        }
+        return res.status(500).json({ error: 'Failed to upload files to Google Drive.' });
+      }
     }
 
     // Run plagiarism check asynchronously (don't block response)
@@ -291,7 +329,8 @@ export async function submitFileAssignment(req, res) {
 
 export async function submitMixedAssignment(req, res) {
   try {
-    const { assignmentId, content, uploadToDrive } = req.body;
+    const assignmentId = req.body.assignmentId || req.body.assignment_id;
+    const { content, uploadToDrive } = req.body;
     const student_id = Number(req.user?.id);
     const shouldUploadToDrive = uploadToDrive === 'true';
 
@@ -300,7 +339,7 @@ export async function submitMixedAssignment(req, res) {
     );
 
     if (!assignmentId || !student_id) {
-      return res.status(400).json({ error: 'Missing required fields: assignmentId' });
+      return res.status(400).json({ error: 'Missing required field: assignmentId or assignment_id' });
     }
 
     const assignment_id = parseInt(assignmentId);
@@ -328,7 +367,24 @@ export async function submitMixedAssignment(req, res) {
       student_id,
       content?.trim() || null
     );
-    await clearSubmissionArtifacts(pool, submission.id);
+
+    // Selective cleanup: keep files that are explicitly mentioned
+    const existingFileIds = req.body.existingFileIds
+      ? (Array.isArray(req.body.existingFileIds) ? req.body.existingFileIds : [req.body.existingFileIds])
+      : [];
+
+    if (existingFileIds.length > 0) {
+      await pool.query(
+        'DELETE FROM submission_files WHERE submission_id = $1 AND id NOT IN (SELECT unnest($2::int[]))',
+        [submission.id, existingFileIds.map(id => parseInt(id))]
+      );
+    } else {
+      await pool.query('DELETE FROM submission_files WHERE submission_id = $1', [submission.id]);
+    }
+
+    // Clear other artifacts that are usually re-created or not needed
+    await pool.query('DELETE FROM file_submissions WHERE submission_id = $1', [submission.id]);
+    await pool.query('DELETE FROM github_submissions WHERE submission_id = $1', [submission.id]);
 
     if (content && content.trim()) {
       await pool.query('UPDATE assignment_submissions SET content = $1 WHERE id = $2', [
@@ -338,72 +394,56 @@ export async function submitMixedAssignment(req, res) {
     }
 
     const files = req.files || [];
-
-    if (files.length > 1) {
-      try {
-        const zipUrl = await createZipFromFiles(files, assignment_id, student_id);
-        await pool.query(
-          `INSERT INTO file_submissions (submission_id, zip_file_url, submission_type) VALUES ($1, $2, $3)`,
-          [submission.id, zipUrl, 'mixed']
-        );
-      } catch (zipError) {
-        console.error('Error creating zip for multiple files:', zipError);
-      }
-    }
-
-    for (const f of files) {
-      const url = `local://${f.originalname}`;
-      await pool.query(
-        `INSERT INTO submission_files (submission_id, storage_path, filename, file_size, mime_type)
-                         VALUES ($1,$2,$3,$4,$5)`,
-        [submission.id, url, f.originalname, f.size, f.mimetype]
-      );
-    }
-
     let driveUrl = null;
     let driveFileId = null;
 
-    if (files.length > 0 && shouldUploadToDrive) {
+    if (files.length > 0) {
       try {
-        const googleTokensCheck = await pool.query(
-          `SELECT 1 FROM user_oauth_tokens WHERE user_id = $1 AND provider = 'google'`,
-          [student_id]
+        const courseOfferingQ = `
+          SELECT o.faculty_id, u.email as teacher_email
+          FROM course_offerings o
+          JOIN users u ON o.faculty_id = u.id
+          WHERE o.id = $1
+        `;
+        const courseOfferingR = await pool.query(courseOfferingQ, [
+          assignment.course_offering_id,
+        ]);
+
+        const teacherEmail = courseOfferingR.rows[0]?.teacher_email || null;
+        
+        const driveResults = await uploadToGoogleDrive(files, student_id, assignment_id, teacherEmail);
+        driveUrl = driveResults.driveUrl;
+        driveFileId = driveResults.driveFileId;
+
+        await pool.query(
+          `UPDATE assignment_submissions SET drive_url = $1, drive_file_id = $2 WHERE id = $3`,
+          [driveUrl, driveFileId, submission.id]
         );
 
-        if (googleTokensCheck.rowCount > 0) {
-          const courseOfferingQ = `
-            SELECT o.faculty_id, u.email as teacher_email
-            FROM course_offerings o
-            JOIN users u ON o.faculty_id = u.id
-            WHERE o.id = $1
-          `;
-          const courseOfferingR = await pool.query(courseOfferingQ, [
-            assignment.course_offering_id,
-          ]);
-
-          const teacherEmail = courseOfferingR.rows[0]?.teacher_email || null;
-          console.log(
-            `[DEBUG] submitMixedAssignment: Uploading to Google Drive for student=${student_id}, teacher=${teacherEmail}`
-          );
-
-          const driveResult = await uploadToGoogleDrive(
-            files,
-            student_id,
-            assignment_id,
-            teacherEmail
-          );
-          driveUrl = driveResult.driveUrl;
-          driveFileId = driveResult.driveFileId;
-
+        if (driveUrl) {
           await pool.query(
-            `UPDATE assignment_submissions SET drive_url = $1, drive_file_id = $2 WHERE id = $3`,
-            [driveUrl, driveFileId, submission.id]
+            `INSERT INTO file_submissions (submission_id, zip_file_url, submission_type) VALUES ($1, $2, $3)`,
+            [submission.id, driveUrl, 'mixed']
           );
-
-          console.log(`[DEBUG] submitMixedAssignment: Drive upload successful, url=${driveUrl}`);
         }
-      } catch (driveError) {
-        console.error('[DEBUG] Google Drive upload failed:', driveError.message);
+
+        for (const fileData of driveResults.files) {
+          const originalFile = files.find(f => f.originalname === fileData.originalname);
+          const url = `gdrive://${fileData.fileId}`;
+          await pool.query(
+            `INSERT INTO submission_files (submission_id, storage_path, filename, file_size, mime_type)
+                             VALUES ($1,$2,$3,$4,$5)`,
+            [submission.id, url, fileData.originalname, originalFile?.size || 0, originalFile?.mimetype || '']
+          );
+        }
+
+        console.log(`[DEBUG] submitMixedAssignment: Drive upload successful, url=${driveUrl}`);
+      } catch (err) {
+        console.error('Failed to upload files to Google Drive:', err);
+        if (err.message === 'Google not connected') {
+          return res.status(403).json({ error: 'Please connect Google Drive to submit files.' });
+        }
+        return res.status(500).json({ error: 'Failed to upload files to Google Drive.' });
       }
     }
 
@@ -456,7 +496,7 @@ export async function submitCodeAssignment(req, res) {
     // Check if code submission already exists for this submission and question
     let codeSubmission;
     const existingCodeQ =
-      'SELECT * FROM code_submissions WHERE submission_id = $1 AND (assignment_question_id = $2 OR ($2 IS NULL AND assignment_question_id IS NULL))';
+      'SELECT * FROM code_submissions WHERE submission_id = $1::int AND (assignment_question_id = $2::int OR ($2::int IS NULL AND assignment_question_id IS NULL))';
     const existingCodeR = await pool.query(existingCodeQ, [submission.id, assignment_question_id]);
 
     if (existingCodeR.rowCount > 0) {
@@ -1220,5 +1260,72 @@ export async function deleteSubmission(req, res) {
     return res.status(500).json({ error: 'Internal server error' });
   } finally {
     client.release();
+  }
+}
+
+export async function downloadSubmissionFile(req, res) {
+  try {
+    const fileId = req.params.id;
+    if (!fileId) {
+      return res.status(400).json({ error: 'Missing file ID' });
+    }
+
+    const result = await pool.query(
+      `SELECT sf.storage_path, sf.filename, sf.mime_type, s.student_id 
+       FROM submission_files sf
+       JOIN assignment_submissions s ON sf.submission_id = s.id
+       WHERE sf.id = $1`,
+      [fileId]
+    );
+
+    if (result.rowCount === 0) {
+      return res.status(404).json({ error: 'File not found' });
+    }
+
+    const file = result.rows[0];
+    const storagePath = file.storage_path;
+
+    if (storagePath.startsWith('gdrive://')) {
+      const gDriveFileId = storagePath.replace('gdrive://', '');
+      try {
+        // Use student's auth to fetch the file (they own it)
+        const auth = await getAuthenticatedClient(file.student_id);
+        const drive = google.drive({ version: 'v3', auth });
+
+        const driveResponse = await drive.files.get(
+          { fileId: gDriveFileId, alt: 'media' },
+          { responseType: 'stream' }
+        );
+
+        res.setHeader('Content-Type', file.mime_type || 'application/octet-stream');
+        res.setHeader('Content-Disposition', `inline; filename="${file.filename}"`);
+        
+        driveResponse.data
+          .on('error', (err) => {
+            console.error('Drive stream error:', err);
+            if (!res.headersSent) res.status(500).end();
+          })
+          .pipe(res);
+        return;
+      } catch (driveErr) {
+        console.error('Failed to fetch from Google Drive:', driveErr);
+        return res.status(500).json({ error: 'Failed to fetch file from Google Drive.' });
+      }
+    }
+
+    if (storagePath.startsWith('http')) {
+      // It's a Cloudinary URL (or other external URL)
+      return res.redirect(storagePath);
+    } else if (storagePath.startsWith('local://')) {
+      return res.status(400).json({
+        error: 'File only stored as placeholder locally. Preview not available.',
+      });
+    }
+
+    // Default: try to send as download if it's a local path (not implemented yet but for future)
+    res.status(400).json({ error: 'Unsupported storage path' });
+  } catch (err) {
+    console.error('downloadSubmissionFile error', err);
+    res.status(500).json({ error: 'Internal server error' });
   }
 }

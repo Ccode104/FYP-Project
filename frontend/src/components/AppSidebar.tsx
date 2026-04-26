@@ -107,33 +107,33 @@ export default function AppSidebar() {
           href: '/success-center',
         },
       ];
-    } else if (user?.role === 'teacher' || user?.role === 'ta') {
+    } else if (user?.role === 'teacher') {
       if (inVideoPlayerContext) {
         return [
           {
             id: 'dashboard',
             label: 'Back to Dashboard',
             icon: 'arrow_back',
-            href: `/dashboard/${user.role}`,
+            href: '/dashboard/teacher',
           },
           {
             id: 'video-library',
             label: 'Video Library',
             icon: 'video_library',
-            href: `/dashboard/${user.role}`,
+            href: '/dashboard/teacher',
           },
           {
             id: 'assignments',
             label: 'Assignments',
             icon: 'assignment',
-            href: `/dashboard/${user.role}`,
+            href: '/dashboard/teacher',
           },
-          { id: 'quizzes', label: 'Quizzes', icon: 'quiz', href: `/dashboard/${user.role}` },
+          { id: 'quizzes', label: 'Quizzes', icon: 'quiz', href: '/dashboard/teacher' },
           {
             id: 'lectures',
             label: 'Live Lectures',
             icon: 'video_camera_front',
-            href: `/dashboard/${user.role}`,
+            href: '/dashboard/teacher',
           },
         ];
       }
@@ -143,7 +143,7 @@ export default function AppSidebar() {
             id: 'dashboard',
             label: 'Back to Dashboard',
             icon: 'arrow_back',
-            href: `/dashboard/${user.role}`,
+            href: '/dashboard/teacher',
           },
           {
             id: 'hub',
@@ -161,7 +161,7 @@ export default function AppSidebar() {
             id: 'quizzes',
             label: 'Quizzes',
             icon: 'quiz',
-            href: `/courses/${currentCourseId}/quizzes`,
+            href: `/courses/${currentCourseId}/quiz-management`,
           },
           {
             id: 'lectures',
@@ -169,24 +169,29 @@ export default function AppSidebar() {
             icon: 'video_camera_front',
             href: `/courses/${currentCourseId}/live-lectures`,
           },
-            {
-              id: 'videos',
-              label: 'Videos',
-              icon: 'play_circle',
-              href: `/courses/${currentCourseId}/videos`,
-            },
+          {
+            id: 'videos',
+            label: 'Videos',
+            icon: 'play_circle',
+            href: `/courses/${currentCourseId}/videos`,
+          },
         ];
       }
       // Global teacher nav
       return [
-        { id: 'dashboard', label: 'Dashboard', icon: 'dashboard', href: `/dashboard/${user.role}` },
-        { id: 'planner', label: 'Planner', icon: 'calendar_month', href: `/planner/${user.role}` },
+        { id: 'dashboard', label: 'Dashboard', icon: 'dashboard', href: '/dashboard/teacher' },
+        { id: 'planner', label: 'Planner', icon: 'calendar_month', href: '/planner/teacher' },
         {
           id: 'review-queue',
           label: 'Review Queue',
           icon: 'rate_review',
           href: '/staff/review-queue',
         },
+      ];
+    } else if (user?.role === 'ta') {
+      // TAs have a very simple flow: Dashboard (Tasks) only
+      return [
+        { id: 'dashboard', label: 'My Tasks', icon: 'task_alt', href: '/dashboard/ta' },
       ];
     } else if (user?.role === 'admin') {
       return [

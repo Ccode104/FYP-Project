@@ -296,10 +296,6 @@ export default function VideoManagement() {
             </p>
           </div>
           <div className="vm-header-actions">
-            <button className="vm-btn-secondary">
-              <span className="material-symbols-outlined">filter_list</span>
-              Archive
-            </button>
             {googleConnected ? (
               <button className="vm-btn-secondary" disabled>
                 <span className="material-symbols-outlined">cloud_done</span>

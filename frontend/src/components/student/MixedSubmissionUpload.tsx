@@ -1,6 +1,6 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
-import { apiFetch } from '../../services/api';
+import { apiFetch, apiForm } from '../../services/api';
 import { useToast } from '../ToastProvider';
 import './MixedSubmissionUpload.css';
 
@@ -10,10 +10,14 @@ interface MixedSubmissionUploadProps {
 }
 
 interface UploadedFile {
-  file: File;
+  id?: number | string;
+  file?: File;
+  name: string;
+  size: number;
   preview?: string;
   progress: number;
   status: 'pending' | 'uploading' | 'completed' | 'error';
+  isExisting?: boolean;
 }
 
 export default function MixedSubmissionUpload({
@@ -33,7 +37,6 @@ export default function MixedSubmissionUpload({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const [googleConnected, setGoogleConnected] = useState(false);
-  const [uploadToDrive, setUploadToDrive] = useState(false);
   const [isCheckingGoogle, setIsCheckingGoogle] = useState(true);
 
   useEffect(() => {
@@ -52,8 +55,39 @@ export default function MixedSubmissionUpload({
         setIsCheckingGoogle(false);
       }
     };
+
+    const loadExistingSubmission = async () => {
+      try {
+        const data = await apiFetch<any[]>(
+          `/api/student/assignments/${effectiveAssignmentId}/submissions`
+        );
+        if (data && data.length > 0) {
+          const latest = data[0];
+          if (latest.content) {
+            setContent(latest.content);
+          }
+          if (latest.files && latest.files.length > 0) {
+            const existingFiles: UploadedFile[] = latest.files.map((f: any) => ({
+              id: f.id,
+              name: f.filename,
+              size: f.file_size || 0,
+              progress: 100,
+              status: 'completed',
+              isExisting: true,
+            }));
+            setFiles(existingFiles);
+          }
+        }
+      } catch (error) {
+        console.error('Failed to load existing submission:', error);
+      }
+    };
+
     checkGoogleStatus();
-  }, []);
+    if (effectiveAssignmentId) {
+      loadExistingSubmission();
+    }
+  }, [effectiveAssignmentId]);
 
   const allowedTypes = [
     'application/pdf',
@@ -91,8 +125,8 @@ export default function MixedSubmissionUpload({
     '.h',
   ];
 
-  const getFileIcon = (file: File) => {
-    const name = file.name.toLowerCase();
+  const getFileIcon = (fileName: string) => {
+    const name = fileName.toLowerCase();
     if (name.endsWith('.pdf')) return { icon: 'picture_as_pdf', color: '#e11d48' };
     if (
       name.endsWith('.png') ||
@@ -164,6 +198,8 @@ export default function MixedSubmissionUpload({
 
     const newFileObjects: UploadedFile[] = validFiles.map(file => ({
       file,
+      name: file.name,
+      size: file.size,
       preview: file.type.startsWith('image/') ? URL.createObjectURL(file) : undefined,
       progress: 0,
       status: 'pending' as const,
@@ -195,70 +231,36 @@ export default function MixedSubmissionUpload({
       return;
     }
 
-    setIsSubmitting(true);
+    if (files.some(f => !f.isExisting) && !googleConnected) {
+      push({ kind: 'error', message: 'Please connect Google Drive to upload new files.' });
+      return;
+    }
 
+    setIsSubmitting(true);
     try {
       const formData = new FormData();
       formData.append('assignmentId', effectiveAssignmentId);
-      if (content.trim()) {
-        formData.append('content', content);
-      }
-      if (uploadToDrive && googleConnected) {
-        formData.append('uploadToDrive', 'true');
-      }
-
-      files.forEach((uploadFile, index) => {
-        formData.append('files', uploadFile.file);
+      formData.append('assignment_id', effectiveAssignmentId);
+      formData.append('content', content);
+      formData.append('uploadToDrive', 'true');
+      
+      files.forEach(f => {
+        if (f.file) {
+          formData.append('files', f.file);
+        } else if (f.isExisting && f.id) {
+          formData.append('existingFileIds', String(f.id));
+        }
       });
 
-      const token = localStorage.getItem('auth:token') || '';
-      const apiBase = import.meta.env.VITE_API_BASE_URL || 'http://localhost:4000';
-      const url = `${apiBase.replace(/\/+$/, '')}/api/submissions/submit/mixed`;
+      await apiForm<any>('/api/submissions/submit/mixed', formData);
 
-      await new Promise<void>((resolve, reject) => {
-        const xhr = new XMLHttpRequest();
-
-        xhr.upload.onprogress = event => {
-          if (event.lengthComputable) {
-            const percent = Math.round((event.loaded * 100) / event.total);
-            setFiles(prev =>
-              prev.map((f, i) =>
-                i < files.length ? { ...f, progress: percent, status: 'uploading' as const } : f
-              )
-            );
-          }
-        };
-
-        xhr.onload = () => {
-          if (xhr.status >= 200 && xhr.status < 300) {
-            setFiles(prev =>
-              prev.map(f => ({ ...f, status: 'completed' as const, progress: 100 }))
-            );
-            resolve();
-          } else {
-            const errorData = JSON.parse(xhr.responseText);
-            reject(new Error(errorData.error || `Upload failed with status ${xhr.status}`));
-          }
-        };
-
-        xhr.onerror = () => reject(new Error('Network error during upload'));
-
-        xhr.open('POST', url);
-        xhr.setRequestHeader('Authorization', `Bearer ${token}`);
-        xhr.send(formData);
-      });
-
+      setFiles(prev => prev.map(f => ({ ...f, status: 'completed' as const, progress: 100 })));
       push({ kind: 'success', message: 'Assignment submitted successfully!' });
-
-      setTimeout(() => {
-        onSubmitSuccess?.();
-      }, 1000);
-    } catch (error) {
-      console.error('Submission error:', error);
-      const errorMessage = error instanceof Error ? error.message : 'Failed to submit assignment';
+      if (onSubmitSuccess) onSubmitSuccess();
+    } catch (error: any) {
+      const errorMessage = error.message || 'Failed to submit assignment';
       push({ kind: 'error', message: errorMessage });
-
-      setFiles(prev => prev.map(f => ({ ...f, status: 'error' as const })));
+      setFiles(prev => prev.map(f => (f.status === 'uploading' ? { ...f, status: 'error' as const } : f)));
     } finally {
       setIsSubmitting(false);
     }
@@ -271,133 +273,156 @@ export default function MixedSubmissionUpload({
         <p>Upload multiple files including PDFs, code files, images, and documents</p>
       </div>
 
-      <div
-        className={`drop-zone ${isDragging ? 'dragging' : ''}`}
-        onDragOver={handleDragOver}
-        onDragLeave={handleDragLeave}
-        onDrop={handleDrop}
-        onClick={() => fileInputRef.current?.click()}
-      >
-        <input
-          ref={fileInputRef}
-          type="file"
-          multiple
-          accept={allowedExtensions.join(',')}
-          onChange={handleFileInputChange}
-          style={{ display: 'none' }}
-        />
-        <div className="drop-zone-content">
-          <span className="material-symbols-outlined cloud-icon">cloud_upload</span>
-          <p>Drag and drop files here</p>
-          <span className="or-text">or</span>
-          <button type="button" className="browse-btn">
-            Browse Files
-          </button>
-          <p className="hint-text">
-            Supported: PDF, Images, Code files, Documents, ZIP (max 100MB each)
-          </p>
-        </div>
-      </div>
+      <div className="submission-layout">
+        <div className="left-pane">
+          <div
+            className={`drop-zone ${isDragging ? 'dragging' : ''}`}
+            onDragOver={handleDragOver}
+            onDragLeave={handleDragLeave}
+            onDrop={handleDrop}
+            onClick={() => fileInputRef.current?.click()}
+          >
+            <input
+              ref={fileInputRef}
+              type="file"
+              multiple
+              accept={allowedExtensions.join(',')}
+              onChange={handleFileInputChange}
+              style={{ display: 'none' }}
+            />
+            <div className="drop-zone-content">
+              <span className="material-symbols-outlined cloud-icon">cloud_upload</span>
+              <p>Drag and drop files here</p>
+              <span className="or-text">or</span>
+              <button type="button" className="browse-btn">
+                Browse Files
+              </button>
+              <p className="hint-text">
+                Supported: PDF, Images, Code files, Documents, ZIP (max 100MB each)
+              </p>
+            </div>
+          </div>
 
-      {files.length > 0 && (
-        <div className="files-list">
-          <h4>Selected Files ({files.length})</h4>
-          {files.map((uploadFile, index) => {
-            const { icon, color } = getFileIcon(uploadFile.file);
-            return (
-              <div key={index} className={`file-item ${uploadFile.status}`}>
-                {uploadFile.preview ? (
-                  <div className="file-preview-thumb">
-                    <img src={uploadFile.preview} alt={uploadFile.file.name} />
-                  </div>
-                ) : (
-                  <div className="file-icon" style={{ backgroundColor: `${color}20`, color }}>
-                    <span className="material-symbols-outlined">{icon}</span>
-                  </div>
-                )}
-                <div className="file-info">
-                  <span className="file-name">{uploadFile.file.name}</span>
-                  <span className="file-size">{formatFileSize(uploadFile.file.size)}</span>
-                  {uploadFile.status === 'uploading' && (
-                    <div className="progress-bar">
-                      <div className="progress-fill" style={{ width: `${uploadFile.progress}%` }} />
-                    </div>
-                  )}
+          <div className="content-section">
+            <label htmlFor="submission-content">Additional Notes (optional)</label>
+            <textarea
+              id="submission-content"
+              value={content}
+              onChange={e => setContent(e.target.value)}
+              placeholder="Add any notes or comments about your submission..."
+              rows={4}
+            />
+          </div>
+
+          {!isCheckingGoogle && (
+            <div className="google-drive-section">
+              {googleConnected ? (
+                <div className="drive-connected-badge">
+                  <span className="material-symbols-outlined">check_circle</span>
+                  Google Drive Connected (Files will be stored here)
                 </div>
-                {uploadFile.status === 'completed' && (
-                  <span className="material-symbols-outlined success-icon">check_circle</span>
-                )}
-                {uploadFile.status === 'error' && (
-                  <span className="material-symbols-outlined error-icon">error</span>
-                )}
-                {uploadFile.status === 'pending' && (
+              ) : (
+                <div className="drive-connect-prompt">
+                  {files.some(f => !f.isExisting) && (
+                    <p className="warning-text">
+                      <span className="material-symbols-outlined">warning</span>
+                      Google Drive connection is required to upload files.
+                    </p>
+                  )}
                   <button
                     type="button"
-                    className="remove-btn"
-                    onClick={e => {
-                      e.stopPropagation();
-                      removeFile(index);
+                    className="connect-google-btn"
+                    onClick={async () => {
+                      try {
+                        const token = localStorage.getItem('auth:token') || '';
+                        const apiBase = import.meta.env.VITE_API_BASE_URL || 'http://localhost:4000';
+                        const response = await fetch(`${apiBase.replace(/\/+$/, '')}/api/auth/google`, {
+                          headers: { Authorization: `Bearer ${token}` },
+                        });
+                        const data = await response.json();
+                        if (data.authUrl) {
+                          window.location.href = data.authUrl;
+                        }
+                      } catch (error) {
+                        push({ kind: 'error', message: 'Failed to initiate Google connection' });
+                      }
                     }}
                   >
-                    <span className="material-symbols-outlined">close</span>
+                    <span className="material-symbols-outlined">link</span>
+                    Connect Google Drive
                   </button>
-                )}
-              </div>
-            );
-          })}
-        </div>
-      )}
-
-      <div className="content-section">
-        <label htmlFor="submission-content">Additional Notes (optional)</label>
-        <textarea
-          id="submission-content"
-          value={content}
-          onChange={e => setContent(e.target.value)}
-          placeholder="Add any notes or comments about your submission..."
-          rows={4}
-        />
-      </div>
-
-      {!isCheckingGoogle && (
-        <div className="google-drive-section">
-          {googleConnected ? (
-            <label className="drive-option">
-              <input
-                type="checkbox"
-                checked={uploadToDrive}
-                onChange={e => setUploadToDrive(e.target.checked)}
-                disabled={files.length === 0}
-              />
-              <span className="material-symbols-outlined">cloud</span>
-              Upload to Google Drive (gives teacher access)
-            </label>
-          ) : (
-            <button
-              type="button"
-              className="connect-google-btn"
-              onClick={async () => {
-                try {
-                  const token = localStorage.getItem('auth:token') || '';
-                  const apiBase = import.meta.env.VITE_API_BASE_URL || 'http://localhost:4000';
-                  const response = await fetch(`${apiBase.replace(/\/+$/, '')}/api/auth/google`, {
-                    headers: { Authorization: `Bearer ${token}` },
-                  });
-                  const data = await response.json();
-                  if (data.authUrl) {
-                    window.location.href = data.authUrl;
-                  }
-                } catch (error) {
-                  push({ kind: 'error', message: 'Failed to initiate Google connection' });
-                }
-              }}
-            >
-              <span className="material-symbols-outlined">link</span>
-              Connect Google Drive
-            </button>
+                </div>
+              )}
+            </div>
           )}
         </div>
-      )}
+
+        <div className="right-pane">
+          <div className="files-list-container">
+            <h4>Selected Files ({files.length})</h4>
+            {files.length > 0 ? (
+              <div className="files-list">
+                {files.map((uploadFile, index) => {
+                  const { icon, color } = getFileIcon(uploadFile.name);
+                  return (
+                    <div key={index} className={`file-item ${uploadFile.status}`}>
+                      {uploadFile.preview ? (
+                        <div className="file-preview-thumb">
+                          <img src={uploadFile.preview} alt={uploadFile.name} />
+                        </div>
+                      ) : (
+                        <div className="file-icon" style={{ backgroundColor: `${color}20`, color }}>
+                          <span className="material-symbols-outlined">{icon}</span>
+                        </div>
+                      )}
+                      <div className="file-info">
+                        <span className="file-name" title={uploadFile.name}>
+                          {uploadFile.name}
+                        </span>
+                        <span className="file-size">{formatFileSize(uploadFile.size)}</span>
+                        {uploadFile.status === 'uploading' && (
+                          <div className="progress-bar">
+                            <div
+                              className="progress-fill"
+                              style={{ width: `${uploadFile.progress}%` }}
+                            />
+                          </div>
+                        )}
+                      </div>
+                      {uploadFile.status !== 'uploading' && (
+                        <div className="file-actions">
+                          {uploadFile.status === 'completed' && (
+                            <span className="material-symbols-outlined success-icon" title="Submitted">check_circle</span>
+                          )}
+                          {uploadFile.status === 'error' && (
+                            <span className="material-symbols-outlined error-icon" title="Error">error</span>
+                          )}
+                          <button
+                            type="button"
+                            className="remove-btn"
+                            onClick={e => {
+                              e.stopPropagation();
+                              removeFile(index);
+                            }}
+                            title="Remove from submission"
+                          >
+                            <span className="material-symbols-outlined">close</span>
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="no-files-placeholder">
+                <span className="material-symbols-outlined">description</span>
+                <p>No files selected yet</p>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
 
       <div className="submit-actions">
         <button

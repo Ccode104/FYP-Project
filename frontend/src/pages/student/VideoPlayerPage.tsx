@@ -106,7 +106,10 @@ export default function VideoPlayerPage() {
       try {
         const videoData = (await getVideoById(Number(videoId))) as { video: Video };
         setVideo(videoData.video);
-        setViews(videoData.video.views || 12400);
+        setViews(videoData.video.views || 0);
+        
+        // Use uploaded_by_name as initial instructor name
+        setInstructorName(videoData.video.uploaded_by_name || '');
 
         const questionsResponse = await getVideoQuizQuestions(Number(videoId));
         const questions =
@@ -126,12 +129,13 @@ export default function VideoPlayerPage() {
           const cid = videoData.video.course_offering_id;
           try {
             const courseResponse = await apiFetch(`/api/student/courses/${cid}`);
-            setCourseTitle(courseResponse.course_title || 'Computer Science 402');
-            setInstructorName(courseResponse.instructor_name || 'Dr. Aris Thorne');
+            setCourseTitle(courseResponse.course_title || '');
+            if (courseResponse.instructor_name) {
+              setInstructorName(courseResponse.instructor_name);
+            }
             setInstructorAvatar(courseResponse.instructor_avatar || '');
           } catch {
-            setCourseTitle('Computer Science 402');
-            setInstructorName('Dr. Aris Thorne');
+            setCourseTitle('');
           }
 
           const videosData = await getVideosByCourseOffering(cid);
@@ -501,10 +505,12 @@ export default function VideoPlayerPage() {
                   <span className="material-symbols-outlined">calendar_today</span>
                   {formatDate(video.upload_timestamp)}
                 </span>
-                <span className="meta-item">
-                  <span className="material-symbols-outlined">school</span>
-                  {courseTitle}
-                </span>
+                {courseTitle && (
+                  <span className="meta-item">
+                    <span className="material-symbols-outlined">school</span>
+                    {courseTitle}
+                  </span>
+                )}
                 <span className="meta-item">
                   <span className="material-symbols-outlined">visibility</span>
                   {views.toLocaleString()} views
@@ -523,16 +529,18 @@ export default function VideoPlayerPage() {
             </div>
           </div>
 
-          <div className="video-instructor">
-            {instructorAvatar && (
-              <img src={instructorAvatar} alt={instructorName} className="instructor-avatar" />
-            )}
-            <div className="instructor-info">
-              <h4 className="instructor-name">{instructorName}</h4>
-              <p className="instructor-title">Instructor</p>
-              {video.description && <p className="video-description">{video.description}</p>}
+          {instructorName && (
+            <div className="video-instructor">
+              {instructorAvatar && (
+                <img src={instructorAvatar} alt={instructorName} className="instructor-avatar" />
+              )}
+              <div className="instructor-info">
+                <h4 className="instructor-name">{instructorName}</h4>
+                <p className="instructor-title">Instructor</p>
+                {video.description && <p className="video-description">{video.description}</p>}
+              </div>
             </div>
-          </div>
+          )}
         </div>
       </div>
     </div>
