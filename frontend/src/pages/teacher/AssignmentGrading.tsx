@@ -668,26 +668,49 @@ export default function AssignmentGrading() {
                   </button>
 
                   {assignment?.google_sheet_id ? (
-                    <button
-                      onClick={() => setShowDeleteConfirm(true)}
-                      disabled={deletingSheet}
-                      style={{
-                        padding: '8px 16px',
-                        borderRadius: '8px',
-                        border: '1px solid rgba(220, 38, 38, 0.2)',
-                        background: 'rgba(220, 38, 38, 0.05)',
-                        color: '#dc2626',
-                        fontSize: '13px',
-                        fontWeight: 600,
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '6px',
-                        cursor: 'pointer'
-                      }}
-                    >
-                      <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>delete_forever</span>
-                      Delete Sheet
-                    </button>
+                    <>
+                      <button
+                        onClick={handleOpenOrCreateSheet}
+                        disabled={sheetLoading}
+                        style={{
+                          padding: '8px 16px',
+                          borderRadius: '8px',
+                          border: 'none',
+                          background: 'linear-gradient(135deg, var(--primary), #4338ca)',
+                          color: 'white',
+                          fontSize: '13px',
+                          fontWeight: 600,
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '6px',
+                          cursor: 'pointer',
+                          boxShadow: '0 4px 10px rgba(99, 102, 241, 0.2)'
+                        }}
+                      >
+                        <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>open_in_new</span>
+                        {sheetLoading ? 'Opening...' : 'Open Sheet'}
+                      </button>
+                      <button
+                        onClick={() => setShowDeleteConfirm(true)}
+                        disabled={deletingSheet}
+                        style={{
+                          padding: '8px 16px',
+                          borderRadius: '8px',
+                          border: '1px solid rgba(220, 38, 38, 0.2)',
+                          background: 'rgba(220, 38, 38, 0.05)',
+                          color: '#dc2626',
+                          fontSize: '13px',
+                          fontWeight: 600,
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '6px',
+                          cursor: 'pointer'
+                        }}
+                      >
+                        <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>delete_forever</span>
+                        Delete Sheet
+                      </button>
+                    </>
                   ) : (
                     <button
                       onClick={handleOpenOrCreateSheet}

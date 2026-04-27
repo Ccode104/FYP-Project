@@ -296,6 +296,15 @@ export default function AssignmentManagement() {
               <span className="material-symbols-outlined">assignment_ind</span>
               Allocate Tasks
             </button>
+            <button
+              className="btn btn-secondary"
+              onClick={handleOpenSheet}
+              disabled={sheetLoading}
+              style={{ marginLeft: '8px' }}
+            >
+              <span className="material-symbols-outlined">table_chart</span>
+              {sheetLoading ? 'Opening...' : assignment.google_sheet_id ? 'Open Sheet' : 'Create Sheet'}
+            </button>
             <button className="btn btn-danger" onClick={handleDelete} style={{ marginLeft: '8px' }}>
               <span className="material-symbols-outlined">delete</span>
               Delete
@@ -546,15 +555,28 @@ export default function AssignmentManagement() {
                     </td>
                     <td>
                       {assignment.assignment_type === 'github' && sub.repo_url ? (
-                        <a
-                          href={sub.repo_url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="btn-view-github"
-                        >
-                          <span className="material-symbols-outlined">open_in_new</span>
-                          View Repository
-                        </a>
+                        <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                          <a
+                            href={sub.repo_url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="btn-view-github"
+                          >
+                            <span className="material-symbols-outlined">open_in_new</span>
+                            View Repository
+                          </a>
+                          <button
+                            className="btn-view-submission"
+                            onClick={() =>
+                              navigate(
+                                `/courses/${courseId}/assignments/${assignmentId}/grading`
+                              )
+                            }
+                          >
+                            <span className="material-symbols-outlined">grading</span>
+                            Grade
+                          </button>
+                        </div>
                       ) : (
                         <button
                           className="btn-view-submission"

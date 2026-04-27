@@ -612,7 +612,7 @@ export default function DiscussionForum() {
                             <div className="reply-content">
                               {reply.content}
                               {/* @ts-ignore */}
-                              {reply.is_streaming && <span className=\"streaming-cursor\">|</span>}
+                              {reply.is_streaming && <span className="streaming-cursor">|</span>}
                             </div>
                           </div>
                         ))}

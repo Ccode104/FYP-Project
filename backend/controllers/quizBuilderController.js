@@ -15,7 +15,7 @@ function getOAuth2Client() {
 
 // ALLOWED_FIELDS: Strict schema validation for Google Forms API
 // Only these fields are allowed in batchUpdate requests
-const ALLOWED_CREATE_ITEM_FIELDS = new Set(['createItem']);
+const ALLOWED_CREATE_ITEM_FIELDS = new Set(['createItem', 'updateSettings']);
 
 const ALLOWED_ITEM_FIELDS = new Set(['title', 'questionItem', 'description']);
 
@@ -49,6 +49,9 @@ const INVALID_FIELDS = new Set([
  */
 function validateGoogleFormsPayload(requests) {
   for (const request of requests) {
+    // Skip updateSettings – it has its own shape and is always valid here
+    if (request.updateSettings) continue;
+
     // Check createItem
     if (request.createItem) {
       const item = request.createItem.item || {};
@@ -706,13 +709,28 @@ export async function exportToGoogleForm(req, res) {
     }
 
     // ============================================================
-    // STEP 3: batchUpdate (ONLY after validation passes)
+    // STEP 3: batchUpdate (add questions + enable quiz mode)
     // ============================================================
+    // Append updateSettings to enable quiz mode and collect respondent emails
+    const fullRequests = [
+      ...requests,
+      {
+        updateSettings: {
+          settings: {
+            quizSettings: {
+              isQuiz: true,
+            },
+          },
+          updateMask: 'quizSettings',
+        },
+      },
+    ];
+
     try {
       await forms.forms.batchUpdate({
         formId,
         requestBody: {
-          requests: requests,
+          requests: fullRequests,
         },
       });
     } catch (batchUpdateError) {
