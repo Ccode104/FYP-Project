@@ -9,6 +9,9 @@ import {
   injectLogicalBug
 } from '../controllers/codeAnalysisController.js';
 import {
+  generateCodingQuestion
+} from '../controllers/aiGeneratorController.js';
+import {
   processAIQuery,
   getAIQueryHistory,
   getAIUsageStats
@@ -150,5 +153,35 @@ router.get('/history/:questionId', requireAuth, getAIQueryHistory);
  *         description: Usage statistics
  */
 router.get('/stats', requireAuth, getAIUsageStats);
+
+/**
+ * @swagger
+ * /api/ai-assistant/generate-question:
+ *   post:
+ *     summary: Generate coding question components
+ *     tags: [AI Assistant]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - title
+ *               - description
+ *             properties:
+ *               title:
+ *                 type: string
+ *               description:
+ *                 type: string
+ *               language:
+ *                 type: string
+ *     responses:
+ *       200:
+ *         description: Generated components
+ */
+router.post('/generate-question', requireAuth, generateCodingQuestion);
 
 export default router;

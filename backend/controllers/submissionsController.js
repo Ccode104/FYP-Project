@@ -600,9 +600,7 @@ export async function submitCodeAssignment(req, res) {
             const passed =
               testResults.passed !== null
                 ? testResults.passed
-                : testResults.stdout &&
-                  expectedOutput &&
-                  testResults.stdout.trim() === expectedOutput.trim();
+                : (testResults.stdout || '').trim() === (expectedOutput || '').trim();
 
             if (passed) {
               passedTests++;

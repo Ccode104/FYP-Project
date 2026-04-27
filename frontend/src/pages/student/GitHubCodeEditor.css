@@ -93,7 +93,11 @@
 
 .github-code-editor .editor-layout {
   display: grid;
-  grid-template-columns: minmax(280px, 340px) minmax(0, 1.8fr) minmax(340px, 420px);
+  grid-template-columns: 1fr 1.2fr;
+  grid-template-rows: minmax(300px, 450px) 1fr;
+  grid-template-areas: 
+    "left right"
+    "main main";
   gap: 16px;
   flex: 1;
   min-height: 0;
@@ -101,6 +105,10 @@
   width: 100%;
   box-sizing: border-box;
 }
+
+.github-code-editor .left-panel { grid-area: left; }
+.github-code-editor .right-panel { grid-area: right; }
+.github-code-editor .main-panel { grid-area: main; }
 
 .github-code-editor .left-panel,
 .github-code-editor .main-panel,
@@ -162,6 +170,22 @@
 .github-code-editor .up-btn:disabled {
   opacity: 0.5;
   cursor: not-allowed;
+}
+
+.github-code-editor .tc-fullscreen-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 4px;
+  color: #424751;
+  transition: color 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.github-code-editor .tc-fullscreen-btn:hover {
+  color: #4f46e5;
 }
 
 .github-code-editor .file-browser {
@@ -450,6 +474,74 @@
 
 .github-code-editor .output-content {
   flex: 1;
+}
+
+/* Syntax Highlighting Styles from Teacher Viewer */
+.github-code-editor .tc-code-content {
+  flex: 1;
+  padding: 24px;
+  overflow: auto;
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  font-size: 14px;
+  line-height: 1.625;
+  color: #424751;
+  background: #ffffff;
+}
+
+.github-code-editor .tc-code-block {
+  display: flex;
+  gap: 24px;
+}
+
+.github-code-editor .tc-line-numbers {
+  text-align: right;
+  color: #737783;
+  opacity: 0.4;
+  user-select: none;
+  width: 32px;
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  white-space: pre;
+}
+
+.github-code-editor .tc-line-numbers div {
+  min-height: 1.625em;
+}
+
+.github-code-editor .tc-code-text {
+  flex: 1;
+  margin: 0;
+  white-space: pre-wrap;
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  display: block;
+}
+
+.github-code-editor .tc-code-text div,
+.github-code-editor .code-line {
+  min-height: 1.625em;
+  white-space: pre;
+  display: block;
+}
+
+.github-code-editor .tc-keyword {
+  color: #5d3fd3;
+  font-weight: 700;
+}
+
+.github-code-editor .tc-func {
+  color: #1a57b8;
+}
+
+.github-code-editor .tc-string {
+  color: #0a3a7a;
+}
+
+.github-code-editor .tc-number {
+  color: #0f766e;
+}
+
+.github-code-editor .tc-comment {
+  color: #4b5563;
+  opacity: 0.8;
 }
 
 .github-code-editor .loading-spinner {

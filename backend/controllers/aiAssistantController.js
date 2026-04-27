@@ -6,8 +6,8 @@
 import { pool } from '../db/index.js';
 
 // Use Groq API for AI responses (already integrated in the project)
-const GROQ_API_KEY = process.env.GROQ_API_KEY || '';
-const GROQ_API_URL = 'https://api.groq.com/openai/v1/chat/completions';
+const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY || '';
+const OPENROUTER_URL = 'https://openrouter.ai/api/v1/chat/completions';
 
 /**
  * Process AI query with rate limiting and responsible AI
@@ -155,19 +155,21 @@ Explain the algorithm clearly, discuss time/space complexity, and suggest optimi
  */
 async function getGroqResponse(systemPrompt, userPrompt) {
   try {
-    if (!GROQ_API_KEY) {
-      console.warn('GROQ_API_KEY not set, returning mock response');
+    if (!OPENROUTER_API_KEY) {
+      console.warn('OPENROUTER_API_KEY not set, returning mock response');
       return getMockAIResponse();
     }
 
-    const response = await fetch(GROQ_API_URL, {
+    const response = await fetch(OPENROUTER_URL, {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${GROQ_API_KEY}`,
-        'Content-Type': 'application/json'
+        'Authorization': `Bearer ${OPENROUTER_API_KEY}`,
+        'Content-Type': 'application/json',
+        'HTTP-Referer': 'http://localhost:3000',
+        'X-Title': 'FYP Coding Platform'
       },
       body: JSON.stringify({
-        model: 'llama-3.3-70b-versatile',
+        model: 'openai/gpt-4o-mini',
         messages: [
           { role: 'system', content: systemPrompt },
           { role: 'user', content: userPrompt }

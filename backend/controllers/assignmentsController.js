@@ -18,6 +18,7 @@ export async function createAssignment(req, res) {
     file_size_limit_mb, // New field for global file size limit
     allow_github_repo, // New field for GitHub repository submissions
     question_ids, // Legacy field for backward compatibility
+    questions, // NEW: Inline questions to be created
   } = req.body;
 
   // Check if user has permission to create assignments for this offering
@@ -197,6 +198,47 @@ export async function createAssignment(req, res) {
             [assignment.id, question_id, pointsPerQuestion, i + 1]
           );
         }
+      }
+    }
+
+    // Handle inline questions
+    if (questions && Array.isArray(questions) && questions.length > 0) {
+      for (let i = 0; i < questions.length; i++) {
+        const questionData = questions[i];
+        const { title: qTitle, description: qDesc, constraints, template_code, driver_code, test_cases, points: qPoints } = questionData;
+
+        // Create the code question
+        const qInsert = `
+          INSERT INTO code_questions (title, description, constraints, template_code, driver_code, created_by)
+          VALUES ($1, $2, $3, $4, $5, $6) RETURNING id
+        `;
+        const qRes = await client.query(qInsert, [
+          qTitle || title,
+          qDesc || description,
+          constraints || null,
+          JSON.stringify(template_code || {}),
+          JSON.stringify(driver_code || {}),
+          created_by
+        ]);
+        const newQuestionId = qRes.rows[0].id;
+
+        // Insert test cases
+        if (test_cases && Array.isArray(test_cases)) {
+          for (const tc of test_cases) {
+            await client.query(
+              `INSERT INTO code_question_testcases (question_id, is_sample, input_text, expected_text)
+               VALUES ($1, $2, $3, $4)`,
+              [newQuestionId, tc.is_sample || false, tc.input_text || '', tc.expected_text || '']
+            );
+          }
+        }
+
+        // Link to assignment
+        await client.query(
+          `INSERT INTO assignment_questions (assignment_id, question_id, points, position)
+           VALUES ($1, $2, $3, $4)`,
+          [assignment.id, newQuestionId, qPoints || (final_total_points / questions.length), i + 1]
+        );
       }
     }
 

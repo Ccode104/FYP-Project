@@ -21,7 +21,6 @@ const AssignmentsLanding = lazy(() => import('./pages/student/AssignmentsLanding
 
 const SubmissionReview = lazy(() => import('./pages/student/SubmissionReview'));
 const GitHubCodeEditor = lazy(() => import('./pages/student/GitHubCodeEditor'));
-const CodeAssignmentView = lazy(() => import('./pages/student/CodeAssignmentView'));
 const ContestEditorPage = lazy(() => import('./pages/student/ContestEditorPage'));
 const LiveLecturePage = lazy(() => import('./pages/student/LiveLecturePage'));
 const LiveLecturesLanding = lazy(() => import('./pages/student/LiveLecturesLanding'));
@@ -204,15 +203,6 @@ function App() {
               }
             />
 
-            {/* Code assignment view for students */}
-            <Route
-              path="/courses/:courseId/assignments/:assignmentId"
-              element={
-                <ProtectedRoute roles={['student', 'teacher', 'ta']}>
-                  <CodeAssignmentView />
-                </ProtectedRoute>
-              }
-            />
 
             {/* Discussion forum (accessible by student, teacher, TA) */}
             <Route

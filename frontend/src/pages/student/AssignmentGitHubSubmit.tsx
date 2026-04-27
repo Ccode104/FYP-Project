@@ -277,13 +277,15 @@ export default function AssignmentGitHubSubmit() {
                 {existingSubmission.status}
               </span>
             </div>
-            <button
-              className="remove-submission-btn"
-              onClick={handleRemoveSubmission}
-              disabled={removing}
-            >
-              {removing ? 'Removing...' : 'Remove Submission'}
-            </button>
+            <div className="existing-submission-actions" style={{ marginTop: '16px' }}>
+              <button
+                className="remove-submission-btn"
+                onClick={handleRemoveSubmission}
+                disabled={removing}
+              >
+                {removing ? 'Removing...' : 'Remove Submission'}
+              </button>
+            </div>
           </div>
         </div>
       )}

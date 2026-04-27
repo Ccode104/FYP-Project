@@ -66,18 +66,24 @@ export default function PresentAssignmentsSection({
             }`}
             onClick={() => {
               if (userRole === "student" && !a.is_quiz) {
-                setSelectedAssignment(a);
-                setSubmissionModalOpen(true);
+                if (a.assignment_type === 'code') {
+                  navigate(`/courses/${window.location.pathname.split('/')[2]}/assignments/${a.id}/editor`);
+                } else if (a.assignment_type === 'github' || a.allow_github_repo) {
+                  navigate(`/courses/${window.location.pathname.split('/')[2]}/assignments/${a.id}/github-submit`);
+                } else {
+                  setSelectedAssignment(a);
+                  setSubmissionModalOpen(true);
+                }
               }
             }}
           >
             <div className="assignment-header">
               <div className="assignment-type">
-                {a.is_quiz ? "📝" : a.allow_github_repo ? "🔗" : "📄"}
+                {a.is_quiz ? "📝" : a.assignment_type === 'github' || a.allow_github_repo ? "🔗" : "📄"}
                 <span>
                   {a.is_quiz
                     ? "Quiz"
-                    : a.allow_github_repo
+                    : a.assignment_type === 'github' || a.allow_github_repo
                     ? "Assignment (GitHub)"
                     : "Assignment"}
                 </span>
@@ -127,12 +133,7 @@ export default function PresentAssignmentsSection({
                       title={a.due_at && new Date(a.due_at) > new Date() ? "Results available after deadline" : "View Results"}
                       onClick={(e) => {
                         e.stopPropagation();
-                        // If it's a student and they click this, we can either navigate to the quiz results page
-                        // or show a message. Since this component is reused, navigating or triggering a callback is best.
                         if (a.due_at && new Date(a.due_at) > new Date()) return;
-                        // For now, navigating to the course details quizzes tab might be the easiest way to show the modal
-                        // Or we can just trigger onAttemptQuiz with a flag if we want.
-                        // But let's just make it look right first.
                       }}
                     >
                       <span>{a.due_at && new Date(a.due_at) > new Date() ? "Results Pending" : "View Results"}</span>
@@ -174,8 +175,14 @@ export default function PresentAssignmentsSection({
                     className="btn-assignment submit-assignment"
                     onClick={(e) => {
                       e.stopPropagation();
-                      setSelectedAssignment(a);
-                      setSubmissionModalOpen(true);
+                      if (a.assignment_type === 'code') {
+                        navigate(`/courses/${window.location.pathname.split('/')[2]}/assignments/${a.id}/editor`);
+                      } else if (a.assignment_type === 'github' || a.allow_github_repo) {
+                        navigate(`/courses/${window.location.pathname.split('/')[2]}/assignments/${a.id}/github-submit`);
+                      } else {
+                        setSelectedAssignment(a);
+                        setSubmissionModalOpen(true);
+                      }
                     }}
                   >
                     <span>{a.isSubmitted ? "View Submission" : "Submit Assignment"}</span>

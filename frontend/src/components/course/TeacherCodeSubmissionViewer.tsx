@@ -165,9 +165,7 @@ function TeacherCodeSubmissionViewer({
           });
 
           const passed =
-            result.stdout &&
-            testCase.expected_text &&
-            result.stdout.trim() === testCase.expected_text.trim();
+            (result.stdout || '').trim() === (testCase.expected_text || '').trim();
 
           results.push({
             ...testCase,
@@ -536,7 +534,7 @@ function TeacherCodeSubmissionViewer({
                         }}>
                           <div style={{marginBottom: '8px'}}><strong style={{color: 'var(--on-surface)'}}>Input:</strong><br />{testCase.input_text || 'No input details'}</div>
                           <div style={{marginBottom: '8px'}}><strong style={{color: 'var(--on-surface)'}}>Expected:</strong><br />{testCase.expected_text || 'N/A'}</div>
-                          <div style={{marginBottom: testCase.error_output ? '8px' : '0'}}><strong style={{color: testCase.passed ? 'var(--primary, #3b82f6)' : 'var(--error, #ef4444)'}}>Actual Output:</strong><br />{testCase.student_output || 'No output'}</div>
+                          <div style={{marginBottom: testCase.error_output ? '8px' : '0'}}><strong style={{color: testCase.passed ? 'var(--primary, #3b82f6)' : 'var(--error, #ef4444)'}}>Actual Output:</strong><br />{testCase.student_output}</div>
                           {testCase.error_output && (
                             <div><strong style={{color: 'var(--error, #ef4444)'}}>Error:</strong><br />{testCase.error_output}</div>
                           )}

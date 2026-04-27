@@ -1,6 +1,5 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, useRef } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import Editor from '@monaco-editor/react';
 import { useToast } from '../../components/ToastProvider';
 import { apiFetch } from '../../services/api';
 import './GitHubCodeEditor.css';
@@ -62,6 +61,7 @@ interface VisibleTestCase {
   questionTitle: string;
   input: string;
   expected: string;
+  isHidden?: boolean;
 }
 
 interface JudgeResponse {
@@ -81,6 +81,7 @@ interface TestResult {
   actual: string;
   passed: boolean;
   message: string;
+  isHidden?: boolean;
 }
 
 const languageMap: Record<string, string> = {
@@ -146,6 +147,26 @@ export default function GitHubCodeEditor() {
   const [testResults, setTestResults] = useState<Record<string, TestResult>>({});
   const [runningTests, setRunningTests] = useState(false);
   const [output, setOutput] = useState('');
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const codePanelRef = useRef<HTMLDivElement>(null);
+
+  const toggleFullscreen = () => {
+    if (!codePanelRef.current) return;
+    if (!isFullscreen) {
+      codePanelRef.current.requestFullscreen?.();
+    } else {
+      document.exitFullscreen?.();
+    }
+    setIsFullscreen(!isFullscreen);
+  };
+
+  useEffect(() => {
+    const handleFullscreenChange = () => {
+      setIsFullscreen(!!document.fullscreenElement);
+    };
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
+    return () => document.removeEventListener('fullscreenchange', handleFullscreenChange);
+  }, []);
 
   const [githubConnected, setGithubConnected] = useState(false);
   const [checkingStatus, setCheckingStatus] = useState(true);
@@ -157,13 +178,13 @@ export default function GitHubCodeEditor() {
     return assignment.questions.flatMap((question, questionIndex) => {
       if (question.test_cases && Array.isArray(question.test_cases) && question.test_cases.length > 0) {
         return question.test_cases
-          .filter(testCase => testCase.is_sample)
           .map((testCase, testIndex) => ({
             id: `${question.id}-${testIndex}`,
             questionId: question.id,
             questionTitle: question.title || `Question ${questionIndex + 1}`,
             input: testCase.input_text || '',
             expected: testCase.expected_text || '',
+            isHidden: !testCase.is_sample,
           }));
       }
 
@@ -175,6 +196,7 @@ export default function GitHubCodeEditor() {
             questionTitle: question.title || `Question ${questionIndex + 1}`,
             input: question.sample_input || '',
             expected: question.sample_output || '',
+            isHidden: false,
           },
         ];
       }
@@ -425,6 +447,7 @@ export default function GitHubCodeEditor() {
             actual,
             passed,
             message,
+            isHidden: testCase.isHidden,
           };
         } catch (err) {
           nextResults[testCase.id] = {
@@ -434,6 +457,7 @@ export default function GitHubCodeEditor() {
             actual: '',
             passed: false,
             message: err instanceof Error ? err.message : 'Test execution failed',
+            isHidden: testCase.isHidden,
           };
         }
       }
@@ -448,12 +472,12 @@ export default function GitHubCodeEditor() {
           '',
           ...results.map((result, index) =>
             [
-              `Test ${index + 1}: ${result.passed ? 'PASSED' : 'FAILED'}`,
-              `Input: ${result.input || '(empty)'}`,
-              `Expected: ${result.expected || '(empty)'}`,
-              `Actual: ${result.actual || '(empty)'}`,
+              `Test ${index + 1}: ${result.passed ? 'PASSED' : 'FAILED'}${result.isHidden ? ' (Hidden)' : ''}`,
+              result.isHidden ? 'Details hidden for this test case.' : `Input: ${result.input || '(empty)'}`,
+              result.isHidden ? null : `Expected: ${result.expected || '(empty)'}`,
+              result.isHidden ? null : `Actual: ${result.actual || '(empty)'}`,
               `Status: ${result.message}`,
-            ].join('\n')
+            ].filter(Boolean).join('\n')
           ),
         ].join('\n\n')
       );
@@ -518,7 +542,9 @@ export default function GitHubCodeEditor() {
       <div className="editor-layout">
         <aside className="left-panel">
           <div className="panel-section repo-selector">
-            <h3>Repository</h3>
+            <div className="panel-section-header">
+              <h3>Repository</h3>
+            </div>
             {checkingStatus ? (
               <div className="loading-files">Checking GitHub status...</div>
             ) : !githubConnected ? (
@@ -595,83 +621,29 @@ export default function GitHubCodeEditor() {
           </div>
         </aside>
 
-        <main className="main-panel">
-          {!selectedFile ? (
-            <div className="no-file-selected">
-              <span className="material-symbols-outlined">description</span>
-              <p>Select any file from the repository to preview it.</p>
-            </div>
-          ) : (
-            <>
-              <div className="file-tabs">
-                <span className="file-tab">{selectedFile.path}</span>
-                <span className="viewer-badge">View only</span>
-              </div>
-              <div className="code-editor-wrapper">
-                {code || !fileMessage ? (
-                  <Editor
-                    height="100%"
-                    language={resolveLanguage(language, selectedFile)}
-                    value={code}
-                    theme="vs-light"
-                    options={{
-                      readOnly: true,
-                      minimap: { enabled: false },
-                      fontSize: 14,
-                      lineNumbers: 'on',
-                      roundedSelection: false,
-                      scrollBeyondLastLine: false,
-                      automaticLayout: true,
-                      tabSize: 2,
-                      insertSpaces: true,
-                      wordWrap: 'on',
-                      folding: true,
-                      lineDecorationsWidth: 10,
-                      lineNumbersMinChars: 3,
-                      renderWhitespace: 'selection',
-                      contextmenu: true,
-                      mouseWheelZoom: true,
-                      scrollbar: {
-                        vertical: 'visible',
-                        horizontal: 'visible',
-                        useShadows: false,
-                      },
-                    }}
-                  />
-                ) : (
-                  <div className="file-message">
-                    <span className="material-symbols-outlined">info</span>
-                    <p>{fileMessage}</p>
-                  </div>
-                )}
-              </div>
-            </>
-          )}
-        </main>
-
         <aside className="right-panel">
           <div className="panel-section test-cases">
             <div className="panel-section-header">
               <h3>Test Cases</h3>
               <span className="tests-summary">
-                {visibleTestCases.length} sample {visibleTestCases.length === 1 ? 'case' : 'cases'}
+                {visibleTestCases.length} {visibleTestCases.length === 1 ? 'case' : 'cases'}
               </span>
             </div>
 
             <div className="test-list">
               {visibleTestCases.length === 0 ? (
-                <p className="no-tests">No sample test cases available for this assignment.</p>
+                <p className="no-tests">No test cases available for this assignment.</p>
               ) : (
                 visibleTestCases.map((testCase, index) => {
                   const result = testResults[testCase.id];
                   return (
                     <div
                       key={testCase.id}
-                      className={`test-case ${result?.passed ? 'passed' : result ? 'failed' : ''}`}
+                      className={`test-case ${result?.passed ? 'passed' : result ? 'failed' : ''} ${testCase.isHidden ? 'hidden-test' : ''}`}
                     >
                       <div className="test-header">
                         <span>
-                          Test Case {index + 1} - {testCase.questionTitle}
+                          {testCase.isHidden ? 'Hidden Test Case' : `Test Case ${index + 1}`} - {testCase.questionTitle}
                         </span>
                         {result && (
                           <span className={`test-status ${result.passed ? 'passed' : 'failed'}`}>
@@ -680,19 +652,25 @@ export default function GitHubCodeEditor() {
                         )}
                       </div>
                       <div className="test-content">
-                        <div className="test-input">
-                          <strong>Input</strong>
-                          <pre>{testCase.input || '(empty)'}</pre>
-                        </div>
-                        <div className="test-output">
-                          <strong>Expected</strong>
-                          <pre>{testCase.expected || '(empty)'}</pre>
-                        </div>
-                        {result && (
-                          <div className="test-output">
-                            <strong>Actual</strong>
-                            <pre>{result.actual || result.message}</pre>
-                          </div>
+                        {testCase.isHidden ? (
+                          <p className="hidden-notice">Details are hidden for this test case.</p>
+                        ) : (
+                          <>
+                            <div className="test-input">
+                              <strong>Input</strong>
+                              <pre>{testCase.input || '(empty)'}</pre>
+                            </div>
+                            <div className="test-output">
+                              <strong>Expected</strong>
+                              <pre>{testCase.expected || '(empty)'}</pre>
+                            </div>
+                            {result && (
+                              <div className="test-output">
+                                <strong>Actual</strong>
+                                <pre>{result.actual || result.message}</pre>
+                              </div>
+                            )}
+                          </>
                         )}
                       </div>
                     </div>
@@ -714,11 +692,97 @@ export default function GitHubCodeEditor() {
               {Object.keys(testResults).length === 0
                 ? 'Run tests against the selected file.'
                 : allTestsPassed
-                  ? 'All loaded sample tests passed.'
-                  : 'Some sample tests failed.'}
+                  ? 'All tests passed (including hidden cases).'
+                  : 'Some tests failed.'}
             </div>
           </div>
         </aside>
+
+        <main className="main-panel code-viewer-panel" ref={codePanelRef}>
+          {!selectedFile ? (
+            <div className="no-file-selected">
+              <span className="material-symbols-outlined">description</span>
+              <p>Select any file from the repository to preview it.</p>
+            </div>
+          ) : (
+            <>
+              <div className="file-tabs">
+                <span className="file-tab">{selectedFile.path}</span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <span className="viewer-badge">View only</span>
+                  <button className="tc-fullscreen-btn" onClick={toggleFullscreen}>
+                    <span className="material-symbols-outlined">
+                      {isFullscreen ? 'fullscreen_exit' : 'fullscreen'}
+                    </span>
+                  </button>
+                </div>
+              </div>
+              <div className="tc-code-content">
+                {code || !fileMessage ? (
+                  <div className="tc-code-block">
+                    <div className="tc-line-numbers">
+                      {code.split('\n').map((_, i) => (
+                        <div key={i}>{i + 1}</div>
+                      ))}
+                    </div>
+                    <div className="tc-code-text">
+                      {code.split('\n').map((line, lineIdx) => {
+                        let highlighted = line
+                          .replace(/&/g, '&amp;')
+                          .replace(/</g, '&lt;')
+                          .replace(/>/g, '&gt;');
+                        
+                        const stashes: string[] = [];
+                        
+                        // Stash strings
+                        highlighted = highlighted.replace(/(["'`])(?:(?!\1)[^\\]|\\.)*\1/g, (match) => {
+                            stashes.push(`<span class="tc-string">${match}</span>`);
+                            return `__STASH_${stashes.length - 1}__`;
+                        });
+
+                        // Stash comments
+                        highlighted = highlighted.replace(/(#.*)$/g, (match) => {
+                            stashes.push(`<span class="tc-comment">${match}</span>`);
+                            return `__STASH_${stashes.length - 1}__`;
+                        });
+
+                        // Keywords
+                        highlighted = highlighted
+                          .replace(
+                            /\b(class|def|if|elif|else|return|import|from|for|while|in|is|try|except|finally|with|as|pass|break|continue|lambda|yield|raise|async|await)\b/g,
+                            '<span class="tc-keyword">$1</span>'
+                          )
+                          .replace(/\b(self|None|True|False)\b/g, '<span class="tc-func">$1</span>')
+                          .replace(/\b(\d+(?:\.\d+)?)\b/g, '<span class="tc-number">$1</span>');
+
+                        // Unstash
+                        highlighted = highlighted.replace(/__STASH_(\d+)__/g, (_, idx) => stashes[Number(idx)]);
+
+                        return (
+                          <div
+                            key={lineIdx}
+                            className="code-line"
+                            style={{ 
+                              minHeight: '1.625em', 
+                              whiteSpace: 'pre', 
+                              display: 'block' 
+                            }}
+                            dangerouslySetInnerHTML={{ __html: highlighted || ' ' }}
+                          />
+                        );
+                      })}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="file-message">
+                    <span className="material-symbols-outlined">info</span>
+                    <p>{fileMessage}</p>
+                  </div>
+                )}
+              </div>
+            </>
+          )}
+        </main>
       </div>
 
       <div className="output-console">
