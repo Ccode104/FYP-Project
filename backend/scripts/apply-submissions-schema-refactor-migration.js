@@ -6,7 +6,7 @@ async function applySubmissionsSchemaRefactorMigration() {
   try {
     console.log('Applying submissions schema refactor migration...');
 
-    const migrationSQL = fs.readFileSync('./prisma/migrations/refactor_submissions_schema.sql', 'utf8');
+    const migrationSQL = fs.readFileSync('./migrations/migrations/refactor_submissions_schema.sql', 'utf8');
 
     await pool.query(migrationSQL);
 

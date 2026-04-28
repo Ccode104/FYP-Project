@@ -7,7 +7,7 @@
     "start": "node index.js",
     "start:dev": "nodemon index.js",
     "seed:teacher-assignments": "node scripts/seed-teacher-assignments.js",
-    "migrate": "psql \"$DATABASE_URL\" -f prisma/migrations/20251014_additional.sql",
+    "migrate": "psql \"$DATABASE_URL\" -f migrations/migrations/20251014_additional.sql",
     "test": "node --experimental-vm-modules ./node_modules/jest/bin/jest.js --passWithNoTests --coverage",
     "test:watch": "node --experimental-vm-modules ./node_modules/jest/bin/jest.js --watch",
     "test:ci": "node --experimental-vm-modules ./node_modules/jest/bin/jest.js --passWithNoTests --coverage --ci",
@@ -30,18 +30,16 @@
     "googleapis": "^171.4.0",
     "jsonwebtoken": "^9.0.0",
     "langchain": "^0.3.0",
-    "mammoth": "^1.11.0",
     "multer": "^1.4.5-lts.1",
-    "pdf-parse": "^2.4.5",
-    "pdfjs-dist": "^4.8.69",
     "pg": "^8.11.0",
+
     "socket.io": "^4.8.1",
     "string-similarity": "^4.0.4",
     "swagger-jsdoc": "^6.2.8",
     "swagger-ui-express": "^5.0.1",
-    "tesseract.js": "^6.0.1",
     "uuid": "^9.0.0"
   },
+
   "devDependencies": {
     "@eslint/js": "^9.39.2",
     "eslint": "^9.39.2",

@@ -5,58 +5,29 @@ import { pull } from 'langchain/hub';
 import { pool } from '../db/index.js';
 import axios from 'axios';
 
-// In-memory PDF text store (shared with controller)
-const pdfTextStore = new Map();
-const documentSearchCache = new Map();
+// In-memory cache for tool results
+const toolCache = new Map();
 const CACHE_TTL_MS = 5 * 60 * 1000;
 const CACHE_MAX = 200;
 
 function getCachedResult(key) {
-  const entry = documentSearchCache.get(key);
+  const entry = toolCache.get(key);
   if (!entry) return null;
   if (Date.now() - entry.timestamp > CACHE_TTL_MS) {
-    documentSearchCache.delete(key);
+    toolCache.delete(key);
     return null;
   }
   return entry.value;
 }
 
 function setCachedResult(key, value) {
-  if (documentSearchCache.size >= CACHE_MAX) {
-    const firstKey = documentSearchCache.keys().next().value;
-    documentSearchCache.delete(firstKey);
+  if (toolCache.size >= CACHE_MAX) {
+    const firstKey = toolCache.keys().next().value;
+    toolCache.delete(firstKey);
   }
-  documentSearchCache.set(key, { value, timestamp: Date.now() });
+  toolCache.set(key, { value, timestamp: Date.now() });
 }
 
-function rewriteQuery(query) {
-  const base = query.toLowerCase();
-  const synonyms = {
-    assignment: ['homework', 'task'],
-    quiz: ['test', 'mcq'],
-    exam: ['final', 'midterm'],
-    lecture: ['class', 'session'],
-    notes: ['slides', 'handout'],
-    resource: ['material', 'reference']
-  };
-  const tokens = base.split(/\s+/).filter(Boolean);
-  const expanded = new Set(tokens);
-  for (const token of tokens) {
-    if (synonyms[token]) {
-      synonyms[token].forEach(term => expanded.add(term));
-    }
-  }
-  return Array.from(expanded).join(' ');
-}
-
-function scoreSnippet(snippet, queryTokens) {
-  const text = snippet.toLowerCase();
-  let score = 0;
-  for (const token of queryTokens) {
-    if (text.includes(token)) score += 1;
-  }
-  return score;
-}
 
 // Initialize OpenRouter client
 const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY;
@@ -78,7 +49,7 @@ const llm = new ChatOpenAI({
 // Tool 1: Course Information Tool
 class CourseInfoTool extends Tool {
   name = 'course_info';
-  description = 'Get detailed information about a specific course including title, description, faculty, notes, and previous year questions. Input should be the course offering ID.';
+  description = 'Get detailed information about a specific course including title, description, faculty, and available resources. Input should be the course offering ID.';
 
   constructor() {
     super();
@@ -108,34 +79,19 @@ Description: ${course.description || 'No description available'}
 Term: ${course.term}, Section: ${course.section}
 Professor: ${course.faculty_name || 'Not assigned'}`;
 
-      // Add course notes
+      // Add course resources
       try {
-        const notesData = await pool.query(
-          'SELECT title, description FROM resources WHERE course_offering_id = $1 AND resource_type = \'lecture_note\' LIMIT 5',
+        const resourcesData = await pool.query(
+          'SELECT title, description, resource_type FROM resources WHERE course_offering_id = $1 LIMIT 10',
           [courseId]
         );
-        if (notesData.rows.length > 0) {
-          result += '\n\nCourse Notes:\n' + notesData.rows.map(note =>
-            `- ${note.title}: ${note.description || 'No description'}`
+        if (resourcesData.rows.length > 0) {
+          result += '\n\nAvailable Resources:\n' + resourcesData.rows.map(res =>
+            `- [${res.resource_type}] ${res.title}: ${res.description || 'No description'}`
           ).join('\n');
         }
-      } catch (notesErr) {
-        console.error('Error fetching course notes:', notesErr);
-      }
-
-      // Add PYQs
-      try {
-        const pyqData = await pool.query(
-          'SELECT title, description FROM resources WHERE course_offering_id = $1 AND resource_type = \'pyq\' LIMIT 5',
-          [courseId]
-        );
-        if (pyqData.rows.length > 0) {
-          result += '\n\nPrevious Year Questions (PYQs):\n' + pyqData.rows.map(pyq =>
-            `- ${pyq.title}: ${pyq.description || 'No description'}`
-          ).join('\n');
-        }
-      } catch (pyqErr) {
-        console.error('Error fetching PYQs:', pyqErr);
+      } catch (resErr) {
+        console.error('Error fetching course resources:', resErr);
       }
 
       return result;
@@ -146,207 +102,8 @@ Professor: ${course.faculty_name || 'Not assigned'}`;
   }
 }
 
-// Tool 2: Document Search Tool (Enhanced RAG for PYQs and Notes)
-class DocumentSearchTool extends Tool {
-  name = 'document_search';
-  description = 'Search through uploaded documents, course notes, and PYQs for relevant information. Input should be a JSON string with \'documentIds\' array, \'courseId\' for course resources, and \'query\' string.';
 
-  constructor() {
-    super();
-  }
 
-  async _call(input) {
-    try {
-      const { documentIds = [], courseId, query } = JSON.parse(input);
-      const results = [];
-      const cacheKey = JSON.stringify({ documentIds, courseId, query });
-      const cached = getCachedResult(cacheKey);
-      if (cached) {
-        return cached;
-      }
-
-      // Check if this is a document summary request
-      const summaryKeywords = ['tell me about', 'what is this', 'what is the', 'describe', 'summary', 'overview', 'about this doc'];
-      const isSummaryRequest = summaryKeywords.some(keyword => query.toLowerCase().includes(keyword));
-
-      // Search uploaded documents (DB-backed)
-      if (documentIds.length > 0) {
-        const expandedQuery = rewriteQuery(query);
-        const queryTokens = expandedQuery.split(/\s+/).filter(Boolean);
-
-        if (isSummaryRequest) {
-          const docs = await pool.query(
-            `SELECT id, filename, used_ocr, length(content) as size, created_at
-             FROM ai_documents
-             WHERE id = ANY($1::uuid[])`,
-            [documentIds]
-          );
-
-          docs.rows.forEach(doc => {
-            results.push({
-              source: 'uploaded_document',
-              filename: doc.filename,
-              snippets: [
-                `Document: ${doc.filename}\nType: ${doc.used_ocr ? 'OCR Processed' : 'Text Document'}\nSize: ${doc.size} characters\nUploaded: ${doc.created_at}`
-              ],
-              usedOCR: doc.used_ocr
-            });
-          });
-        } else {
-          let chunks = await pool.query(
-            `SELECT c.document_id, d.filename, d.used_ocr, c.content
-             FROM ai_document_chunks c
-             JOIN ai_documents d ON d.id = c.document_id
-             WHERE c.document_id = ANY($1::uuid[])
-             AND c.content_tsv @@ plainto_tsquery('english', $2)
-             ORDER BY ts_rank(c.content_tsv, plainto_tsquery('english', $2)) DESC
-             LIMIT 8`,
-            [documentIds, expandedQuery]
-          );
-
-          if (chunks.rows.length === 0) {
-            chunks = await pool.query(
-              `SELECT c.document_id, d.filename, d.used_ocr, c.content
-               FROM ai_document_chunks c
-               JOIN ai_documents d ON d.id = c.document_id
-               WHERE c.document_id = ANY($1::uuid[])
-               AND c.content ILIKE $2
-               LIMIT 6`,
-              [documentIds, `%${query}%`]
-            );
-          }
-
-          const grouped = new Map();
-          for (const row of chunks.rows) {
-            const entry = grouped.get(row.document_id) || {
-              source: 'uploaded_document',
-              filename: row.filename,
-              snippets: [],
-              usedOCR: row.used_ocr
-            };
-            entry.snippets.push(row.content);
-            grouped.set(row.document_id, entry);
-          }
-
-          for (const entry of grouped.values()) {
-            entry.snippets = entry.snippets
-              .map(snippet => snippet.split(/\n+/).slice(0, 3).join(' '))
-              .sort((a, b) => scoreSnippet(b, queryTokens) - scoreSnippet(a, queryTokens))
-              .slice(0, 3);
-            results.push(entry);
-          }
-        }
-      } else {
-        // Fallback to in-memory store for legacy uploads
-        for (const [docId, doc] of pdfTextStore.entries()) {
-          if (!doc) continue;
-          if (isSummaryRequest) {
-            const wordCount = doc.content.split(/\s+/).length;
-            const charCount = doc.content.length;
-            const snippet = doc.content.substring(0, 200) + (doc.content.length > 200 ? '...' : '');
-
-            results.push({
-              source: 'uploaded_document',
-              filename: doc.filename,
-              snippets: [`Document: ${doc.filename}\nType: ${doc.usedOCR ? 'OCR Processed' : 'Text Document'}\nSize: ${wordCount} words, ${charCount} characters\nUploaded: ${doc.uploaded_at}\n\nContent Preview:\n${snippet}`],
-              usedOCR: doc.usedOCR
-            });
-          }
-        }
-      }
-
-      // Search course resources (PYQs and Notes) if courseId provided
-      if (courseId) {
-        try {
-          const expandedQuery = rewriteQuery(query);
-          const queryTokens = expandedQuery.split(/\s+/).filter(Boolean);
-
-          const courseChunks = await pool.query(
-            `SELECT c.content, r.title, r.filename, r.resource_type
-             FROM ai_course_chunks c
-             JOIN resources r ON r.id = c.resource_id
-             WHERE c.course_offering_id = $1
-             AND c.content_tsv @@ plainto_tsquery('english', $2)
-             ORDER BY ts_rank(c.content_tsv, plainto_tsquery('english', $2)) DESC
-             LIMIT 6`,
-            [courseId, expandedQuery]
-          );
-
-          if (courseChunks.rows.length > 0) {
-            courseChunks.rows.forEach(row => {
-              const title = row.title || row.filename || 'Resource';
-              const snippets = [row.content]
-                .map(snippet => snippet.split(/\n+/).slice(0, 3).join(' '))
-                .sort((a, b) => scoreSnippet(b, queryTokens) - scoreSnippet(a, queryTokens))
-                .slice(0, 2);
-              results.push({
-                source: row.resource_type === 'pyq' ? 'pyq' : 'course_notes',
-                filename: title,
-                snippets,
-                usedOCR: false
-              });
-            });
-          }
-
-          // Search lecture notes
-          const notesData = await pool.query(
-            `SELECT title, description FROM resources
-             WHERE course_offering_id = $1 AND resource_type = 'lecture_note'
-             AND (title ILIKE $2 OR description ILIKE $2)`,
-            [courseId, `%${expandedQuery}%`]
-          );
-
-          notesData.rows.forEach(note => {
-            results.push({
-              source: 'course_notes',
-              filename: note.title,
-              snippets: [note.description || 'No description available'],
-              usedOCR: false
-            });
-          });
-
-          // Search PYQs
-          const pyqData = await pool.query(
-            `SELECT title, description FROM resources
-             WHERE course_offering_id = $1 AND resource_type = 'pyq'
-             AND (title ILIKE $2 OR description ILIKE $2)`,
-            [courseId, `%${expandedQuery}%`]
-          );
-
-          pyqData.rows.forEach(pyq => {
-            results.push({
-              source: 'pyq',
-              filename: pyq.title,
-              snippets: [pyq.description || 'No description available'],
-              usedOCR: false
-            });
-          });
-
-        } catch (dbError) {
-          console.error('Error searching course resources:', dbError);
-        }
-      }
-
-      if (results.length === 0) {
-        const message = `No relevant information found for "${query}". Try rephrasing your question or check if the content is available in course materials.`;
-        setCachedResult(cacheKey, message);
-        return message;
-      }
-
-      const response = results.map(r => {
-        const sourceLabel = r.source === 'uploaded_document' ? 'Document' :
-          r.source === 'course_notes' ? 'Course Notes' :
-            r.source === 'pyq' ? 'Previous Year Question' : 'Resource';
-        return `${sourceLabel}: ${r.filename}${r.usedOCR ? ' (OCR processed)' : ''}\nRelevant content:\n${r.snippets.join('\n')}`;
-      }).join('\n\n');
-      setCachedResult(cacheKey, response);
-      return response;
-    } catch (error) {
-      console.error('DocumentSearchTool error:', error);
-      return 'Error searching documents and course materials.';
-    }
-  }
-}
 
 // Tool 3: Assignments and Quizzes Tool
 class AssignmentsQuizzesTool extends Tool {
@@ -447,7 +204,8 @@ class AssignmentsQuizzesTool extends Tool {
 // Tool 4: Web Search Tool
 class WebSearchTool extends Tool {
   name = 'web_search';
-  description = 'Perform web search for information not available in course materials or documents. Input should be the search query.';
+  description = 'Perform web search for information not available in course materials. Input should be the search query.';
+
 
   constructor() {
     super();
@@ -545,14 +303,14 @@ class WebSearchTool extends Tool {
 let agentExecutor = null;
 
 async function initializeChatbotAgent() {
-  if (agentExecutor) {return agentExecutor;}
+  if (agentExecutor) { return agentExecutor; }
 
   const tools = [
     new CourseInfoTool(),
     new AssignmentsQuizzesTool(),
-    new DocumentSearchTool(),
     new WebSearchTool()
   ];
+
 
   try {
     // Get the react prompt from LangChain hub
@@ -579,12 +337,5 @@ async function initializeChatbotAgent() {
   }
 }
 
-// Function to update the PDF text store (called from controller)
-function updatePdfTextStore(store) {
-  // Copy the store
-  for (const [key, value] of store.entries()) {
-    pdfTextStore.set(key, value);
-  }
-}
+export { initializeChatbotAgent };
 
-export { initializeChatbotAgent, updatePdfTextStore };

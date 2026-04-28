@@ -6,7 +6,7 @@ async function applyWhiteboardMigration() {
   try {
     console.log('Applying whiteboard migration...');
 
-    const migrationSQL = fs.readFileSync('./prisma/migrations/add_whiteboard_table.sql', 'utf8');
+    const migrationSQL = fs.readFileSync('./migrations/migrations/add_whiteboard_table.sql', 'utf8');
 
     console.log('Executing migration...');
     await pool.query(migrationSQL);

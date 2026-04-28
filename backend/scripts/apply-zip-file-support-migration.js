@@ -6,7 +6,7 @@ async function applyZipFileSupportMigration() {
   try {
     console.log('Applying zip file support to assignment submissions migration...');
 
-    const migrationSQL = fs.readFileSync('./prisma/migrations/add_zip_file_support_to_assignment_submissions.sql', 'utf8');
+    const migrationSQL = fs.readFileSync('./migrations/migrations/add_zip_file_support_to_assignment_submissions.sql', 'utf8');
 
     await pool.query(migrationSQL);
 

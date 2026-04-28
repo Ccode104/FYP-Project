@@ -6,7 +6,7 @@ async function applyResumeRequestsMigration() {
   try {
     console.log('Applying resume requests table migration...');
 
-    const migrationSQL = fs.readFileSync('./prisma/migrations/add_resume_requests_table.sql', 'utf8');
+    const migrationSQL = fs.readFileSync('./migrations/migrations/add_resume_requests_table.sql', 'utf8');
 
     await pool.query(migrationSQL);
 

@@ -6,7 +6,7 @@ async function applyMigration() {
   try {
     console.log('Applying proctoring fields migration...');
 
-    const migrationSQL = fs.readFileSync('./prisma/migrations/add_proctoring_fields.sql', 'utf8');
+    const migrationSQL = fs.readFileSync('./migrations/migrations/add_proctoring_fields.sql', 'utf8');
 
     await pool.query(migrationSQL);
 

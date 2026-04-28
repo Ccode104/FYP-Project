@@ -6,7 +6,7 @@ async function applyEnhancedProctoringMigration() {
   try {
     console.log('Applying enhanced proctoring schema migration...');
 
-    const migrationSQL = fs.readFileSync('./prisma/migrations/enhanced_proctoring_schema.sql', 'utf8');
+    const migrationSQL = fs.readFileSync('./migrations/migrations/enhanced_proctoring_schema.sql', 'utf8');
 
     await pool.query(migrationSQL);
 

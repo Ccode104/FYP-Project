@@ -7,7 +7,7 @@ async function applyFileSizeLimitMigration() {
   console.log('Applying file size limit migration...');
 
   try {
-    const migrationPath = path.join(process.cwd(), 'prisma/migrations/add_file_size_limit_to_assignments.sql');
+    const migrationPath = path.join(process.cwd(), 'migrations/migrations/add_file_size_limit_to_assignments.sql');
     const migrationSQL = fs.readFileSync(migrationPath, 'utf8');
 
     await pool.query(migrationSQL);

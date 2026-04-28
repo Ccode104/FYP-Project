@@ -6,7 +6,7 @@ async function applyAssignmentCommentsMigration() {
   try {
     console.log('Applying assignment comments migration...');
 
-    const migrationSQL = fs.readFileSync('./prisma/migrations/add_assignment_comments.sql', 'utf8');
+    const migrationSQL = fs.readFileSync('./migrations/migrations/add_assignment_comments.sql', 'utf8');
 
     // Execute the migration
     console.log('Executing migration...');

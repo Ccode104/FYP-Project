@@ -6,7 +6,7 @@ async function applyGradingSystemMigration() {
   try {
     console.log('Applying grading system migration...');
 
-    const migrationSQL = fs.readFileSync('./prisma/migrations/add_grading_system_tables.sql', 'utf8');
+    const migrationSQL = fs.readFileSync('./migrations/migrations/add_grading_system_tables.sql', 'utf8');
 
     console.log('Executing migration...');
     await pool.query(migrationSQL);

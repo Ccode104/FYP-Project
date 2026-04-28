@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { apiFetch, apiForm } from '../services/api';
+import { apiFetch } from '../services/api';
 
 interface Message {
   role: 'user' | 'assistant' | 'system';
@@ -17,12 +17,6 @@ interface ChatSession {
   messageCount: number;
 }
 
-interface UploadedDocument {
-  id: string;
-  filename: string;
-  usedOCR?: boolean;
-}
-
 interface ChatbotProps {
   courseId?: string;
   isOpen: boolean;
@@ -36,7 +30,6 @@ export default function Chatbot({ courseId, isOpen, onClose }: ChatbotProps) {
   const [sessions, setSessions] = useState<ChatSession[]>([]);
   const [currentSession, setCurrentSession] = useState<ChatSession | null>(null);
   const [showSessions, setShowSessions] = useState(false);
-  const [uploadedDocuments, setUploadedDocuments] = useState<UploadedDocument[]>([]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   // Initialize with welcome message
@@ -47,16 +40,14 @@ export default function Chatbot({ courseId, isOpen, onClose }: ChatbotProps) {
         role: 'assistant',
         content: `🤖 **EduPortal AI Assistant**
 
-Hello! I'm your intelligent course assistant with 4 specialized modes:
+Hello! I'm your intelligent course assistant with 3 specialized modes:
 
 📚 **Course Info**: Course details, syllabus, professor info
 📝 **Assignments & Quizzes**: Upcoming deadlines, submission status
-📄 **Document Q&A**: Query uploaded documents, PYQs, course notes
 🌐 **Web Search**: General programming help, concepts
 
 **How to use me:**
 - Ask questions naturally - I'll automatically select the best mode
-- Upload documents for Q&A using the attachment button
 - Save/load chat sessions for continuity
 - Use web search for programming concepts
 
@@ -112,7 +103,6 @@ What would you like to know about your course?`,
         method: 'POST',
         body: {
           courseId: courseId?.toString(),
-          documentIds: uploadedDocuments.map((doc) => doc.id),
           message: input.trim(),
           history: messages.slice(-10).map(m => ({ role: m.role, content: m.content })),
           enableWebSearch: true
@@ -157,7 +147,6 @@ What would you like to know about your course?`,
             content: m.content,
             timestamp: m.timestamp
           })),
-          uploadedDocuments,
           courseId
         }
       });
@@ -172,12 +161,11 @@ What would you like to know about your course?`,
   // Load chat session
   const loadChatSession = async (sessionId: string) => {
     try {
-      const response = await apiFetch<{ session: { messages: Message[]; uploadedDocuments: UploadedDocument[] } & ChatSession }>(`/api/chatbot/chats/${sessionId}`);
+      const response = await apiFetch<{ session: { messages: Message[] } & ChatSession }>(`/api/chatbot/chats/${sessionId}`);
       setMessages(response.session.messages.map((m, index: number) => ({
         ...m,
         id: `loaded-${index}`
       })));
-      setUploadedDocuments(response.session.uploadedDocuments || []);
       setCurrentSession(response.session);
       setShowSessions(false);
     } catch (error) {
@@ -212,34 +200,6 @@ What would you like to know about your course?`,
     }
   };
 
-  // Upload document
-  const uploadDocument = async (file: File) => {
-    try {
-      const formData = new FormData();
-      formData.append('document', file);
-
-      const result = await apiForm<{ documentId: string; filename: string; usedOCR: boolean }>('/api/chatbot/document/upload', formData, 'POST');
-      setUploadedDocuments(prev => [...prev, {
-        id: result.documentId,
-        filename: result.filename,
-        usedOCR: result.usedOCR
-      }]);
-
-      alert(`Document "${result.filename}" uploaded successfully!`);
-    } catch (error) {
-      console.error('Upload error:', error);
-      alert('Failed to upload document');
-    }
-  };
-
-  // Handle file upload
-  const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (file) {
-      uploadDocument(file);
-    }
-  };
-
   // Start new chat
   const startNewChat = () => {
     const welcomeMessage: Message = {
@@ -250,7 +210,6 @@ What would you like to know about your course?`,
     };
     setMessages([welcomeMessage]);
     setCurrentSession(null);
-    setUploadedDocuments([]);
   };
 
   if (!isOpen) return null;
@@ -440,31 +399,6 @@ What would you like to know about your course?`,
         <div ref={messagesEndRef} />
       </div>
 
-      {/* Uploaded Documents */}
-      {uploadedDocuments.length > 0 && (
-        <div style={{
-          padding: '8px 16px',
-          borderTop: '1px solid #333',
-          backgroundColor: '#2a2a2a'
-        }}>
-          <div style={{ fontSize: '12px', fontWeight: '600', marginBottom: '4px', color: '#ffffff' }}>
-            📎 Documents ({uploadedDocuments.length})
-          </div>
-          {uploadedDocuments.map((doc) => (
-            <div key={doc.id} style={{
-              fontSize: '11px',
-              color: '#cccccc',
-              backgroundColor: '#1a1a1a',
-              padding: '4px 8px',
-              borderRadius: '4px',
-              marginBottom: '2px'
-            }}>
-              {doc.filename} {doc.usedOCR && '(OCR)'}
-            </div>
-          ))}
-        </div>
-      )}
-
       {/* Input */}
       <div style={{
         padding: '16px',
@@ -508,23 +442,6 @@ What would you like to know about your course?`,
         </div>
 
         <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-          <label style={{
-            cursor: 'pointer',
-            padding: '6px 12px',
-            backgroundColor: '#444',
-            color: 'white',
-            borderRadius: '16px',
-            fontSize: '12px'
-          }}>
-            📎 Upload
-            <input
-              type="file"
-              onChange={handleFileUpload}
-              accept=".pdf,.docx,.txt,.png,.jpg,.jpeg"
-              style={{ display: 'none' }}
-            />
-          </label>
-
           <button
             onClick={saveChatSession}
             disabled={messages.length <= 1}
@@ -549,3 +466,4 @@ What would you like to know about your course?`,
     </div>
   );
 }
+

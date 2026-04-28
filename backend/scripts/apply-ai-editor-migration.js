@@ -17,7 +17,7 @@ async function applyAIEditorMigration() {
     console.log('🚀 Applying AI-Enhanced Code Editor migration...');
 
     const migrationSQL = fs.readFileSync(
-      path.join(__dirname, './prisma/migrations/add_ai_enhanced_editor_tables.sql'),
+      path.join(__dirname, './migrations/migrations/add_ai_enhanced_editor_tables.sql'),
       'utf8'
     );
 

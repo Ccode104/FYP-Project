@@ -6,7 +6,7 @@ async function applyMigration() {
   try {
     console.log('Applying template and driver code migration...');
 
-    const migrationSQL = fs.readFileSync('./prisma/migrations/add_template_driver_code_to_code_questions.sql', 'utf8');
+    const migrationSQL = fs.readFileSync('./migrations/migrations/add_template_driver_code_to_code_questions.sql', 'utf8');
 
     await pool.query(migrationSQL);
 

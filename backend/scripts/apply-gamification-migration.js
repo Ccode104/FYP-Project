@@ -6,7 +6,7 @@ async function applyGamificationMigration() {
   try {
     console.log('Applying gamification tables migration...');
 
-    const migrationSQL = fs.readFileSync('./prisma/migrations/add_gamification_tables.sql', 'utf8');
+    const migrationSQL = fs.readFileSync('./migrations/migrations/add_gamification_tables.sql', 'utf8');
 
     await pool.query(migrationSQL);
 

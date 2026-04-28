@@ -6,7 +6,7 @@ async function applyLiveLecturesMigration() {
   try {
     console.log('Applying live lectures migration...');
 
-    const migrationSQL = fs.readFileSync('./prisma/live_lectures_migration.sql', 'utf8');
+    const migrationSQL = fs.readFileSync('./migrations/live_lectures_migration.sql', 'utf8');
 
     console.log('Executing migration...');
     await pool.query(migrationSQL);

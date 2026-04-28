@@ -6,7 +6,7 @@ async function applyComprehensiveMigration() {
   try {
     console.log('Applying comprehensive LMS schema migration...');
 
-    const migrationSQL = fs.readFileSync('./prisma/migrations/comprehensive_lms_schema.sql', 'utf8');
+    const migrationSQL = fs.readFileSync('./migrations/migrations/comprehensive_lms_schema.sql', 'utf8');
 
     // Execute the entire SQL as one statement since it contains complex constructs
     console.log('Executing migration...');

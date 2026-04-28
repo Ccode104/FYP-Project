@@ -6,7 +6,7 @@ async function applyContestsMigration() {
   try {
     console.log('Applying contests tables migration...');
 
-    const migrationSQL = fs.readFileSync('./prisma/migrations/add_contests_tables.sql', 'utf8');
+    const migrationSQL = fs.readFileSync('./migrations/migrations/add_contests_tables.sql', 'utf8');
 
     await pool.query(migrationSQL);
 

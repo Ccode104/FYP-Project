@@ -6,7 +6,7 @@ async function applyQuizAchievementsMigration() {
   try {
     console.log('Applying quiz achievements migration...');
 
-    const migrationSQL = fs.readFileSync('./prisma/migrations/add_quiz_achievements.sql', 'utf8');
+    const migrationSQL = fs.readFileSync('./migrations/migrations/add_quiz_achievements.sql', 'utf8');
 
     await pool.query(migrationSQL);
 

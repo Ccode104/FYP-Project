@@ -6,7 +6,7 @@ async function applyMigration() {
   try {
     console.log('Applying support ticket tables migration...');
 
-    const migrationSQL = fs.readFileSync('./prisma/migrations/add_support_ticket_tables.sql', 'utf8');
+    const migrationSQL = fs.readFileSync('./migrations/migrations/add_support_ticket_tables.sql', 'utf8');
 
     await pool.query(migrationSQL);
 
