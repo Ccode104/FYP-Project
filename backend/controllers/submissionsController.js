@@ -11,7 +11,6 @@ import { google } from 'googleapis';
 import { getAuthenticatedClient } from './googleController.js';
 import { Readable } from 'stream';
 import archiver from 'archiver';
-import { v2 as cloudinary } from 'cloudinary';
 
 /**
  * Upload files to Google Drive and grant teacher access
@@ -103,97 +102,7 @@ async function uploadToGoogleDrive(files, studentId, assignmentId, teacherEmail)
   return { driveUrl: driveFileUrl, driveFileId, files: uploadedFilesData };
 }
 
-/**
- * Create a zip file from uploaded files and upload to Cloudinary
- * @param {Array} files - Array of multer file objects
- * @param {string} assignmentId - Assignment ID for naming
- * @param {string} studentId - Student ID for naming
- * @returns {Promise<string>} - Cloudinary URL of the uploaded zip
- */
-async function createZipFromFiles(files, assignmentId, studentId) {
-  return new Promise((resolve, reject) => {
-    // Create a zip archive
-    const archive = archiver('zip', {
-      zlib: { level: 9 }, // Maximum compression
-    });
 
-    // Create a buffer to store the zip
-    const buffers = [];
-    archive.on('data', chunk => {
-      buffers.push(chunk);
-    });
-
-    archive.on('end', async () => {
-      const zipBuffer = Buffer.concat(buffers);
-
-      try {
-        // Upload to Cloudinary
-        const uploadResult = await new Promise((resolveUpload, rejectUpload) => {
-          const stream = cloudinary.uploader.upload_stream(
-            {
-              resource_type: 'raw',
-              public_id: `assignment_${assignmentId}_student_${studentId}_${uuidv4()}`,
-              folder: 'assignment_submissions',
-              format: 'zip',
-            },
-            (error, result) => {
-              if (error) {
-                rejectUpload(error);
-              } else {
-                resolveUpload(result);
-              }
-            }
-          );
-          stream.end(zipBuffer);
-        });
-
-        resolve(uploadResult.secure_url);
-      } catch (error) {
-        reject(error);
-      }
-    });
-
-    archive.on('error', err => {
-      reject(err);
-    });
-
-    // Add files to the archive
-    for (const file of files) {
-      archive.append(file.buffer, { name: file.originalname });
-    }
-
-    // Finalize the archive
-    archive.finalize();
-  });
-}
-
-/**
- * Upload a single file to Cloudinary
- * @param {Object} file - Multer file object
- * @param {number} assignmentId - Assignment ID
- * @param {number} studentId - Student ID
- * @returns {Promise<string>} - Cloudinary URL
- */
-async function uploadFileToCloudinary(file, assignmentId, studentId) {
-  return new Promise((resolve, reject) => {
-    const stream = cloudinary.uploader.upload_stream(
-      {
-        resource_type: 'auto',
-        folder: `assignment_submissions/assignment_${assignmentId}/student_${studentId}`,
-        public_id: `${uuidv4()}_${file.originalname.replace(/\.[^/.]+$/, '')}`,
-      },
-      (error, result) => {
-        if (error) {
-          console.error('[DEBUG] Cloudinary upload error:', error);
-          reject(error);
-        } else {
-          resolve(result.secure_url);
-        }
-      }
-    );
-    stream.end(file.buffer);
-  });
-}
 
 async function getOrCreateSingleAssignmentSubmission(db, assignmentId, studentId, comments = null) {
   const existingResult = await db.query(

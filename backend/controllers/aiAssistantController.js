@@ -5,7 +5,7 @@
 
 import { pool } from '../db/index.js';
 
-// Use Groq API for AI responses (already integrated in the project)
+// Use OpenRouter API for AI responses
 const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY || '';
 const OPENROUTER_URL = 'https://openrouter.ai/api/v1/chat/completions';
 
@@ -40,7 +40,7 @@ export async function processAIQuery(req, res) {
     const userPrompt = buildUserPrompt(query_type, code, language, user_query);
 
     // Get AI response
-    const aiResponse = await getGroqResponse(systemPrompt, userPrompt);
+    const aiResponse = await getAIResponse(systemPrompt, userPrompt);
 
     // Log the query
     await logAIQuery(userId, question_id, query_type, code, aiResponse, contest_mode);
@@ -151,9 +151,9 @@ Explain the algorithm clearly, discuss time/space complexity, and suggest optimi
 }
 
 /**
- * Get response from Groq AI API
+ * Get response from AI API via OpenRouter
  */
-async function getGroqResponse(systemPrompt, userPrompt) {
+async function getAIResponse(systemPrompt, userPrompt) {
   try {
     if (!OPENROUTER_API_KEY) {
       console.warn('OPENROUTER_API_KEY not set, returning mock response');
@@ -169,7 +169,7 @@ async function getGroqResponse(systemPrompt, userPrompt) {
         'X-Title': 'FYP Coding Platform'
       },
       body: JSON.stringify({
-        model: 'openai/gpt-4o-mini',
+        model: 'google/gemini-flash-1.5-free',
         messages: [
           { role: 'system', content: systemPrompt },
           { role: 'user', content: userPrompt }
@@ -181,13 +181,13 @@ async function getGroqResponse(systemPrompt, userPrompt) {
 
     if (!response.ok) {
       const errorData = await response.json();
-      throw new Error(`Groq API error: ${errorData.error?.message || 'Unknown error'}`);
+      throw new Error(`AI API error: ${errorData.error?.message || 'Unknown error'}`);
     }
 
     const data = await response.json();
     return data.choices[0]?.message?.content || 'Unable to generate response';
   } catch (error) {
-    console.error('Groq API error:', error);
+    console.error('AI API error:', error);
     // Fall back to an educational, non-solution hint when the real API fails
     return getMockAIResponse();
   }

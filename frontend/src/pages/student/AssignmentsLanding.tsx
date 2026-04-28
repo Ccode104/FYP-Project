@@ -248,15 +248,13 @@ export default function AssignmentsLanding() {
                       // For teachers/TAs, navigate to management page
                       if (user?.role === 'teacher' || user?.role === 'ta') {
                         navigate(`/courses/${courseId}/assignments/${assignment.id}/submissions`);
-                      } else if (assignment.assignment_type === 'code') {
-                        navigate(`/courses/${courseId}/assignments/${assignment.id}/editor`);
-                      } else if (assignment.assignment_type === 'github' || assignment.allow_github_repo) {
+                      } else if (assignment.assignment_type === 'code' || assignment.assignment_type === 'github' || assignment.allow_github_repo) {
                         navigate(`/courses/${courseId}/assignments/${assignment.id}/github-submit`);
                       } else if (assignment.assignment_type === 'mixed') {
                         navigate(`/courses/${courseId}/assignments/${assignment.id}/mixed`);
                       } else {
-                        // Fallback to editor for any other potentially code-based assignments
-                        navigate(`/courses/${courseId}/assignments/${assignment.id}/editor`);
+                        // Fallback to github-submit for legacy or unhandled code types
+                        navigate(`/courses/${courseId}/assignments/${assignment.id}/github-submit`);
                       }
                     }}
                   >

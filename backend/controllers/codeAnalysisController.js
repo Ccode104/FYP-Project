@@ -5,9 +5,9 @@
 
 import { pool } from '../db/index.js';
 
-// Reuse the same Groq setup as the AI assistant controller
-const GROQ_API_KEY = process.env.GROQ_API_KEY || '';
-const GROQ_API_URL = 'https://api.groq.com/openai/v1/chat/completions';
+// Use OpenRouter API for AI analysis
+const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY || '';
+const OPENROUTER_URL = 'https://openrouter.ai/api/v1/chat/completions';
 
 /**
  * Analyze code complexity using Groq (LLM) with local heuristic fallback
@@ -22,11 +22,11 @@ export async function analyzeComplexity(req, res) {
 
     let analysis;
 
-    // First, try Groq LLM to estimate Big-O; fall back to local heuristic on error
+    // First, try AI to estimate Big-O; fall back to local heuristic on error
     try {
-      analysis = await analyzeWithGroq(code, language);
-    } catch (groqError) {
-      console.warn('Groq complexity analysis failed, falling back to local heuristic:', groqError.message);
+      analysis = await analyzeWithAI(code, language);
+    } catch (aiError) {
+      console.warn('AI complexity analysis failed, falling back to local heuristic:', aiError.message);
       analysis = analyzeCodePatterns(code, language);
     }
 
@@ -269,11 +269,11 @@ function analyzeCodePatterns(code, language) {
 }
 
 /**
- * Call Groq LLM to estimate Big-O time and space complexity
+ * Call AI via OpenRouter to estimate Big-O time and space complexity
  */
-async function analyzeWithGroq(code, language) {
-  if (!GROQ_API_KEY) {
-    throw new Error('GROQ_API_KEY not set');
+async function analyzeWithAI(code, language) {
+  if (!OPENROUTER_API_KEY) {
+    throw new Error('OPENROUTER_API_KEY not set');
   }
 
   const systemPrompt = [
@@ -299,14 +299,16 @@ async function analyzeWithGroq(code, language) {
     'Analyze this code and respond ONLY with the JSON object described above.'
   ].join('\n');
 
-  const response = await fetch(GROQ_API_URL, {
+  const response = await fetch(OPENROUTER_URL, {
     method: 'POST',
     headers: {
-      Authorization: `Bearer ${GROQ_API_KEY}`,
-      'Content-Type': 'application/json'
+      Authorization: `Bearer ${OPENROUTER_API_KEY}`,
+      'Content-Type': 'application/json',
+      'HTTP-Referer': 'http://localhost:3000',
+      'X-Title': 'FYP Coding Platform'
     },
     body: JSON.stringify({
-      model: 'llama-3.3-70b-versatile',
+      model: 'google/gemini-flash-1.5-free',
       messages: [
         { role: 'system', content: systemPrompt },
         { role: 'user', content: userPrompt }
@@ -319,7 +321,7 @@ async function analyzeWithGroq(code, language) {
   if (!response.ok) {
     const errorData = await response.json().catch(() => ({}));
     throw new Error(
-      `Groq complexity API error: ${errorData.error?.message || response.statusText}`
+      `AI complexity API error: ${errorData.error?.message || response.statusText}`
     );
   }
 
@@ -357,7 +359,7 @@ async function analyzeWithGroq(code, language) {
     time_complexity: time,
     space_complexity: space,
     patterns: notes,
-    analysis: analysisLines.join('\n') || 'Complexity estimated by Groq LLM.'
+    analysis: analysisLines.join('\n') || 'Complexity estimated by AI.'
   };
 }
 

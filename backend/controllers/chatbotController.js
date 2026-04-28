@@ -1,5 +1,4 @@
 import { pool } from '../db/index.js';
-import Groq from 'groq-sdk';
 import { v4 as uuidv4 } from 'uuid';
 import * as pdfjsLib from 'pdfjs-dist/legacy/build/pdf.mjs';
 import mammoth from 'mammoth';
@@ -127,17 +126,15 @@ export async function reindexCourseResources(req, res) {
   }
 }
 
-// Initialize Groq client (still needed for some functions)
-const groqApiKey = process.env.GROQ_API_KEY;
-if (!groqApiKey || groqApiKey === 'gsk_your_api_key_here') {
+// Initialize OpenRouter client
+const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY;
+const OPENROUTER_URL = 'https://openrouter.ai/api/v1/chat/completions';
+
+if (!OPENROUTER_API_KEY) {
   console.warn(
-    '⚠️  WARNING: GROQ_API_KEY not set in .env file. Chatbot features will not work.'
+    '⚠️  WARNING: OPENROUTER_API_KEY not set in .env file. Chatbot features will not work.'
   );
 }
-
-const groq = new Groq({
-  apiKey: groqApiKey || 'gsk_your_api_key_here', // Add to .env file
-});
 
 // Initialize the agent
 let chatbotAgent = null;
@@ -461,13 +458,27 @@ Context: Course ID ${courseId}, ${documentIds.length} documents available, Web s
 
 Respond with only the category name and confidence score (0-1), e.g.: "course_info:0.95"`;
 
-        const classification = await groq.chat.completions.create({
-          model: 'llama-3.3-70b-versatile',
-          messages: [{ role: 'user', content: classificationPrompt }],
-          max_tokens: 20,
-          temperature: 0.1
+        const response = await fetch(OPENROUTER_URL, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${OPENROUTER_API_KEY}`,
+            'Content-Type': 'application/json',
+            'HTTP-Referer': 'http://localhost:3000',
+            'X-Title': 'FYP Coding Platform'
+          },
+          body: JSON.stringify({
+            model: 'google/gemini-flash-1.5-free',
+            messages: [{ role: 'user', content: classificationPrompt }],
+            max_tokens: 20,
+            temperature: 0.1
+          })
         });
 
+        if (!response.ok) {
+          throw new Error(`OpenRouter error: ${response.statusText}`);
+        }
+
+        const classification = await response.json();
         const result = classification.choices[0]?.message?.content?.trim();
         if (result && result.includes(':')) {
           const [tool, conf] = result.split(':');

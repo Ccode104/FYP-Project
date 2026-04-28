@@ -1,5 +1,5 @@
 import { Tool } from '@langchain/core/tools';
-import { ChatGroq } from '@langchain/groq';
+import { ChatOpenAI } from '@langchain/openai';
 import { AgentExecutor, createReactAgent } from 'langchain/agents';
 import { pull } from 'langchain/hub';
 import { pool } from '../db/index.js';
@@ -58,17 +58,21 @@ function scoreSnippet(snippet, queryTokens) {
   return score;
 }
 
-// Initialize Groq client
-const groqApiKey = process.env.GROQ_API_KEY;
-if (!groqApiKey || groqApiKey === 'gsk_your_api_key_here') {
-  console.warn('⚠️  WARNING: GROQ_API_KEY not set. Chatbot agents will not work.');
+// Initialize OpenRouter client
+const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY;
+
+if (!OPENROUTER_API_KEY) {
+  console.warn('⚠️  WARNING: OPENROUTER_API_KEY not set. Chatbot agents will not work.');
 }
 
-const llm = new ChatGroq({
-  apiKey: groqApiKey || 'gsk_your_api_key_here',
-  modelName: 'llama-3.3-70b-versatile',
+const llm = new ChatOpenAI({
+  openAIApiKey: OPENROUTER_API_KEY,
+  modelName: 'google/gemini-flash-1.5-free',
   temperature: 0.7,
   maxTokens: 1024,
+  configuration: {
+    baseURL: 'https://openrouter.ai/api/v1',
+  }
 });
 
 // Tool 1: Course Information Tool

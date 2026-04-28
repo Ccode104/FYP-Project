@@ -232,7 +232,7 @@ Please provide your answer.`;
         'X-Title': 'Discussion AI Assistant',
       },
       body: JSON.stringify({
-        model: 'minimax/minimax-m2.5:free',
+        model: 'google/gemini-flash-1.5-free',
         messages: [
           { role: 'system', content: systemPrompt },
           { role: 'user', content: userPrompt },
@@ -319,7 +319,7 @@ Provide a concise, helpful answer based on the context.`;
         'X-Title': 'Discussion AI Assistant',
       },
       body: JSON.stringify({
-        model: 'minimax/minimax-m2.5:free',
+        model: 'google/gemini-flash-1.5-free',
         messages: [
           { role: 'system', content: systemPrompt },
           { role: 'user', content: userPrompt },

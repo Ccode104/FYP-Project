@@ -1,193 +1,9 @@
 import { pool } from '../db/index.js';
-import { cloudinary } from '../middleware/upload.js';
 import { logger } from '../utils/logger.js';
 import { google } from 'googleapis';
 import { Readable } from 'stream';
 import { getAuthenticatedClient } from './googleController.js';
 
-/**
- * Upload a video lecture to Cloudinary and store metadata in database
- * @param {Object} req - Express request object
- * @param {Object} res - Express response object
- */
-export async function uploadVideo(req, res) {
-  try {
-    console.log('Upload controller called, req.file:', req.file ? 'exists' : 'missing');
-    console.log('req.body:', req.body);
-
-    // Check if file was uploaded
-    if (!req.file) {
-      logger.error('No file in req.file');
-      return res.status(400).json({ error: 'No video file provided' });
-    }
-
-    // Validate file type and size
-    const allowedMimeTypes = [
-      'video/mp4',
-      'video/avi',
-      'video/mov',
-      'video/wmv',
-      'video/flv',
-      'video/webm',
-      'video/mkv',
-    ];
-    const maxFileSize = 500 * 1024 * 1024; // 500MB
-
-    if (req.file.mimetype && !allowedMimeTypes.includes(req.file.mimetype)) {
-      logger.warn(`Invalid file type uploaded: ${req.file.mimetype}`);
-      return res.status(400).json({
-        error: 'Invalid file type',
-        details: `Allowed types: ${allowedMimeTypes.join(', ')}`,
-      });
-    }
-
-    if (req.file.size && req.file.size > maxFileSize) {
-      logger.warn(`File too large: ${req.file.size} bytes`);
-      return res.status(400).json({
-        error: 'File too large',
-        details: `Maximum size: ${maxFileSize / (1024 * 1024)}MB`,
-      });
-    }
-
-    logger.info(
-      `Video upload started: ${req.file.originalname || 'unknown'}, size: ${req.file.size || 'unknown'} bytes`
-    );
-
-    // Extract form data
-    const { title, description, course_offering_id } = req.body;
-    const uploadedBy = req.user.id;
-
-    // Validate required fields
-    if (!title) {
-      return res.status(400).json({ error: 'Title is required' });
-    }
-    if (!course_offering_id) {
-      return res.status(400).json({ error: 'course_offering_id is required' });
-    }
-
-    const courseOfferingId = parseInt(course_offering_id);
-    if (isNaN(courseOfferingId)) {
-      return res.status(400).json({ error: 'Invalid course_offering_id' });
-    }
-
-    // Get Cloudinary upload result from multer-storage-cloudinary
-    // The file is already uploaded to Cloudinary by the middleware
-    const cloudinaryResult = req.file;
-
-    if (!cloudinaryResult) {
-      logger.error('No Cloudinary result in req.file');
-      return res.status(500).json({
-        error: 'Video upload failed',
-        details: 'No upload result received from Cloudinary',
-      });
-    }
-
-    // Extract URL and public ID with improved error handling
-    let videoUrl = null;
-    let publicId = null;
-
-    try {
-      // Try different possible keys for URL
-      videoUrl =
-        cloudinaryResult.secure_url ||
-        cloudinaryResult.url ||
-        cloudinaryResult.path ||
-        cloudinaryResult.location;
-      publicId =
-        cloudinaryResult.public_id || cloudinaryResult.publicId || cloudinaryResult.filename;
-
-      // If URL is still missing but we have publicId, try to fetch from Cloudinary
-      if (!videoUrl && publicId) {
-        logger.warn('URL missing from upload result, attempting to fetch from Cloudinary API', {
-          publicId,
-        });
-        const videoResource = await cloudinary.api.resource(publicId, { resource_type: 'video' });
-        videoUrl = videoResource.secure_url || videoResource.url;
-      }
-
-      if (!videoUrl || !publicId) {
-        logger.error('Failed to extract video URL and/or public ID from Cloudinary result', {
-          hasUrl: !!videoUrl,
-          hasPublicId: !!publicId,
-          resultKeys: Object.keys(cloudinaryResult),
-          resultSample: JSON.stringify(cloudinaryResult).slice(0, 1000),
-        });
-        return res.status(500).json({
-          error: 'Failed to process uploaded video',
-          details: 'Could not extract video URL or public ID from Cloudinary response',
-        });
-      }
-    } catch (extractError) {
-      logger.error('Error extracting Cloudinary data:', extractError);
-      return res.status(500).json({
-        error: 'Video processing failed',
-        details: 'Error processing Cloudinary upload result',
-      });
-    }
-
-    // Try to get video duration from Cloudinary metadata
-    // Note: Duration might not be immediately available after upload
-    let duration = null;
-    try {
-      // Fetch video resource details from Cloudinary to get duration
-      const videoResource = await cloudinary.api.resource(publicId, {
-        resource_type: 'video',
-      });
-      duration = videoResource.duration || null; // Duration in seconds
-
-      if (duration) {
-        logger.info(`Video duration extracted: ${duration} seconds for ${publicId}`);
-      } else {
-        logger.warn(`No duration available for video ${publicId} - may need to check later`);
-      }
-    } catch (err) {
-      // If duration extraction fails, log but don't fail the upload
-      logger.warn(`Could not extract video duration for ${publicId}:`, err.message);
-      duration = null;
-    }
-
-    const insertQuery = `
-      INSERT INTO videos (title, description, uploaded_by, video_url, duration, cloudinary_public_id, upload_timestamp, course_offering_id)
-      VALUES ($1, $2, $3, $4, $5, $6, NOW(), $7)
-      RETURNING *;
-    `;
-
-    const result = await pool.query(insertQuery, [
-      title,
-      description || null,
-      uploadedBy,
-      videoUrl,
-      duration,
-      publicId,
-      courseOfferingId,
-    ]);
-
-    const video = result.rows[0];
-
-    res.status(201).json({
-      success: true,
-      message: 'Video uploaded successfully',
-      video: result.rows[0],
-    });
-  } catch (error) {
-    logger.error('Error uploading video:', error);
-    console.error('Error uploading video - full error:', error);
-    console.error('Error stack:', error.stack);
-
-    // Handle specific error types
-    if (error.message && error.message.includes('foreign key constraint')) {
-      return res.status(400).json({ error: 'Invalid user ID or course_offering_id' });
-    }
-
-    // Ensure we always return JSON, not HTML
-    const errorMessage = error.message || 'Failed to upload video';
-    res.status(500).json({
-      error: 'Failed to upload video',
-      message: errorMessage,
-      details: process.env.NODE_ENV === 'development' ? error.stack : undefined,
-    });
-  }
-}
 
 /**
  * Link a YouTube video by providing its URL
@@ -407,17 +223,6 @@ export async function deleteVideo(req, res) {
       return res.status(403).json({ error: 'You do not have permission to delete this video' });
     }
 
-    // Delete from Cloudinary
-    if (video.cloudinary_public_id) {
-      try {
-        await cloudinary.uploader.destroy(video.cloudinary_public_id, {
-          resource_type: 'video',
-        });
-      } catch (cloudinaryError) {
-        logger.warn('Error deleting video from Cloudinary:', cloudinaryError.message);
-        // Continue with database deletion even if Cloudinary deletion fails
-      }
-    }
 
     // Delete from database (CASCADE will delete associated quiz questions)
     const deleteQuery = 'DELETE FROM videos WHERE id = $1 RETURNING *';
@@ -1313,12 +1118,15 @@ export async function processVideoTranscript(videoId) {
       transcript = generateDummyTranscript(totalWords, duration);
     }
 
-    // Step 2: Use Groq to divide into sections
-    // Note: Groq is imported in the original file, but if not available, use fallback
+    // Step 2: Use AI to divide into sections via OpenRouter
     let sections;
     try {
-      const { Groq } = await import('groq');
-      const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
+      const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY;
+      const OPENROUTER_URL = 'https://openrouter.ai/api/v1/chat/completions';
+
+      if (!OPENROUTER_API_KEY) {
+        throw new Error('OPENROUTER_API_KEY not set');
+      }
 
       const prompt = `Divide this video transcript into 4-8 logical sections based on topics. Video duration: ${duration}s.
 
@@ -1335,21 +1143,42 @@ Output ONLY valid JSON array:
   }
 ]`;
 
-      const completion = await groq.chat.completions.create({
-        messages: [{ role: 'user', content: prompt }],
-        model: 'llama3-8b-8192',
-        temperature: 0.1,
-        max_tokens: 2000,
+      const response = await fetch(OPENROUTER_URL, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${OPENROUTER_API_KEY}`,
+          'Content-Type': 'application/json',
+          'HTTP-Referer': 'http://localhost:3000',
+          'X-Title': 'FYP Coding Platform'
+        },
+        body: JSON.stringify({
+          model: 'google/gemini-flash-1.5-free',
+          messages: [{ role: 'user', content: prompt }],
+          temperature: 0.1,
+          max_tokens: 2000,
+        })
       });
 
-      const response = completion.choices[0]?.message?.content || '[]';
+      if (!response.ok) {
+        throw new Error(`OpenRouter error: ${response.statusText}`);
+      }
+
+      const data = await response.json();
+      const content = data.choices[0]?.message?.content || '[]';
+      
       try {
-        sections = JSON.parse(response);
+        // Strip markdown if present
+        let cleanContent = content.trim();
+        if (cleanContent.startsWith('```')) {
+          const match = cleanContent.match(/```(?:json)?\s*([\s\S]*?)```/i);
+          if (match && match[1]) cleanContent = match[1].trim();
+        }
+        sections = JSON.parse(cleanContent);
       } catch {
         sections = generateDummySections(duration);
       }
-    } catch (groqError) {
-      logger.warn('Groq not available, using dummy sections:', groqError.message);
+    } catch (aiError) {
+      logger.warn('AI sectioning failed, using dummy sections:', aiError.message);
       sections = generateDummySections(duration);
     }
 
@@ -1596,8 +1425,12 @@ export async function autoGenerateSections(req, res) {
 
     let sections;
     try {
-      const { Groq } = await import('groq');
-      const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
+      const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY;
+      const OPENROUTER_URL = 'https://openrouter.ai/api/v1/chat/completions';
+
+      if (!OPENROUTER_API_KEY) {
+        throw new Error('OPENROUTER_API_KEY not set');
+      }
 
       const prompt = `Divide this video transcript into 4-8 logical sections based on topics. Video duration: ${duration}s.
 
@@ -1614,21 +1447,42 @@ Output ONLY valid JSON array:
   }
 ]`;
 
-      const completion = await groq.chat.completions.create({
-        messages: [{ role: 'user', content: prompt }],
-        model: 'llama3-8b-8192',
-        temperature: 0.1,
-        max_tokens: 2000,
+      const response = await fetch(OPENROUTER_URL, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${OPENROUTER_API_KEY}`,
+          'Content-Type': 'application/json',
+          'HTTP-Referer': 'http://localhost:3000',
+          'X-Title': 'FYP Coding Platform'
+        },
+        body: JSON.stringify({
+          model: 'google/gemini-flash-1.5-free',
+          messages: [{ role: 'user', content: prompt }],
+          temperature: 0.1,
+          max_tokens: 2000,
+        })
       });
 
-      const response = completion.choices[0]?.message?.content || '[]';
+      if (!response.ok) {
+        throw new Error(`OpenRouter error: ${response.statusText}`);
+      }
+
+      const data = await response.json();
+      const content = data.choices[0]?.message?.content || '[]';
+      
       try {
-        sections = JSON.parse(response);
+        // Strip markdown if present
+        let cleanContent = content.trim();
+        if (cleanContent.startsWith('```')) {
+          const match = cleanContent.match(/```(?:json)?\s*([\s\S]*?)```/i);
+          if (match && match[1]) cleanContent = match[1].trim();
+        }
+        sections = JSON.parse(cleanContent);
       } catch {
         sections = generateDummySections(duration);
       }
-    } catch (groqError) {
-      logger.warn('Groq not available, using dummy sections:', groqError.message);
+    } catch (aiError) {
+      logger.warn('AI sectioning failed, using dummy sections:', aiError.message);
       sections = generateDummySections(duration);
     }
 

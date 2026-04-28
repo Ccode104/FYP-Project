@@ -520,7 +520,10 @@ export async function generateAIQuestions(req, res) {
         .json({ error: 'topic, difficulty, num_questions, and question_types are required' });
     }
 
-    if (!GROQ_API_KEY) {
+    const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY;
+    const OPENROUTER_URL = 'https://openrouter.ai/api/v1/chat/completions';
+
+    if (!OPENROUTER_API_KEY) {
       return res.status(503).json({ error: 'AI service is not configured' });
     }
 
@@ -565,14 +568,16 @@ Question types: ${typeStr}
 
 Make sure questions are appropriate for ${difficulty} level.`;
 
-    const response = await fetch(GROQ_API_URL, {
+    const response = await fetch(OPENROUTER_URL, {
       method: 'POST',
       headers: {
-        Authorization: `Bearer ${GROQ_API_KEY}`,
+        Authorization: `Bearer ${OPENROUTER_API_KEY}`,
         'Content-Type': 'application/json',
+        'HTTP-Referer': 'http://localhost:3000',
+        'X-Title': 'FYP Coding Platform'
       },
       body: JSON.stringify({
-        model: 'llama-3.3-70b-versatile',
+        model: 'google/gemini-flash-1.5-free',
         messages: [
           { role: 'system', content: systemPrompt },
           { role: 'user', content: userPrompt },

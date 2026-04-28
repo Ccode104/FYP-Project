@@ -20,8 +20,6 @@ const AssignmentsLanding = lazy(() => import('./pages/student/AssignmentsLanding
 // AssignmentDetails removed
 
 const SubmissionReview = lazy(() => import('./pages/student/SubmissionReview'));
-const GitHubCodeEditor = lazy(() => import('./pages/student/GitHubCodeEditor'));
-const ContestEditorPage = lazy(() => import('./pages/student/ContestEditorPage'));
 const LiveLecturePage = lazy(() => import('./pages/student/LiveLecturePage'));
 const LiveLecturesLanding = lazy(() => import('./pages/student/LiveLecturesLanding'));
 const VideoPlayerPage = lazy(() => import('./pages/student/VideoPlayerPage'));
@@ -313,25 +311,7 @@ function App() {
               }
             />
 
-            {/* Code editor page (accessible by student, teacher, TA) */}
-            <Route
-              path="/courses/:courseId/assignments/:assignmentId/editor"
-              element={
-                <ProtectedRoute roles={['student', 'teacher', 'ta']}>
-                  <ContestEditorPage />
-                </ProtectedRoute>
-              }
-            />
 
-            {/* Contest editor page (accessible by student, teacher, TA) */}
-            <Route
-              path="/courses/:courseId/contests/:contestId/editor"
-              element={
-                <ProtectedRoute roles={['student', 'teacher', 'ta']}>
-                  <ContestEditorPage />
-                </ProtectedRoute>
-              }
-            />
 
             {/* Live lecture page - Shared student/teacher/TA view */}
             <Route

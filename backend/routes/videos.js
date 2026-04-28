@@ -3,7 +3,6 @@ import multer from 'multer';
 import { requireAuth, requireRole } from '../middleware/auth.js';
 // import { uploadVideo } from '../middleware/upload.js'; // Fixed: export missing, use uploadVideoCloudinary instead
 import {
-  uploadVideo as uploadVideoController,
   getMyVideos,
   getVideosByCourseOffering,
   getVideoById,
@@ -27,87 +26,13 @@ import {
   linkYouTubeVideo,
   uploadVideoToYouTube,
 } from '../controllers/videosController.js';
-import { uploadVideoMemory, uploadVideoCloudinary } from '../middleware/upload.js';
+import { uploadVideoMemory } from '../middleware/upload.js';
 
 const router = express.Router();
 
 // All routes require authentication
 router.use(requireAuth);
 
-/**
- * @swagger
- * /api/videos:
- *   post:
- *     summary: Upload a video lecture (Faculty only)
- *     tags: [Videos]
- *     security:
- *       - bearerAuth: []
- *     requestBody:
- *       required: true
- *       content:
- *         multipart/form-data:
- *           schema:
- *             type: object
- *             required:
- *               - video
- *               - title
- *             properties:
- *               video:
- *                 type: string
- *                 format: binary
- *               title:
- *                 type: string
- *               description:
- *                 type: string
- *     responses:
- *       201:
- *         description: Video uploaded successfully
- *       400:
- *         description: Invalid request
- *       401:
- *         description: Unauthorized
- *       403:
- *         description: Forbidden - Requires faculty role
- */
-// Error handling middleware for multer errors
-const handleMulterError = (err, req, res, next) => {
-  if (err) {
-    console.error('Multer error:', err);
-    if (err instanceof multer.MulterError) {
-      if (err.code === 'LIMIT_FILE_SIZE') {
-        return res.status(400).json({ error: 'File size too large. Maximum size is 500MB' });
-      }
-      return res.status(400).json({ error: `Upload error: ${err.message}` });
-    }
-    // Handle other errors (e.g., fileFilter errors, Cloudinary errors)
-    const errorMessage = err.message || 'File upload error';
-    return res.status(400).json({ error: errorMessage });
-  }
-  next();
-};
-
-router.post(
-  '/',
-  requireRole('faculty', 'admin'),
-  (req, res, next) => {
-    console.log('Upload route hit, file field:', req.body);
-    console.log('Headers:', req.headers);
-    // Set timeout for large file uploads
-    req.setTimeout(600000); // 10 minutes
-    res.setTimeout(600000); // 10 minutes
-
-    uploadVideoCloudinary.single('video')(req, res, err => {
-      console.log('Multer processing completed, err:', err);
-      if (err) {
-        console.error('Multer error details:', err);
-        return handleMulterError(err, req, res, next);
-      }
-      console.log('Multer processing successful, proceeding to controller');
-      next();
-    });
-  },
-  uploadVideoController
-);
 
 /**
  * @swagger

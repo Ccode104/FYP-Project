@@ -46,7 +46,7 @@ Target Language: ${language}
 
 Return a JSON object with: constraints, template_code, driver_code, and test_cases (include at least 2 sample and 3 hidden tests).`;
 
-    const aiResponse = await getGroqResponse(systemPrompt, userPrompt);
+    const aiResponse = await getAIResponse(systemPrompt, userPrompt);
     
     // Attempt to parse JSON from the response
     try {
@@ -73,9 +73,9 @@ Return a JSON object with: constraints, template_code, driver_code, and test_cas
 }
 
 /**
- * Internal helper to fetch from Groq
+ * Internal helper to fetch from AI API via OpenRouter
  */
-async function getGroqResponse(systemPrompt, userPrompt) {
+async function getAIResponse(systemPrompt, userPrompt) {
   if (!OPENROUTER_API_KEY) {
     throw new Error('OPENROUTER_API_KEY not configured');
   }
@@ -89,7 +89,7 @@ async function getGroqResponse(systemPrompt, userPrompt) {
       'X-Title': 'FYP Coding Platform'
     },
     body: JSON.stringify({
-      model: 'openai/gpt-4o-mini',
+      model: 'google/gemini-flash-1.5-free',
       messages: [
         { role: 'system', content: systemPrompt },
         { role: 'user', content: userPrompt }
@@ -102,7 +102,7 @@ async function getGroqResponse(systemPrompt, userPrompt) {
 
   if (!response.ok) {
     const errorData = await response.json();
-    throw new Error(`Groq API error: ${errorData.error?.message || 'Unknown error'}`);
+    throw new Error(`AI API error: ${errorData.error?.message || 'Unknown error'}`);
   }
 
   const data = await response.json();
