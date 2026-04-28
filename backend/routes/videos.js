@@ -24,6 +24,8 @@ import {
   updateVideoSection,
   deleteVideoSection,
   autoGenerateSections,
+  linkYouTubeVideo,
+  uploadVideoToYouTube,
 } from '../controllers/videosController.js';
 import { uploadVideoMemory, uploadVideoCloudinary } from '../middleware/upload.js';
 
@@ -479,6 +481,28 @@ router.post(
     });
   },
   uploadVideoToDrive
+);
+
+router.post(
+  '/youtube',
+  requireRole('faculty', 'admin'),
+  linkYouTubeVideo
+);
+
+router.post(
+  '/upload-youtube',
+  requireRole('faculty', 'admin'),
+  (req, res, next) => {
+    console.log('YouTube upload route hit');
+    req.setTimeout(600000); // 10 minutes
+    res.setTimeout(600000);
+
+    uploadVideoMemory.single('video')(req, res, err => {
+      if (err) return res.status(400).json({ error: err.message });
+      next();
+    });
+  },
+  uploadVideoToYouTube
 );
 
 router.get('/:id/sections', getVideoSections);

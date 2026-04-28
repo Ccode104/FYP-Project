@@ -953,21 +953,6 @@ export async function listQuizzes(req, res) {
     const { course_offering_id } = req.params;
     await ensureQuizGoogleFormColumns();
 
-    if (req.user.role === 'student') {
-      const quizzes = await pool.query(
-        `
-        SELECT q.*, c.code as course_code, c.title as course_title
-        FROM quizzes q
-        JOIN course_offerings co ON q.course_offering_id = co.id
-        JOIN courses c ON co.course_id = c.id
-        WHERE q.course_offering_id = $1
-        ORDER BY q.id DESC
-      `,
-        [course_offering_id]
-      );
-      return res.json(quizzes.rows);
-    }
-
     const quizzes = await pool.query(
       `
       SELECT q.*, c.code as course_code, c.title as course_title
@@ -980,21 +965,32 @@ export async function listQuizzes(req, res) {
       [course_offering_id]
     );
 
-    const quizzesWithCount = await Promise.all(
+    const quizzesWithStats = await Promise.all(
       quizzes.rows.map(async quiz => {
         const questionsCount = await pool.query(
           'SELECT COUNT(*) as count FROM quiz_questions WHERE quiz_id = $1',
           [quiz.id]
         );
 
+        const statsResult = await pool.query(
+          `SELECT 
+            COUNT(*)::int as total_submissions,
+            AVG(score)::numeric(5,2) as average_score
+           FROM quiz_attempts 
+           WHERE quiz_id = $1 AND finished_at IS NOT NULL`,
+          [quiz.id]
+        );
+
         return {
           ...quiz,
           questions_count: parseInt(questionsCount.rows[0].count) || 0,
+          total_submissions: parseInt(statsResult.rows[0]?.total_submissions || 0),
+          average_score: parseFloat(statsResult.rows[0]?.average_score || 0)
         };
       })
     );
 
-    res.json(quizzesWithCount);
+    res.json(quizzesWithStats);
   } catch (error) {
     console.error('Error listing quizzes:', error);
     res.status(500).json({ error: error.message || 'Failed to list quizzes' });

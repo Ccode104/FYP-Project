@@ -118,10 +118,18 @@
 }
 
 .student-stat__value {
-  display: block;
-  font-size: 36px;
-  font-weight: 800;
-  color: var(--shell-text);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 24px;
+  font-weight: 700;
+  color: #00346f;
+  background: rgba(0, 52, 111, 0.04);
+  padding: 4px 16px;
+  border-radius: 12px;
+  border: 1px solid rgba(0, 52, 111, 0.08);
+  min-width: 60px;
+  letter-spacing: -0.01em;
 }
 
 .student-stat__label {

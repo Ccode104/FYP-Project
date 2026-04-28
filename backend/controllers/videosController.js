@@ -190,6 +190,50 @@ export async function uploadVideo(req, res) {
 }
 
 /**
+ * Link a YouTube video by providing its URL
+ * @param {Object} req - Express request object
+ * @param {Object} res - Express response object
+ */
+export async function linkYouTubeVideo(req, res) {
+  try {
+    const { title, description, course_offering_id, video_url } = req.body;
+    const uploadedBy = req.user.id;
+
+    if (!title || !course_offering_id || !video_url) {
+      return res.status(400).json({ error: 'Title, course_offering_id, and video_url are required' });
+    }
+
+    const courseOfferingId = parseInt(course_offering_id);
+    if (isNaN(courseOfferingId)) {
+      return res.status(400).json({ error: 'Invalid course_offering_id' });
+    }
+
+    const insertQuery = `
+      INSERT INTO videos (title, description, uploaded_by, video_url, upload_timestamp, course_offering_id)
+      VALUES ($1, $2, $3, $4, NOW(), $5)
+      RETURNING *;
+    `;
+
+    const result = await pool.query(insertQuery, [
+      title,
+      description || null,
+      uploadedBy,
+      video_url,
+      courseOfferingId,
+    ]);
+
+    res.status(201).json({
+      success: true,
+      message: 'YouTube video linked successfully',
+      video: result.rows[0],
+    });
+  } catch (error) {
+    logger.error('Error linking YouTube video:', error);
+    res.status(500).json({ error: 'Failed to link YouTube video', message: error.message });
+  }
+}
+
+/**
  * Get all videos uploaded by the current faculty user
  * @param {Object} req - Express request object
  * @param {Object} res - Express response object
@@ -1149,6 +1193,79 @@ export async function uploadVideoToDrive(req, res) {
   } catch (error) {
     logger.error('Error uploading video to Drive:', error);
     res.status(500).json({ error: 'Failed to upload video to Drive', message: error.message });
+  }
+}
+
+/**
+ * Upload a video to YouTube using the authenticated user's account
+ * @param {Object} req - Express request object
+ * @param {Object} res - Express response object
+ */
+export async function uploadVideoToYouTube(req, res) {
+  try {
+    console.log('uploadVideoToYouTube controller called');
+    
+    if (!req.file) {
+      return res.status(400).json({ error: 'No video file provided' });
+    }
+
+    const { course_offering_id, title, description } = req.body;
+    const uploadedBy = req.user.id;
+
+    if (!title || !course_offering_id) {
+      return res.status(400).json({ error: 'Title and course_offering_id are required' });
+    }
+
+    const auth = await getAuthenticatedClient(uploadedBy);
+    const youtube = google.youtube({ version: 'v3', auth });
+
+    logger.info(`Uploading video to YouTube: ${title}`);
+
+    // Upload to YouTube
+    const youtubeResponse = await youtube.videos.insert({
+      part: 'snippet,status',
+      requestBody: {
+        snippet: {
+          title: title,
+          description: description || 'Lecture video uploaded from Unified Academic Portal',
+          categoryId: '27', // Education category
+        },
+        status: {
+          privacyStatus: 'unlisted', // Automatic unlisted setting as requested
+          selfDeclaredMadeForKids: false,
+        },
+      },
+      media: {
+        body: Readable.from(req.file.buffer),
+      },
+    });
+
+    const youtubeVideoId = youtubeResponse.data.id;
+    const videoUrl = `https://www.youtube.com/watch?v=${youtubeVideoId}`;
+
+    // Store in database
+    const insertQuery = `
+      INSERT INTO videos (title, description, uploaded_by, video_url, upload_timestamp, course_offering_id)
+      VALUES ($1, $2, $3, $4, NOW(), $5)
+      RETURNING *;
+    `;
+
+    const result = await pool.query(insertQuery, [
+      title,
+      description || null,
+      uploadedBy,
+      videoUrl,
+      parseInt(course_offering_id),
+    ]);
+
+    res.status(201).json({
+      success: true,
+      message: 'Video uploaded to YouTube successfully',
+      video: result.rows[0],
+    });
+  } catch (error) {
+    logger.error('Error uploading video to YouTube:', error);
+    res.status(500).json({ error: 'Failed to upload video to YouTube', message: error.message });
   }
 }
 

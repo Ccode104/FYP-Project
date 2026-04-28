@@ -82,16 +82,34 @@ export default function AppSidebar() {
             href: `/courses/${currentCourseId}/assignments`,
           },
           {
-            id: 'lectures',
-            label: 'Live Lectures',
-            icon: 'video_camera_front',
-            href: `/courses/${currentCourseId}/live-lectures`,
+            id: 'quizzes',
+            label: 'Quizzes',
+            icon: 'quiz',
+            href: `/courses/${currentCourseId}/quiz-management`,
           },
           {
             id: 'discussion',
             label: 'Discussion',
             icon: 'forum',
             href: `/courses/${currentCourseId}/discussion`,
+          },
+          {
+            id: 'videos',
+            label: 'Videos',
+            icon: 'movie',
+            href: `/courses/${currentCourseId}/library`,
+          },
+          {
+            id: 'lectures',
+            label: 'Live Lectures',
+            icon: 'live_tv',
+            href: `/courses/${currentCourseId}/live-lectures`,
+          },
+          {
+            id: 'progress',
+            label: 'Progress',
+            icon: 'analytics',
+            href: `/progress/course/${currentCourseId}`,
           },
         ];
       }
@@ -164,16 +182,28 @@ export default function AppSidebar() {
             href: `/courses/${currentCourseId}/quiz-management`,
           },
           {
-            id: 'lectures',
-            label: 'Live Lectures',
-            icon: 'video_camera_front',
-            href: `/courses/${currentCourseId}/live-lectures`,
+            id: 'discussion',
+            label: 'Discussion',
+            icon: 'forum',
+            href: `/courses/${currentCourseId}/discussion`,
           },
           {
             id: 'videos',
             label: 'Videos',
-            icon: 'play_circle',
+            icon: 'movie',
             href: `/courses/${currentCourseId}/videos`,
+          },
+          {
+            id: 'lectures',
+            label: 'Live Lectures',
+            icon: 'live_tv',
+            href: `/courses/${currentCourseId}/live-lectures`,
+          },
+          {
+            id: 'progress',
+            label: 'Progress',
+            icon: 'analytics',
+            href: `/progress/course/${currentCourseId}`,
           },
         ];
       }
@@ -189,10 +219,60 @@ export default function AppSidebar() {
         },
       ];
     } else if (user?.role === 'ta') {
+      if (inCourseContext) {
+        return [
+          {
+            id: 'dashboard',
+            label: 'Back to Dashboard',
+            icon: 'arrow_back',
+            href: '/dashboard/ta',
+          },
+          {
+            id: 'hub',
+            label: 'Course Hub',
+            icon: 'school',
+            href: `/courses/${currentCourseId}/hub`,
+          },
+          {
+            id: 'assignments',
+            label: 'Assignments',
+            icon: 'assignment',
+            href: `/courses/${currentCourseId}/assignments`,
+          },
+          {
+            id: 'quizzes',
+            label: 'Quizzes',
+            icon: 'quiz',
+            href: `/courses/${currentCourseId}/quiz-management`,
+          },
+          {
+            id: 'discussion',
+            label: 'Discussion',
+            icon: 'forum',
+            href: `/courses/${currentCourseId}/discussion`,
+          },
+          {
+            id: 'videos',
+            label: 'Videos',
+            icon: 'movie',
+            href: `/courses/${currentCourseId}/videos`,
+          },
+          {
+            id: 'lectures',
+            label: 'Live Lectures',
+            icon: 'live_tv',
+            href: `/courses/${currentCourseId}/live-lectures`,
+          },
+          {
+            id: 'progress',
+            label: 'Progress',
+            icon: 'analytics',
+            href: `/progress/course/${currentCourseId}`,
+          },
+        ];
+      }
       // TAs have a very simple flow: Dashboard (Tasks) only
-      return [
-        { id: 'dashboard', label: 'My Tasks', icon: 'task_alt', href: '/dashboard/ta' },
-      ];
+      return [{ id: 'dashboard', label: 'My Tasks', icon: 'task_alt', href: '/dashboard/ta' }];
     } else if (user?.role === 'admin') {
       return [
         { id: 'dashboard', label: 'Dashboard', icon: 'dashboard', href: '/dashboard/admin' },

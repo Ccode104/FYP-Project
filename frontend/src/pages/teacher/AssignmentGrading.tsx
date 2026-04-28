@@ -66,6 +66,10 @@ export default function AssignmentGrading() {
     { name: 'Analysis', score: 42, maxScore: 50 },
   ]);
   const [selectedFile, setSelectedFile] = useState<SubmissionFile | null>(null);
+  const [questions, setQuestions] = useState<any[]>([]);
+  const [currentQuestionId, setCurrentQuestionId] = useState<number | null>(null);
+  const [fullSubmission, setFullSubmission] = useState<any>(null);
+  const [viewMode, setViewMode] = useState<'question' | 'file'>('question');
   const [googleConnected, setGoogleConnected] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
   const [sheetLoading, setSheetLoading] = useState(false);
@@ -109,11 +113,21 @@ export default function AssignmentGrading() {
         if (subs.length > 0) {
           const pending = subs.find(s => !s.final_score) || subs[0];
           setSelectedSubmission(pending);
-          setScore(pending.final_score || pending.score || 0);
-          setFeedback(pending.comments || '');
-          if (pending.files && pending.files.length > 0) {
-            setSelectedFile(pending.files[0]);
+        }
+
+        // Fetch questions if it's a code/mixed assignment
+        try {
+          const questionsData = await apiFetch<any[]>(`/api/assignments/${assignmentId}/questions`);
+          setQuestions(questionsData);
+          if (questionsData.length > 0) {
+            setCurrentQuestionId(questionsData[0].id);
+            setViewMode('question');
+          } else {
+            setViewMode('file');
           }
+        } catch (qErr) {
+          console.error('Failed to load questions:', qErr);
+          setViewMode('file');
         }
       } catch (err) {
         console.error('Failed to load:', err);
@@ -125,6 +139,29 @@ export default function AssignmentGrading() {
 
     loadData();
   }, [courseId, assignmentId]);
+
+  useEffect(() => {
+    if (!selectedSubmission) return;
+
+    const fetchFullSubmission = async () => {
+      try {
+        const data = await apiFetch<{ submission: any }>(`/api/submissions/${selectedSubmission.id}`);
+        setFullSubmission(data.submission);
+        setScore(data.submission.final_score || data.submission.score || 0);
+        setFeedback(data.submission.comments || '');
+        
+        if (data.submission.files && data.submission.files.length > 0) {
+          setSelectedFile(data.submission.files[0]);
+        } else {
+          setSelectedFile(null);
+        }
+      } catch (err) {
+        console.error('Failed to fetch full submission:', err);
+      }
+    };
+
+    void fetchFullSubmission();
+  }, [selectedSubmission?.id]);
 
   useEffect(() => {
     const checkGoogle = async () => {
@@ -313,7 +350,43 @@ export default function AssignmentGrading() {
   };
 
   const renderFilePreview = () => {
-    if (!selectedFile) return null;
+    // If it's a code assignment and we are in question view mode
+    if (viewMode === 'question' && questions.length > 0 && currentQuestionId) {
+      const questionCode = fullSubmission?.code?.find((c: any) => c.assignment_question_id === currentQuestionId || c.question_id === currentQuestionId);
+      
+      return (
+        <div className="code-preview-container" style={{ padding: '24px', background: 'var(--slate-900, #1e293b)', borderRadius: '12px', height: '100%', overflow: 'auto' }}>
+          <div className="code-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', color: '#94a3b8' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+              <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>code</span>
+              <span style={{ fontSize: '14px', fontWeight: 600 }}>Code Submission</span>
+            </div>
+            <span style={{ fontSize: '12px', background: '#334155', padding: '4px 8px', borderRadius: '4px' }}>{questionCode?.language || 'python'}</span>
+          </div>
+          {questionCode ? (
+            <pre style={{ margin: 0, color: '#e2e8f0', fontFamily: '"JetBrains Mono", monospace', fontSize: '13px', lineHeight: '1.6' }}>
+              <code>{questionCode.code}</code>
+            </pre>
+          ) : (
+            <div style={{ color: '#94a3b8', textAlign: 'center', marginTop: '100px' }}>
+              <span className="material-symbols-outlined" style={{ fontSize: '48px', marginBottom: '16px' }}>code_off</span>
+              <p>No code submitted for this question yet.</p>
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    if (!selectedFile) {
+      if (questions.length > 0) {
+        return (
+          <div style={{ color: '#94a3b8', textAlign: 'center', marginTop: '100px' }}>
+            <p>Select a question from the header or a file below to preview.</p>
+          </div>
+        );
+      }
+      return null;
+    }
 
     // Handle GitHub type - show repo link
     if (
@@ -407,7 +480,29 @@ export default function AssignmentGrading() {
           <div className="header-course">
             {assignment?.course_code}: {assignment?.course_name}
           </div>
-          <h1 className="header-title">{assignment?.title}</h1>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+            <h1 className="header-title">{assignment?.title}</h1>
+            {questions.length > 0 && (
+              <div className="header-question-selector" style={{ background: 'rgba(255,255,255,0.05)', padding: '4px 12px', borderRadius: '8px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <span style={{ fontSize: '12px', color: '#94a3b8', fontWeight: 500 }}>Reviewing:</span>
+                <select 
+                  value={viewMode === 'question' ? currentQuestionId || '' : ''} 
+                  onChange={(e) => {
+                    setCurrentQuestionId(Number(e.target.value));
+                    setViewMode('question');
+                  }}
+                  style={{ background: 'transparent', border: 'none', color: '#fff', fontSize: '13px', fontWeight: 600, outline: 'none', cursor: 'pointer' }}
+                >
+                  <option value="" disabled>{viewMode === 'file' ? 'Switch to Question...' : 'Select Question...'}</option>
+                  {questions.map((q, idx) => (
+                    <option key={q.id} value={q.id} style={{ background: '#1e293b' }}>
+                      Q{idx + 1}: {q.title}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+          </div>
           <div className="header-meta">
             {!isTA && <span className="student-name">{selectedSubmission?.student_name}</span>}
             {!isTA && <span className="separator">•</span>}
@@ -518,8 +613,11 @@ export default function AssignmentGrading() {
                     return (
                       <div
                         key={file.id}
-                        className={`file-card ${selectedFile?.id === file.id ? 'active' : ''}`}
-                        onClick={() => setSelectedFile(file)}
+                        className={`file-card ${viewMode === 'file' && selectedFile?.id === file.id ? 'active' : ''}`}
+                        onClick={() => {
+                          setSelectedFile(file);
+                          setViewMode('file');
+                        }}
                       >
                         <div
                           className={`file-icon ${color}`}

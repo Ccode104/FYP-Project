@@ -4,6 +4,8 @@ import { apiFetch } from '../../services/api';
 import { useToast } from '../../components/ToastProvider';
 import Modal from '../../components/Modal';
 import DriveUpload from '../../components/DriveUpload';
+import YouTubeLink from '../../components/YouTubeLink';
+import YouTubeUpload from '../../components/YouTubeUpload';
 import './VideoManagement.css';
 
 interface Video {
@@ -66,6 +68,7 @@ export default function VideoManagement() {
   const [overlayInfo, setOverlayInfo] = useState<{
     [key: number]: { courseName: string; videoName: string; instructorName: string };
   }>({});
+  const [uploadType, setUploadType] = useState<'drive' | 'youtube' | 'youtube-upload'>('drive');
   const videosPerPage = 10;
   const { push } = useToast();
 
@@ -297,7 +300,11 @@ export default function VideoManagement() {
           </div>
           <div className="vm-header-actions">
             {googleConnected ? (
-              <button className="vm-btn-secondary" disabled>
+              <button 
+                className="vm-btn-secondary connected" 
+                onClick={handleAuthorizeGoogle}
+                title="Click to refresh permissions or reconnect your account"
+              >
                 <span className="material-symbols-outlined">cloud_done</span>
                 Drive Connected
               </button>
@@ -311,7 +318,33 @@ export default function VideoManagement() {
                 {googleLoading ? 'Connecting...' : 'Connect Google Drive'}
               </button>
             )}
-            <button className="vm-btn-primary" onClick={() => setShowUploadModal(true)}>
+            <button 
+              className="vm-btn-secondary" 
+              onClick={() => {
+                setUploadType('youtube-upload');
+                setShowUploadModal(true);
+              }}
+            >
+              <span className="material-symbols-outlined">video_call</span>
+              YouTube Upload
+            </button>
+            <button 
+              className="vm-btn-secondary" 
+              onClick={() => {
+                setUploadType('youtube');
+                setShowUploadModal(true);
+              }}
+            >
+              <span className="material-symbols-outlined">link</span>
+              YouTube Link
+            </button>
+            <button 
+              className="vm-btn-primary" 
+              onClick={() => {
+                setUploadType('drive');
+                setShowUploadModal(true);
+              }}
+            >
               <span className="material-symbols-outlined">upload</span>
               Upload Lecture
             </button>
@@ -525,23 +558,98 @@ export default function VideoManagement() {
         </div>
       </footer>
 
-      {/* Upload Video Modal */}
       <Modal
         open={showUploadModal}
         onClose={() => setShowUploadModal(false)}
-        title="Upload Lecture"
+        title={uploadType === 'drive' ? "Upload to Google Drive" : "Link YouTube Video"}
       >
-        {!googleConnected ? (
-          <div className="upload-notice">
-            <p>
-              To upload lectures, please connect your Google account first using the button above.
-            </p>
-          </div>
+        <div className="upload-type-tabs">
+          <button 
+            className={`upload-tab ${uploadType === 'drive' ? 'active' : ''}`}
+            onClick={() => setUploadType('drive')}
+          >
+            Google Drive
+          </button>
+          <button 
+            className={`upload-tab ${uploadType === 'youtube-upload' ? 'active' : ''}`}
+            onClick={() => setUploadType('youtube-upload')}
+          >
+            YouTube Upload
+          </button>
+          <button 
+            className={`upload-tab ${uploadType === 'youtube' ? 'active' : ''}`}
+            onClick={() => setUploadType('youtube')}
+          >
+            YouTube Link
+          </button>
+        </div>
+
+        {uploadType === 'drive' ? (
+          !googleConnected ? (
+            <div className="upload-notice">
+              <p>
+                To upload lectures, please connect your Google account first using the button above.
+              </p>
+            </div>
+          ) : (
+            <DriveUpload
+              courseOfferingId={courseId || ''}
+              onUploadSuccess={() => {
+                setShowUploadModal(false);
+                if (courseId) {
+                  const loadVideos = async () => {
+                    try {
+                      const { getVideosByCourseOffering } =
+                        await import('../../features/videos/api/videos');
+                      const data = await getVideosByCourseOffering(courseId);
+                      const videoList = (data as { videos?: unknown[] }).videos || [];
+                      setVideos(videoList as Video[]);
+                    } catch (err) {
+                      console.error('Failed to reload videos:', err);
+                    }
+                  };
+                  loadVideos();
+                }
+              }}
+              onClose={() => setShowUploadModal(false)}
+            />
+          )
+        ) : uploadType === 'youtube-upload' ? (
+          !googleConnected ? (
+            <div className="upload-notice">
+              <p>
+                To upload to YouTube, please connect your Google account first using the button above.
+              </p>
+            </div>
+          ) : (
+            <YouTubeUpload
+              courseOfferingId={courseId || ''}
+              onUploadSuccess={() => {
+                setShowUploadModal(false);
+                if (courseId) {
+                  const loadVideos = async () => {
+                    try {
+                      const { getVideosByCourseOffering } =
+                        await import('../../features/videos/api/videos');
+                      const data = await getVideosByCourseOffering(courseId);
+                      const videoList = (data as { videos?: unknown[] }).videos || [];
+                      setVideos(videoList as Video[]);
+                    } catch (err) {
+                      console.error('Failed to reload videos:', err);
+                    }
+                  };
+                  loadVideos();
+                }
+              }}
+              onClose={() => setShowUploadModal(false)}
+            />
+          )
         ) : (
-          <DriveUpload
+          <YouTubeLink
             courseOfferingId={courseId || ''}
-            onUploadSuccess={() => {
+            onSuccess={() => {
               setShowUploadModal(false);
+              // Reload videos
               if (courseId) {
                 const loadVideos = async () => {
                   try {

@@ -98,9 +98,18 @@ export async function getCourseDetails(req, res) {
 export async function getCourseAssignments(req, res) {
   try {
     const { offeringId } = req.params;
+    const studentId = req.user.id;
     const result = await pool.query(
-      'SELECT * FROM assignments WHERE course_offering_id = $1 ORDER BY due_at ASC',
-      [offeringId]
+      `SELECT a.*, 
+              (s.id IS NOT NULL) as is_submitted,
+              s.status as submission_status,
+              s.submitted_at,
+              s.final_score
+       FROM assignments a
+       LEFT JOIN assignment_submissions s ON a.id = s.assignment_id AND s.student_id = $1
+       WHERE a.course_offering_id = $2 
+       ORDER BY a.due_at ASC`,
+      [studentId, offeringId]
     );
     res.json(result.rows);
   } catch (err) {
@@ -232,20 +241,23 @@ export async function getCourseGrades(req, res) {
 
 export async function getCourseQuizzes(req, res) {
   try {
+    const studentId = req.user.id;
     const { offeringId } = req.params;
     const result = await pool.query(
       `SELECT q.id, q.title, q.description, q.start_at, q.end_at, q.max_score, q.time_limit,
               q.is_proctored, q.google_form_url, q.google_form_id,
               COALESCE((
-                SELECT COUNT(*)::int FROM quiz_attempts a WHERE a.quiz_id = q.id
+                SELECT COUNT(*)::int FROM quiz_attempts a WHERE a.quiz_id = q.id AND a.finished_at IS NOT NULL
               ), 0) as total_submissions,
               COALESCE((
-                SELECT AVG(a.score)::numeric(5,2) FROM quiz_attempts a WHERE a.quiz_id = q.id AND a.score IS NOT NULL
-              ), 0) as average_score
+                SELECT AVG(a.score)::numeric(5,2) FROM quiz_attempts a WHERE a.quiz_id = q.id AND a.score IS NOT NULL AND a.finished_at IS NOT NULL
+              ), 0) as average_score,
+              (SELECT MAX(score) FROM quiz_attempts WHERE quiz_id = q.id AND student_id = $1 AND finished_at IS NOT NULL) as student_score,
+              (SELECT status FROM quiz_attempts WHERE quiz_id = q.id AND student_id = $1 ORDER BY started_at DESC LIMIT 1) as student_status
        FROM quizzes q
-       WHERE q.course_offering_id = $1
+       WHERE q.course_offering_id = $2
        ORDER BY q.start_at ASC`,
-      [offeringId]
+      [studentId, offeringId]
     );
     res.json(result.rows);
   } catch (err) {

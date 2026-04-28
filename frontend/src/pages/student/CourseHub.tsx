@@ -27,6 +27,7 @@ type AssignmentSummary = {
   due_at?: string | null;
   submission_count?: number;
   max_score?: number;
+  is_submitted?: boolean;
 };
 
 type QuizSummary = {
@@ -177,7 +178,7 @@ export default function CourseHub() {
   }, [id, isBackendOfferingId, navigate]);
 
   const pendingAssignments = assignments.filter(
-    a => a.due_at && new Date(a.due_at) > new Date()
+    a => !a.is_submitted && a.due_at && new Date(a.due_at) > new Date()
   ).length;
   const nextQuiz = quizzes.find(q => q.status === 'scheduled');
 
@@ -316,7 +317,7 @@ export default function CourseHub() {
         }
         break;
       case 'live':
-        navigate(`/courses/${id}/live`);
+        navigate(`/courses/${id}/live-lectures`);
         break;
       case 'progress':
         navigate(`/progress/course/${id}`);

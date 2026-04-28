@@ -318,7 +318,7 @@ function App() {
               path="/courses/:courseId/assignments/:assignmentId/editor"
               element={
                 <ProtectedRoute roles={['student', 'teacher', 'ta']}>
-                  <GitHubCodeEditor />
+                  <ContestEditorPage />
                 </ProtectedRoute>
               }
             />

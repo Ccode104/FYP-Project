@@ -288,6 +288,7 @@ export async function initiateGoogleOAuth(req, res) {
       'https://www.googleapis.com/auth/userinfo.email',
       'https://www.googleapis.com/auth/forms', // Google Forms API
       'https://www.googleapis.com/auth/forms.body', // Google Forms body
+      'https://www.googleapis.com/auth/youtube.upload', // YouTube Upload scope
     ];
 
     const authUrl = oauth2Client.generateAuthUrl({

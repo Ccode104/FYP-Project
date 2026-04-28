@@ -1,5 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import YouTube from 'react-youtube';
 import {
   getVideoById,
   getVideoQuizQuestions,
@@ -73,30 +74,54 @@ export default function VideoPlayerPage() {
   const [currentQuizIndex, setCurrentQuizIndex] = useState(0);
   const [selectedAnswers, setSelectedAnswers] = useState<Record<number, number>>({});
   const [submittedAnswers, setSubmittedAnswers] = useState<Record<number, boolean>>({});
+  const [isInteractiveMode, setIsInteractiveMode] = useState(true);
+  const [player, setPlayer] = useState<any>(null);
+  const [lastQuizTimestamp, setLastQuizTimestamp] = useState<number | null>(null);
+  const [activeOverlayQuiz, setActiveOverlayQuiz] = useState<QuizQuestion | null>(null);
+  const timeUpdateInterval = useRef<NodeJS.Timeout | null>(null);
+  const sectionsRef = useRef<Record<number, HTMLDivElement | null>>({});
+  const quizRef = useRef<Record<number, HTMLDivElement | null>>({});
 
-  const getEmbedUrl = (v: Video | null) => {
-    if (!v) return '';
-    // Use embed_url from backend if available
-    if (v.embed_url) {
-      console.log('Using backend embed_url:', v.embed_url);
-      return v.embed_url;
+  // Extract YouTube ID from URL or public_id
+  const getYouTubeId = (v: Video | null) => {
+    if (!v) return null;
+    const sources = [v.video_url, v.embed_url, v.cloudinary_public_id];
+    const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=)([^#\&\?]*).*/;
+    
+    for (const src of sources) {
+      if (!src) continue;
+      const match = src.match(regExp);
+      if (match && match[2].length === 11) {
+        return match[2];
+      }
+      // If it's just the 11-char ID
+      if (src.length === 11 && !src.includes('/') && !src.includes('.')) {
+        return src;
+      }
     }
-    // Fallback to drive_file_id or cloudinary_public_id
-    const fileId = v.drive_file_id || v.cloudinary_public_id || v.cloudiary_public_id;
-    if (fileId) {
-      const embed = `https://drive.google.com/file/d/${fileId}/preview`;
-      console.log('Generated embed URL:', embed);
-      return embed;
-    }
-    if (v.video_url) {
-      console.log('Using video_url directly:', v.video_url);
-      return v.video_url;
-    }
-    console.log('No valid embed URL found for video:', v);
-    return '';
+    return null;
   };
 
-  const embedUrl = getEmbedUrl(video);
+  const youtubeId = useMemo(() => getYouTubeId(video), [video]);
+  
+  const embedUrl = useMemo(() => {
+    if (!video) return '';
+    if (video.embed_url) return video.embed_url;
+    const fileId = video.drive_file_id || video.cloudinary_public_id;
+    if (fileId) return `https://drive.google.com/file/d/${fileId}/preview`;
+    return video.video_url || '';
+  }, [video]);
+
+  const youtubeOpts = useMemo(() => ({
+    width: '100%',
+    height: '100%',
+    playerVars: {
+      autoplay: 0,
+      modestbranding: 1,
+      rel: 0,
+      origin: window.location.origin, // Important for postMessage errors
+    },
+  }), []);
 
   useEffect(() => {
     if (!videoId) return;
@@ -119,7 +144,7 @@ export default function VideoPlayerPage() {
             }
           ).questions || [];
         setQuestions(questions);
-        console.log('Video quiz questions loaded:', questions);
+        console.log('Video quiz questions loaded:', questions.map(q => ({ id: q.id, timestamp: q.timestamp })));
 
         // Load sections
         const sectionsData = await getVideoSections(Number(videoId));
@@ -155,7 +180,138 @@ export default function VideoPlayerPage() {
     };
 
     loadData();
+
+    return () => {
+      if (timeUpdateInterval.current) {
+        clearInterval(timeUpdateInterval.current);
+      }
+    };
   }, [videoId]);
+
+  // Effect to handle time updates and quiz triggers
+  useEffect(() => {
+    console.log('Effect re-run:', { hasPlayer: !!player, isPlaying, isInteractiveMode, questionsCount: questions.length });
+    if (player && isPlaying) {
+      console.log('Video playing, starting time update interval');
+      timeUpdateInterval.current = setInterval(() => {
+        try {
+          const time = player.getCurrentTime();
+          setCurrentTime(time);
+
+          if (isInteractiveMode && !showQuiz) {
+            // Find the closest quiz question
+            const quizToTrigger = questions.find(q => {
+              const qTime = Number(q.timestamp);
+              // Log every 2 seconds to avoid spamming, but show proximity
+              if (Math.round(time) % 2 === 0 && Math.abs(qTime - time) < 10) {
+                console.log(`Checking quiz trigger: Time=${time.toFixed(1)}, QuestionTime=${qTime}, Diff=${Math.abs(qTime - time).toFixed(1)}`);
+              }
+              return (
+                qTime && 
+                Math.abs(qTime - time) < 1.0 && 
+                q.id !== lastQuizTimestamp
+              );
+            });
+
+            if (quizToTrigger && !quizAnswered) {
+              console.log('!!! TRIGGERING QUIZ OVERLAY !!!', quizToTrigger.id);
+              
+              if (typeof player.pauseVideo === 'function') {
+                player.pauseVideo();
+                setIsPlaying(false);
+                setActiveOverlayQuiz(quizToTrigger);
+                setShowQuiz(true);
+                setLastQuizTimestamp(quizToTrigger.id);
+                
+                const idx = questions.findIndex(q => q.id === quizToTrigger.id);
+                if (idx !== -1) setCurrentQuizIndex(idx);
+              }
+            }
+          }
+
+          // Auto-sync currentQuizIndex based on time if not in overlay mode
+          if (!showQuiz && questions.length > 0) {
+            let latestPassedIdx = -1;
+            for (let i = 0; i < questions.length; i++) {
+              const qTime = Number(questions[i].timestamp);
+              if (qTime && qTime <= time) {
+                latestPassedIdx = i;
+              } else if (qTime && qTime > time) {
+                break;
+              }
+            }
+            if (latestPassedIdx !== -1 && latestPassedIdx !== currentQuizIndex) {
+              setCurrentQuizIndex(latestPassedIdx);
+            }
+          }
+        } catch (err) {
+          console.error('Error in time update interval:', err);
+        }
+      }, 250);
+    } else {
+      console.log('Video paused or player not ready, clearing interval');
+      if (timeUpdateInterval.current) {
+        clearInterval(timeUpdateInterval.current);
+      }
+    }
+
+    return () => {
+      if (timeUpdateInterval.current) {
+        clearInterval(timeUpdateInterval.current);
+      }
+    };
+  }, [player, isPlaying, isInteractiveMode, questions, lastQuizTimestamp, quizAnswered]);
+
+  const onPlayerReady = (event: any) => {
+    setPlayer(event.target);
+  };
+
+  const onPlayerStateChange = (event: any) => {
+    console.log('YouTube Player State Change:', event.data);
+    // 1 = playing, 2 = paused, 3 = buffering
+    if (event.data === 1) setIsPlaying(true);
+    else if (event.data === 2) setIsPlaying(false);
+  };
+
+  const handleSectionClick = (startTime: number) => {
+    if (player && typeof player.seekTo === 'function') {
+      player.seekTo(startTime, true);
+      player.playVideo();
+    } else {
+      console.warn('Seeking is only supported for YouTube videos in the current version.');
+      alert('Seeking and auto-pause are currently only available for YouTube-hosted videos. Google Drive videos do not support external control.');
+    }
+  };
+
+  const handleQuizSubmit = () => {
+    if (!activeOverlayQuiz || selectedAnswer === null) return;
+    
+    const questionId = activeOverlayQuiz.id;
+    
+    // Sync with sidebar state
+    setSelectedAnswers(prev => ({
+      ...prev,
+      [questionId]: selectedAnswer
+    }));
+    setSubmittedAnswers(prev => ({
+      ...prev,
+      [questionId]: true
+    }));
+    
+    setQuizAnswered(true);
+
+    // After a delay to show feedback, resume video
+    setTimeout(() => {
+      setShowQuiz(false);
+      setActiveOverlayQuiz(null);
+      setQuizAnswered(false);
+      setSelectedAnswer(null);
+      if (player) {
+        player.playVideo();
+        setIsPlaying(true);
+      }
+    }, 2500); // Slightly longer to let them read feedback
+  };
 
   const formatTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
@@ -186,7 +342,36 @@ export default function VideoPlayerPage() {
     s => currentTime >= s.start_time && currentTime <= s.end_time
   );
 
-  const currentQuestion = questions.find(q => q.section_id === currentSection?.id);
+  // Auto-scroll logic (localized to container)
+  useEffect(() => {
+    if (currentSection && activeTab === 'sections') {
+      const el = sectionsRef.current[currentSection.id];
+      if (el) {
+        const container = el.parentElement;
+        if (container) {
+          container.scrollTo({
+            top: el.offsetTop - container.offsetTop - 20,
+            behavior: 'smooth'
+          });
+        }
+      }
+    }
+  }, [currentSection, activeTab]);
+
+  useEffect(() => {
+    if (activeTab === 'quiz' && questions[currentQuizIndex]) {
+      const el = quizRef.current[questions[currentQuizIndex].id];
+      if (el) {
+        const container = el.parentElement;
+        if (container) {
+          container.scrollTo({
+            top: el.offsetTop - container.offsetTop - 20,
+            behavior: 'smooth'
+          });
+        }
+      }
+    }
+  }, [currentQuizIndex, activeTab]);
 
   if (loading) {
     return (
@@ -212,20 +397,46 @@ export default function VideoPlayerPage() {
       <div className="video-player-layout">
         {/* Main Column - only video container */}
         <div className="video-player-main">
+          {/* Interactive Mode Toggle - Moved above video */}
+          <div className="video-player-controls-top">
+            {!youtubeId && (
+              <div className="unsupported-warning" title="Interactive features (seeking/auto-pause) are limited for non-YouTube videos.">
+                <span className="material-symbols-outlined">warning</span>
+                Limited Mode
+              </div>
+            )}
+            <label className="interactive-toggle">
+              <input 
+                type="checkbox" 
+                checked={isInteractiveMode} 
+                onChange={(e) => setIsInteractiveMode(e.target.checked)}
+              />
+              <span className="toggle-slider"></span>
+              <span className="toggle-label">Interactive Mode</span>
+            </label>
+          </div>
+
           {/* Video Container */}
           <div className="video-container">
-            {embedUrl ? (
-              <>
-                <iframe
-                  src={embedUrl}
-                  className="video-iframe"
-                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share; fullscreen"
-                  allowFullScreen
-                  title={video.title}
-                  onLoad={() => console.log('Iframe loaded:', embedUrl)}
-                  onError={e => console.error('Iframe error:', e)}
-                />
-              </>
+            {youtubeId ? (
+              <YouTube
+                videoId={youtubeId}
+                className="video-iframe"
+                containerClassName="youtube-container"
+                opts={youtubeOpts}
+                onReady={onPlayerReady}
+                onStateChange={onPlayerStateChange}
+              />
+            ) : embedUrl ? (
+              <iframe
+                src={embedUrl}
+                className="video-iframe"
+                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share; fullscreen"
+                allowFullScreen
+                title={video.title}
+                onLoad={() => console.log('Iframe loaded:', embedUrl)}
+                onError={e => console.error('Iframe error:', e)}
+              />
             ) : (
               <div className="video-placeholder">
                 <span className="material-symbols-outlined">movie</span>
@@ -234,7 +445,7 @@ export default function VideoPlayerPage() {
             )}
 
             {/* Quiz Overlay - Appears when quiz timestamp is reached */}
-            {showQuiz && currentQuestion && !quizAnswered && (
+            {showQuiz && activeOverlayQuiz && !quizAnswered && (
               <div className="quiz-overlay">
                 <div className="quiz-card">
                   <div className="quiz-header">
@@ -243,30 +454,74 @@ export default function VideoPlayerPage() {
                       Video paused at {formatTime(currentTime)}
                     </span>
                   </div>
-                  <h3 className="quiz-question">{currentQuestion.question_text}</h3>
+                  <h3 className="quiz-question">{activeOverlayQuiz.question_text}</h3>
                   <div className="quiz-options">
-                    {currentQuestion.options?.map((option, idx) => (
-                      <button
-                        key={idx}
-                        className={`quiz-option ${selectedAnswer === idx ? 'selected' : ''}`}
-                        onClick={() => setSelectedAnswer(idx)}
-                      >
-                        <span className="quiz-option-radio" />
-                        <span className="quiz-option-text">{option}</span>
-                      </button>
-                    ))}
+                    {activeOverlayQuiz.options?.map((option, idx) => {
+                      const isCorrect = activeOverlayQuiz.correct_answer === option || 
+                                      activeOverlayQuiz.correct_answer === String.fromCharCode(65 + idx);
+                      const isSelected = selectedAnswer === idx;
+                      
+                      let optionClass = '';
+                      if (quizAnswered) {
+                        if (isCorrect) optionClass = 'correct';
+                        else if (isSelected) optionClass = 'incorrect';
+                      } else if (isSelected) {
+                        optionClass = 'selected';
+                      }
+
+                      return (
+                        <button
+                          key={idx}
+                          className={`quiz-option ${optionClass}`}
+                          onClick={() => !quizAnswered && setSelectedAnswer(idx)}
+                          disabled={quizAnswered}
+                        >
+                          <span className="quiz-option-radio" />
+                          <span className="quiz-option-text">{option}</span>
+                          {quizAnswered && isCorrect && (
+                            <span className="material-symbols-outlined quiz-feedback-icon correct">check_circle</span>
+                          )}
+                          {quizAnswered && isSelected && !isCorrect && (
+                            <span className="material-symbols-outlined quiz-feedback-icon incorrect">cancel</span>
+                          )}
+                        </button>
+                      );
+                    })}
                   </div>
+                  
+                  {quizAnswered && (
+                    <div className={`quiz-feedback-msg ${
+                      (activeOverlayQuiz.options?.[selectedAnswer!] === activeOverlayQuiz.correct_answer || 
+                       String.fromCharCode(65 + selectedAnswer!) === activeOverlayQuiz.correct_answer)
+                      ? 'correct' : 'incorrect'
+                    }`}>
+                      { (activeOverlayQuiz.options?.[selectedAnswer!] === activeOverlayQuiz.correct_answer || 
+                         String.fromCharCode(65 + selectedAnswer!) === activeOverlayQuiz.correct_answer)
+                        ? '✨ Correct! Well done.' 
+                        : `❌ Incorrect. The correct answer was ${activeOverlayQuiz.correct_answer}.`
+                      }
+                    </div>
+                  )}
+
                   <div className="quiz-actions">
-                    <button
-                      className="quiz-submit"
-                      disabled={selectedAnswer === null}
-                      onClick={() => setQuizAnswered(true)}
-                    >
-                      Submit Answer
-                    </button>
-                    <button className="quiz-skip" onClick={() => setShowQuiz(false)}>
-                      Skip for now
-                    </button>
+                    {!quizAnswered ? (
+                      <>
+                        <button
+                          className="quiz-submit"
+                          disabled={selectedAnswer === null}
+                          onClick={handleQuizSubmit}
+                        >
+                          Submit Answer
+                        </button>
+                        <button className="quiz-skip" onClick={() => { setShowQuiz(false); setActiveOverlayQuiz(null); }}>
+                          Skip for now
+                        </button>
+                      </>
+                    ) : (
+                      <div className="quiz-auto-resume">
+                        Resuming video in a moment...
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
@@ -344,7 +599,12 @@ export default function VideoPlayerPage() {
                 {sections.map((section, index) => {
                   const sectionQuiz = questions.find(q => q.section_id === section.id);
                   return (
-                    <div key={section.id} className="section-item">
+                    <div 
+                      key={section.id} 
+                      ref={el => sectionsRef.current[section.id] = el}
+                      className={`section-item ${currentSection === section ? 'active' : ''}`}
+                      onClick={() => handleSectionClick(section.start_time)}
+                    >
                       <div className="section-time">
                         {formatTime(section.start_time)} - {formatTime(section.end_time)}
                       </div>
@@ -401,7 +661,11 @@ export default function VideoPlayerPage() {
                         const selectedOption = selectedAnswers[question.id];
 
                         return (
-                          <div key={question.id} className="quiz-section-item">
+                          <div 
+                            key={question.id} 
+                            ref={el => quizRef.current[question.id] = el}
+                            className={`quiz-section-item ${currentQuizIndex === questions.findIndex(q => q.id === question.id) ? 'active' : ''}`}
+                          >
                             <div className="quiz-section-header">
                               <span className="quiz-section-index">Q{currentQuizIndex + 1}</span>
                               {section && (

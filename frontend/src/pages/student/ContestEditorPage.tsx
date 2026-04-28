@@ -60,7 +60,7 @@ interface TestCaseResult {
 }
 
 export default function ContestEditorPage() {
-  const { courseId, contestId } = useParams()
+  const { courseId, contestId, assignmentId } = useParams()
   const navigate = useNavigate()
   const { setCourseTitle } = useCourse()
   const toast = useToast()
@@ -113,7 +113,7 @@ export default function ContestEditorPage() {
 
   // Set course title in navbar and clear it on unmount
   useEffect(() => {
-    const title = selectedContest ? `${selectedContest.title} - Contest Editor` : 'Contest Editor'
+    const title = selectedContest ? `${selectedContest.title} - ${assignmentId ? 'Assignment' : 'Contest'} Editor` : `${assignmentId ? 'Assignment' : 'Contest'} Editor`
     setCourseTitle(title)
 
     return () => {
@@ -175,17 +175,26 @@ export default function ContestEditorPage() {
     }
   }, [currentQuestion?.id])
 
-  // Load contest data
+  // Load contest or assignment data
   useEffect(() => {
-    if (!courseId || !contestId) return
+    if (!courseId || (!contestId && !assignmentId)) return
 
-    const loadContest = async () => {
+    const loadData = async () => {
       try {
-        // Load contest details
-        const contest = await apiFetch<Contest>(`/api/course-offerings/${courseId}/contests/${contestId}`)
+        let contest: Contest;
+        let questions: CodeQuestion[];
 
-        // Load questions for this contest
-        const questions = await apiFetch<CodeQuestion[]>(`/api/contests/${contestId}/questions`)
+        if (assignmentId) {
+          // Load assignment details
+          contest = await apiFetch<Contest>(`/api/assignments/${assignmentId}`)
+          // Load questions for this assignment
+          questions = await apiFetch<CodeQuestion[]>(`/api/assignments/${assignmentId}/questions`)
+        } else {
+          // Load contest details
+          contest = await apiFetch<Contest>(`/api/course-offerings/${courseId}/contests/${contestId}`)
+          // Load questions for this contest
+          questions = await apiFetch<CodeQuestion[]>(`/api/contests/${contestId}/questions`)
+        }
 
         setSelectedContest({ ...contest, questions })
 
@@ -202,7 +211,7 @@ export default function ContestEditorPage() {
 
           // Add sample test cases from the question
           if (q.test_cases && Array.isArray(q.test_cases)) {
-            q.test_cases.filter((tc: unknown) => tc.is_sample === true).forEach((tc: unknown, idx: number) => {
+            q.test_cases.filter((tc: any) => tc.is_sample === true).forEach((tc: any, idx: number) => {
               questionTestCases.push({
                 id: `sample-${idx}`,
                 input: tc.input_text || '',
@@ -226,14 +235,14 @@ export default function ContestEditorPage() {
         setCustomTestCases(testCases)
         setRunResults({})
         setSavedQuestions({})
-      } catch (err: unknown) {
-        push({ kind: 'error', message: err?.message || 'Failed to load contest' })
+      } catch (err: any) {
+        push({ kind: 'error', message: err?.message || 'Failed to load questions' })
         navigate(`/courses/${courseId}`)
       }
     }
 
-    loadContest()
-  }, [courseId, contestId, navigate])
+    loadData()
+  }, [courseId, contestId, assignmentId, navigate])
 
   // Add a new custom test case
   const addTestCase = (questionId: string | number) => {
@@ -381,7 +390,7 @@ export default function ContestEditorPage() {
   if (!selectedContest) {
     return (
       <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}>
-        <div>Loading contest...</div>
+        <div>Loading {assignmentId ? 'assignment' : 'contest'}...</div>
       </div>
     )
   }
@@ -497,16 +506,31 @@ export default function ContestEditorPage() {
                 }
                 setIsSavingCode(prev => ({ ...prev, [currentQuestion.id]: true }))
                 try {
-                  const submissionResult = await apiFetch('/api/contest-submissions/submit', {
+                  const endpoint = assignmentId 
+                    ? '/api/submissions/submit/code' 
+                    : '/api/contest-submissions/submit';
+                  
+                  const body = assignmentId 
+                    ? {
+                        assignment_id: Number(assignmentId),
+                        question_id: Number(currentQuestion.id),
+                        language: codeLang[currentQuestion.id] || 'python',
+                        code: codeEditor[currentQuestion.id],
+                        started_at: questionTimers[currentQuestion.id]?.startTime ? new Date(questionTimers[currentQuestion.id].startTime).toISOString() : undefined,
+                        time_spent_seconds: Math.floor(currentQuestionElapsedTime / 1000)
+                      }
+                    : {
+                        contest_id: Number(selectedContest.id),
+                        question_id: Number(currentQuestion.id),
+                        language: codeLang[currentQuestion.id] || 'python',
+                        code: codeEditor[currentQuestion.id],
+                        started_at: questionTimers[currentQuestion.id]?.startTime ? new Date(questionTimers[currentQuestion.id].startTime).toISOString() : undefined,
+                        time_spent_seconds: Math.floor(currentQuestionElapsedTime / 1000)
+                      };
+
+                  const submissionResult = await apiFetch(endpoint, {
                     method: 'POST',
-                    body: {
-                      contest_id: Number(selectedContest.id),
-                      question_id: Number(currentQuestion.id),
-                      language: codeLang[currentQuestion.id] || 'python',
-                      code: codeEditor[currentQuestion.id],
-                      started_at: questionTimers[currentQuestion.id]?.startTime ? new Date(questionTimers[currentQuestion.id].startTime).toISOString() : undefined,
-                      time_spent_seconds: Math.floor(currentQuestionElapsedTime / 1000)
-                    }
+                    body
                   })
 
                   // Handle gamification data
@@ -587,14 +611,27 @@ export default function ContestEditorPage() {
                   for (const q of selectedContest.questions) {
                     if (!savedQuestions[q.id] && codeEditor[q.id]?.trim()) {
                       try {
-                        await apiFetch('/api/contest-submissions/submit', {
+                        const endpoint = assignmentId 
+                          ? '/api/submissions/submit/code' 
+                          : '/api/contest-submissions/submit';
+                        
+                        const body = assignmentId 
+                          ? {
+                              assignment_id: Number(assignmentId),
+                              question_id: Number(q.id),
+                              language: codeLang[q.id] || 'python',
+                              code: codeEditor[q.id]
+                            }
+                          : {
+                              contest_id: Number(selectedContest.id),
+                              question_id: Number(q.id),
+                              language: codeLang[q.id] || 'python',
+                              code: codeEditor[q.id]
+                            };
+
+                        await apiFetch(endpoint, {
                           method: 'POST',
-                          body: {
-                            contest_id: Number(selectedContest.id),
-                            question_id: Number(q.id),
-                            language: codeLang[q.id] || 'python',
-                            code: codeEditor[q.id]
-                          }
+                          body
                         })
                         setSavedQuestions(prev => ({ ...prev, [q.id]: true }))
                       } catch (err: unknown) {
