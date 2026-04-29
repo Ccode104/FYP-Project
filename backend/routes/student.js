@@ -17,6 +17,7 @@ import {
   submitResumeRequest,
   getStudentResumeRequests,
   getUpcomingEvents,
+  getAssignmentDetails,
 } from '../controllers/studentController.js';
 
 const router = express.Router();
@@ -284,6 +285,7 @@ router.post('/enroll', enrollInCourse);
  *         description: Assignment not found
  */
 router.get('/graded/:assignmentId', getGradedAssignment);
+router.get('/assignments/:assignmentId/details', getAssignmentDetails);
 
 /**
  * @swagger

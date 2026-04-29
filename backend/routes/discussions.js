@@ -1,8 +1,10 @@
 import express from 'express';
 import { requireAuth } from '../middleware/auth.js';
-import { listMessages, postMessage, getAiAssist } from '../controllers/discussionsController.js';
+import { listMessages, postMessage, getAiAssist, deleteMessage, getAiLimits } from '../controllers/discussionsController.js';
 
 const router = express.Router();
+
+router.get('/ai-limits', requireAuth, getAiLimits);
 
 /**
  * @swagger
@@ -106,5 +108,7 @@ router.post('/:offeringId/messages', postMessage);
  *         description: AI Response Object
  */
 router.post('/:offeringId/messages/:messageId/ai-assist', getAiAssist);
+
+router.delete('/:offeringId/messages/:messageId', deleteMessage);
 
 export default router;

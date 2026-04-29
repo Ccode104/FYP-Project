@@ -248,13 +248,9 @@ export default function AssignmentsLanding() {
                       // For teachers/TAs, navigate to management page
                       if (user?.role === 'teacher' || user?.role === 'ta') {
                         navigate(`/courses/${courseId}/assignments/${assignment.id}/submissions`);
-                      } else if (assignment.assignment_type === 'code' || assignment.assignment_type === 'github' || assignment.allow_github_repo) {
-                        navigate(`/courses/${courseId}/assignments/${assignment.id}/github-submit`);
-                      } else if (assignment.assignment_type === 'mixed') {
-                        navigate(`/courses/${courseId}/assignments/${assignment.id}/mixed`);
                       } else {
-                        // Fallback to github-submit for legacy or unhandled code types
-                        navigate(`/courses/${courseId}/assignments/${assignment.id}/github-submit`);
+                        // All students go to the details page first
+                        navigate(`/courses/${courseId}/assignments/${assignment.id}`);
                       }
                     }}
                   >
@@ -263,6 +259,21 @@ export default function AssignmentsLanding() {
                       : assignment.is_submitted
                         ? 'View Submission'
                         : 'Submit Now'}
+                  </button>
+                  <button
+                    className="assignments-cite-btn"
+                    title="Cite in Discussion"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (!courseId) return;
+                      navigate(`/courses/${courseId}/discussion`, {
+                        state: {
+                          prefill: `[Citing: ${assignment.title}](/courses/${courseId}/assignments/${assignment.id})\n\n`,
+                        },
+                      });
+                    }}
+                  >
+                    <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>format_quote</span>
                   </button>
                 </div>
               </div>

@@ -4,6 +4,7 @@
  */
 
 import { pool } from '../db/index.js';
+import { logAiQuery } from '../services/aiLogger.js';
 
 // Use OpenRouter API for AI responses
 const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY || '';
@@ -42,8 +43,8 @@ export async function processAIQuery(req, res) {
     // Get AI response
     const aiResponse = await getAIResponse(systemPrompt, userPrompt);
 
-    // Log the query
-    await logAIQuery(userId, question_id, query_type, code, aiResponse, contest_mode);
+    // Log the successful query
+    await logAiQuery(userId, query_type || 'assistant_query', user_query || '', aiResponse);
 
     // Return response
     res.json({
@@ -169,7 +170,7 @@ async function getAIResponse(systemPrompt, userPrompt) {
         'X-Title': 'FYP Coding Platform'
       },
       body: JSON.stringify({
-        model: 'google/gemini-flash-1.5-free',
+        model: 'minimax/minimax-m2.5:free',
         messages: [
           { role: 'system', content: systemPrompt },
           { role: 'user', content: userPrompt }

@@ -10,6 +10,7 @@ import { useCallback, useEffect } from 'react';
 import { useCourse } from '../context/CourseContext';
 import AppSidebar from './AppSidebar';
 import AppHeader from './AppHeader';
+import HoverAIOverlay from './HoverAIOverlay';
 
 export default function Layout({ children }: { children: ReactNode }) {
   const { pathname } = useLocation();
@@ -168,6 +169,7 @@ export default function Layout({ children }: { children: ReactNode }) {
           onClose={() => {}}
         />
       </div>
+      <HoverAIOverlay />
     </div>
   );
 }

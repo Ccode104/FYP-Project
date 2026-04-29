@@ -327,7 +327,7 @@ export default function StudentDashboardNew() {
       } catch (err) {
         console.error('Failed to load dashboard:', err);
         if (!cancelled) {
-          setError('Failed to load your dashboard');
+          setError(err instanceof Error ? err.message : 'We couldn\'t load your dashboard right now. Please try refreshing the page.');
           setCourses([]);
           setSummary(null);
           setEvents([]);

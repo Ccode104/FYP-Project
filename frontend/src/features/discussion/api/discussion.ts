@@ -11,6 +11,16 @@ export interface DiscussionMessage {
   author_role?: string | null;
 }
 
+export interface CourseResource {
+  id: number;
+  course_offering_id: number;
+  title: string;
+  description: string | null;
+  resource_type: string;
+  filename?: string;
+  storage_path?: string;
+}
+
 export async function listDiscussionMessages(offeringId: string | number) {
   const data = await apiFetch<{ messages: DiscussionMessage[] }>(
     `/api/discussions/${offeringId}/messages`
@@ -27,6 +37,18 @@ export async function postDiscussionMessage(
     method: 'POST',
     body: { content, parent_id: parent_id ?? null },
   });
+}
+
+export async function deleteDiscussionMessage(offeringId: string | number, messageId: number) {
+  return apiFetch<{ success: boolean; hardDelete: boolean }>(`/api/discussions/${offeringId}/messages/${messageId}`, {
+    method: 'DELETE',
+  });
+}
+
+export async function fetchAiLimits() {
+  return apiFetch<{ available: boolean; usage: number; limit: number; isFreeTier: boolean; percentage: string }>(
+    `/api/discussions/ai-limits`
+  );
 }
 
 export interface DiscussionAiAssistResponse {
@@ -67,5 +89,30 @@ export async function requestDiscussionAiAssist(
       body: { user_query },
     }
   );
+}
+
+export async function listCourseResources(offeringId: string | number) {
+  return apiFetch<{ resources: CourseResource[] }>(`/api/courses/${offeringId}/resources`);
+}
+
+export async function requestDiscussionAiDeepDive(
+  offeringId: string | number,
+  messageId: number,
+  user_query: string,
+  resource_ids: number[] = []
+) {
+  return apiFetch<{
+    mode: 'deep_dive_prompt';
+    prompt: string;
+    context_used: string;
+    resource_metadata?: string;
+  }>(`/api/discussions/${offeringId}/messages/${messageId}/ai-assist`, {
+    method: 'POST',
+    body: {
+      user_query,
+      deep_dive: true,
+      resource_ids,
+    },
+  });
 }
 

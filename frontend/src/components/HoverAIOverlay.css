@@ -1,0 +1,113 @@
+/* ===== Hover AI Overlay (Citation Tool) ===== */
+
+.hover-ai-overlay {
+  position: fixed;
+  z-index: 9999;
+  pointer-events: none;
+  transition: opacity 0.2s ease, transform 0.2s ease;
+  opacity: 0;
+  transform: translateY(4px);
+}
+
+.hover-ai-overlay--visible {
+  opacity: 1;
+  transform: translateY(0);
+  pointer-events: auto;
+}
+
+.hover-ai-overlay__card {
+  background: rgba(13, 28, 46, 0.95);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 10px;
+  padding: 12px 16px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.3);
+  min-width: 200px;
+}
+
+.hover-ai-overlay__btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(96, 165, 250, 0.15);
+  border: 1px solid rgba(96, 165, 250, 0.3);
+  border-radius: 6px;
+  padding: 8px 14px;
+  color: #60a5fa;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  font-family: inherit;
+  white-space: nowrap;
+  transition: all 0.15s ease;
+}
+
+.hover-ai-overlay__btn:hover {
+  background: rgba(96, 165, 250, 0.25);
+  color: #93c5fd;
+}
+
+.hover-ai-overlay__btn .material-symbols-outlined {
+  font-size: 16px;
+}
+
+.hover-ai-overlay__dismiss {
+  background: transparent;
+  border: none;
+  color: rgba(255, 255, 255, 0.4);
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+}
+
+.hover-ai-overlay__dismiss:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.hover-ai-overlay__dismiss .material-symbols-outlined {
+  font-size: 16px;
+}
+
+/* ===== Sidebar AI Card ===== */
+.app-sidebar__ai-card {
+  margin: 8px 0;
+  padding: 10px 16px;
+  background: linear-gradient(135deg, rgba(96, 165, 250, 0.08), rgba(139, 92, 246, 0.08));
+  border: 1px solid rgba(96, 165, 250, 0.15);
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  cursor: default;
+}
+
+.app-sidebar__ai-card .material-symbols-outlined {
+  font-size: 20px;
+  color: #60a5fa;
+}
+
+.app-sidebar__ai-card-text {
+  display: flex;
+  flex-direction: column;
+}
+
+.app-sidebar__ai-card-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: #60a5fa;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.app-sidebar__ai-card-hint {
+  font-size: 11px;
+  color: #94a3b8;
+  margin-top: 2px;
+}

@@ -101,11 +101,14 @@ export async function getCourseAssignments(req, res) {
     const studentId = req.user.id;
     const result = await pool.query(
       `SELECT a.*, 
+              c.code AS course_code,
               (s.id IS NOT NULL) as is_submitted,
               s.status as submission_status,
               s.submitted_at,
               s.final_score
        FROM assignments a
+       JOIN course_offerings co ON a.course_offering_id = co.id
+       JOIN courses c ON co.course_id = c.id
        LEFT JOIN assignment_submissions s ON a.id = s.assignment_id AND s.student_id = $1
        WHERE a.course_offering_id = $2 
        ORDER BY a.due_at ASC`,
@@ -253,7 +256,18 @@ export async function getCourseQuizzes(req, res) {
                 SELECT AVG(a.score)::numeric(5,2) FROM quiz_attempts a WHERE a.quiz_id = q.id AND a.score IS NOT NULL AND a.finished_at IS NOT NULL
               ), 0) as average_score,
               (SELECT MAX(score) FROM quiz_attempts WHERE quiz_id = q.id AND student_id = $1 AND finished_at IS NOT NULL) as student_score,
-              (SELECT status FROM quiz_attempts WHERE quiz_id = q.id AND student_id = $1 ORDER BY started_at DESC LIMIT 1) as student_status
+              (
+                SELECT 
+                  CASE 
+                    WHEN finished_at IS NOT NULL THEN 'completed'
+                    WHEN suspended_at IS NOT NULL AND resumed_at IS NULL THEN 'suspended'
+                    WHEN started_at IS NOT NULL THEN 'ongoing'
+                    ELSE 'not_started'
+                  END
+                FROM quiz_attempts 
+                WHERE quiz_id = q.id AND student_id = $1 
+                ORDER BY started_at DESC LIMIT 1
+              ) as student_status
        FROM quizzes q
        WHERE q.course_offering_id = $2
        ORDER BY q.start_at ASC`,
@@ -614,6 +628,37 @@ export async function getUpcomingEvents(req, res) {
     res.json({ events: allEvents });
   } catch (err) {
     console.error('getUpcomingEvents error:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+}
+
+export async function getAssignmentDetails(req, res) {
+  try {
+    const { assignmentId } = req.params;
+    const studentId = req.user.id;
+    const result = await pool.query(
+      `SELECT a.*, 
+              c.code AS course_code,
+              (s.id IS NOT NULL) as is_submitted,
+              s.status as submission_status,
+              s.submitted_at,
+              s.final_score,
+              s.id as submission_id
+       FROM assignments a
+       JOIN course_offerings co ON a.course_offering_id = co.id
+       JOIN courses c ON co.course_id = c.id
+       LEFT JOIN assignment_submissions s ON a.id = s.assignment_id AND s.student_id = $1
+       WHERE a.id = $2`,
+      [studentId, assignmentId]
+    );
+
+    if (result.rowCount === 0) {
+      return res.status(404).json({ error: 'Assignment not found' });
+    }
+
+    res.json(result.rows[0]);
+  } catch (err) {
+    console.error('getAssignmentDetails error:', err);
     res.status(500).json({ error: 'Internal server error' });
   }
 }

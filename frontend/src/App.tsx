@@ -17,9 +17,10 @@ const AdminDashboard = lazy(() => import('./pages/admin/AdminDashboard'));
 const CourseDetails = lazy(() => import('./pages/student/CourseDetails'));
 const CourseHub = lazy(() => import('./pages/student/CourseHub'));
 const AssignmentsLanding = lazy(() => import('./pages/student/AssignmentsLanding'));
-// AssignmentDetails removed
+const AssignmentDetails = lazy(() => import('./pages/student/AssignmentDetails'));
 
 const SubmissionReview = lazy(() => import('./pages/student/SubmissionReview'));
+const GitHubCodeEditor = lazy(() => import('./pages/student/GitHubCodeEditor'));
 const LiveLecturePage = lazy(() => import('./pages/student/LiveLecturePage'));
 const LiveLecturesLanding = lazy(() => import('./pages/student/LiveLecturesLanding'));
 const VideoPlayerPage = lazy(() => import('./pages/student/VideoPlayerPage'));
@@ -242,6 +243,15 @@ function App() {
               }
             />
 
+            <Route
+              path="/courses/:courseId/assignments/:assignmentId"
+              element={
+                <ProtectedRoute roles={['student', 'teacher', 'ta']}>
+                  <AssignmentDetails />
+                </ProtectedRoute>
+              }
+            />
+
             {/* Assignment details page (accessible by student, teacher, TA) */}
 
             <Route
@@ -249,6 +259,15 @@ function App() {
               element={
                 <ProtectedRoute roles={['student', 'teacher', 'ta']}>
                   <AssignmentGitHubSubmit />
+                </ProtectedRoute>
+              }
+            />
+
+            <Route
+              path="/courses/:courseId/assignments/:assignmentId/editor"
+              element={
+                <ProtectedRoute roles={['student', 'teacher', 'ta']}>
+                  <GitHubCodeEditor />
                 </ProtectedRoute>
               }
             />
@@ -305,7 +324,7 @@ function App() {
             <Route
               path="/courses/:courseId/assignments/:assignmentId/submissions/:submissionId"
               element={
-                <ProtectedRoute roles={['teacher', 'ta', 'admin']}>
+                <ProtectedRoute roles={['student', 'teacher', 'ta', 'admin']}>
                   <SubmissionReview />
                 </ProtectedRoute>
               }

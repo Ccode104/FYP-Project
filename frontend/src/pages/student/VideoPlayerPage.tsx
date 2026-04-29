@@ -79,8 +79,11 @@ export default function VideoPlayerPage() {
   const [lastQuizTimestamp, setLastQuizTimestamp] = useState<number | null>(null);
   const [activeOverlayQuiz, setActiveOverlayQuiz] = useState<QuizQuestion | null>(null);
   const timeUpdateInterval = useRef<NodeJS.Timeout | null>(null);
+  const lastCheckTime = useRef<number>(0);
   const sectionsRef = useRef<Record<number, HTMLDivElement | null>>({});
   const quizRef = useRef<Record<number, HTMLDivElement | null>>({});
+  const videoContainerRef = useRef<HTMLDivElement | null>(null);
+  const wasFullscreen = useRef<boolean>(false);
 
   // Extract YouTube ID from URL or public_id
   const getYouTubeId = (v: Video | null) => {
@@ -196,29 +199,56 @@ export default function VideoPlayerPage() {
       timeUpdateInterval.current = setInterval(() => {
         try {
           const time = player.getCurrentTime();
+          const prevTime = lastCheckTime.current;
+          lastCheckTime.current = time;
+          
+          // Heartbeat every 5s
+          if (Math.round(time * 4) % 20 === 0) {
+             console.log(`[Heartbeat] Time: ${time.toFixed(1)}s, Prev: ${prevTime.toFixed(1)}s, Quizzes: ${questions.length}`);
+          }
+
           setCurrentTime(time);
 
           if (isInteractiveMode && !showQuiz) {
-            // Find the closest quiz question
+            // Logic: Trigger if we just crossed a quiz timestamp
+            // OR if we are very close to it (for slow polling/start cases)
             const quizToTrigger = questions.find(q => {
-              const qTime = Number(q.timestamp);
-              // Log every 2 seconds to avoid spamming, but show proximity
-              if (Math.round(time) % 2 === 0 && Math.abs(qTime - time) < 10) {
-                console.log(`Checking quiz trigger: Time=${time.toFixed(1)}, QuestionTime=${qTime}, Diff=${Math.abs(qTime - time).toFixed(1)}`);
-              }
-              return (
-                qTime && 
-                Math.abs(qTime - time) < 1.0 && 
-                q.id !== lastQuizTimestamp
-              );
+              const section = sections.find(s => s.id === q.section_id);
+              // Use section end_time as priority, fallback to question timestamp
+              const qTime = section ? section.end_time : Number(q.timestamp);
+              
+              if (!qTime) return false;
+
+              const justCrossed = prevTime < qTime && time >= qTime;
+              const isVeryClose = Math.abs(qTime - time) < 1.0;
+              
+              return (justCrossed || isVeryClose) && q.id !== lastQuizTimestamp;
             });
 
             if (quizToTrigger && !quizAnswered) {
-              console.log('!!! TRIGGERING QUIZ OVERLAY !!!', quizToTrigger.id);
+              const section = sections.find(s => s.id === quizToTrigger.section_id);
+              const triggerTime = section ? section.end_time : Number(quizToTrigger.timestamp);
+              console.log(`🎯 TRIGGERING QUIZ (Section End): ${quizToTrigger.id} at ${triggerTime}s`);
               
+              // Handle Fullscreen exit if necessary
+              if (document.fullscreenElement || (document as any).webkitFullscreenElement || (document as any).mozFullScreenElement) {
+                console.log('Exiting fullscreen for quiz overlay');
+                wasFullscreen.current = true; // Remember we were in fullscreen
+                if (document.exitFullscreen) {
+                  document.exitFullscreen().catch(err => console.error('Error exiting fullscreen:', err));
+                } else if ((document as any).webkitExitFullscreen) {
+                  (document as any).webkitExitFullscreen();
+                } else if ((document as any).mozCancelFullScreen) {
+                  (document as any).mozCancelFullScreen();
+                }
+              } else {
+                wasFullscreen.current = false;
+              }
+
               if (typeof player.pauseVideo === 'function') {
                 player.pauseVideo();
                 setIsPlaying(false);
+                setQuizAnswered(false);
                 setActiveOverlayQuiz(quizToTrigger);
                 setShowQuiz(true);
                 setLastQuizTimestamp(quizToTrigger.id);
@@ -283,6 +313,16 @@ export default function VideoPlayerPage() {
     }
   };
 
+  const restoreFullscreen = () => {
+    if (wasFullscreen.current && videoContainerRef.current) {
+      const el = videoContainerRef.current;
+      if (el.requestFullscreen) el.requestFullscreen();
+      else if ((el as any).webkitRequestFullscreen) (el as any).webkitRequestFullscreen();
+      else if ((el as any).msRequestFullscreen) (el as any).msRequestFullscreen();
+      wasFullscreen.current = false; // Reset
+    }
+  };
+
   const handleQuizSubmit = () => {
     if (!activeOverlayQuiz || selectedAnswer === null) return;
     
@@ -310,6 +350,8 @@ export default function VideoPlayerPage() {
         player.playVideo();
         setIsPlaying(true);
       }
+      // Auto-restore fullscreen if they were in it before
+      restoreFullscreen();
     }, 2500); // Slightly longer to let them read feedback
   };
 
@@ -417,7 +459,7 @@ export default function VideoPlayerPage() {
           </div>
 
           {/* Video Container */}
-          <div className="video-container">
+          <div className="video-container" ref={videoContainerRef}>
             {youtubeId ? (
               <YouTube
                 videoId={youtubeId}
@@ -445,7 +487,7 @@ export default function VideoPlayerPage() {
             )}
 
             {/* Quiz Overlay - Appears when quiz timestamp is reached */}
-            {showQuiz && activeOverlayQuiz && !quizAnswered && (
+            {showQuiz && activeOverlayQuiz && (
               <div className="quiz-overlay">
                 <div className="quiz-card">
                   <div className="quiz-header">
@@ -513,7 +555,15 @@ export default function VideoPlayerPage() {
                         >
                           Submit Answer
                         </button>
-                        <button className="quiz-skip" onClick={() => { setShowQuiz(false); setActiveOverlayQuiz(null); }}>
+                        <button className="quiz-skip" onClick={() => { 
+                          setShowQuiz(false); 
+                          setActiveOverlayQuiz(null); 
+                          if (player) {
+                            player.playVideo();
+                            setIsPlaying(true);
+                          }
+                          restoreFullscreen();
+                        }}>
                           Skip for now
                         </button>
                       </>
@@ -575,7 +625,7 @@ export default function VideoPlayerPage() {
                   >
                     <div className="playlist-thumb">
                       <img
-                        src={`https://via.placeholder.com/112x63?text=${index + 1}`}
+                        src={`https://placehold.co/112x63?text=${index + 1}`}
                         alt={item.title}
                       />
                       {item.id === Number(videoId) && (

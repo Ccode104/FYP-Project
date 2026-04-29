@@ -13,7 +13,7 @@ if (!OPENROUTER_API_KEY) {
 
 const llm = new ChatOpenAI({
   openAIApiKey: OPENROUTER_API_KEY,
-  modelName: 'google/gemini-flash-1.5-free',
+  modelName: 'minimax/minimax-m2.5:free',
   temperature: 0.7,
   maxTokens: 1024,
   configuration: {

@@ -3,6 +3,7 @@ import { useParams, useSearchParams } from 'react-router-dom';
 import { useCourse } from '../../context/CourseContext';
 import { useToast } from '../../components/ToastProvider';
 import { apiFetch } from '../../services/api';
+import { useAuth } from '../../context/AuthContext';
 import TeacherCodeSubmissionViewer from '../../components/course/TeacherCodeSubmissionViewer';
 import './CodeSubmissionView.css';
 
@@ -20,6 +21,7 @@ interface SubmissionData {
 }
 
 export default function SubmissionReview() {
+  const { user } = useAuth();
   const [isPreviewFullWidth, setIsPreviewFullWidth] = useState(false);
   const token = localStorage.getItem('auth:token');
 
@@ -364,7 +366,7 @@ export default function SubmissionReview() {
               </button>
             )}
           </div>
-          {submission.google_sheet_id && (
+          {submission.google_sheet_id && (user?.role === 'teacher' || user?.role === 'ta') && (
             <div className="sheet-sync-status" style={{ padding: '12px', background: 'rgba(59, 130, 246, 0.05)', borderRadius: '12px', border: '1px solid var(--primary)', marginTop: '20px', fontSize: '14px', display: 'flex', alignItems: 'center', gap: '10px' }}>
               <span className="material-symbols-outlined" style={{ color: 'var(--primary)', fontSize: '20px' }}>{showSheetGrading ? 'sync' : 'lock'}</span>
               <span style={{ fontWeight: 500 }}>
@@ -377,65 +379,111 @@ export default function SubmissionReview() {
         </div>
       ) : submission.code && submission.code.length > 0 ? (
         <>
-          <div className="grading-management-bar" style={{
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center',
-            background: 'var(--surface)',
-            padding: '16px 20px',
-            borderRadius: '12px',
-            marginBottom: '20px',
-            border: '1px solid var(--border)',
-            boxShadow: 'var(--shadow-sm)'
-          }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-              <div style={{ 
-                width: '36px', 
-                height: '36px', 
-                borderRadius: '8px', 
-                background: 'rgba(59, 130, 246, 0.1)', 
-                display: 'flex', 
-                alignItems: 'center', 
-                justifyContent: 'center',
-                color: 'var(--primary)'
-              }}>
-                <span className="material-symbols-outlined" style={{ fontSize: '20px' }}>analytics</span>
+          {(user?.role === 'teacher' || user?.role === 'ta') && (
+            <div className="grading-management-bar" style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              background: 'var(--surface)',
+              padding: '16px 20px',
+              borderRadius: '12px',
+              marginBottom: '20px',
+              border: '1px solid var(--border)',
+              boxShadow: 'var(--shadow-sm)'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                <div style={{ 
+                  width: '36px', 
+                  height: '36px', 
+                  borderRadius: '8px', 
+                  background: 'rgba(59, 130, 246, 0.1)', 
+                  display: 'flex', 
+                  alignItems: 'center', 
+                  justifyContent: 'center',
+                  color: 'var(--primary)'
+                }}>
+                  <span className="material-symbols-outlined" style={{ fontSize: '20px' }}>analytics</span>
+                </div>
+                <span style={{ fontWeight: 600, fontSize: '14px' }}>Grading Management</span>
               </div>
-              <span style={{ fontWeight: 600, fontSize: '14px' }}>Grading Management</span>
-            </div>
 
-            <div style={{ display: 'flex', gap: '8px' }}>
-              <button
-                className="premium-action-btn"
-                onClick={() => setShowSheetGrading(!showSheetGrading)}
-                disabled={!submission?.google_sheet_id}
-                style={{
-                  padding: '8px 16px',
-                  borderRadius: '8px',
-                  border: '1px solid ' + (showSheetGrading ? 'var(--primary)' : 'var(--border)'),
-                  background: showSheetGrading ? 'var(--primary)' : 'var(--surface)',
-                  color: showSheetGrading ? 'white' : 'var(--text)',
-                  fontSize: '13px',
-                  fontWeight: 600,
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '6px',
-                  cursor: !submission?.google_sheet_id ? 'not-allowed' : 'pointer',
-                  opacity: !submission?.google_sheet_id ? 0.6 : 1,
-                  transition: 'all 0.2s ease'
-                }}
-              >
-                <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>
-                  {showSheetGrading ? 'lock' : 'lock_open'}
-                </span>
-                {showSheetGrading ? 'Lock' : 'Unlock'}
-              </button>
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <button
+                  className="premium-action-btn"
+                  onClick={() => setShowSheetGrading(!showSheetGrading)}
+                  disabled={!submission?.google_sheet_id}
+                  style={{
+                    padding: '8px 16px',
+                    borderRadius: '8px',
+                    border: '1px solid ' + (showSheetGrading ? 'var(--primary)' : 'var(--border)'),
+                    background: showSheetGrading ? 'var(--primary)' : 'var(--surface)',
+                    color: showSheetGrading ? 'white' : 'var(--text)',
+                    fontSize: '13px',
+                    fontWeight: 600,
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    cursor: !submission?.google_sheet_id ? 'not-allowed' : 'pointer',
+                    opacity: !submission?.google_sheet_id ? 0.6 : 1,
+                    transition: 'all 0.2s ease'
+                  }}
+                >
+                  <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>
+                    {showSheetGrading ? 'lock' : 'lock_open'}
+                  </span>
+                  {showSheetGrading ? 'Lock' : 'Unlock'}
+                </button>
 
-              {submission?.google_sheet_id ? (
-                <>
+                {submission?.google_sheet_id ? (
+                  <>
+                    <button
+                      className="premium-action-btn primary"
+                      onClick={handleOpenOrCreateSheet}
+                      disabled={sheetLoading}
+                      style={{
+                        padding: '8px 16px',
+                        borderRadius: '8px',
+                        border: 'none',
+                        background: 'linear-gradient(135deg, var(--primary), #4338ca)',
+                        color: 'white',
+                        fontSize: '13px',
+                        fontWeight: 600,
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '6px',
+                        cursor: 'pointer',
+                        boxShadow: '0 4px 10px rgba(99, 102, 241, 0.2)'
+                      }}
+                    >
+                      <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>open_in_new</span>
+                      {sheetLoading ? 'Opening...' : 'Open Sheet'}
+                    </button>
+                    <button
+                      className="premium-action-btn danger"
+                      onClick={() => setShowDeleteConfirm(true)}
+                      disabled={deletingSheet}
+                      style={{
+                        padding: '8px 16px',
+                        borderRadius: '8px',
+                        border: '1px solid rgba(220, 38, 38, 0.2)',
+                        background: 'rgba(220, 38, 38, 0.05)',
+                        color: '#dc2626',
+                        fontSize: '13px',
+                        fontWeight: 600,
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '6px',
+                        cursor: 'pointer'
+                      }}
+                    >
+                      <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>delete_forever</span>
+                      Delete Sheet
+                    </button>
+                  </>
+                ) : (
                   <button
                     className="premium-action-btn primary"
-                    onClick={handleOpenOrCreateSheet}
+                    onClick={googleConnected ? handleOpenOrCreateSheet : handleAuthorizeGoogle}
                     disabled={sheetLoading}
                     style={{
                       padding: '8px 16px',
@@ -452,120 +500,122 @@ export default function SubmissionReview() {
                       boxShadow: '0 4px 10px rgba(99, 102, 241, 0.2)'
                     }}
                   >
-                    <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>open_in_new</span>
-                    {sheetLoading ? 'Opening...' : 'Open Sheet'}
+                    <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>add_table</span>
+                    {sheetLoading ? 'Creating...' : 'Create Sheet'}
                   </button>
-                  <button
-                    className="premium-action-btn danger"
-                    onClick={() => setShowDeleteConfirm(true)}
-                    disabled={deletingSheet}
-                    style={{
-                      padding: '8px 16px',
-                      borderRadius: '8px',
-                      border: '1px solid rgba(220, 38, 38, 0.2)',
-                      background: 'rgba(220, 38, 38, 0.05)',
-                      color: '#dc2626',
-                      fontSize: '13px',
-                      fontWeight: 600,
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '6px',
-                      cursor: 'pointer'
-                    }}
-                  >
-                    <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>delete_forever</span>
-                    Delete Sheet
-                  </button>
-                </>
-              ) : (
-                <button
-                  className="premium-action-btn primary"
-                  onClick={googleConnected ? handleOpenOrCreateSheet : handleAuthorizeGoogle}
-                  disabled={sheetLoading}
-                  style={{
-                    padding: '8px 16px',
-                    borderRadius: '8px',
-                    border: 'none',
-                    background: 'linear-gradient(135deg, var(--primary), #4338ca)',
-                    color: 'white',
-                    fontSize: '13px',
-                    fontWeight: 600,
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '6px',
-                    cursor: 'pointer',
-                    boxShadow: '0 4px 10px rgba(99, 102, 241, 0.2)'
-                  }}
-                >
-                  <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>add_table</span>
-                  {sheetLoading ? 'Creating...' : 'Create Sheet'}
-                </button>
-              )}
+                )}
+              </div>
             </div>
-          </div>
+          )}
           <TeacherCodeSubmissionViewer submission={submission} onGrade={handleGrade} push={push} />
         </>
       ) : (submission.files && (submission.files as any[]).length > 0) || submission.content ? (
         <div className="mixed-submission-review-container">
-          <div className="grading-management-bar" style={{
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center',
-            background: 'var(--surface)',
-            padding: '16px 20px',
-            borderRadius: '12px',
-            marginBottom: '20px',
-            border: '1px solid var(--border)',
-            boxShadow: 'var(--shadow-sm)'
-          }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-              <div style={{ 
-                width: '36px', 
-                height: '36px', 
-                borderRadius: '8px', 
-                background: 'rgba(59, 130, 246, 0.1)', 
-                display: 'flex', 
-                alignItems: 'center', 
-                justifyContent: 'center',
-                color: 'var(--primary)'
-              }}>
-                <span className="material-symbols-outlined" style={{ fontSize: '20px' }}>analytics</span>
+          {(user?.role === 'teacher' || user?.role === 'ta') && (
+            <div className="grading-management-bar" style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              background: 'var(--surface)',
+              padding: '16px 20px',
+              borderRadius: '12px',
+              marginBottom: '20px',
+              border: '1px solid var(--border)',
+              boxShadow: 'var(--shadow-sm)'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                <div style={{ 
+                  width: '36px', 
+                  height: '36px', 
+                  borderRadius: '8px', 
+                  background: 'rgba(59, 130, 246, 0.1)', 
+                  display: 'flex', 
+                  alignItems: 'center', 
+                  justifyContent: 'center',
+                  color: 'var(--primary)'
+                }}>
+                  <span className="material-symbols-outlined" style={{ fontSize: '20px' }}>analytics</span>
+                </div>
+                <span style={{ fontWeight: 600, fontSize: '14px' }}>Grading Management</span>
               </div>
-              <span style={{ fontWeight: 600, fontSize: '14px' }}>Grading Management</span>
-            </div>
 
-            <div style={{ display: 'flex', gap: '8px' }}>
-              <button
-                className="premium-action-btn"
-                onClick={() => setShowSheetGrading(!showSheetGrading)}
-                disabled={!submission?.google_sheet_id}
-                style={{
-                  padding: '8px 16px',
-                  borderRadius: '8px',
-                  border: '1px solid ' + (showSheetGrading ? 'var(--primary)' : 'var(--border)'),
-                  background: showSheetGrading ? 'var(--primary)' : 'var(--surface)',
-                  color: showSheetGrading ? 'white' : 'var(--text)',
-                  fontSize: '13px',
-                  fontWeight: 600,
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '6px',
-                  cursor: !submission?.google_sheet_id ? 'not-allowed' : 'pointer',
-                  opacity: !submission?.google_sheet_id ? 0.6 : 1,
-                  transition: 'all 0.2s ease'
-                }}
-              >
-                <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>
-                  {showSheetGrading ? 'lock' : 'lock_open'}
-                </span>
-                {showSheetGrading ? 'Lock' : 'Unlock'}
-              </button>
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <button
+                  className="premium-action-btn"
+                  onClick={() => setShowSheetGrading(!showSheetGrading)}
+                  disabled={!submission?.google_sheet_id}
+                  style={{
+                    padding: '8px 16px',
+                    borderRadius: '8px',
+                    border: '1px solid ' + (showSheetGrading ? 'var(--primary)' : 'var(--border)'),
+                    background: showSheetGrading ? 'var(--primary)' : 'var(--surface)',
+                    color: showSheetGrading ? 'white' : 'var(--text)',
+                    fontSize: '13px',
+                    fontWeight: 600,
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    cursor: !submission?.google_sheet_id ? 'not-allowed' : 'pointer',
+                    opacity: !submission?.google_sheet_id ? 0.6 : 1,
+                    transition: 'all 0.2s ease'
+                  }}
+                >
+                  <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>
+                    {showSheetGrading ? 'lock' : 'lock_open'}
+                  </span>
+                  {showSheetGrading ? 'Lock' : 'Unlock'}
+                </button>
 
-              {submission?.google_sheet_id ? (
-                <>
+                {submission?.google_sheet_id ? (
+                  <>
+                    <button
+                      className="premium-action-btn primary"
+                      onClick={handleOpenOrCreateSheet}
+                      disabled={sheetLoading}
+                      style={{
+                        padding: '8px 16px',
+                        borderRadius: '8px',
+                        border: 'none',
+                        background: 'linear-gradient(135deg, var(--primary), #4338ca)',
+                        color: 'white',
+                        fontSize: '13px',
+                        fontWeight: 600,
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '6px',
+                        cursor: 'pointer',
+                        boxShadow: '0 4px 10px rgba(99, 102, 241, 0.2)'
+                      }}
+                    >
+                      <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>open_in_new</span>
+                      {sheetLoading ? 'Opening...' : 'Open Sheet'}
+                    </button>
+                    <button
+                      className="premium-action-btn danger"
+                      onClick={() => setShowDeleteConfirm(true)}
+                      disabled={deletingSheet}
+                      style={{
+                        padding: '8px 16px',
+                        borderRadius: '8px',
+                        border: '1px solid rgba(220, 38, 38, 0.2)',
+                        background: 'rgba(220, 38, 38, 0.05)',
+                        color: '#dc2626',
+                        fontSize: '13px',
+                        fontWeight: 600,
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '6px',
+                        cursor: 'pointer'
+                      }}
+                    >
+                      <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>delete_forever</span>
+                      Delete Sheet
+                    </button>
+                  </>
+                ) : (
                   <button
                     className="premium-action-btn primary"
-                    onClick={handleOpenOrCreateSheet}
+                    onClick={googleConnected ? handleOpenOrCreateSheet : handleAuthorizeGoogle}
                     disabled={sheetLoading}
                     style={{
                       padding: '8px 16px',
@@ -582,57 +632,13 @@ export default function SubmissionReview() {
                       boxShadow: '0 4px 10px rgba(99, 102, 241, 0.2)'
                     }}
                   >
-                    <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>open_in_new</span>
-                    {sheetLoading ? 'Opening...' : 'Open Sheet'}
+                    <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>add_table</span>
+                    {sheetLoading ? 'Creating...' : 'Create Sheet'}
                   </button>
-                  <button
-                    className="premium-action-btn danger"
-                    onClick={() => setShowDeleteConfirm(true)}
-                    disabled={deletingSheet}
-                    style={{
-                      padding: '8px 16px',
-                      borderRadius: '8px',
-                      border: '1px solid rgba(220, 38, 38, 0.2)',
-                      background: 'rgba(220, 38, 38, 0.05)',
-                      color: '#dc2626',
-                      fontSize: '13px',
-                      fontWeight: 600,
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '6px',
-                      cursor: 'pointer'
-                    }}
-                  >
-                    <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>delete_forever</span>
-                    Delete Sheet
-                  </button>
-                </>
-              ) : (
-                <button
-                  className="premium-action-btn primary"
-                  onClick={googleConnected ? handleOpenOrCreateSheet : handleAuthorizeGoogle}
-                  disabled={sheetLoading}
-                  style={{
-                    padding: '8px 16px',
-                    borderRadius: '8px',
-                    border: 'none',
-                    background: 'linear-gradient(135deg, var(--primary), #4338ca)',
-                    color: 'white',
-                    fontSize: '13px',
-                    fontWeight: 600,
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '6px',
-                    cursor: 'pointer',
-                    boxShadow: '0 4px 10px rgba(99, 102, 241, 0.2)'
-                  }}
-                >
-                  <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>add_table</span>
-                  {sheetLoading ? 'Creating...' : 'Create Sheet'}
-                </button>
-              )}
+                )}
+              </div>
             </div>
-          </div>
+          )}
           <div className="mixed-submission-content-grid">
             <div className="mixed-submission-main">
               {submission.content && (

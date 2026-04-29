@@ -577,7 +577,7 @@ Make sure questions are appropriate for ${difficulty} level.`;
         'X-Title': 'FYP Coding Platform'
       },
       body: JSON.stringify({
-        model: 'google/gemini-flash-1.5-free',
+        model: 'minimax/minimax-m2.5:free',
         messages: [
           { role: 'system', content: systemPrompt },
           { role: 'user', content: userPrompt },

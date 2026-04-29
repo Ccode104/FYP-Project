@@ -1152,7 +1152,7 @@ Output ONLY valid JSON array:
           'X-Title': 'FYP Coding Platform'
         },
         body: JSON.stringify({
-          model: 'google/gemini-flash-1.5-free',
+          model: 'minimax/minimax-m2.5:free',
           messages: [{ role: 'user', content: prompt }],
           temperature: 0.1,
           max_tokens: 2000,
@@ -1456,7 +1456,7 @@ Output ONLY valid JSON array:
           'X-Title': 'FYP Coding Platform'
         },
         body: JSON.stringify({
-          model: 'google/gemini-flash-1.5-free',
+          model: 'minimax/minimax-m2.5:free',
           messages: [{ role: 'user', content: prompt }],
           temperature: 0.1,
           max_tokens: 2000,

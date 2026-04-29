@@ -1014,6 +1014,13 @@ export async function getSubmissionById(req, res) {
         .json({ error: 'Not authorized - you can only view submissions in your own courses' });
     }
 
+    // Authorization: students can only view their own submissions
+    if (req.user?.role === 'student' && req.user.id !== submission.student_id) {
+      return res
+        .status(403)
+        .json({ error: 'Not authorized - you can only view your own submissions' });
+    }
+
     // Fetch files, code and grades
     const filesQ =
       'SELECT id, storage_path, filename, mime_type FROM submission_files WHERE submission_id = $1';

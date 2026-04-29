@@ -1,3 +1,5 @@
+import { useNavigate, useParams } from 'react-router-dom';
+
 type Item = {
   id: string | number;
   filename?: string;
@@ -12,6 +14,19 @@ export default function PyqList({
   isBackend: boolean;
   items: Item[];
 }) {
+  const navigate = useNavigate();
+  const { courseId } = useParams<{ courseId: string }>();
+
+  const handleCite = (e: React.MouseEvent, item: Item) => {
+    e.stopPropagation();
+    if (!courseId) return;
+    const title = item.filename || item.title || 'Untitled PYQ';
+    navigate(`/courses/${courseId}/discussion`, {
+      state: {
+        prefill: `[Citing: ${title}](${item.storage_path})\n\n`,
+      },
+    });
+  };
   return (
     <section className="assignments-section">
       <div className="section-header">
@@ -66,6 +81,13 @@ export default function PyqList({
                 >
                   <path d="M7 17L17 7M17 7H7M17 7V17" />
                 </svg>
+                <button
+                  className="resource-cite-btn"
+                  title="Cite in Discussion"
+                  onClick={(e) => handleCite(e, p)}
+                >
+                  <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>format_quote</span>
+                </button>
               </div>
               );
             })}

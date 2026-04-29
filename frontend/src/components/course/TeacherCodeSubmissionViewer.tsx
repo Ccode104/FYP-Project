@@ -1,5 +1,6 @@
 import { useEffect, useState, useRef } from 'react';
 import { apiFetch } from '../../services/api';
+import { useAuth } from '../../context/AuthContext';
 import './TeacherCodeSubmissionViewer.css';
 
 interface CodeSubmission {
@@ -76,6 +77,7 @@ function TeacherCodeSubmissionViewer({
   onToggleGradeForm,
   isLocked = false,
 }: TeacherCodeSubmissionViewerProps) {
+  const { user } = useAuth();
   const [showGradingForm, setShowGradingForm] = useState(true);
   const [score, setScore] = useState('85');
   const [feedback, setFeedback] = useState('');
@@ -608,77 +610,79 @@ function TeacherCodeSubmissionViewer({
             </button>
           </div>
 
-          <div className="grading-panel-card">
-            {!showGradingForm ? (
-              <button
-                className="btn-grade-submit"
-                onClick={() => {
-                  setShowGradingForm(true);
-                  onToggleGradeForm?.(true);
-                }}
-              >
-                <span className="material-symbols-outlined">verified_user</span>
-                Grade Submission
-              </button>
-            ) : (
-              <form onSubmit={handleGradeSubmit}>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
-                  <h3 style={{ margin: 0 }}>Grading & Feedback</h3>
-                  {isLocked && (
-                    <span className="material-symbols-outlined" style={{ color: '#dc2626' }}>lock</span>
-                  )}
-                </div>
+          {user?.role !== 'student' && (
+            <div className="grading-panel-card">
+              {!showGradingForm ? (
+                <button
+                  className="btn-grade-submit"
+                  onClick={() => {
+                    setShowGradingForm(true);
+                    onToggleGradeForm?.(true);
+                  }}
+                >
+                  <span className="material-symbols-outlined">verified_user</span>
+                  Grade Submission
+                </button>
+              ) : (
+                <form onSubmit={handleGradeSubmit}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
+                    <h3 style={{ margin: 0 }}>Grading & Feedback</h3>
+                    {isLocked && (
+                      <span className="material-symbols-outlined" style={{ color: '#dc2626' }}>lock</span>
+                    )}
+                  </div>
 
-                {isLocked && (
-                  <div className="tc-lock-message" style={{ padding: '12px', background: 'rgba(59, 130, 246, 0.05)', borderRadius: '8px', border: '1px solid var(--primary)', marginBottom: '16px', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--primary)' }}>
-                    <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>info</span>
-                    Unlock grading sheet to submit grades.
-                  </div>
-                )}
-                
-                <fieldset disabled={isLocked} style={{ border: 'none', padding: 0, margin: 0, opacity: isLocked ? 0.7 : 1 }}>
-                  <div className="form-group">
-                    <label>Marks (out of 100)</label>
-                    <input
-                      type="number"
-                      min="0"
-                      max="100"
-                      step="1"
-                      value={score}
-                      onChange={e => setScore(e.target.value)}
-                      required
-                      placeholder="Enter marks..."
-                    />
-                  </div>
-                  <div className="form-group">
-                    <label>Comment / Feedback</label>
-                    <textarea
-                      value={feedback}
-                      onChange={e => setFeedback(e.target.value)}
-                      placeholder="Enter feedback for the student..."
-                      rows={6}
-                    />
-                  </div>
-                  <div style={{ display: 'flex', gap: 12 }}>
-                    <button type="submit" className="btn-grade-submit" style={{ flex: 1, marginTop: 0 }}>
-                      Submit Grade
-                    </button>
-                    <button
-                      type="button"
-                      className="btn-back"
-                      style={{ flex: 1, marginTop: 0, justifyContent: 'center' }}
-                      onClick={() => {
-                        setShowGradingForm(false);
-                        onToggleGradeForm?.(false);
-                      }}
-                    >
-                      Cancel
-                    </button>
-                  </div>
-                </fieldset>
-              </form>
-            )}
-          </div>
+                  {isLocked && (
+                    <div className="tc-lock-message" style={{ padding: '12px', background: 'rgba(59, 130, 246, 0.05)', borderRadius: '8px', border: '1px solid var(--primary)', marginBottom: '16px', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--primary)' }}>
+                      <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>info</span>
+                      Unlock grading sheet to submit grades.
+                    </div>
+                  )}
+                  
+                  <fieldset disabled={isLocked} style={{ border: 'none', padding: 0, margin: 0, opacity: isLocked ? 0.7 : 1 }}>
+                    <div className="form-group">
+                      <label>Marks (out of 100)</label>
+                      <input
+                        type="number"
+                        min="0"
+                        max="100"
+                        step="1"
+                        value={score}
+                        onChange={e => setScore(e.target.value)}
+                        required
+                        placeholder="Enter marks..."
+                      />
+                    </div>
+                    <div className="form-group">
+                      <label>Comment / Feedback</label>
+                      <textarea
+                        value={feedback}
+                        onChange={e => setFeedback(e.target.value)}
+                        placeholder="Enter feedback for the student..."
+                        rows={6}
+                      />
+                    </div>
+                    <div style={{ display: 'flex', gap: 12 }}>
+                      <button type="submit" className="btn-grade-submit" style={{ flex: 1, marginTop: 0 }}>
+                        Submit Grade
+                      </button>
+                      <button
+                        type="button"
+                        className="btn-back"
+                        style={{ flex: 1, marginTop: 0, justifyContent: 'center' }}
+                        onClick={() => {
+                          setShowGradingForm(false);
+                          onToggleGradeForm?.(false);
+                        }}
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </fieldset>
+                </form>
+              )}
+            </div>
+          )}
         </section>
       </div>
     </div>

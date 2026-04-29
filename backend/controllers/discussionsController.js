@@ -1,13 +1,18 @@
 import { pool } from '../db/index.js';
-import { generateAiResponse, generateAiResponseStream } from '../services/discussionAiService.js';
+import { generateAiResponse, generateAiResponseStream, generateDeepDivePrompt } from '../services/discussionAiService.js';
+import { getDailyAiQueryCount, logAiQuery } from '../services/aiLogger.js';
 
 const messageSelect = `
-  SELECT m.id, m.course_offering_id, m.user_id, m.parent_id, m.content, m.created_at,
+  SELECT m.id, m.course_offering_id, m.user_id, m.parent_id,
+         regexp_replace(m.content, '^<!--DELETED-->', '') as content,
+         m.created_at,
          CASE
+           WHEN m.content LIKE '<!--DELETED-->%' THEN 'Anonymous'
            WHEN m.user_id IS NULL THEN 'AI Assistant'
            ELSE u.name
          END AS author_name,
          CASE
+           WHEN m.content LIKE '<!--DELETED-->%' THEN 'deleted'::text
            WHEN m.user_id IS NULL THEN 'assistant'::text
            ELSE u.role::text
          END AS author_role
@@ -150,7 +155,7 @@ export async function getAiAssist(req, res) {
   try {
     const offeringId = Number(req.params.offeringId);
     const messageId = Number(req.params.messageId);
-    const { user_query, stream } = req.body || {};
+    const { user_query, stream, deep_dive, resource_ids } = req.body || {};
 
     if (!offeringId || !messageId) {
       return res.status(400).json({ error: 'Invalid offeringId or messageId' });
@@ -178,6 +183,16 @@ export async function getAiAssist(req, res) {
     );
 
     const threadRootId = rootResult.rows[0]?.id || messageId;
+
+    if (!threadRootId || threadRootId < 0) {
+      console.error('Invalid threadRootId detected:', threadRootId);
+      return res.status(400).json({ error: 'Invalid message ID or thread context' });
+    }
+
+    if (deep_dive) {
+      const aiResult = await generateDeepDivePrompt(messageId, offeringId, user_query || '', Array.isArray(resource_ids) ? resource_ids : []);
+      return res.json(aiResult);
+    }
 
     if (stream) {
       const aiResult = await generateAiResponseStream(messageId, offeringId, user_query);
@@ -220,6 +235,7 @@ export async function getAiAssist(req, res) {
 
           // Save final result to DB
           if (fullContent.trim()) {
+            await logAiQuery(req.user.id, 'discussion_stream', user_query, fullContent);
             const insertResult = await pool.query(
               `INSERT INTO discussion_messages (course_offering_id, user_id, parent_id, content)
                VALUES ($1, NULL, $2, $3) RETURNING id`,
@@ -262,6 +278,7 @@ export async function getAiAssist(req, res) {
     // Non-streaming fallback
     const aiResult = await generateAiResponse(messageId, offeringId, user_query);
     if (aiResult.mode === 'direct_answer') {
+      await logAiQuery(req.user.id, 'discussion_direct', user_query, aiResult.content);
       const insertResult = await pool.query(
         `INSERT INTO discussion_messages (course_offering_id, user_id, parent_id, content)
          VALUES ($1, NULL, $2, $3) RETURNING id`,
@@ -276,6 +293,95 @@ export async function getAiAssist(req, res) {
     }
   } catch (err) {
     console.error('getAiAssist error', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+}
+
+export async function deleteMessage(req, res) {
+  try {
+    const offeringId = Number(req.params.offeringId);
+    const messageId = Number(req.params.messageId);
+    const user = req.user;
+
+    if (!offeringId || !messageId) {
+      return res.status(400).json({ error: 'Invalid offeringId or messageId' });
+    }
+
+    if (!(await hasAccess(offeringId, user))) {
+      return res.status(403).json({ error: 'Forbidden' });
+    }
+
+    const msgResult = await pool.query('SELECT user_id, content FROM discussion_messages WHERE id=$1 AND course_offering_id=$2', [messageId, offeringId]);
+    if (msgResult.rowCount === 0) {
+      return res.status(404).json({ error: 'Message not found' });
+    }
+
+    const messageRow = msgResult.rows[0];
+    const isAuthor = messageRow.user_id === user.id;
+    const isTeacherOrAdmin = user.role === 'admin' || user.role === 'teacher' || user.role === 'faculty' || user.role === 'ta';
+
+    if (!isAuthor && !isTeacherOrAdmin) {
+      return res.status(403).json({ error: 'Forbidden to delete this message' });
+    }
+
+    if (isTeacherOrAdmin) {
+      // Hard delete
+      await pool.query('DELETE FROM discussion_messages WHERE id=$1 AND course_offering_id=$2', [messageId, offeringId]);
+      return res.json({ success: true, hardDelete: true });
+    } else {
+      // Soft delete: author
+      if (!messageRow.content.startsWith('<!--DELETED-->')) {
+        await pool.query('UPDATE discussion_messages SET content = $1 WHERE id = $2', [
+          '<!--DELETED-->' + messageRow.content,
+          messageId
+        ]);
+      }
+      return res.json({ success: true, hardDelete: false });
+    }
+  } catch (err) {
+    console.error('deleteMessage error', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+}
+
+export async function getAiLimits(req, res) {
+  try {
+    const apiKey = process.env.OPENROUTER_API_KEY;
+    if (!apiKey) return res.json({ available: false });
+
+    // Fetch both auth/key info (for dollar usage) and auth/credits (for total credits)
+    const [keyRes, creditsRes, dailyCount] = await Promise.all([
+      fetch('https://openrouter.ai/api/v1/auth/key', {
+        headers: { 'Authorization': `Bearer ${apiKey}` }
+      }),
+      fetch('https://openrouter.ai/api/v1/credits', {
+        headers: { 'Authorization': `Bearer ${apiKey}` }
+      }),
+      getDailyAiQueryCount()
+    ]);
+
+    if (!keyRes.ok) return res.json({ available: false });
+    
+    const keyData = await keyRes.json();
+    const creditsData = creditsRes.ok ? await creditsRes.json() : { data: { total_credits: 0, total_usage: 0 } };
+
+    const limit = keyData.data?.limit || 5.0; 
+    const usage = keyData.data?.usage || 0;
+    const remainingRequests = Math.max(50 - dailyCount, 0);
+
+    return res.json({
+      available: true,
+      used: dailyCount,
+      limit: 50,
+      remaining: remainingRequests,
+      usage: usage,
+      usageLimit: limit,
+      totalCredits: creditsData.data?.total_credits || 0,
+      totalUsage: creditsData.data?.total_usage || 0,
+      percentage: ((usage / limit) * 100).toFixed(2)
+    });
+  } catch (err) {
+    console.error('getAiLimits error:', err);
     res.status(500).json({ error: 'Internal server error' });
   }
 }

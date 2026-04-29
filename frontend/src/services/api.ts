@@ -42,13 +42,17 @@ export async function apiFetch<T = unknown>(
     return res.json();
   } catch (err: unknown) {
     // Handle network errors (Failed to fetch, CORS, etc.)
-    if (err instanceof TypeError && err.message.includes('fetch')) {
+    if (err instanceof TypeError && (err.message.includes('fetch') || err.message.includes('Failed'))) {
       throw new Error(
-        `Failed to fetch: Cannot connect to ${buildApiUrl(path)}. Please check if the backend server is running.`
+        "Connection lost: We can't reach the learning portal right now. Please check your internet connection or wait a moment while we try to reconnect."
       );
     }
-    // Re-throw other errors
-    throw err;
+    
+    // Fallback for any other mysterious errors
+    if (err instanceof Error) {
+      throw err;
+    }
+    throw new Error("An unexpected error occurred. Please refresh the page and try again.");
   }
 }
 
@@ -57,19 +61,30 @@ export async function apiForm<T = unknown>(
   form: FormData,
   method: HttpMethod = 'POST'
 ): Promise<T> {
-  const token = localStorage.getItem('auth:token') || '';
-  const headers: Record<string, string> = {};
-  if (token) headers['Authorization'] = `Bearer ${token}`;
-  const res = await fetch(buildApiUrl(path), { method, headers, body: form });
-  if (!res.ok) {
-    let msg = `HTTP ${res.status}`;
-    try {
-      const data = await res.json();
-      msg = data.error || msg;
-    } catch {
-      // Ignore JSON parsing errors
+  try {
+    const token = localStorage.getItem('auth:token') || '';
+    const headers: Record<string, string> = {};
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+
+    const res = await fetch(buildApiUrl(path), { method, headers, body: form });
+    
+    if (!res.ok) {
+      let msg = `Server error (${res.status})`;
+      try {
+        const data = await res.json();
+        msg = data.error || msg;
+      } catch {
+        msg = res.statusText || msg;
+      }
+      throw new Error(msg);
     }
-    throw new Error(msg);
+    return res.json();
+  } catch (err: unknown) {
+    if (err instanceof TypeError && (err.message.includes('fetch') || err.message.includes('Failed'))) {
+      throw new Error(
+        "Upload failed: We can't reach the server. Please check your connection and try again."
+      );
+    }
+    throw err;
   }
-  return res.json();
 }

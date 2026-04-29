@@ -6,7 +6,8 @@ import {
   saveChatSession,
   loadUserChatSessions,
   loadChatSession,
-  deleteChatSession
+  deleteChatSession,
+  classifyNavigationIntent,
 } from '../controllers/chatbotController.js';
 
 
@@ -22,6 +23,7 @@ router.post('/chat', chatWithAI);
 router.post('/chats', saveChatSession);
 router.get('/chats', loadUserChatSessions);
 router.get('/chats/:sessionId', loadChatSession);
-router.delete('/chats/:sessionId', deleteChatSession);
+router.delete('/sessions/:sessionId', deleteChatSession);
+router.post('/navigate', classifyNavigationIntent);
 
 export default router;

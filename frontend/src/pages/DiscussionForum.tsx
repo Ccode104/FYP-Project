@@ -1,12 +1,20 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, useLocation } from 'react-router-dom';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import { apiFetch } from '../services/api';
 import { useAuth } from '../context/AuthContext';
+import Modal from '../components/Modal';
 import {
   listDiscussionMessages,
   postDiscussionMessage,
+  deleteDiscussionMessage,
   requestDiscussionAiAssist,
+  listCourseResources,
+  requestDiscussionAiDeepDive,
+  fetchAiLimits,
   type DiscussionMessage,
+  type CourseResource,
 } from '../features/discussion/api/discussion';
 import './DiscussionForum.css';
 
@@ -54,6 +62,7 @@ function formatTimeAgo(dateStr: string): string {
 
 export default function DiscussionForum() {
   const { courseId } = useParams<{ courseId: string }>();
+  const location = useLocation();
   const { user } = useAuth();
 
   const [course, setCourse] = useState<CourseInfo | null>(null);
@@ -61,21 +70,57 @@ export default function DiscussionForum() {
   const [loading, setLoading] = useState(true);
   const [posting, setPosting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [aiLimits, setAiLimits] = useState<{ available: boolean; usage: number; limit: number; isFreeTier: boolean; percentage: string } | null>(null);
   const [newThreadContent, setNewThreadContent] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
-  const [autoLockEnabled, setAutoLockEnabled] = useState(false);
   const [anonymityEnabled, setAnonymityEnabled] = useState(true);
   const [replyingTo, setReplyingTo] = useState<number | null>(null);
   const [replyContent, setReplyContent] = useState('');
   const [repliesMap, setRepliesMap] = useState<Map<number, DiscussionMessage[]>>(new Map());
   const [showNewThreadModal, setShowNewThreadModal] = useState(false);
-  const [newThreadCategory, setNewThreadCategory] = useState<'general' | 'assignments' | 'exams'>(
-    'general'
-  );
+  const [newThreadCategory, setNewThreadCategory] = useState<'general' | 'assignments' | 'exams'>('general');
+  const [newThreadTopic, setNewThreadTopic] = useState('');
   const [aiLoadingByThread, setAiLoadingByThread] = useState<Record<number, boolean>>({});
+  const [deepDiveModalOpen, setDeepDiveModalOpen] = useState(false);
+  const [deepDiveThreadId, setDeepDiveThreadId] = useState<number | null>(null);
+  const [deepDiveMessageId, setDeepDiveMessageId] = useState<number | null>(null);
+  const [deepDiveQuery, setDeepDiveQuery] = useState(
+    'Please provide a deeper explanation of the last AI response, including examples and a step-by-step breakdown.'
+  );
+  const [courseResources, setCourseResources] = useState<CourseResource[]>([]);
+  const [selectedResourceIds, setSelectedResourceIds] = useState<number[]>([]);
+  const [deepDivePromptText, setDeepDivePromptText] = useState('');
+  const [isDeepDiveLoading, setIsDeepDiveLoading] = useState(false);
+  const [showCiteSection, setShowCiteSection] = useState(false);
 
   const isTeacher = user?.role === 'teacher' || user?.role === 'ta';
   const roleLabel = user?.role === 'teacher' ? 'Teacher' : user?.role === 'ta' ? 'TA' : 'Student';
+
+  // Handle prefill from citation buttons and HoverAIOverlay
+  useEffect(() => {
+    const state = location.state as { prefill?: string } | null;
+    if (state?.prefill) {
+      setNewThreadContent(state.prefill);
+      setShowNewThreadModal(true);
+      // Clear the state so it doesn't re-trigger on re-renders
+      window.history.replaceState({}, document.title);
+    }
+  }, [location.state]);
+
+  useEffect(() => {
+    if (!deepDiveModalOpen || !courseId) return;
+
+    const loadResources = async () => {
+      try {
+        const data = await listCourseResources(courseId);
+        setCourseResources(data.resources || []);
+      } catch (err) {
+        console.error('Failed to load discussion resources:', err);
+      }
+    };
+
+    loadResources();
+  }, [deepDiveModalOpen, courseId]);
 
   useEffect(() => {
     if (!courseId) return;
@@ -88,7 +133,14 @@ export default function DiscussionForum() {
         const courseData = await apiFetch<CourseInfo>(`/api/student/courses/${courseId}`);
         setCourse(courseData);
 
-        const messages = await listDiscussionMessages(courseId);
+        const [messages, limitsData] = await Promise.all([
+          listDiscussionMessages(courseId),
+          fetchAiLimits().catch(() => null)
+        ]);
+
+        if (limitsData && limitsData.available) {
+          setAiLimits(limitsData);
+        }
 
         const threadMap = new Map<number, ThreadWithMeta>();
         const repliesMap = new Map<number, DiscussionMessage[]>();
@@ -203,6 +255,40 @@ export default function DiscussionForum() {
     });
   };
 
+  const openDeepDiveModal = (threadId: number, messageId: number) => {
+    setDeepDiveThreadId(threadId);
+    setDeepDiveMessageId(messageId);
+    const defaultQuery =
+      'Please provide a deeper explanation of the last AI response, including examples and a step-by-step breakdown.';
+    setDeepDiveQuery(defaultQuery);
+    setShowCiteSection(false);
+    setSelectedResourceIds([]);
+    setDeepDivePromptText('');
+    setDeepDiveModalOpen(true);
+  };
+
+  const submitDeepDive = async () => {
+    if (!courseId || deepDiveThreadId == null || deepDiveMessageId == null) return;
+    setIsDeepDiveLoading(true);
+    setError(null);
+    setDeepDivePromptText('');
+
+    try {
+      const result = await requestDiscussionAiDeepDive(
+        courseId,
+        deepDiveMessageId,
+        deepDiveQuery,
+        selectedResourceIds
+      );
+      setDeepDivePromptText(result.prompt);
+    } catch (err) {
+      console.error('Failed to generate deep dive prompt:', err);
+      setError(err instanceof Error ? err.message : 'Failed to generate deep dive prompt');
+    } finally {
+      setIsDeepDiveLoading(false);
+    }
+  };
+
   const handleAiAssist = async (threadId: number, messageId: number, userQuery?: string | null) => {
     if (!courseId) return;
 
@@ -291,11 +377,12 @@ export default function DiscussionForum() {
   };
 
   const handlePostThread = async () => {
-    if (!newThreadContent.trim() || !courseId) return;
+    if (!newThreadTopic.trim() || !newThreadContent.trim() || !courseId) return;
 
     setPosting(true);
     try {
-      const result = await postDiscussionMessage(courseId, newThreadContent);
+      const finalContent = `${newThreadTopic.trim()}\n\n${newThreadContent.trim()}`;
+      const result = await postDiscussionMessage(courseId, finalContent);
       const newThread: ThreadWithMeta = {
         ...result.message,
         is_pinned: false,
@@ -307,6 +394,7 @@ export default function DiscussionForum() {
       };
       setThreads(prev => [newThread, ...prev]);
       const aiQuery = extractAiQuery(newThreadContent);
+      setNewThreadTopic('');
       setNewThreadContent('');
       setShowNewThreadModal(false);
       if (aiQuery) {
@@ -354,6 +442,135 @@ export default function DiscussionForum() {
     }
   };
 
+  const handleDeleteMessage = async (messageId: number, threadId: number) => {
+    if (!courseId || !window.confirm('Are you sure you want to delete this message?')) return;
+    
+    try {
+      const res = await deleteDiscussionMessage(courseId, messageId);
+      if (res.hardDelete) {
+        // Hard delete: Remove from threads list if it's a root thread, otherwise remove from repliesMap
+        setThreads(prev => prev.filter(t => t.id !== messageId));
+        setRepliesMap(prev => {
+          const next = new Map(prev);
+          next.forEach((replies, parentId) => {
+            const filtered = replies.filter(r => r.id !== messageId);
+            if (filtered.length !== replies.length) {
+              next.set(parentId, filtered);
+            }
+          });
+          return next;
+        });
+      } else {
+        // Soft delete: Update the content in UI
+        if (threadId === messageId) {
+          setThreads(prev => prev.map(t => t.id === messageId ? { ...t, content: '<!--DELETED-->' + t.content, author_name: 'Anonymous', author_role: 'deleted' } : t));
+        } else {
+          setRepliesMap(prev => {
+            const next = new Map(prev);
+            next.forEach((replies, parentId) => {
+              const updated = replies.map(r => r.id === messageId ? { ...r, content: '<!--DELETED-->' + r.content, author_name: 'Anonymous', author_role: 'deleted' } : r);
+              next.set(parentId, updated);
+            });
+            return next;
+          });
+        }
+      }
+    } catch (err) {
+      console.error('Failed to delete message:', err);
+      alert('Failed to delete message.');
+    }
+  };
+
+  const renderReplies = (parentId: number, rootThreadId: number, depth: number = 1): JSX.Element | null => {
+    const replies = repliesMap.get(parentId) || [];
+    if (replies.length === 0) return null;
+
+    return (
+      <div className="thread-replies" style={{ marginLeft: depth > 1 ? '16px' : '0', borderLeft: depth > 1 ? '2px solid var(--border)' : 'none', paddingLeft: depth > 1 ? '16px' : '0' }}>
+        {replies.map(reply => (
+          <div key={reply.id} className="reply-wrapper">
+            <div
+              className={`thread-reply ${reply.author_role === 'assistant' ? 'ai-reply' : ''} ${
+                // @ts-ignore
+                reply.is_streaming ? 'streaming' : ''
+              } ${reply.author_role === 'deleted' ? 'deleted-reply' : ''}`}
+            >
+              <div className="reply-meta" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div>
+                  <strong>{reply.author_name || 'Anonymous'}</strong>
+                  {reply.author_role && reply.author_role !== 'deleted' && ` (${reply.author_role})`}
+                  {' • '}
+                  {formatTimeAgo(reply.created_at)}
+                </div>
+                <div className="reply-actions-small">
+                  {(user?.id === reply.user_id || isTeacher) && reply.author_role !== 'deleted' && (
+                    <button className="btn btn-ghost" style={{ padding: '4px' }} onClick={() => handleDeleteMessage(reply.id, rootThreadId)} title="Delete message">
+                      <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>delete</span>
+                    </button>
+                  )}
+                </div>
+              </div>
+              <div className="reply-content" style={{ opacity: reply.author_role === 'deleted' ? 0.6 : 1 }}>
+                <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                  {(reply.content || '').replace(/^<!--DELETED-->/, '')}
+                </ReactMarkdown>
+                {/* @ts-ignore */}
+                {reply.is_streaming && <span className="streaming-cursor">|</span>}
+              </div>
+              
+              {reply.author_role === 'assistant' && !reply.is_streaming && (
+                <div className="deep-dive-footer">
+                  <span>Want a deeper explanation?</span>
+                  <button
+                    className="btn btn-ghost deep-dive-btn"
+                    onClick={() => openDeepDiveModal(rootThreadId, reply.id)}
+                  >
+                    Ask for deep dive
+                  </button>
+                </div>
+              )}
+
+              {depth < 5 && (
+                <div className="reply-to-reply-section" style={{ marginTop: '8px' }}>
+                  {replyingTo === reply.id ? (
+                    <div className="reply-form">
+                      <textarea
+                        className="reply-textarea"
+                        placeholder="Write a reply... Use @ai to invite the assistant into the thread."
+                        value={replyContent}
+                        onChange={e => setReplyContent(e.target.value)}
+                        disabled={posting}
+                      />
+                      <div className="reply-actions" style={{ marginTop: '8px' }}>
+                        <button
+                          className="btn btn-primary btn-sm"
+                          onClick={() => handleReply(reply.id)}
+                          disabled={!replyContent.trim() || posting}
+                        >
+                          {posting ? 'Posting...' : 'Reply'}
+                        </button>
+                        <button className="btn btn-ghost btn-sm" onClick={() => setReplyingTo(null)}>
+                          Cancel
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <button className="btn btn-ghost btn-sm" style={{ padding: '4px 8px', fontSize: '13px' }} onClick={() => setReplyingTo(reply.id)}>
+                      Reply
+                    </button>
+                  )}
+                </div>
+              )}
+            </div>
+            
+            {/* Recursively render children of this reply */}
+            {renderReplies(reply.id, rootThreadId, depth + 1)}
+          </div>
+        ))}
+      </div>
+    );
+  };
+
   if (loading) {
     return (
       <div className="discussion-page">
@@ -386,11 +603,7 @@ export default function DiscussionForum() {
               A quiet place for rigorous academic exchange and collaborative inquiry.
             </p>
           </div>
-          <div className="discussion-header-actions">
-            <button className="btn btn-secondary">
-              <span className="material-symbols-outlined">analytics</span>
-              Forum Stats
-            </button>
+          <div className="discussion-header-actions" style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
             <button className="btn btn-primary" onClick={() => setShowNewThreadModal(true)}>
               <span className="material-symbols-outlined">add_comment</span>
               New Thread
@@ -526,7 +739,15 @@ export default function DiscussionForum() {
                       <h3 className="thread-title">
                         {thread.content.split('\n')[0].substring(0, 100)}
                       </h3>
-                      <p className="thread-content">{thread.content}</p>
+                      <div className="thread-content" style={{ opacity: thread.author_role === 'deleted' ? 0.6 : 1 }}>
+                        <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                          {(() => {
+                            const lines = (thread.content || '').replace(/^<!--DELETED-->/, '').split('\n');
+                            const body = lines.slice(1).join('\n').trim();
+                            return body || thread.content.replace(/^<!--DELETED-->/, '') || '';
+                          })()}
+                        </ReactMarkdown>
+                      </div>
                       <div className="thread-stats">
                         <div className="stat-item">
                           <span className="material-symbols-outlined">forum</span>
@@ -551,22 +772,6 @@ export default function DiscussionForum() {
                       </div>
                     </div>
                     <div className="thread-actions">
-                      <button
-                        className="action-btn ai-action-btn"
-                        title="Ask AI"
-                        onClick={() =>
-                          handleAiAssist(
-                            thread.id,
-                            thread.id,
-                            extractAiQuery(thread.content) || thread.content
-                          )
-                        }
-                        disabled={!!aiLoadingByThread[thread.id]}
-                      >
-                        <span className="material-symbols-outlined">
-                          {aiLoadingByThread[thread.id] ? 'hourglass_top' : 'smart_toy'}
-                        </span>
-                      </button>
                       {isTeacher && (
                         <button className="action-btn" title={thread.is_pinned ? 'Unpin' : 'Pin'}>
                           <span className="material-symbols-outlined">
@@ -584,44 +789,19 @@ export default function DiscussionForum() {
                           </span>
                         </button>
                       )}
-                      <button className="action-btn">
-                        <span className="material-symbols-outlined">more_vert</span>
-                      </button>
+                      {(user?.id === thread.user_id || isTeacher) && thread.author_role !== 'deleted' && (
+                        <button className="action-btn" title="Delete Thread" onClick={() => handleDeleteMessage(thread.id, thread.id)}>
+                          <span className="material-symbols-outlined">delete</span>
+                        </button>
+                      )}
                     </div>
                   </div>
 
-                  {/* Replies */}
-                  {(() => {
-                    const replies = repliesMap.get(thread.id) || [];
-                    return replies.length > 0 ? (
-                      <div className="thread-replies">
-                        {replies.map(reply => (
-                          <div
-                            key={reply.id}
-                            className={`thread-reply ${reply.author_role === 'assistant' ? 'ai-reply' : ''} ${
-                              // @ts-ignore
-                              reply.is_streaming ? 'streaming' : ''
-                            }`}
-                          >
-                            <div className="reply-meta">
-                              <strong>{reply.author_name || 'Anonymous'}</strong>
-                              {reply.author_role && ` (${reply.author_role})`}
-                              {' • '}
-                              {formatTimeAgo(reply.created_at)}
-                            </div>
-                            <div className="reply-content">
-                              {reply.content}
-                              {/* @ts-ignore */}
-                              {reply.is_streaming && <span className="streaming-cursor">|</span>}
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    ) : null;
-                  })()}
-
+                  {/* Replies (Nested) */}
+                  {renderReplies(thread.id, thread.id, 1)}
+                  {/* Root Reply Form */}
                   {replyingTo === thread.id ? (
-                    <div className="reply-form">
+                    <div className="reply-form" style={{ marginTop: '16px' }}>
                       <textarea
                         className="reply-textarea"
                         placeholder="Write a reply... Use @ai to invite the assistant into the thread."
@@ -643,8 +823,8 @@ export default function DiscussionForum() {
                       </div>
                     </div>
                   ) : (
-                    <button className="reply-btn" onClick={() => setReplyingTo(thread.id)}>
-                      Reply
+                    <button className="reply-btn" style={{ marginTop: '16px' }} onClick={() => setReplyingTo(thread.id)}>
+                      Reply to Original Post
                     </button>
                   )}
                 </article>
@@ -694,7 +874,19 @@ export default function DiscussionForum() {
                 </div>
               </div>
               <div className="form-group">
-                <label>Content</label>
+                <label>Topic</label>
+                <input
+                  type="text"
+                  className="thread-input"
+                  style={{ width: '100%', padding: '12px', borderRadius: '8px', border: '1px solid var(--border)', background: 'var(--bg-primary)', color: 'var(--text)', marginBottom: '16px', fontSize: '15px' }}
+                  placeholder="Enter the thread topic..."
+                  value={newThreadTopic}
+                  onChange={e => setNewThreadTopic(e.target.value)}
+                  disabled={posting}
+                />
+              </div>
+              <div className="form-group">
+                <label>Description</label>
                 <textarea
                   className="thread-textarea"
                   placeholder="Share your thoughts, ask questions, or start a conversation... Use @ai to summon the assistant."
@@ -703,6 +895,27 @@ export default function DiscussionForum() {
                   rows={6}
                   disabled={posting}
                 />
+                
+                {/* Citation Preview */}
+                {newThreadContent.includes('[Citing:') && (
+                  <div className="citation-detection-preview">
+                    <div className="citation-preview-header">
+                      <span className="material-symbols-outlined">link</span>
+                      <span>Referenced Resources Detected</span>
+                    </div>
+                    <div className="citation-preview-list">
+                      {newThreadContent.match(/\[Citing: (.*?)\]\((.*?)\)/g)?.map((match, idx) => {
+                        const titleMatch = match.match(/\[Citing: (.*?)\]/);
+                        return (
+                          <div key={idx} className="citation-preview-item">
+                            <span className="material-symbols-outlined">description</span>
+                            <span className="citation-title">{titleMatch ? titleMatch[1] : 'Resource'}</span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
             <div className="modal-footer">
@@ -712,7 +925,7 @@ export default function DiscussionForum() {
               <button
                 className="btn btn-primary"
                 onClick={handlePostThread}
-                disabled={!newThreadContent.trim() || posting}
+                disabled={!newThreadTopic.trim() || !newThreadContent.trim() || posting}
               >
                 {posting ? 'Posting...' : 'Post Thread'}
               </button>
@@ -720,6 +933,98 @@ export default function DiscussionForum() {
           </div>
         </div>
       )}
+
+      <Modal
+        open={deepDiveModalOpen}
+        onClose={() => setDeepDiveModalOpen(false)}
+        title="Ask AI for a deep dive"
+      >
+        <p className="modal-text">
+          Ask the AI to produce a ChatGPT prompt and context summary for a more detailed follow-up answer.
+        </p>
+        <label className="modal-label">Deep dive question</label>
+        <textarea
+          className="deep-dive-textarea"
+          value={deepDiveQuery}
+          onChange={e => {
+            const nextValue = e.target.value;
+            setDeepDiveQuery(nextValue);
+            if (nextValue.toLowerCase().includes('@cite')) {
+              setShowCiteSection(true);
+            }
+          }}
+          rows={5}
+        />
+        <button
+          className="btn btn-ghost cite-toggle-btn"
+          onClick={() => {
+            if (!deepDiveQuery.toLowerCase().includes('@cite')) {
+              setDeepDiveQuery(prev => prev.trim() + ' @cite');
+            }
+            setShowCiteSection(true);
+          }}
+        >
+          Add @cite and select resources
+        </button>
+
+        <div className="cite-resources-section" style={{ display: showCiteSection ? 'block' : 'none' }}>
+          <div className="cite-header">
+            <span className="cite-title">Cite course resources</span>
+            <span className="cite-subtitle">Select resources to include metadata in the prompt.</span>
+          </div>
+          {courseResources.length === 0 ? (
+            <p className="cite-note">No course resources available or loaded yet.</p>
+          ) : (
+            <div className="resource-list">
+              {courseResources.map(resource => (
+                <label key={resource.id} className="resource-item">
+                  <input
+                    type="checkbox"
+                    checked={selectedResourceIds.includes(resource.id)}
+                    onChange={() => {
+                      setSelectedResourceIds(prev =>
+                        prev.includes(resource.id)
+                          ? prev.filter(id => id !== resource.id)
+                          : [...prev, resource.id]
+                      );
+                    }}
+                  />
+                  <span>
+                    <strong>{resource.title}</strong> ({resource.resource_type})
+                  </span>
+                </label>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {deepDivePromptText ? (
+          <div className="deep-dive-result">
+            <h4>Copy this prompt into ChatGPT or another LLM</h4>
+            <textarea
+              className="deep-dive-textarea"
+              readOnly
+              value={deepDivePromptText}
+              rows={10}
+            />
+            <button
+              className="btn btn-secondary"
+              onClick={() => navigator.clipboard.writeText(deepDivePromptText)}
+            >
+              Copy Prompt
+            </button>
+          </div>
+        ) : null}
+
+        <div className="modal-actions">
+          <button className="btn btn-secondary" onClick={() => setDeepDiveModalOpen(false)}>
+            Close
+          </button>
+          <button className="btn btn-primary" onClick={submitDeepDive} disabled={isDeepDiveLoading}>
+            {isDeepDiveLoading ? 'Generating…' : 'Generate Prompt'}
+          </button>
+        </div>
+      </Modal>
     </div>
   );
 }

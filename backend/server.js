@@ -42,7 +42,6 @@ import staffRoutes from './routes/staff.js';
 import { createAnalysisTables } from './controllers/codeAnalysisController.js';
 import { createAILogTables } from './controllers/aiAssistantController.js';
 import { createPlannerTables } from './controllers/plannerController.js';
-import { createRagTables } from './controllers/chatbotController.js';
 import swaggerSpec from './swagger.js';
 import googleRoutes from './routes/google.js';
 import quizBuilderRoutes from './routes/quizBuilderRoutes.js';
@@ -73,7 +72,6 @@ export async function startServer(port = 4000) {
   await createAnalysisTables();
   await createAILogTables();
   await createPlannerTables();
-  await createRagTables();
 
   // Configure server for large file uploads
   const server = createServer(

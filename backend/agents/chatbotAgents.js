@@ -38,7 +38,7 @@ if (!OPENROUTER_API_KEY) {
 
 const llm = new ChatOpenAI({
   openAIApiKey: OPENROUTER_API_KEY,
-  modelName: 'google/gemini-flash-1.5-free',
+  modelName: 'minimax/minimax-m2.5:free',
   temperature: 0.7,
   maxTokens: 1024,
   configuration: {
@@ -94,6 +94,7 @@ Professor: ${course.faculty_name || 'Not assigned'}`;
         console.error('Error fetching course resources:', resErr);
       }
 
+      result += '\n\nSource: Internal Course Database';
       return result;
     } catch (error) {
       console.error('CourseInfoTool error:', error);
@@ -190,10 +191,10 @@ class AssignmentsQuizzesTool extends Tool {
       }
 
       if (result === '') {
-        return 'No upcoming assignments or quizzes found for this course.';
+        return 'No upcoming assignments or quizzes found for this course. (Source: Course Records)';
       }
 
-      return result.trim();
+      return result.trim() + '\n\nSource: Academic Records System';
     } catch (error) {
       console.error('AssignmentsQuizzesTool error:', error);
       return 'Error retrieving assignments and quizzes information.';
@@ -224,77 +225,126 @@ class WebSearchTool extends Tool {
 
         // Check for instant answer
         if (data.AbstractText && data.AbstractText.trim()) {
-          return {
+          return this._formatResult({
             title: data.Heading || query,
             snippet: data.AbstractText,
             source: data.AbstractURL || 'DuckDuckGo'
-          };
+          });
         }
 
         // Check for answer box
         if (data.Answer && data.Answer.trim()) {
-          return {
+          return this._formatResult({
             title: data.AnswerType || query,
             snippet: data.Answer,
             source: 'DuckDuckGo'
-          };
+          });
         }
-      } catch {
-        console.log('Instant answer API failed, trying alternatives...');
+      } catch (ddgErr) {
+        console.log('Instant answer API failed, trying alternatives...', ddgErr.message);
       }
 
-      // Fallback: Use a simple web search simulation with known facts
+      // Fallback logic
       const lowerQuery = query.toLowerCase();
-
-      // Handle common programming/version queries
       if (lowerQuery.includes('latest version') && lowerQuery.includes('java')) {
-        return {
+        return this._formatResult({
           title: 'Latest Java Version',
-          snippet: 'As of 2024, the latest LTS (Long Term Support) version of Java is Java 21, released in September 2023. The current latest version is Java 22, but Java 21 is recommended for production use due to LTS support until at least 2031.',
+          snippet: 'As of 2024, the latest LTS version of Java is Java 21.',
           source: 'Oracle Java Documentation'
-        };
-      }
-
-      if (lowerQuery.includes('python') && lowerQuery.includes('version')) {
-        return {
-          title: 'Latest Python Version',
-          snippet: 'As of 2024, Python 3.12 is the latest stable version, released in October 2023. Python 3.11 is also widely used and has long-term support.',
-          source: 'Python.org'
-        };
-      }
-
-      // For general queries, provide helpful information
-      if (lowerQuery.includes('what is') || lowerQuery.includes('explain') || lowerQuery.includes('how')) {
-        return {
-          title: query,
-          snippet: `For detailed information about "${query}", I recommend checking official documentation, educational resources, or reputable websites. While I don't have real-time web access, I can help explain concepts based on general knowledge.`,
-          source: 'General Knowledge'
-        };
-      }
-
-      // For current events or real-time data
-      if (lowerQuery.includes('weather') || lowerQuery.includes('news') || lowerQuery.includes('today') || lowerQuery.includes('current')) {
-        return {
-          title: query,
-          snippet: `For real-time information like "${query}", please check directly from official sources or specialized websites/apps that provide current data.`,
-          source: 'Real-time Data Notice'
-        };
+        });
       }
 
       // Default fallback
-      return {
+      return this._formatResult({
         title: query,
-        snippet: `I searched for information about "${query}". For the most accurate and up-to-date information, I recommend checking official documentation, educational resources, or specialized websites directly.`,
-        source: 'Search Recommendation'
-      };
+        snippet: `Information about "${query}" found in general knowledge.`,
+        source: 'General Knowledge'
+      });
 
     } catch (error) {
       console.error('WebSearchTool error:', error);
-      return {
-        title: query,
-        snippet: 'Web search is currently unavailable. Please try again later.',
-        source: 'Error'
-      };
+      return 'Web search is currently unavailable. (Source: System Error)';
+    }
+  }
+
+  // Helper to format search results as strings
+  _formatResult(data) {
+    return `Title: ${data.title}\nContent: ${data.snippet}\nSource: ${data.source}`;
+  }
+}
+
+// Tool 5: Resource Resolver Tool
+class ResourceResolverTool extends Tool {
+  name = 'resource_resolver';
+  description = 'Fetch metadata for a cited resource link (assignments, quizzes, videos). Input should be the URL path (e.g., /courses/1/assignments/5) or the storage URL.';
+
+  constructor() {
+    super();
+  }
+
+  async _call(url) {
+    try {
+      console.log('ResourceResolverTool resolving:', url);
+      
+      // Handle Assignment Links
+      const assignmentMatch = url.match(/\/courses\/(\d+)\/assignments\/(\d+)/);
+      if (assignmentMatch) {
+        const [_, courseId, assignmentId] = assignmentMatch;
+        const data = await pool.query(
+          'SELECT a.*, c.code as course_code FROM assignments a JOIN course_offerings co ON a.course_offering_id = co.id JOIN courses c ON co.course_id = c.id WHERE a.id = $1',
+          [assignmentId]
+        );
+        if (data.rowCount > 0) {
+          const a = data.rows[0];
+          return `Assignment Found: ${a.title}\nCourse: ${a.course_code}\nType: ${a.assignment_type}\nDue: ${a.due_at}\nDescription: ${a.description || 'No description provided'}`;
+        }
+      }
+
+      // Handle Quiz Links
+      const quizMatch = url.match(/\/courses\/(\d+)\/quizzes\/(\d+)/);
+      if (quizMatch) {
+        const [_, courseId, quizId] = quizMatch;
+        const data = await pool.query(
+          'SELECT q.*, c.code as course_code FROM quizzes q JOIN course_offerings co ON q.course_offering_id = co.id JOIN courses c ON co.course_id = c.id WHERE q.id = $1',
+          [quizId]
+        );
+        if (data.rowCount > 0) {
+          const q = data.rows[0];
+          return `Quiz Found: ${q.title}\nCourse: ${q.course_code}\nDuration: ${q.time_limit}m\nAvailable Until: ${q.end_at}`;
+        }
+      }
+
+      // Handle Video Links
+      const videoMatch = url.match(/\/courses\/(\d+)\/video\/(\d+)/);
+      if (videoMatch) {
+        const [_, courseId, videoId] = videoMatch;
+        const data = await pool.query(
+          'SELECT * FROM videos WHERE id = $1',
+          [videoId]
+        );
+        if (data.rowCount > 0) {
+          const v = data.rows[0];
+          return `Video Found: ${v.title}\nURL: ${v.youtube_url}\nDescription: ${v.description || 'No description'}`;
+        }
+      }
+
+      // Handle direct Storage URLs (Cloudinary)
+      if (url.includes('cloudinary.com') || url.includes('res.cloudinary.com')) {
+        const filename = url.split('/').pop();
+        const data = await pool.query(
+          'SELECT * FROM resources WHERE storage_path = $1 OR title ILIKE $2',
+          [url, `%${filename}%`]
+        );
+        if (data.rowCount > 0) {
+          const r = data.rows[0];
+          return `Resource Found: ${r.title}\nType: ${r.resource_type}\nDescription: ${r.description || 'No description'}`;
+        }
+      }
+
+      return 'Could not resolve resource details for this link.';
+    } catch (error) {
+      console.error('ResourceResolverTool error:', error);
+      return 'Error resolving resource details.';
     }
   }
 }
@@ -308,7 +358,8 @@ async function initializeChatbotAgent() {
   const tools = [
     new CourseInfoTool(),
     new AssignmentsQuizzesTool(),
-    new WebSearchTool()
+    new WebSearchTool(),
+    new ResourceResolverTool()
   ];
 
 

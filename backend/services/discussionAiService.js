@@ -1,4 +1,5 @@
 import { pool } from '../db/index.js';
+import { logAiQuery } from './aiLogger.js';
 
 const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY || '';
 const OPENROUTER_API_URL = 'https://openrouter.ai/api/v1/chat/completions';
@@ -50,6 +51,21 @@ function estimateTokens(text) {
   if (!text) return 0;
   // Simple heuristic: 1 token ~ 4 characters
   return Math.ceil(text.length / 4);
+}
+
+function isModelError(errorData) {
+  const msg = String(errorData?.error?.message || '').toLowerCase();
+  return msg.includes('model') || msg.includes('unsupported') || msg.includes('not found');
+}
+
+function buildOpenRouterBody(model, messages, stream = false) {
+  return {
+    model,
+    messages,
+    temperature: 0.7,
+    max_tokens: 1024,
+    stream,
+  };
 }
 
 /**
@@ -119,24 +135,71 @@ export async function buildContextTree(messageId, offeringId) {
   const finalMessages = Array.from(msgMap.values()).sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
   
   let formattedContext = '';
+  const citationMetadata = [];
+
   for (const msg of finalMessages) {
     const rawContent = (msg.content || '').trim();
     if (rawContent.length < 5 && msg.id !== messageId) {
       continue;
     }
     
-    const sanitized = sanitizeContent(rawContent);
-    const roleStr =
-      msg.id === rootMessageId
-        ? '[THREAD ROOT]'
-        : msg.id === messageId
-          ? '[TARGET MESSAGE]'
-          : '[THREAD REPLY]';
+    // Scan for citations in the content
+    const assignmentMatches = rawContent.match(/\/courses\/\d+\/assignments\/(\d+)/g);
+    if (assignmentMatches) {
+      for (const match of assignmentMatches) {
+        const id = match.split('/').pop();
+        const meta = await fetchAssignmentMetadata(id);
+        if (meta) citationMetadata.push(meta);
+      }
+    }
+
+    const quizMatches = rawContent.match(/\/courses\/\d+\/quizzes\/(\d+)/g);
+    if (quizMatches) {
+      for (const match of quizMatches) {
+        const id = match.split('/').pop();
+        const meta = await fetchQuizMetadata(id);
+        if (meta) citationMetadata.push(meta);
+      }
+    }
+
+    const videoMatches = rawContent.match(/\/courses\/\d+\/video\/(\d+)/g) || rawContent.match(/\/videos\/(\d+)/g);
+    if (videoMatches) {
+      for (const match of videoMatches) {
+        const id = match.split('/').pop();
+        const meta = await fetchVideoMetadata(id);
+        if (meta) citationMetadata.push(meta);
+      }
+    }
+
+    const sanitized = sanitizeContent(rawContent).replace(/^<!--DELETED-->/, '');
+    
+    // Track if message is in the direct chain
+    const isDirectBranch = chainMessages.some(m => m.id === msg.id);
+
+    // Compute depth roughly based on parent pointers
+    let depth = 0;
+    let currId = msg.parent_id;
+    while(currId && msgMap.has(currId)) {
+      depth++;
+      currId = msgMap.get(currId).parent_id;
+    }
+
+    let roleStr = `[Depth: ${depth}]`;
+    if (msg.id === rootMessageId) roleStr += ' [THREAD ROOT]';
+    else if (msg.id === messageId) roleStr += ' [TARGET MESSAGE]';
+    else if (isDirectBranch) roleStr += ' [DIRECT ANCESTOR BRANCH]';
+    else roleStr += ' [SIBLING BRANCH - LOWER PRIORITY]';
+
     formattedContext += `--- Message ID: ${msg.id} ${roleStr} ---\n${sanitized}\n\n`;
   }
 
+  // Add resolved citation metadata to the context
+  if (citationMetadata.length > 0) {
+    formattedContext = `--- RESOLVED RESOURCE CITATIONS ---\n${Array.from(new Set(citationMetadata)).join('\n\n')}\n\n` + formattedContext;
+  }
+
   const tokenCount = estimateTokens(formattedContext);
-  const summary = `Fetched thread root, ancestor chain (${chainMessages.length}), and thread messages (${threadMessages.length}). Total context messages deduped: ${finalMessages.length}.`;
+  const summary = `Fetched thread root, ancestor chain (${chainMessages.length}), and thread messages (${threadMessages.length}). Resolved ${citationMetadata.length} citations.`;
 
   return {
     full_context_text: formattedContext,
@@ -148,7 +211,91 @@ export async function buildContextTree(messageId, offeringId) {
       total_thread_messages: threadMessages.length,
       direct_reply_count_for_target: directRepliesResult.rows[0]?.count || 0,
     },
+    final_messages: finalMessages,
   };
+}
+
+/**
+ * Helper to fetch assignment metadata for citations
+ */
+async function fetchAssignmentMetadata(assignmentId) {
+  try {
+    const res = await pool.query(
+      `SELECT a.title, a.description, a.due_at, a.assignment_type, c.code
+       FROM assignments a
+       JOIN course_offerings co ON a.course_offering_id = co.id
+       JOIN courses c ON co.course_id = c.id
+       WHERE a.id = $1`,
+      [assignmentId]
+    );
+    if (res.rowCount > 0) {
+      const a = res.rows[0];
+      return `[Citation Metadata for Assignment ${assignmentId}]
+Title: ${a.title}
+Course: ${a.code}
+Type: ${a.assignment_type}
+Due: ${a.due_at}
+Description: ${a.description || 'No description'}`;
+    }
+  } catch (e) {
+    console.error('fetchAssignmentMetadata error:', e);
+  }
+  return null;
+}
+
+/**
+ * Helper to fetch quiz metadata for citations
+ */
+async function fetchQuizMetadata(quizId) {
+  try {
+    const res = await pool.query(
+      `SELECT q.title, q.description, q.time_limit, q.start_at, q.end_at, c.code
+       FROM quizzes q
+       JOIN course_offerings co ON q.course_offering_id = co.id
+       JOIN courses c ON co.course_id = c.id
+       WHERE q.id = $1`,
+      [quizId]
+    );
+    if (res.rowCount > 0) {
+      const q = res.rows[0];
+      return `[Citation Metadata for Quiz ${quizId}]
+Title: ${q.title}
+Course: ${q.code}
+Time Limit: ${q.time_limit} mins
+Available: ${q.start_at} to ${q.end_at}
+Description: ${q.description || 'No description'}`;
+    }
+  } catch (e) {
+    console.error('fetchQuizMetadata error:', e);
+  }
+  return null;
+}
+
+/**
+ * Helper to fetch video metadata for citations
+ */
+async function fetchVideoMetadata(videoId) {
+  try {
+    const res = await pool.query(
+      `SELECT v.title, v.description, v.youtube_url, c.code
+       FROM videos v
+       JOIN course_offerings co ON v.course_offering_id = co.id
+       JOIN courses c ON co.course_id = c.id
+       WHERE v.id = $1`,
+      [videoId]
+    );
+    if (res.rowCount > 0) {
+      const v = res.rows[0];
+      return `[Citation Metadata for Video ${videoId}]
+Title: ${v.title}
+Course: ${v.code}
+URL: ${v.youtube_url}
+Description: ${v.description || 'No description'}`;
+    }
+  } catch (e) {
+    console.error('fetchVideoMetadata error:', e);
+  }
+  return null;
 }
 
 /**
@@ -199,7 +346,12 @@ If the user asks about counts, use the provided thread statistics exactly.
 Thread statistics:
 - Total messages in this thread: ${thread_stats.total_thread_messages}
 - Direct replies to the target message: ${thread_stats.direct_reply_count_for_target}
-Provide a concise, helpful, and highly relevant answer based on the context.
+
+IMPORTANT CONTEXT PRIORITIZATION:
+The discussion tree has been flattened into a list, but each message is labeled with its [Depth] and branch status.
+- Prioritize messages labeled [DIRECT ANCESTOR BRANCH] (this is the conversation path leading directly to the target).
+- Messages labeled [SIBLING BRANCH - LOWER PRIORITY] belong to other conversations in the same thread and should generally be ignored unless highly relevant.
+- You are replying to the [TARGET MESSAGE]. Provide a concise, helpful, and highly relevant answer based on the context.
 Do NOT reveal sensitive data.`;
 
   const userPrompt = `Context:
@@ -223,31 +375,40 @@ Please provide your answer.`;
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 120000); // 2 minute timeout
 
-    const response = await fetch(OPENROUTER_API_URL, {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${OPENROUTER_API_KEY}`,
-        'Content-Type': 'application/json',
-        'HTTP-Referer': 'http://localhost:3000', // Update with actual site URL
-        'X-Title': 'Discussion AI Assistant',
-      },
-      body: JSON.stringify({
-        model: 'google/gemini-flash-1.5-free',
-        messages: [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: userPrompt },
-        ],
-        temperature: 0.7,
-        max_tokens: 1024,
-      }),
-      signal: controller.signal,
-    });
+    const messages = [
+      { role: 'system', content: systemPrompt },
+      { role: 'user', content: userPrompt },
+    ];
+
+    async function sendRequest(model) {
+      return fetch(OPENROUTER_API_URL, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${OPENROUTER_API_KEY}`,
+          'Content-Type': 'application/json',
+          'HTTP-Referer': 'http://localhost:3000', // Update with actual site URL
+          'X-Title': 'Discussion AI Assistant',
+        },
+        body: JSON.stringify(buildOpenRouterBody(model, messages, false)),
+        signal: controller.signal,
+      });
+    }
+
+    let response = await sendRequest('minimax/minimax-m2.5:free');
+    let errorData = null;
+    if (!response.ok) {
+      errorData = await response.json().catch(() => null);
+      console.warn(`Primary model failed with status ${response.status}. Retrying with fallback model...`);
+      response = await sendRequest('gpt-4o-mini');
+      if (!response.ok) {
+        errorData = await response.json().catch(() => null);
+      }
+    }
 
     clearTimeout(timeoutId);
 
     if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
-      throw new Error(`OpenRouter API error: ${errorData.error?.message || 'Unknown error'}`);
+      throw new Error(`OpenRouter API error: ${errorData?.error?.message || response.statusText || 'Unknown error'}`);
     }
 
     const data = await response.json();
@@ -302,15 +463,24 @@ Your task is to respond to a user who tagged you inside a single discussion thre
 Thread statistics:
 - Total messages in this thread: ${thread_stats.total_thread_messages}
 - Direct replies to the target message: ${thread_stats.direct_reply_count_for_target}
-Provide a concise, helpful answer based on the context.`;
+
+IMPORTANT CONTEXT PRIORITIZATION:
+The discussion tree has been flattened into a list, but each message is labeled with its [Depth] and branch status.
+- Prioritize messages labeled [DIRECT ANCESTOR BRANCH] (this is the conversation path leading directly to the target).
+- Messages labeled [SIBLING BRANCH - LOWER PRIORITY] belong to other conversations in the same thread and should generally be ignored unless highly relevant.
+- You are replying to the [TARGET MESSAGE]. Provide a concise, helpful answer based on its direct context.`;
 
   const userPrompt = `Context:\n${full_context_text}\n\nUser Query:\n${extractedQuery}\n\nPlease provide your answer.`;
 
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), 120000);
+  const messages = [
+    { role: 'system', content: systemPrompt },
+    { role: 'user', content: userPrompt },
+  ];
 
-  try {
-    const response = await fetch(OPENROUTER_API_URL, {
+  async function sendRequest(model) {
+    return fetch(OPENROUTER_API_URL, {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${OPENROUTER_API_KEY}`,
@@ -318,23 +488,29 @@ Provide a concise, helpful answer based on the context.`;
         'HTTP-Referer': 'http://localhost:3000',
         'X-Title': 'Discussion AI Assistant',
       },
-      body: JSON.stringify({
-        model: 'google/gemini-flash-1.5-free',
-        messages: [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: userPrompt },
-        ],
-        stream: true,
-        temperature: 0.7,
-        max_tokens: 1024,
-      }),
+      body: JSON.stringify(buildOpenRouterBody(model, messages, true)),
       signal: controller.signal,
     });
+  }
+
+  try {
+    let response = await sendRequest('minimax/minimax-m2.5:free');
+    let errorData = null;
+
+    if (!response.ok) {
+      errorData = await response.json().catch(() => null);
+      console.warn(`Primary model failed with status ${response.status}. Retrying with fallback model...`);
+      response = await sendRequest('gpt-4o-mini');
+      if (!response.ok) {
+        errorData = await response.json().catch(() => null);
+      }
+    }
 
     clearTimeout(timeoutId);
 
     if (!response.ok) {
-      throw new Error(`OpenRouter API error: ${response.statusText}`);
+      const errorMessage = errorData?.error?.message || response.statusText || 'Unknown error';
+      throw new Error(`OpenRouter API error: ${errorMessage}`);
     }
 
     return {
@@ -365,4 +541,76 @@ ${context}
 --- Question ---
 ${query}
 `;
+}
+
+async function fetchResourceMetadata(offeringId, resourceIds) {
+  if (!Array.isArray(resourceIds) || resourceIds.length === 0) {
+    return '';
+  }
+
+  const sanitizedIds = resourceIds.filter(id => Number.isInteger(id) && id > 0);
+  if (sanitizedIds.length === 0) {
+    return '';
+  }
+
+  const placeholders = sanitizedIds.map((_, idx) => `$${idx + 1}`).join(', ');
+  const params = [...sanitizedIds, offeringId];
+  const q = `
+    SELECT id, title, description, resource_type, filename, storage_path
+    FROM resources
+    WHERE course_offering_id = $${sanitizedIds.length + 1}
+      AND id IN (${placeholders})
+  `;
+
+  const r = await pool.query(q, params);
+  if (!r.rows.length) {
+    return '';
+  }
+
+  return r.rows
+    .map(resource => {
+      const description = resource.description || 'No description available.';
+      return `- [${resource.resource_type}] ${resource.title}: ${description}`;
+    })
+    .join('\n');
+}
+
+function buildDeepDivePrompt(contextData, userQuery, selectedResourcesText) {
+  const { full_context_text, context_used_summary, final_messages } = contextData;
+  const lastAiMessage = final_messages
+    .filter(msg => msg.user_id === null)
+    .slice(-1)[0];
+
+  const previousAiContent = lastAiMessage ? `Previous AI answer:\n${sanitizeContent(lastAiMessage.content)}\n\n` : '';
+  const resourcesContent = selectedResourcesText
+    ? `Selected resources and metadata:\n${selectedResourcesText}\n\n`
+    : '';
+
+  return `Please copy and paste the following prompt into ChatGPT or another LLM:
+
+Instruction: You are an educational assistant. Use the context and any selected resources to answer the user's deep dive question. Keep the response grounded in the provided discussion thread and resource metadata.
+
+--- Thread Summary ---
+${context_used_summary}
+
+${previousAiContent}${resourcesContent}--- Discussion Context ---
+${full_context_text}
+
+--- Deep Dive Question ---
+${userQuery}
+
+If the user asks for examples or step-by-step guidance, include those in a concise manner. Do not invent context that is not present in the thread.`;
+}
+
+export async function generateDeepDivePrompt(messageId, offeringId, userQuery, resourceIds = []) {
+  const contextData = await buildContextTree(messageId, offeringId);
+  const resourceText = await fetchResourceMetadata(offeringId, resourceIds);
+  const prompt = buildDeepDivePrompt(contextData, sanitizeContent(userQuery), resourceText);
+
+  return {
+    mode: 'deep_dive_prompt',
+    prompt,
+    context_used: contextData.context_used_summary,
+    resource_metadata: resourceText || undefined,
+  };
 }

@@ -166,7 +166,7 @@ export default function CourseHub() {
         }
       } catch (e) {
         console.error(e);
-        if (!cancelled) setError('Failed to load course hub');
+        if (!cancelled) setError(e instanceof Error ? e.message : 'We couldn\'t load the course hub. Please try again.');
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -381,7 +381,7 @@ export default function CourseHub() {
               <div className="course-hub-hero__instructor">
                 <img
                   className="course-hub-hero__instructor-img"
-                  src="https://via.placeholder.com/48"
+                  src="https://placehold.co/48"
                   alt="Instructor"
                 />
                 <div className="course-hub-hero__instructor-info">

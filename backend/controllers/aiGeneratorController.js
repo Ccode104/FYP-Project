@@ -89,14 +89,13 @@ async function getAIResponse(systemPrompt, userPrompt) {
       'X-Title': 'FYP Coding Platform'
     },
     body: JSON.stringify({
-      model: 'google/gemini-flash-1.5-free',
+      model: 'minimax/minimax-m2.5:free',
       messages: [
         { role: 'system', content: systemPrompt },
         { role: 'user', content: userPrompt }
       ],
-      temperature: 0.2,
-      max_tokens: 2048,
-      response_format: { type: "json_object" }
+      temperature: 0.1,
+      max_tokens: 2048
     })
   });
 

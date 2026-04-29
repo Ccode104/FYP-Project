@@ -11,7 +11,6 @@ import {
   getResourceById,
   updateResource
 } from '../controllers/resourcesController.js';
-import { reindexCourseResources } from '../controllers/chatbotController.js';
 import { getCodeQuestions } from '../controllers/codeQuestionsController.js';
 import { offeringOverview, getCourseCardData } from '../controllers/coursesController.js';
 
@@ -94,7 +93,6 @@ router.get('/', requireAuth, listCourses);
  *         description: Course not found
  */
 router.get('/:offeringId/resources', getCourseResources);
-router.post('/:offeringId/resources/reindex', requireRole('faculty', 'ta', 'admin'), reindexCourseResources);
 
 /**
  * @swagger

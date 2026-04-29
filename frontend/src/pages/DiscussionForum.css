@@ -258,6 +258,140 @@
   background: #00346f;
 }
 
+.thread-reply {
+  padding: 20px;
+  background: #ffffff;
+  border-radius: 20px;
+  box-shadow: 0 8px 25px rgba(16, 34, 72, 0.06);
+  margin-bottom: 16px;
+  transition: all 0.16s ease;
+}
+
+.thread-reply.ai-reply {
+  border: 1px solid rgba(0, 52, 111, 0.12);
+  background: #f4f7ff;
+}
+
+.deep-dive-footer {
+  margin-top: 12px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+  color: #0d1c2e;
+}
+
+.deep-dive-footer span {
+  color: #4a5568;
+}
+
+.deep-dive-btn {
+  padding: 8px 12px;
+  background: transparent;
+  color: #00346f;
+  border: 1px solid rgba(0, 52, 111, 0.18);
+  border-radius: 9999px;
+}
+
+.deep-dive-btn:hover {
+  background: rgba(0, 52, 111, 0.06);
+}
+
+.deep-dive-textarea {
+  width: 100%;
+  min-height: 140px;
+  margin-top: 12px;
+  padding: 14px;
+  border-radius: 14px;
+  border: 1px solid #cfd4df;
+  background: #ffffff;
+  font-size: 14px;
+  color: #0d1c2e;
+  resize: vertical;
+}
+
+.modal-text {
+  margin-bottom: 12px;
+  color: #2d3b50;
+  font-size: 14px;
+}
+
+.modal-label {
+  font-size: 14px;
+  font-weight: 700;
+  margin-top: 16px;
+  display: block;
+}
+
+.cite-resources-section {
+  margin-top: 18px;
+  background: #f2f5ff;
+  border: 1px solid #d3ddf5;
+  border-radius: 16px;
+  padding: 16px;
+}
+
+.cite-header {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 12px;
+}
+
+.cite-title {
+  font-weight: 700;
+  color: #0d1c2e;
+}
+
+.cite-subtitle {
+  font-size: 12px;
+  color: #5b6678;
+}
+
+.cite-note {
+  color: #5b6678;
+  font-size: 13px;
+  margin-bottom: 8px;
+}
+
+.cite-toggle-btn {
+  margin-top: 12px;
+  padding: 10px 14px;
+  border-radius: 9999px;
+  border: 1px solid rgba(0, 52, 111, 0.18);
+  background: white;
+  color: #00346f;
+  cursor: pointer;
+  transition: background 0.2s ease;
+}
+
+.cite-toggle-btn:hover {
+  background: rgba(0, 52, 111, 0.05);
+}
+
+.resource-list {
+  display: grid;
+  gap: 10px;
+}
+
+.resource-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  font-size: 13px;
+  color: #1e293b;
+}
+
+.deep-dive-result {
+  margin-top: 18px;
+}
+
+.deep-dive-result h4 {
+  margin-bottom: 8px;
+  font-size: 15px;
+  color: #0d1c2e;
+}
+
 .toggle-knob {
   position: absolute;
   top: 2px;
@@ -781,6 +915,44 @@
   white-space: pre-wrap;
 }
 
+.reply-content pre,
+.thread-content pre {
+  background: #ffffff;
+  color: #0d1c2e;
+  padding: 14px;
+  border: 1px solid #d6d9e6;
+  border-radius: 14px;
+  overflow: auto;
+  margin: 12px 0;
+  font-family: ui-monospace, SFMono-Regular, Consolas, 'Liberation Mono', Menlo, monospace;
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.reply-content code,
+.thread-content code {
+  background: #f4f7ff;
+  color: #0d1c2e;
+  padding: 0.15em 0.35em;
+  border-radius: 6px;
+  font-family: ui-monospace, SFMono-Regular, Consolas, 'Liberation Mono', Menlo, monospace;
+  font-size: 13px;
+}
+
+.reply-content pre code,
+.thread-content pre code {
+  background: transparent;
+  padding: 0;
+}
+
+.reply-content blockquote,
+.thread-content blockquote {
+  border-left: 4px solid #c9d9ff;
+  padding-left: 16px;
+  color: #1e2a44;
+  margin: 16px 0;
+}
+
 /* Loading */
 .loading-container {
   display: flex;
@@ -818,6 +990,75 @@
   50% {
     opacity: 0;
   }
+}
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+}
+
+/* Citation Preview */
+.citation-detection-preview {
+  margin-top: 16px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 12px 16px;
+  animation: slideIn 0.3s ease-out;
+}
+
+.citation-preview-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--primary);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 8px;
+}
+
+.citation-preview-header .material-symbols-outlined {
+  font-size: 18px;
+}
+
+.citation-preview-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.citation-preview-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  font-size: 0.85rem;
+  color: var(--text);
+  box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+}
+
+.citation-preview-item .material-symbols-outlined {
+  font-size: 16px;
+  color: var(--primary);
+}
+
+.citation-title {
+  font-weight: 600;
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@keyframes slideIn {
+  from { opacity: 0; transform: translateY(-10px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 
 @keyframes spin {

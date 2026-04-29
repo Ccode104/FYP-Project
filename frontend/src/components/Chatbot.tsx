@@ -123,7 +123,7 @@ What would you like to know about your course?`,
       const errorMessage: Message = {
         id: (Date.now() + 2).toString(),
         role: 'assistant',
-        content: `❌ Error: ${(error as Error).message || 'Failed to get response. Please try again.'}`,
+        content: "I'm sorry, I'm having trouble connecting to my brain right now. 🧠 Please check your internet connection or try again in a few seconds.",
         timestamp: new Date().toISOString()
       };
       setMessages(prev => [...prev, errorMessage]);

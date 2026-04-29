@@ -1,16 +1,9 @@
+import { promises as fs } from 'fs';
+import path from 'path';
 import { pool } from '../db/index.js';
-import { v2 as cloudinary } from 'cloudinary';
 import { v4 as uuidv4 } from 'uuid';
-import { indexCourseResource } from './chatbotController.js';
 
-// Configure Cloudinary (should be done once, but ensuring here)
-if (!cloudinary.config().cloud_name) {
-  cloudinary.config({
-    cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
-    api_key: process.env.CLOUDINARY_API_KEY,
-    api_secret: process.env.CLOUDINARY_API_SECRET,
-  });
-}
+const resourceStorageDir = path.join(process.cwd(), 'uploads', 'resources');
 
 export async function createResource(req, res) {
   const { course_offering_id, title, description, resource_type, storage_path, filename } = req.body;
@@ -18,7 +11,6 @@ export async function createResource(req, res) {
   const q = `INSERT INTO resources (course_offering_id, uploaded_by, title, description, resource_type, storage_path, filename)
              VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING *`;
   const r = await pool.query(q, [course_offering_id, uploaded_by, title, description, resource_type, storage_path, filename]);
-  await indexCourseResource(r.rows[0]);
   res.json(r.rows[0]);
 }
 
@@ -47,22 +39,10 @@ export async function uploadResource(req, res) {
       return res.status(400).json({ error: 'Invalid resource type. Must be pyq or lecture_note' });
     }
 
-    // Upload to Cloudinary
-    const publicId = `lms_resources/${uuidv4()}_${Date.now()}`;
-    const uploadResult = await new Promise((resolve, reject) => {
-      const stream = cloudinary.uploader.upload_stream(
-        {
-          public_id: publicId,
-          resource_type: 'raw', // For PDFs and documents
-          folder: 'lms_resources'
-        },
-        (error, result) => {
-          if (error) {reject(error);}
-          else {resolve(result);}
-        }
-      );
-      stream.end(req.file.buffer);
-    });
+    await fs.mkdir(resourceStorageDir, { recursive: true });
+    const filenameOnDisk = `${uuidv4()}_${Date.now()}_${path.basename(req.file.originalname)}`;
+    const storagePath = path.join(resourceStorageDir, filenameOnDisk);
+    await fs.writeFile(storagePath, req.file.buffer);
 
     // Insert into database
     const query = `
@@ -74,14 +54,12 @@ export async function uploadResource(req, res) {
       offeringId,
       req.user?.id,
       type,
-      uploadResult.secure_url,
+      storagePath,
       req.file.originalname
     ];
 
     const result = await pool.query(query, values);
     const resource = result.rows[0];
-
-    await indexCourseResource(resource);
 
     res.status(201).json({
       message: 'Resource uploaded successfully',
@@ -108,7 +86,6 @@ export async function deleteResource(req, res) {
       return res.status(400).json({ error: 'Resource ID is required' });
     }
 
-    // Get resource info first to delete from Cloudinary
     const resourceQuery = 'SELECT storage_path FROM resources WHERE id = $1';
     const resourceResult = await pool.query(resourceQuery, [id]);
 
@@ -118,18 +95,11 @@ export async function deleteResource(req, res) {
 
     const resource = resourceResult.rows[0];
 
-    // Delete from Cloudinary if it's a Cloudinary URL
-    if (resource.storage_path && resource.storage_path.includes('cloudinary')) {
+    if (resource.storage_path && !resource.storage_path.startsWith('http')) {
       try {
-        // Extract public_id from Cloudinary URL
-        const urlParts = resource.storage_path.split('/');
-        const publicIdWithExtension = urlParts[urlParts.length - 1];
-        const publicId = `lms_resources/${publicIdWithExtension.split('.')[0]}`;
-
-        await cloudinary.uploader.destroy(publicId, { resource_type: 'raw' });
-      } catch (cloudinaryError) {
-        console.warn('Failed to delete from Cloudinary:', cloudinaryError);
-        // Continue with DB deletion even if Cloudinary deletion fails
+        await fs.unlink(resource.storage_path);
+      } catch (unlinkError) {
+        console.warn('Failed to delete local resource file:', unlinkError);
       }
     }
 
@@ -197,7 +167,6 @@ export async function updateResource(req, res) {
     }
 
     const updated = result.rows[0];
-    await indexCourseResource(updated);
 
     res.json({
       message: 'Resource updated successfully',

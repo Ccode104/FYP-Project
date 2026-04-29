@@ -1,6 +1,7 @@
 import { pool } from '../db/index.js';
 import { initializeChatbotAgent } from '../agents/chatbotAgents.js';
 import { logger } from '../utils/logger.js';
+import axios from 'axios';
 
 // Initialize OpenRouter client
 const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY;
@@ -140,7 +141,7 @@ Respond with only the category name and confidence score (0-1), e.g.: "course_in
             'X-Title': 'FYP Coding Platform'
           },
           body: JSON.stringify({
-            model: 'google/gemini-flash-1.5-free',
+            model: 'minimax/minimax-m2.5:free',
             messages: [{ role: 'user', content: classificationPrompt }],
             max_tokens: 20,
             temperature: 0.1
@@ -152,7 +153,8 @@ Respond with only the category name and confidence score (0-1), e.g.: "course_in
         }
 
         const classification = await response.json();
-        const result = classification.choices[0]?.message?.content?.trim();
+        console.log('AI Classification Raw Response:', JSON.stringify(classification, null, 2));
+        const result = classification.choices?.[0]?.message?.content?.trim();
         if (result && result.includes(':')) {
           const [tool, conf] = result.split(':');
           const aiConfidence = parseFloat(conf);
@@ -190,7 +192,7 @@ AVAILABLE TOOLS:
 RESPONSE FORMAT:
 First, think about which tool to use.
 Then, call that tool with the correct parameters.
-Finally, provide a helpful response.
+Finally, provide a helpful response. You MUST cite your sources (Source: ...) for every fact you provide using information from the tools.
 
 Chat History:
 ${history.map(h => `${h.role}: ${h.content}`).join('\n')}
@@ -411,3 +413,129 @@ export async function deleteChatSession(req, res) {
   }
 }
 
+
+/* ------------------------------------------------------------------
+ * 🗺️ AI NAVIGATION INTENT CLASSIFIER
+ * POST /api/chatbot/navigate
+ * ------------------------------------------------------------------ */
+export async function classifyNavigationIntent(req, res) {
+  try {
+    const { query, courseId } = req.body;
+
+    if (!query) {
+      return res.status(400).json({ error: 'Query is required' });
+    }
+
+    const lowerQuery = query.toLowerCase().trim();
+
+    // Step 1: Backend Local Matching (Resilience & Speed)
+    let localTarget = null;
+    let localReason = '';
+
+    if (lowerQuery.match(/\b(assignment|homework|task|todo|submit)\b/)) {
+      localTarget = 'assignments';
+      localReason = 'Sure, let\'s look at your assignments!';
+    } else if (lowerQuery.match(/\b(quiz|test|exam|assessment)\b/)) {
+      localTarget = 'quizzes';
+      localReason = 'Opening your quizzes now.';
+    } else if (lowerQuery.match(/\b(lecture|video|watch|recording|class)\b/)) {
+      localTarget = 'lectures';
+      localReason = 'Heading over to the lectures.';
+    } else if (lowerQuery.match(/\b(discussion|forum|chat|ask|help)\b/)) {
+      localTarget = 'discussion';
+      localReason = 'Joining the discussion forum.';
+    } else if (lowerQuery.match(/\b(progress|grade|score|performance|report)\b/)) {
+      localTarget = 'progress';
+      localReason = 'Checking your progress and grades.';
+    } else if (lowerQuery.match(/\b(profile|account|setting|password|me)\b/)) {
+      localTarget = 'profile';
+      localReason = 'Opening your profile settings.';
+    } else if (lowerQuery.match(/\b(home|dashboard|main|start|back)\b/)) {
+      localTarget = 'dashboard';
+      localReason = 'Going back to the dashboard.';
+    }
+
+    if (localTarget) {
+      return res.json({ target: localTarget, reason: localReason, method: 'local' });
+    }
+
+    // Step 2: AI Fallback
+    const systemPrompt = `You are a platform navigation assistant for an Educational Portal. 
+Your goal is to map user natural language requests to specific platform routes.
+
+AVAILABLE ROUTES & CONTEXT:
+- assignments: Opening the assignments list.
+- quizzes: Opening quizzes/assessments.
+- lectures: Opening video lectures or class recordings.
+- discussion: Opening the forum or chat.
+- progress: Opening grades and performance.
+- profile: Opening user profile or settings.
+- dashboard: Going back to the main overview.
+
+RESPONSE FORMAT: You MUST respond with a valid JSON object:
+{ 
+  "target": "assignments" | "quizzes" | "lectures" | "discussion" | "progress" | "profile" | "dashboard" | "unknown", 
+  "reason": "A friendly confirmation message" 
+}
+
+Current Course Context: ${courseId ? `The user is currently in course ID ${courseId}` : 'The user is on the main dashboard'}.`;
+
+    const response = await fetch(OPENROUTER_URL, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${OPENROUTER_API_KEY}`,
+        'Content-Type': 'application/json',
+        'HTTP-Referer': 'https://vnit-portal.edu',
+        'X-Title': 'VNIT Portal AI Assistant',
+      },
+      body: JSON.stringify({
+        model: 'minimax/minimax-m2.5:free',
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: query },
+        ],
+        temperature: 0.1,
+      }),
+    });
+
+    if (!response.ok) {
+      if (response.status === 429) {
+        return res.json({ 
+          target: 'unknown', 
+          reason: 'The AI brain is a bit overwhelmed right now. Please try a simpler command like "go to assignments".',
+          error: 'Rate limited'
+        });
+      }
+      const errorData = await response.json();
+      throw new Error(`OpenRouter API error: ${errorData.error?.message || response.statusText}`);
+    }
+
+    const data = await response.json();
+    console.log('AI Navigation Raw Response:', JSON.stringify(data, null, 2));
+    const content = data.choices?.[0]?.message?.content;
+    
+    if (!content) {
+      throw new Error('No content returned from AI');
+    }
+
+    // Extract JSON from potential markdown/text wrapper
+    let cleanContent = content.trim();
+    const start = cleanContent.indexOf('{');
+    const end = cleanContent.lastIndexOf('}');
+    
+    if (start !== -1 && end !== -1) {
+      cleanContent = cleanContent.substring(start, end + 1);
+    }
+
+    try {
+      const result = JSON.parse(cleanContent);
+      res.json({ ...result, method: 'ai' });
+    } catch (parseErr) {
+      console.error('JSON Parse Error. Content was:', cleanContent);
+      throw new Error('AI returned invalid JSON format');
+    }
+  } catch (err) {
+    console.error('classifyNavigationIntent error:', err);
+    res.status(500).json({ error: 'Failed to classify intent', details: err.message });
+  }
+}

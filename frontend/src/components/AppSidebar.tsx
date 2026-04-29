@@ -321,6 +321,13 @@ export default function AppSidebar() {
       </nav>
 
       <div className="app-sidebar__footer">
+        <div className="app-sidebar__ai-card">
+          <span className="material-symbols-outlined">auto_awesome</span>
+          <div className="app-sidebar__ai-card-text">
+            <span className="app-sidebar__ai-card-title">AI Tools</span>
+            <span className="app-sidebar__ai-card-hint">Select text to cite</span>
+          </div>
+        </div>
         <button className="app-sidebar__link" onClick={() => navigate('/profile')}>
           <span className="material-symbols-outlined">settings</span>
           <span>Settings</span>

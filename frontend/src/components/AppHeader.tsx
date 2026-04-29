@@ -1,12 +1,16 @@
 import { useAuth } from '../context/AuthContext';
 import { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import HeaderAIAssistant from './HeaderAIAssistant';
+import { fetchAiLimits } from '../features/discussion/api/discussion';
 
 export default function AppHeader() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const [searchValue, setSearchValue] = useState('');
   const [showUserDropdown, setShowUserDropdown] = useState(false);
+  const [showAI, setShowAI] = useState(false);
+  const [aiLimits, setAiLimits] = useState<{ remaining: number, used: number, limit: number, percentage: string, usage: number, usageLimit: number } | null>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -20,6 +24,23 @@ export default function AppHeader() {
       return () => document.removeEventListener('mousedown', handleClickOutside);
     }
   }, [showUserDropdown]);
+
+  useEffect(() => {
+    const loadLimits = async () => {
+      try {
+        const data = await fetchAiLimits();
+        if (data.available) {
+          setAiLimits(data);
+        }
+      } catch (err) {
+        console.error('Failed to fetch AI limits:', err);
+      }
+    };
+    loadLimits();
+    // Refresh every 5 minutes
+    const interval = setInterval(loadLimits, 5 * 60 * 1000);
+    return () => clearInterval(interval);
+  }, []);
 
   const handleLogout = () => {
     logout();
@@ -38,6 +59,32 @@ export default function AppHeader() {
         />
       </div>
        <div className="app-header__actions">
+         {aiLimits && (
+           <div className="app-header__ai-status" style={{ 
+             display: 'flex', 
+             alignItems: 'center', 
+             gap: '8px', 
+             padding: '4px 12px', 
+             background: 'var(--shell-surface-elevated)', 
+             borderRadius: '16px',
+             fontSize: '13px',
+             color: 'var(--text-secondary)',
+             border: '1px solid var(--shell-border)'
+           }} title={`Used: ${aiLimits.used}/${aiLimits.limit} requests | Cost: $${aiLimits.usage.toFixed(4)}/$${aiLimits.usageLimit.toFixed(2)} (${aiLimits.percentage}%)`}>
+             <span className="material-symbols-outlined" style={{ fontSize: '16px', color: 'var(--primary)' }}>auto_awesome</span>
+             <span>AI Requests Left: <strong>{aiLimits.remaining}</strong> <small style={{ marginLeft: '4px', opacity: 0.7 }}>({aiLimits.percentage}%)</small></span>
+           </div>
+         )}
+         <div className="app-header__ai-toggle">
+           <button
+             className={`app-header__ai-btn ${showAI ? 'active' : ''}`}
+             onClick={() => setShowAI(!showAI)}
+             title="AI Navigator"
+           >
+             <span className="material-symbols-outlined">assistant_navigation</span>
+           </button>
+           <HeaderAIAssistant isOpen={showAI} onClose={() => setShowAI(false)} />
+         </div>
          <div className="app-header__divider"></div>
         <div className="app-header__user-dropdown" ref={dropdownRef}>
           <div 

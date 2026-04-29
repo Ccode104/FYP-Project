@@ -133,8 +133,8 @@ router.post('/submit/code', requireAuth, requireRole('student', 'faculty'), subm
  */
 router.post('/grade', requireAuth, requireRole('ta', 'faculty', 'admin'), gradeSubmission);
 
-// Get a single submission by id (view by faculty/ta/admin)
-router.get('/:submissionId', requireAuth, requireRole('ta', 'faculty', 'admin'), getSubmissionById);
+// Get a single submission by id (view by student/faculty/ta/admin)
+router.get('/:submissionId', requireAuth, requireRole('student', 'ta', 'faculty', 'admin'), getSubmissionById);
 
 // /**
 //  * @swagger
