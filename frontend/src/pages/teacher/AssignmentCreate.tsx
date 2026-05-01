@@ -168,7 +168,7 @@ const AssignmentCreate: React.FC = () => {
 
                 <div className="type-card" onClick={() => handleTypeSelect('github')}>
                   <div className="type-icon">
-                    <span className="material-symbols-outlined">source_control</span>
+                    <span className="material-symbols-outlined">code</span>
                   </div>
                   <h3>GitHub Project</h3>
                   <p>Students submit a repository link. Ideal for collaborative projects and real-world dev workflows.</p>

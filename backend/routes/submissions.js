@@ -74,8 +74,6 @@ router.post(
  *           schema:
  *             type: object
  *             required:
- *               - code
- *               - language
  *               - assignmentId
  *             properties:
  *               code:
@@ -85,6 +83,10 @@ router.post(
  *                 enum: [python, java, cpp, javascript]
  *               assignmentId:
  *                 type: string
+ *               repo_link:
+ *                 type: string
+ *                 format: uri
+ *                 description: GitHub file URL for code-type assignments
  *     responses:
  *       201:
  *         description: Code submitted successfully

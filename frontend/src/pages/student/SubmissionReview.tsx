@@ -22,12 +22,24 @@ interface SubmissionData {
 
 export default function SubmissionReview() {
   const { user } = useAuth();
-  const [isPreviewFullWidth, setIsPreviewFullWidth] = useState(false);
+
   const token = localStorage.getItem('auth:token');
 
-  const getAuthenticatedUrl = (fileId: any) => {
+  const getAuthenticatedUrl = (fileId: string | number | undefined) => {
     if (!fileId) return '';
     return `/api/submissions/files/${fileId}/download?token=${token}`;
+  };
+
+  const getDriveFileId = (file: { drive_file_id?: string; storage_path?: string } | null) => {
+    if (!file) return null;
+    if (file.drive_file_id) return file.drive_file_id;
+    const path = file.storage_path || '';
+    if (path.startsWith('gdrive://')) {
+      return path.replace(/^gdrive:\/\//, '');
+    }
+    const match = path.match(/drive\.google\.com\/file\/d\/([^/?#]+)/);
+    if (match) return match[1];
+    return null;
   };
 
   const { submissionId, assignmentId } = useParams<{
@@ -54,6 +66,7 @@ export default function SubmissionReview() {
   const [assignment, setAssignment] = useState<any>(null);
   const [score, setScore] = useState<number>(0);
   const [feedback, setFeedback] = useState('');
+  const isStudent = user?.role === 'student';
 
   const push = (opts: { kind?: 'success' | 'error' | string; message?: string }) => {
     if (toast && typeof (toast as unknown).push === 'function') {
@@ -85,6 +98,10 @@ export default function SubmissionReview() {
       const data = await apiFetch<{ submission: SubmissionData }>(
         `/api/submissions/${submissionId}`
       );
+      console.log('Submission data:', JSON.stringify(data.submission, null, 2));
+      if (data.submission.files) {
+        console.log('Files:', JSON.stringify(data.submission.files, null, 2));
+      }
       setSubmission(data.submission);
       setScore((data.submission.final_score as number) || (data.submission.score as number) || 0);
       setFeedback((data.submission.comments as string) || '');
@@ -304,69 +321,8 @@ export default function SubmissionReview() {
               <span className="material-symbols-outlined">open_in_new</span>
               Open Repository in GitHub
             </a>
-
-            <button
-              className="btn-sheet"
-              onClick={() => setShowSheetGrading(!showSheetGrading)}
-              disabled={!submission?.google_sheet_id}
-              style={{ 
-                background: showSheetGrading ? 'var(--primary)' : 'var(--bg-secondary)', 
-                color: showSheetGrading ? 'white' : 'var(--text)',
-                opacity: !submission?.google_sheet_id ? 0.6 : 1,
-                display: 'flex',
-                alignItems: 'center',
-                gap: '4px'
-              }}
-              title={!submission?.google_sheet_id ? "Create a grading sheet first" : ""}
-            >
-              <span className="material-symbols-outlined">{showSheetGrading ? 'lock' : 'lock_open'}</span>
-              {showSheetGrading ? 'Lock Grading Sheet' : 'Unlock Grading Sheet'}
-            </button>
-
-            {submission?.google_sheet_id ? (
-              <>
-                <button
-                  className="btn-sheet"
-                  onClick={handleOpenOrCreateSheet}
-                  disabled={sheetLoading}
-                  style={{
-                    background: 'linear-gradient(135deg, var(--primary), #4338ca)',
-                    color: 'white',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '4px',
-                    boxShadow: '0 4px 10px rgba(99,102,241,0.2)'
-                  }}
-                >
-                  <span className="material-symbols-outlined">open_in_new</span>
-                  {sheetLoading ? 'Opening...' : 'Open Sheet'}
-                </button>
-                <button
-                  className="btn-sheet"
-                  onClick={() => setShowDeleteConfirm(true)}
-                  disabled={deletingSheet}
-                  style={{ color: '#dc2626' }}
-                >
-                  <span className="material-symbols-outlined">delete_forever</span>
-                  {deletingSheet ? 'Deleting...' : 'Delete Grading Sheet'}
-                </button>
-              </>
-            ) : (
-              <button
-                className="btn-sheet"
-                onClick={googleConnected ? handleOpenOrCreateSheet : handleAuthorizeGoogle}
-                disabled={sheetLoading}
-              >
-                <span className="material-symbols-outlined">add_table</span>
-                {sheetLoading
-                  ? 'Creating...'
-                  : !googleConnected
-                    ? 'Authorize Google Sheets'
-                    : 'Create Grading Sheet'}
-              </button>
-            )}
           </div>
-          {submission.google_sheet_id && (user?.role === 'teacher' || user?.role === 'ta') && (
+          {submission.google_sheet_id && !isStudent && (user?.role === 'teacher' || user?.role === 'ta') && (
             <div className="sheet-sync-status" style={{ padding: '12px', background: 'rgba(59, 130, 246, 0.05)', borderRadius: '12px', border: '1px solid var(--primary)', marginTop: '20px', fontSize: '14px', display: 'flex', alignItems: 'center', gap: '10px' }}>
               <span className="material-symbols-outlined" style={{ color: 'var(--primary)', fontSize: '20px' }}>{showSheetGrading ? 'sync' : 'lock'}</span>
               <span style={{ fontWeight: 500 }}>
@@ -507,7 +463,7 @@ export default function SubmissionReview() {
               </div>
             </div>
           )}
-          <TeacherCodeSubmissionViewer submission={submission} onGrade={handleGrade} push={push} />
+          <TeacherCodeSubmissionViewer submission={submission} onGrade={handleGrade} push={push} isStudent={isStudent} />
         </>
       ) : (submission.files && (submission.files as any[]).length > 0) || submission.content ? (
         <div className="mixed-submission-review-container">
@@ -639,9 +595,6 @@ export default function SubmissionReview() {
               </div>
             </div>
           )}
-<div className={`mixed-submission-content-grid ${isPreviewFullWidth ? 'preview-fullwidth-mode' : ''}`}>
-            <div className={`mixed-submission-main ${isPreviewFullWidth ? 'full-width' : ''}`}>
-<div className={`mixed-submission-content-grid ${isPreviewFullWidth ? 'preview-fullwidth-mode' : ''}`}>
           <div className="mixed-submission-content-grid">
             <div className="mixed-submission-main">
               {submission.content && (
@@ -656,8 +609,8 @@ export default function SubmissionReview() {
                   <h3>Submitted Files</h3>
                   <div className="files-list-grid">
                     {(submission.files as any[]).map(file => (
-                      <div 
-                        key={file.id} 
+                      <div
+                        key={file.id}
                         className={`file-review-card ${selectedFile?.id === file.id ? 'active' : ''}`}
                         onClick={() => setSelectedFile(file)}
                       >
@@ -679,167 +632,25 @@ export default function SubmissionReview() {
                         >
                           <span className="material-symbols-outlined">download</span>
                         </a>
+                        {getDriveFileId(file) && (
+                          <a
+                            href={`https://drive.google.com/file/d/${getDriveFileId(file)}/preview?usp=drivesdk`}
+                            className="file-drive-link"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            onClick={(e) => e.stopPropagation()}
+                            title="Open in Google Drive viewer"
+                          >
+                            <span className="material-symbols-outlined">insert_drive_file</span>
+                          </a>
+                        )}
                       </div>
                     ))}
                   </div>
                 </div>
               )}
 
-              {/* Preview Window Section */}
-              <div className={`submission-preview-section ${isPreviewFullWidth ? 'full-width' : ''}`}>
-                <div className="preview-header-main">
-                  <h3>Preview Window</h3>
-                  <div className="preview-main-actions">
-                    <button 
-                      className="btn-toggle-width"
-                      onClick={() => setIsPreviewFullWidth(!isPreviewFullWidth)}
-                      title={isPreviewFullWidth ? "Collapse" : "Expand to Full Width"}
-                    >
-                      <span className="material-symbols-outlined">
-                        {isPreviewFullWidth ? 'collapse_content' : 'expand_content'}
-                      </span>
-                    </button>
-                  </div>
-                </div>
-                <div className="preview-window-container">
-                  {!selectedFile ? (
-                    <div className="preview-placeholder">
-                      <span className="material-symbols-outlined">visibility</span>
-                      <p>Select a file to preview its content</p>
-                    </div>
-                  ) : (
-                    <div className="preview-active-content">
-                      <div className="preview-header">
-                        <span className="preview-filename">{selectedFile.filename}</span>
-                        <div className="preview-actions">
-                          <a
-                            href={getAuthenticatedUrl(selectedFile.id)}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="btn-preview-action"
-                            title="Open in New Tab"
-                          >
-                            <span className="material-symbols-outlined">open_in_new</span>
-                          </a>
-                          <a
-                            href={getAuthenticatedUrl(selectedFile.id)}
-                            className="btn-preview-action"
-                            download={selectedFile.filename}
-                            title="Download"
-                          >
-                            <span className="material-symbols-outlined">download</span>
-                          </a>
-                          <button 
-                            className="btn-preview-action close"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setSelectedFile(null);
-                            }}
-                            title="Close Preview"
-                          >
-                            <span className="material-symbols-outlined">close</span>
-                          </button>
-                        </div>
-                      </div>
-                      <div className="preview-body">
-                        {selectedFile.storage_path?.startsWith('gdrive://') ? (
-                          <iframe
-                            src={`https://drive.google.com/file/d/${selectedFile.storage_path.replace('gdrive://', '')}/preview`}
-                            title="GDrive Preview"
-                            className="preview-pdf"
-                            allow="autoplay"
-                          />
-                        ) : selectedFile.mime_type?.startsWith('image/') ? (
-                          <img 
-                            src={getAuthenticatedUrl(selectedFile.id)} 
-                            alt={selectedFile.filename}
-                            className="preview-image"
-                          />
-                        ) : selectedFile.mime_type === 'application/pdf' ? (
-                          <iframe
-                            src={`${getAuthenticatedUrl(selectedFile.id)}#toolbar=0`}
-                            title="PDF Preview"
-                            className="preview-pdf"
-                          />
-                        ) : (
-                          <div className="preview-generic">
-                            <span className="material-symbols-outlined">draft</span>
-                            <p>Preview not available for this file type ({selectedFile.mime_type})</p>
-                            <a 
-                              href={getAuthenticatedUrl(selectedFile.id)}
-                              className="btn-preview-download-main"
-                              target="_blank"
-                              rel="noopener noreferrer"
-                            >
-                              Open in New Tab to View
-                            </a>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </div>
             </div>
-
-{(user?.role === 'teacher' || user?.role === 'ta') && (
-              <div className="mixed-submission-sidebar">
-                <div className="grading-panel-card" style={{ opacity: showSheetGrading ? 1 : 0.7, pointerEvents: showSheetGrading ? 'all' : 'none' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
-                    <h3 style={{ margin: 0 }}>Grading & Feedback</h3>
-                    {!showSheetGrading && (
-                      <span className="material-symbols-outlined" style={{ color: '#dc2626' }}>lock</span>
-                    )}
-                  </div>
-                  <fieldset disabled={!showSheetGrading} style={{ border: 'none', padding: 0, margin: 0 }}>
-                  <form
-                    onSubmit={e => {
-                      e.preventDefault();
-                      handleGrade(score, feedback);
-                    }}
-                  >
-                    <div className="form-group">
-                      <label>Marks (out of 100)</label>
-                      <input
-                        type="number"
-                        name="score"
-                        value={score}
-                        onChange={(e) => setScore(Number(e.target.value))}
-                        min="0"
-                        max="100"
-                        required
-                      />
-                    </div>
-                    <div className="form-group">
-                      <label>Comment / Feedback</label>
-                      <textarea
-                        name="feedback"
-                        value={feedback}
-                        onChange={(e) => setFeedback(e.target.value)}
-                        rows={6}
-                        placeholder="Enter feedback for the student..."
-                      />
-                    </div>
-                    <button type="submit" className="btn-grade-submit">
-                      Submit Grade
-                    </button>
-                    {showSheetGrading && (
-                      <button 
-                        type="button" 
-                        className="btn-grade-submit" 
-                        onClick={handleSyncToSheet} 
-                        disabled={syncingToSheet}
-                        style={{ marginTop: '12px', background: 'var(--primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}
-                      >
-                        <span className="material-symbols-outlined">sync</span>
-                        {syncingToSheet ? 'Syncing...' : 'Update Google Sheet'}
-                      </button>
-                    )}
-                  </form>
-                  </fieldset>
-                </div>
-              </div>
-            )}
           </div>
         </div>
       ) : (

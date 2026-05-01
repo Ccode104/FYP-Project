@@ -17,7 +17,12 @@
   flex: 1;
   padding: 32px;
   overflow-y: auto;
-  max-width: 900px;
+  min-width: 0;
+  max-width: calc(100% - 360px);
+}
+
+.student-sidebar__right {
+  flex-shrink: 0;
 }
 
 /* Hero Section */

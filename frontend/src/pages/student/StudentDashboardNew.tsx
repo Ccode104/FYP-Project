@@ -446,17 +446,18 @@ export default function StudentDashboardNew() {
 
   return (
     <>
-      <div className="app-content">
-        <section className="student-main">
-          <div className="student-hero">
-            <div className="student-hero__text">
-              <span className="student-hero__badge">Student</span>
-              <h2>Welcome back, {user?.name || 'Student'}!</h2>
-              <p>Track your academic progress and upcoming deadlines.</p>
+      <div className="student-shell__main">
+        <div className="student-content">
+          <section className="student-main">
+            <div className="student-hero">
+              <div className="student-hero__text">
+                <span className="student-hero__badge">Student</span>
+                <h2>Welcome back, {user?.name || 'Student'}!</h2>
+                <p>Track your academic progress and upcoming deadlines.</p>
+              </div>
             </div>
-          </div>
 
-          <div className="student-stats">
+            <div className="student-stats">
             <div className="student-stat">
               <div className="student-stat__header">
                 <span className="material-symbols-outlined student-stat__icon student-stat__icon--indigo">

@@ -230,13 +230,12 @@
 
 /* Content Layout (Shared) */
 .app-content {
-  flex: 1;
-  display: flex;
+  display: block;
   overflow: hidden;
 }
 
 .app-main {
-  flex: 1;
+  display: block;
   padding: 32px;
   overflow-y: auto;
   max-width: 1200px;
@@ -245,7 +244,10 @@
 }
 
 .app-main--full-width {
+  display: block;
   max-width: 100%;
+  width: 100%;
   padding: 24px;
   margin: 0;
+  box-sizing: border-box;
 }

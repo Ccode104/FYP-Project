@@ -67,6 +67,7 @@ interface TeacherCodeSubmissionViewerProps {
   openGradeForm?: boolean;
   onToggleGradeForm?: (open: boolean) => void;
   isLocked?: boolean;
+  isStudent?: boolean;
 }
 
 function TeacherCodeSubmissionViewer({
@@ -76,6 +77,7 @@ function TeacherCodeSubmissionViewer({
   openGradeForm = false,
   onToggleGradeForm,
   isLocked = false,
+  isStudent = false,
 }: TeacherCodeSubmissionViewerProps) {
   const { user } = useAuth();
   const [showGradingForm, setShowGradingForm] = useState(true);
@@ -291,28 +293,47 @@ function TeacherCodeSubmissionViewer({
       .join('\n');
   };
 
+  const getVisibleTestResultsForCode = (codeSub: CodeSubmission['code'][0]) => {
+    const existingTestResults = codeSub.test_case_results || [];
+    const filteredExisting = existingTestResults.filter(testCase =>
+      isStudent ? testCase.is_sample : !testCase.is_sample
+    );
+
+    if (filteredExisting.length > 0) {
+      return filteredExisting;
+    }
+
+    const question = questionDetails[codeSub.id as string];
+    if (!question?.test_cases?.length) {
+      return [];
+    }
+
+    return question.test_cases
+      .filter(testCase => (isStudent ? testCase.is_sample : !testCase.is_sample))
+      .map(testCase => ({
+        ...testCase,
+        passed: undefined,
+        student_output: '',
+        error_output: '',
+        execution_time_ms: null,
+      }));
+  };
+
   const calculatePassingRate = () => {
     let total = 0;
     let passed = 0;
 
     submission.code?.forEach(codeSub => {
-      const existingTestResults = codeSub.test_case_results || [];
-      const hiddenTestResults = testCaseResults[codeSub.id as string] || [];
-      const allResults = [...existingTestResults, ...hiddenTestResults];
-
-      total += allResults.length;
-      passed += allResults.filter(tc => tc.passed).length;
+      const testResults = getVisibleTestResultsForCode(codeSub);
+      total += testResults.length;
+      passed += testResults.filter(tc => tc.passed).length;
     });
 
-    if (total === 0) return 75;
+    if (total === 0) return 0;
     return Math.round((passed / total) * 100);
   };
 
-  const getTestResultsForCode = (codeSub: CodeSubmission['code'][0]) => {
-    const existingTestResults = codeSub.test_case_results || [];
-    const hiddenTestResults = testCaseResults[codeSub.id as string] || [];
-    return [...existingTestResults, ...hiddenTestResults];
-  };
+  const getTestResultsForCode = (codeSub: CodeSubmission['code'][0]) => getVisibleTestResultsForCode(codeSub);
 
   const getAllTestResults = () => {
     const allResults: Array<{
@@ -492,16 +513,28 @@ function TeacherCodeSubmissionViewer({
                   return (
                     <div key={index} className="tc-test-container">
                       <div
-                        className={`tc-test-item ${testCase.passed ? 'passed' : 'failed'}`}
+                        className={`tc-test-item ${
+                          testCase.passed === true ? 'passed' : testCase.passed === false ? 'failed' : 'pending'
+                        }`}
                         onClick={() => toggleTestCase(index)}
                         style={{ cursor: 'pointer', marginBottom: isExpanded ? 0 : '8px', borderBottomLeftRadius: isExpanded ? 0 : '', borderBottomRightRadius: isExpanded ? 0 : '' }}
                       >
                         <div className="tc-test-item-left">
                           <span
-                            className={`material-symbols-outlined ${testCase.passed ? 'tc-check-icon' : 'tc-error-icon'}`}
+                            className={`material-symbols-outlined ${
+                              testCase.passed === true
+                                ? 'tc-check-icon'
+                                : testCase.passed === false
+                                ? 'tc-error-icon'
+                                : 'tc-pending-icon'
+                            }`}
                             style={{ fontVariationSettings: "'FILL' 1" }}
                           >
-                            {testCase.passed ? 'check_circle' : 'error'}
+                            {testCase.passed === true
+                              ? 'check_circle'
+                              : testCase.passed === false
+                              ? 'error'
+                              : 'hourglass_empty'}
                           </span>
                           <span className="tc-test-name">
                             {testCase.is_sample ? 'Sample Test' : 'Hidden Test'} {index + 1}
@@ -512,9 +545,11 @@ function TeacherCodeSubmissionViewer({
                             {testCase.execution_time_ms !== null &&
                             testCase.execution_time_ms !== undefined
                               ? `${(testCase.execution_time_ms / 1000).toFixed(2)}s`
-                              : testCase.passed
+                              : testCase.passed === true
                                 ? 'Passed'
-                                : 'FAILED'}
+                                : testCase.passed === false
+                                  ? 'FAILED'
+                                  : 'Pending'}
                           </span>
                           <span className="material-symbols-outlined" style={{ fontSize: '18px', color: 'var(--on-surface-variant)' }}>
                             {isExpanded ? 'expand_less' : 'expand_more'}
@@ -546,71 +581,42 @@ function TeacherCodeSubmissionViewer({
                   );
                 })
               ) : (
-                <>
-                  <div className="tc-test-item passed">
-                    <div className="tc-test-item-left">
-                      <span
-                        className="material-symbols-outlined tc-check-icon"
-                        style={{ fontVariationSettings: "'FILL' 1" }}
-                      >
-                        check_circle
-                      </span>
-                      <span className="tc-test-name">Standard Insertion</span>
-                    </div>
-                    <span className="tc-test-time">0.04s</span>
-                  </div>
-                  <div className="tc-test-item passed">
-                    <div className="tc-test-item-left">
-                      <span
-                        className="material-symbols-outlined tc-check-icon"
-                        style={{ fontVariationSettings: "'FILL' 1" }}
-                      >
-                        check_circle
-                      </span>
-                      <span className="tc-test-name">Inorder Traversal Check</span>
-                    </div>
-                    <span className="tc-test-time">0.02s</span>
-                  </div>
-                  <div className="tc-test-item failed">
-                    <div className="tc-test-item-left">
-                      <span
-                        className="material-symbols-outlined tc-error-icon"
-                        style={{ fontVariationSettings: "'FILL' 1" }}
-                      >
-                        error
-                      </span>
-                      <span className="tc-test-name tc-error-text">Duplicate Key Handling</span>
-                    </div>
-                    <span className="tc-test-time tc-failed-text">FAILED</span>
-                  </div>
-                </>
+                <div className="tc-empty-state">
+                  <p>
+                    {isStudent
+                      ? 'No sample test results are available for this submission yet.'
+                      : 'No hidden test results are available yet. Run hidden test cases to see results.'}
+                  </p>
+                </div>
               )}
             </div>
-            <button
-              className="tc-run-btn"
-              onClick={() => {
-                if (primaryCode && primaryQuestion?.id) {
-                  runHiddenTestCases(primaryCode, primaryQuestion.id as number);
-                }
-              }}
-              disabled={isRunningPrimaryTests || !canRunHiddenTests || isLocked}
-              title={isLocked ? 'Unlock the grading sheet to run hidden test cases' : !canRunHiddenTests ? 'Question details are still loading' : undefined}
-            >
-              {isRunningPrimaryTests ? (
-                <>
-                  <span className="tc-spinner"></span>
-                  Running...
-                </>
-              ) : (
-                <>
-                  <span className="material-symbols-outlined tc-play-icon">play_circle</span>
-                  Run Hidden Test Cases
-                </>
-              )}
-            </button>
+            {!isStudent && (
+              <button
+                className="tc-run-btn"
+                onClick={() => {
+                  if (primaryCode && primaryQuestion?.id) {
+                    runHiddenTestCases(primaryCode, primaryQuestion.id as number);
+                  }
+                }}
+                disabled={isRunningPrimaryTests || !canRunHiddenTests || isLocked}
+                title={isLocked ? 'Unlock the grading sheet to run hidden test cases' : !canRunHiddenTests ? 'Question details are still loading' : undefined}
+              >
+                {isRunningPrimaryTests ? (
+                  <>
+                    <span className="tc-spinner"></span>
+                    Running...
+                  </>
+                ) : (
+                  <>
+                    <span className="material-symbols-outlined tc-play-icon">play_circle</span>
+                    Run Hidden Test Cases
+                  </>
+                )}
+              </button>
+            )}
           </div>
 
-          {user?.role !== 'student' && (
+          {!isStudent && user?.role !== 'student' && (
             <div className="grading-panel-card">
               {!showGradingForm ? (
                 <button

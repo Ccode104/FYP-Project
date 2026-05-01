@@ -25,6 +25,7 @@ export default function Layout({ children }: { children: ReactNode }) {
   const isVideoQuizEditor = pathname.includes('/videos/') && pathname.includes('/edit');
   const isPublicPage = isLanding || isAuth;
   const isFullscreenPage = isLiveLecture && user?.role === 'student'; // Remove video player from fullscreen
+  const isStudentDashboard = pathname === '/dashboard/student';
 
   // Hide breadcrumb on video quiz editor
   const hideBreadcrumb = isVideoQuizEditor;
@@ -157,7 +158,7 @@ export default function Layout({ children }: { children: ReactNode }) {
         )}
 
         <main
-          className={`app-content app-main ${pathname.startsWith('/videos/') ? 'app-main--full-width' : ''}`}
+          className={`app-content app-main ${pathname.includes('/videos/') || pathname.includes('/quiz-management') || pathname.includes('/quizzes/') || isStudentDashboard ? 'app-main--full-width' : ''}`}
         >
           {children}
         </main>

@@ -53,6 +53,7 @@ interface FileItem {
   size?: number;
   content?: string;
   encoding?: string;
+  html_url?: string;
 }
 
 interface VisibleTestCase {
@@ -148,6 +149,7 @@ export default function GitHubCodeEditor() {
   const [runningTests, setRunningTests] = useState(false);
   const [output, setOutput] = useState('');
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [submittingFile, setSubmittingFile] = useState(false);
   const codePanelRef = useRef<HTMLDivElement>(null);
 
   const toggleFullscreen = () => {
@@ -394,6 +396,40 @@ export default function GitHubCodeEditor() {
   const handleGoUp = () => {
     if (!breadcrumbSegments.length) return;
     navigateToBreadcrumb(breadcrumbSegments.length - 2);
+  };
+
+  const handleSubmitFile = async () => {
+    if (!assignmentId || !selectedRepo || !selectedFile || selectedFile.type !== 'file') {
+      toast?.push?.({ kind: 'error', message: 'Select a file to submit first' });
+      return;
+    }
+
+    const branch = (selectedRepo as any).default_branch || 'main';
+    const repoLink =
+      selectedFile.html_url ||
+      `https://github.com/${selectedRepo.full_name}/blob/${branch}/${selectedFile.path}`;
+
+    setSubmittingFile(true);
+    try {
+      await apiFetch('/api/submissions/submit/code', {
+        method: 'POST',
+        body: {
+          assignment_id: Number(assignmentId),
+          language,
+          code: code || null,
+          repo_link: repoLink,
+        },
+      });
+      toast?.push?.({ kind: 'success', message: 'GitHub file submitted successfully.' });
+    } catch (err) {
+      console.error('Failed to submit GitHub file:', err);
+      toast?.push?.({
+        kind: 'error',
+        message: err instanceof Error ? err.message : 'Failed to submit GitHub file. Please try again.',
+      });
+    } finally {
+      setSubmittingFile(false);
+    }
   };
 
   const handleRunTests = async () => {
@@ -687,6 +723,14 @@ export default function GitHubCodeEditor() {
               disabled={runningTests || !selectedFile || !code.trim()}
             >
               {runningTests ? 'Running...' : 'Run Tests'}
+            </button>
+            <button
+              className="btn-submit-file"
+              onClick={handleSubmitFile}
+              disabled={submittingFile || !selectedFile || selectedFile.type !== 'file'}
+              style={{ marginLeft: '16px' }}
+            >
+              {submittingFile ? 'Submitting...' : 'Submit Selected File'}
             </button>
             <div className={`run-summary ${allTestsPassed ? 'passed' : ''}`}>
               {Object.keys(testResults).length === 0

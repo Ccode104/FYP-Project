@@ -7,6 +7,96 @@
   animation: fadeInUp 0.4s ease-out;
 }
 
+.github-submission-view {
+  display: grid;
+  gap: 24px;
+  padding: 24px;
+  background: linear-gradient(180deg, rgba(99, 102, 241, 0.02), rgba(255, 255, 255, 1));
+  border-radius: var(--radius-lg);
+  box-shadow: 0 20px 80px rgba(15, 23, 42, 0.06);
+}
+
+.github-submission-header {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  background: rgba(79, 70, 229, 0.08);
+  padding: 24px;
+  border: 1px solid rgba(79, 70, 229, 0.12);
+  border-radius: 24px;
+}
+
+.github-repo-details {
+  display: grid;
+  gap: 16px;
+  padding: 24px;
+  background: rgba(255, 255, 255, 0.9);
+  border: 1px solid rgba(226, 232, 240, 0.9);
+  border-radius: 24px;
+}
+
+.repo-field {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.field-label {
+  flex: 0 0 160px;
+  color: var(--muted);
+  font-size: 0.95rem;
+  font-weight: 600;
+}
+
+.field-value {
+  color: var(--text);
+  font-size: 0.98rem;
+  font-weight: 500;
+  word-break: break-word;
+}
+
+.repo-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--primary);
+  text-decoration: none;
+  font-weight: 600;
+  transition: color 0.2s ease;
+}
+
+.repo-link:hover {
+  color: #4338ca;
+}
+
+.github-actions {
+  display: flex;
+  justify-content: flex-start;
+}
+
+.btn-open-repo {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 18px;
+  background: linear-gradient(135deg, #4338ca, #6366f1);
+  border-radius: 14px;
+  color: white;
+  font-weight: 700;
+  text-decoration: none;
+  box-shadow: 0 14px 40px rgba(67, 56, 202, 0.2);
+}
+
+.btn-open-repo:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 18px 48px rgba(67, 56, 202, 0.25);
+}
+
+.btn-open-repo .material-symbols-outlined {
+  font-size: 18px;
+}
+
 .code-submission-header {
   display: flex;
   align-items: center;
@@ -2173,89 +2263,31 @@
 }
 
 .file-download-link {
-  width: 36px;
-  height: 36px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  margin-left: auto;
   color: var(--muted);
-  border-radius: 50%;
-  transition: all 0.2s ease;
+  transition: all 0.2s;
 }
 
 .file-download-link:hover {
-  background: var(--primary-container, #e0e7ff);
-  color: var(--primary, #4f46e5);
+  color: var(--primary);
 }
 
-/* Sidebar Grading Panel */
-.grading-panel-card {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
-  padding: 24px;
-  box-shadow: var(--shadow-sm);
-  position: sticky;
-  top: 24px;
-}
-
-.grading-panel-card h3 {
-  margin: 0 0 20px;
-  font-size: 18px;
-  font-weight: 700;
-}
-
-.grading-panel-card .form-group {
-  margin-bottom: 20px;
-}
-
-.grading-panel-card label {
-  display: block;
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--text-secondary);
-  margin-bottom: 8px;
-}
-
-.grading-panel-card input,
-.grading-panel-card textarea {
-  width: 100%;
-  padding: 12px;
-  background: var(--bg-secondary);
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  font-size: 14px;
-  transition: border-color 0.2s;
-}
-
-.grading-panel-card input:focus,
-.grading-panel-card textarea:focus {
-  outline: none;
-  border-color: var(--primary);
-}
-
-.btn-grade-submit {
-  width: 100%;
-  padding: 14px;
-  background: var(--primary);
-  color: white;
-  border: none;
-  border-radius: 10px;
-  font-weight: 700;
-  font-size: 15px;
-  cursor: pointer;
+.file-drive-link {
+  color: var(--muted);
   transition: all 0.2s;
-  margin-top: 10px;
+  margin-left: 8px;
 }
 
-.btn-grade-submit:hover {
-  background: var(--primary-hover, #4338ca);
-  transform: translateY(-1px);
-  box-shadow: var(--shadow-md);
+.file-drive-link .material-symbols-outlined {
+  font-size: 18px;
+  line-height: 1;
 }
 
-@media (max-width: 1024px) {
-  .mixed-submission-content-grid {
+.file-drive-link:hover {
+  color: #34a853;
+}
+
+.mixed-submission-content-grid {
     grid-template-columns: 1fr;
   }
   .grading-panel-card {

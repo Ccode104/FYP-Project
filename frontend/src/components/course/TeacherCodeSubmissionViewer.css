@@ -296,6 +296,11 @@
   border: 1px solid rgba(186, 26, 26, 0.1);
 }
 
+.tc-test-item.pending {
+  background: rgba(255, 243, 205, 0.5);
+  border: 1px solid rgba(245, 158, 11, 0.25);
+}
+
 .tc-test-item-left {
   display: flex;
   align-items: center;
@@ -308,6 +313,10 @@
 
 .tc-error-icon {
   color: #ba1a1a;
+}
+
+.tc-pending-icon {
+  color: #d97706;
 }
 
 .tc-test-name {

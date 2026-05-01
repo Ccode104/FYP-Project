@@ -367,14 +367,56 @@ export async function submitMixedAssignment(req, res) {
   }
 }
 
+function getMimeTypeByFilename(filename = '') {
+  const ext = filename.split('.').pop()?.toLowerCase();
+  switch (ext) {
+    case 'py':
+      return 'text/x-python';
+    case 'java':
+      return 'text/x-java-source';
+    case 'js':
+      return 'application/javascript';
+    case 'ts':
+      return 'application/typescript';
+    case 'cpp':
+    case 'cc':
+    case 'cxx':
+    case 'hpp':
+    case 'h':
+      return 'text/x-c++src';
+    case 'c':
+      return 'text/x-csrc';
+    case 'json':
+      return 'application/json';
+    case 'md':
+      return 'text/markdown';
+    case 'html':
+      return 'text/html';
+    case 'css':
+      return 'text/css';
+    case 'txt':
+      return 'text/plain';
+    default:
+      return 'text/plain';
+  }
+}
+
 export async function submitCodeAssignment(req, res) {
   try {
-    const { assignment_id, language, code, question_id, started_at, time_spent_seconds } = req.body;
+    const {
+      assignment_id,
+      language,
+      code,
+      question_id,
+      started_at,
+      time_spent_seconds,
+      repo_link,
+    } = req.body;
     const student_id = Number(req.user?.id);
-    if (!assignment_id || !student_id || !language || !code) {
+    if (!assignment_id || !student_id || (!code && !repo_link)) {
       return res
         .status(400)
-        .json({ error: 'Missing required fields: assignment_id, language, code' });
+        .json({ error: 'Missing required fields: assignment_id and either code or repo_link' });
     }
 
     // Check if assignment exists and get its type
@@ -411,20 +453,44 @@ export async function submitCodeAssignment(req, res) {
     if (existingCodeR.rowCount > 0) {
       // Update existing code submission
       const updateQ =
-        'UPDATE code_submissions SET language = $1, code = $2, created_at = now() WHERE id = $3 RETURNING *';
-      const updateR = await pool.query(updateQ, [language, code, existingCodeR.rows[0].id]);
+        'UPDATE code_submissions SET language = $1, code = $2, repo_link = $3, created_at = now() WHERE id = $4 RETURNING *';
+      const updateR = await pool.query(updateQ, [
+        language || existingCodeR.rows[0].language,
+        code || existingCodeR.rows[0].code,
+        repo_link || existingCodeR.rows[0].repo_link,
+        existingCodeR.rows[0].id,
+      ]);
       codeSubmission = updateR.rows[0];
     } else {
       // Insert new code submission
       const codeSubQ =
-        'INSERT INTO code_submissions (submission_id, language, code, assignment_question_id) VALUES ($1, $2, $3, $4) RETURNING *';
+        'INSERT INTO code_submissions (submission_id, language, code, repo_link, assignment_question_id) VALUES ($1, $2, $3, $4, $5) RETURNING *';
       const codeSubR = await pool.query(codeSubQ, [
         submission.id,
-        language,
-        code,
+        language || null,
+        code || null,
+        repo_link || null,
         assignment_question_id,
       ]);
       codeSubmission = codeSubR.rows[0];
+    }
+
+    if (repo_link) {
+      try {
+        await pool.query(
+          'DELETE FROM submission_files WHERE submission_id = $1 AND storage_path LIKE $2',
+          [submission.id, '%github.com/%']
+        );
+      } catch (deleteErr) {
+        console.warn('Failed to remove old GitHub file links for submission', deleteErr);
+      }
+
+      const filename = repo_link.split('/').pop() || 'github-file';
+      const mimeType = getMimeTypeByFilename(filename);
+      await pool.query(
+        'INSERT INTO submission_files (submission_id, storage_path, filename, mime_type) VALUES ($1, $2, $3, $4)',
+        [submission.id, repo_link, filename, mimeType]
+      );
     }
 
     // Get question difficulty for gamification
