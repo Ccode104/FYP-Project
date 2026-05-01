@@ -2278,6 +2278,15 @@
   grid-column: 1 / -1;
 }
 
+/* Full-width state for the main content area when preview is expanded */
+.mixed-submission-main.full-width {
+  width: 100%;
+}
+
+.mixed-submission-main.full-width + .mixed-submission-sidebar {
+  display: none;
+}
+
 .preview-header-main {
   display: flex;
   align-items: center;
@@ -2499,4 +2508,4 @@
 .file-download-link:hover {
   color: var(--primary);
 }
-
+

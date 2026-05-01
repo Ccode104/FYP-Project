@@ -9,24 +9,6 @@ const SAFE_LIMIT = 4000;
 const WARNING_LIMIT = 6000;
 const MAX_LIMIT = 8000;
 
-function looksLikeLongFormRequest(query) {
-  if (!query) return false;
-  const normalized = query.toLowerCase();
-  return [
-    'explain in detail',
-    'detailed answer',
-    'long answer',
-    'step by step',
-    'elaborate',
-    'deep dive',
-    'comprehensive',
-    'in depth',
-    'compare',
-    'discuss',
-    'walk me through',
-  ].some(keyword => normalized.includes(keyword));
-}
-
 /**
  * Sanitizes text to remove potential PII
  */
@@ -311,14 +293,6 @@ export async function generateAiResponse(messageId, offeringId, userQuery) {
   
   let totalEstimated = context_token_count + queryTokens + instructionTokens;
 
-  if (looksLikeLongFormRequest(extractedQuery)) {
-    return {
-      mode: 'fallback_prompt',
-      content: generateFallbackPrompt(full_context_text, extractedQuery),
-      context_used: context_used_summary + ' (Used fallback because the request appears to need a long-form answer.)',
-    };
-  }
-
   // WARNING_LIMIT: Apply aggressive summarization / trimming
   if (totalEstimated >= WARNING_LIMIT && totalEstimated < MAX_LIMIT) {
     // Trim context down to roughly fit SAFE_LIMIT
@@ -444,7 +418,7 @@ export async function generateAiResponseStream(messageId, offeringId, userQuery)
   let totalEstimated = context_token_count + queryTokens + instructionTokens;
 
   // Fallback checks (same as non-streaming)
-  if (looksLikeLongFormRequest(extractedQuery) || totalEstimated >= MAX_LIMIT || !OPENROUTER_API_KEY) {
+  if (totalEstimated >= MAX_LIMIT || !OPENROUTER_API_KEY) {
     return {
       mode: 'fallback_prompt',
       content: generateFallbackPrompt(full_context_text, extractedQuery),

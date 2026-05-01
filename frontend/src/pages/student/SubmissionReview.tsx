@@ -639,6 +639,9 @@ export default function SubmissionReview() {
               </div>
             </div>
           )}
+<div className={`mixed-submission-content-grid ${isPreviewFullWidth ? 'preview-fullwidth-mode' : ''}`}>
+            <div className={`mixed-submission-main ${isPreviewFullWidth ? 'full-width' : ''}`}>
+<div className={`mixed-submission-content-grid ${isPreviewFullWidth ? 'preview-fullwidth-mode' : ''}`}>
           <div className="mixed-submission-content-grid">
             <div className="mixed-submission-main">
               {submission.content && (
@@ -779,62 +782,64 @@ export default function SubmissionReview() {
               </div>
             </div>
 
-            <div className="mixed-submission-sidebar">
-              <div className="grading-panel-card" style={{ opacity: showSheetGrading ? 1 : 0.7, pointerEvents: showSheetGrading ? 'all' : 'none' }}>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
-                  <h3 style={{ margin: 0 }}>Grading & Feedback</h3>
-                  {!showSheetGrading && (
-                    <span className="material-symbols-outlined" style={{ color: '#dc2626' }}>lock</span>
-                  )}
-                </div>
-                <fieldset disabled={!showSheetGrading} style={{ border: 'none', padding: 0, margin: 0 }}>
-                <form
-                  onSubmit={e => {
-                    e.preventDefault();
-                    handleGrade(score, feedback);
-                  }}
-                >
-                  <div className="form-group">
-                    <label>Marks (out of 100)</label>
-                    <input
-                      type="number"
-                      name="score"
-                      value={score}
-                      onChange={(e) => setScore(Number(e.target.value))}
-                      min="0"
-                      max="100"
-                      required
-                    />
+{(user?.role === 'teacher' || user?.role === 'ta') && (
+              <div className="mixed-submission-sidebar">
+                <div className="grading-panel-card" style={{ opacity: showSheetGrading ? 1 : 0.7, pointerEvents: showSheetGrading ? 'all' : 'none' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
+                    <h3 style={{ margin: 0 }}>Grading & Feedback</h3>
+                    {!showSheetGrading && (
+                      <span className="material-symbols-outlined" style={{ color: '#dc2626' }}>lock</span>
+                    )}
                   </div>
-                  <div className="form-group">
-                    <label>Comment / Feedback</label>
-                    <textarea
-                      name="feedback"
-                      value={feedback}
-                      onChange={(e) => setFeedback(e.target.value)}
-                      rows={6}
-                      placeholder="Enter feedback for the student..."
-                    />
-                  </div>
-                  <button type="submit" className="btn-grade-submit">
-                    Submit Grade
-                  </button>
-                  {showSheetGrading && (
-                    <button 
-                      type="button" 
-                      className="btn-grade-submit" 
-                      onClick={handleSyncToSheet} 
-                      disabled={syncingToSheet}
-                      style={{ marginTop: '12px', background: 'var(--primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}
-                    >
-                      <span className="material-symbols-outlined">sync</span>
-                      {syncingToSheet ? 'Syncing...' : 'Update Google Sheet'}
+                  <fieldset disabled={!showSheetGrading} style={{ border: 'none', padding: 0, margin: 0 }}>
+                  <form
+                    onSubmit={e => {
+                      e.preventDefault();
+                      handleGrade(score, feedback);
+                    }}
+                  >
+                    <div className="form-group">
+                      <label>Marks (out of 100)</label>
+                      <input
+                        type="number"
+                        name="score"
+                        value={score}
+                        onChange={(e) => setScore(Number(e.target.value))}
+                        min="0"
+                        max="100"
+                        required
+                      />
+                    </div>
+                    <div className="form-group">
+                      <label>Comment / Feedback</label>
+                      <textarea
+                        name="feedback"
+                        value={feedback}
+                        onChange={(e) => setFeedback(e.target.value)}
+                        rows={6}
+                        placeholder="Enter feedback for the student..."
+                      />
+                    </div>
+                    <button type="submit" className="btn-grade-submit">
+                      Submit Grade
                     </button>
-                  )}
-                </form>
-                </fieldset>
+                    {showSheetGrading && (
+                      <button 
+                        type="button" 
+                        className="btn-grade-submit" 
+                        onClick={handleSyncToSheet} 
+                        disabled={syncingToSheet}
+                        style={{ marginTop: '12px', background: 'var(--primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}
+                      >
+                        <span className="material-symbols-outlined">sync</span>
+                        {syncingToSheet ? 'Syncing...' : 'Update Google Sheet'}
+                      </button>
+                    )}
+                  </form>
+                  </fieldset>
+                </div>
               </div>
-            </div>
+            )}
           </div>
         </div>
       ) : (

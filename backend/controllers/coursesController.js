@@ -124,7 +124,7 @@ export async function listAvailableOfferings(req, res) {
   const userId = Number(req.user?.id);
   if (!userId) {return res.status(401).json({ error: 'Unauthorized' });}
 
-  // Get all offerings that the student is not already enrolled in
+// Get all offerings that the student is not already enrolled in
   const q = `
     SELECT o.id, o.term, o.section, c.code as course_code, c.title as course_title, 
            c.id as course_id, o.faculty_id, o.max_capacity,
@@ -132,9 +132,9 @@ export async function listAvailableOfferings(req, res) {
            (o.max_capacity - COUNT(ce.id))::int as available_seats
     FROM course_offerings o
     JOIN courses c ON o.course_id = c.id
-    LEFT JOIN course_enrollments ce ON o.id = ce.course_offering_id
+    LEFT JOIN enrollments ce ON o.id = ce.course_offering_id
     WHERE o.id NOT IN (
-      SELECT course_offering_id FROM course_enrollments WHERE user_id = $1
+      SELECT course_offering_id FROM enrollments WHERE student_id = $1
     )
     AND o.start_date <= NOW() AND o.end_date >= NOW()
     GROUP BY o.id, o.term, o.section, c.code, c.title, c.id, o.faculty_id, o.max_capacity
