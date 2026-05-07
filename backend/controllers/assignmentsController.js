@@ -58,6 +58,8 @@ export async function createAssignment(req, res) {
     const final_total_points = total_points || max_score || 100;
     const final_allow_multiple = false;
     const final_is_graded = is_graded !== undefined ? is_graded : true;
+    const final_assignment_type =
+      assignment_type || (questions?.length || question_ids?.length ? 'code' : 'file');
 
     // Handle both legacy and new assignment formats
     let final_assignment_config = assignment_config;
@@ -153,10 +155,10 @@ export async function createAssignment(req, res) {
     // Insert the assignment
     const insertQ = `
       INSERT INTO assignments (
-        course_offering_id, title, description, assignment_config,
+        course_offering_id, title, description, assignment_type, assignment_config,
         submission_requirements, grading_config, total_points,
         allow_multiple_submissions, is_graded, release_at, due_at, created_by, file_size_limit_mb, allow_github_repo
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
       RETURNING *
     `;
 
@@ -164,6 +166,7 @@ export async function createAssignment(req, res) {
       course_offering_id,
       title,
       description,
+      final_assignment_type,
       JSON.stringify(final_assignment_config),
       JSON.stringify(final_submission_requirements),
       JSON.stringify(final_grading_config),

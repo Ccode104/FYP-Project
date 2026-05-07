@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import axios from 'axios';
 import { useToast } from "../../components/ToastProvider";
+import { apiFetch } from '../../services/api';
 import './AssignmentCreate.css';
 
 interface Question {
@@ -69,7 +69,7 @@ const AssignmentCreate: React.FC = () => {
     setQuestions(questions.filter((_, i) => i !== index));
   };
 
-  const updateQuestion = (index: number, field: keyof Question, value: any) => {
+  const updateQuestion = <K extends keyof Question>(index: number, field: K, value: Question[K]) => {
     const newQuestions = [...questions];
     newQuestions[index] = { ...newQuestions[index], [field]: value };
     setQuestions(newQuestions);
@@ -101,6 +101,7 @@ const AssignmentCreate: React.FC = () => {
         title,
         description,
         assignment_type: assignmentType,
+        allow_github_repo: assignmentType === 'github',
         due_at: dueDate,
         max_score: maxScore,
         assignment_config: {
@@ -110,11 +111,14 @@ const AssignmentCreate: React.FC = () => {
         }
       };
 
-      await axios.post('/api/assignments', payload);
+      await apiFetch('/api/assignments', {
+        method: 'POST',
+        body: payload,
+      });
       push({ kind: 'success', message: 'Assignment created successfully' });
       navigate(`/teacher/courses/${courseId}/assignments`);
-    } catch (err: any) {
-      push({ kind: 'error', message: err.response?.data?.error || 'Failed to create assignment' });
+    } catch (err: unknown) {
+      push({ kind: 'error', message: err instanceof Error ? err.message : 'Failed to create assignment' });
     } finally {
       setIsSubmitting(false);
     }

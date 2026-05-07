@@ -40,12 +40,6 @@ interface Submission {
   is_late?: boolean;
 }
 
-interface RubricItem {
-  name: string;
-  score: number;
-  maxScore: number;
-}
-
 export default function AssignmentGrading() {
   const { courseId, assignmentId } = useParams<{ courseId: string; assignmentId: string }>();
   const navigate = useNavigate();
@@ -60,11 +54,6 @@ export default function AssignmentGrading() {
   const [score, setScore] = useState<number>(0);
   const [feedback, setFeedback] = useState('');
   const [error, setError] = useState<string | null>(null);
-  const [rubrics, setRubrics] = useState<RubricItem[]>([
-    { name: 'Logic', score: 25, maxScore: 30 },
-    { name: 'Style', score: 18, maxScore: 20 },
-    { name: 'Analysis', score: 42, maxScore: 50 },
-  ]);
   const [selectedFile, setSelectedFile] = useState<SubmissionFile | null>(null);
   const [questions, setQuestions] = useState<any[]>([]);
   const [currentQuestionId, setCurrentQuestionId] = useState<number | null>(null);
@@ -298,15 +287,6 @@ export default function AssignmentGrading() {
     } finally {
       setSyncingToSheet(false);
     }
-  };
-
-  const updateRubric = (index: number, newScore: number) => {
-    setRubrics(prev => {
-      const updated = prev.map((r, i) => (i === index ? { ...r, score: newScore } : r));
-      const total = updated.reduce((sum, r) => sum + r.score, 0);
-      setScore(total);
-      return updated;
-    });
   };
 
   const getFileIcon = (mimeType?: string, filename?: string) => {
@@ -598,8 +578,7 @@ export default function AssignmentGrading() {
                   href={selectedSubmission.repo_url}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="btn btn-primary"
-                  style={{ display: 'flex', alignItems: 'center', gap: '4px' }}
+                  className="repo-open-link repo-open-link--compact"
                 >
                   <span className="material-symbols-outlined">open_in_new</span>
                   Open Repository
@@ -714,6 +693,8 @@ export default function AssignmentGrading() {
                 display: 'flex',
                 justifyContent: 'space-between',
                 alignItems: 'center',
+                flexWrap: 'wrap',
+                gap: '12px',
                 background: 'var(--surface)',
                 padding: '16px 20px',
                 borderRadius: '12px',
@@ -723,13 +704,13 @@ export default function AssignmentGrading() {
                 animation: 'slideDown 0.4s ease'
               }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                  <div style={{ 
-                    width: '36px', 
-                    height: '36px', 
-                    borderRadius: '8px', 
-                    background: 'rgba(59, 130, 246, 0.1)', 
-                    display: 'flex', 
-                    alignItems: 'center', 
+                  <div style={{
+                    width: '36px',
+                    height: '36px',
+                    borderRadius: '8px',
+                    background: 'rgba(59, 130, 246, 0.1)',
+                    display: 'flex',
+                    alignItems: 'center',
                     justifyContent: 'center',
                     color: 'var(--primary)'
                   }}>
@@ -738,7 +719,7 @@ export default function AssignmentGrading() {
                   <span style={{ fontWeight: 600, fontSize: '14px' }}>Grading Management</span>
                 </div>
 
-                <div style={{ display: 'flex', gap: '8px' }}>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', minWidth: 0 }}>
                   <button
                     className="premium-action-btn"
                     onClick={() => setShowSheetGrading(!showSheetGrading)}
@@ -840,8 +821,8 @@ export default function AssignmentGrading() {
                 <div className="sheet-sync-status" style={{ padding: '12px', background: 'rgba(59, 130, 246, 0.05)', borderRadius: '12px', border: '1px solid var(--primary)', marginBottom: '20px', fontSize: '14px', display: 'flex', alignItems: 'center', gap: '10px', animation: 'fadeIn 0.3s ease' }}>
                 <span className="material-symbols-outlined" style={{ color: 'var(--primary)', fontSize: '20px' }}>{showSheetGrading ? 'sync' : 'lock'}</span>
                 <span style={{ fontWeight: 500, color: 'var(--text)' }}>
-                  {showSheetGrading 
-                    ? 'Sync Mode Active. Grading is enabled and will sync to Google Sheet.' 
+                  {showSheetGrading
+                    ? 'Sync Mode Active. Grading is enabled and will sync to Google Sheet.'
                     : 'Grading Locked. Unlock the grading sheet above to enable grading.'}
                 </span>
               </div>
@@ -854,23 +835,6 @@ export default function AssignmentGrading() {
                   )}
                 </div>
 
-                {rubrics.length > 0 && (
-                  <div className="rubric-summary" style={{ marginBottom: '24px', padding: '16px', background: 'var(--bg-secondary)', borderRadius: '12px', border: '1px solid var(--border)' }}>
-                    <h4 style={{ margin: '0 0 12px 0', fontSize: '13px', textTransform: 'uppercase', color: 'var(--muted)', letterSpacing: '0.05em' }}>Rubric Assessment</h4>
-                    {rubrics.map((rubric, idx) => (
-                      <div key={idx} style={{ marginBottom: idx === rubrics.length - 1 ? 0 : '12px' }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px', fontSize: '13px' }}>
-                          <span>{rubric.name}</span>
-                          <span style={{ fontWeight: 600 }}>{rubric.score}/{rubric.maxScore}</span>
-                        </div>
-                        <div style={{ height: '6px', background: 'var(--border)', borderRadius: '3px', overflow: 'hidden' }}>
-                          <div style={{ height: '100%', background: 'var(--primary)', width: `${(rubric.score / rubric.maxScore) * 100}%` }}></div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              
               <fieldset disabled={!showSheetGrading} style={{ border: 'none', padding: 0, margin: 0 }}>
               <form
                 onSubmit={e => {
@@ -903,7 +867,7 @@ export default function AssignmentGrading() {
                 <button type="submit" className="btn-grade-submit">
                   Submit Grade
                 </button>
-                
+
                 {showSheetGrading && (
                   <button
                     type="button"

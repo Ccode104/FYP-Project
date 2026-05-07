@@ -17,7 +17,36 @@ interface AssignmentItem {
   quiz_id?: string | number;
   due_at?: string;
   allow_github_repo?: boolean;
+  assignment_config?: {
+    github_requirements?: string;
+    questions?: unknown[];
+  } | string | null;
   [key: string]: unknown;
+}
+
+function getAssignmentConfig(assignment: AssignmentItem) {
+  if (!assignment.assignment_config || typeof assignment.assignment_config !== 'string') {
+    return assignment.assignment_config;
+  }
+
+  try {
+    return JSON.parse(assignment.assignment_config);
+  } catch {
+    return null;
+  }
+}
+
+function isGitHubAssignment(assignment: AssignmentItem) {
+  if (assignment.assignment_type === 'github') return true;
+
+  const config = getAssignmentConfig(assignment);
+  return Boolean(
+    assignment.allow_github_repo &&
+      config &&
+      typeof config === 'object' &&
+      'github_requirements' in config &&
+      !('questions' in config && Array.isArray(config.questions) && config.questions.length > 0)
+  );
 }
 
 export default function PresentAssignmentsSection({
@@ -66,10 +95,10 @@ export default function PresentAssignmentsSection({
             }`}
             onClick={() => {
               if (userRole === "student" && !a.is_quiz) {
-                if (a.assignment_type === 'code') {
-                  navigate(`/courses/${window.location.pathname.split('/')[2]}/assignments/${a.id}/editor`);
-                } else if (a.assignment_type === 'github' || a.allow_github_repo) {
+                if (isGitHubAssignment(a)) {
                   navigate(`/courses/${window.location.pathname.split('/')[2]}/assignments/${a.id}/github-submit`);
+                } else if (a.assignment_type === 'code') {
+                  navigate(`/courses/${window.location.pathname.split('/')[2]}/assignments/${a.id}/editor`);
                 } else {
                   setSelectedAssignment(a);
                   setSubmissionModalOpen(true);
@@ -175,10 +204,10 @@ export default function PresentAssignmentsSection({
                     className="btn-assignment submit-assignment"
                     onClick={(e) => {
                       e.stopPropagation();
-                      if (a.assignment_type === 'code') {
-                        navigate(`/courses/${window.location.pathname.split('/')[2]}/assignments/${a.id}/editor`);
-                      } else if (a.assignment_type === 'github' || a.allow_github_repo) {
+                      if (isGitHubAssignment(a)) {
                         navigate(`/courses/${window.location.pathname.split('/')[2]}/assignments/${a.id}/github-submit`);
+                      } else if (a.assignment_type === 'code') {
+                        navigate(`/courses/${window.location.pathname.split('/')[2]}/assignments/${a.id}/editor`);
                       } else {
                         setSelectedAssignment(a);
                         setSubmissionModalOpen(true);

@@ -1335,6 +1335,13 @@
   transition: background 0.15s;
 }
 
+.repo-open-link--compact {
+  padding: 8px 14px;
+  border-radius: 7px;
+  font-size: 13px;
+  line-height: 1;
+}
+
 .repo-open-link:hover {
   background: #1b1f23;
 }
@@ -1431,11 +1438,22 @@
 /* Grading Sidebar */
 .grading-sidebar-panel {
   width: 320px;
+  box-sizing: border-box;
   background: white;
   border-left: 1px solid #f1f5f9;
-  padding: 32px;
+  padding: 24px;
   display: flex;
   flex-direction: column;
+}
+
+.grading-management-bar {
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+.grading-management-bar button {
+  min-width: 0;
+  white-space: nowrap;
 }
 
 .sidebar-section {

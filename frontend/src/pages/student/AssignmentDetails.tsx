@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { apiFetch } from '../../services/api';
-import { useAuth } from '../../context/AuthContext';
 import './AssignmentDetails.css';
 
 type Assignment = {
@@ -16,11 +15,36 @@ type Assignment = {
   final_score: number | null;
   submission_id: number | null;
   points?: number;
+  allow_github_repo?: boolean;
+  assignment_config?: {
+    github_requirements?: string;
+    questions?: unknown[];
+  } | string | null;
 };
+
+function isGitHubAssignment(assignment: Assignment) {
+  if (assignment.assignment_type === 'github') return true;
+
+  let config = assignment.assignment_config;
+  if (typeof config === 'string') {
+    try {
+      config = JSON.parse(config);
+    } catch {
+      config = null;
+    }
+  }
+
+  return Boolean(
+    assignment.allow_github_repo &&
+      config &&
+      typeof config === 'object' &&
+      'github_requirements' in config &&
+      !('questions' in config && Array.isArray(config.questions) && config.questions.length > 0)
+  );
+}
 
 export default function AssignmentDetails() {
   const { courseId, assignmentId } = useParams<{ courseId: string; assignmentId: string }>();
-  const { user } = useAuth();
   const navigate = useNavigate();
 
   const [assignment, setAssignment] = useState<Assignment | null>(null);
@@ -81,10 +105,10 @@ export default function AssignmentDetails() {
         return;
     }
 
-    if (type === 'code') {
-      navigate(`/courses/${courseId}/assignments/${assignment.id}/editor`);
-    } else if (type === 'github') {
+    if (isGitHubAssignment(assignment)) {
       navigate(`/courses/${courseId}/assignments/${assignment.id}/github-submit`);
+    } else if (type === 'code') {
+      navigate(`/courses/${courseId}/assignments/${assignment.id}/editor`);
     } else if (type === 'mixed') {
       navigate(`/courses/${courseId}/assignments/${assignment.id}/mixed`);
     } else {
