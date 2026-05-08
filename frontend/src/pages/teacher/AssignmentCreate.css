@@ -1,14 +1,17 @@
 .assignment-create-page {
+  width: 100%;
   max-width: 1000px;
-  margin: 40px auto;
-  padding: 0;
+  margin: 20px auto;
+  padding: 0 16px;
   background: transparent;
   border-radius: 0;
   box-shadow: none;
   border: none;
+  box-sizing: border-box;
 }
 
 .assignment-wizard {
+  width: 100%;
   background: var(--surface, #ffffff);
   border-radius: 16px;
   box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.05), 0 8px 10px -6px rgba(0, 0, 0, 0.05);
@@ -17,6 +20,7 @@
   display: flex;
   flex-direction: column;
   min-height: 600px;
+  box-sizing: border-box;
 }
 
 .wizard-header {
@@ -173,7 +177,7 @@
 
 .form-grid {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 24px;
 }
 
@@ -215,6 +219,8 @@
 /* Question Cards */
 .questions-container {
   margin-top: 32px;
+  width: 100%;
+  box-sizing: border-box;
 }
 
 .questions-header {
@@ -222,6 +228,8 @@
   justify-content: space-between;
   align-items: center;
   margin-bottom: 20px;
+  gap: 16px;
+  flex-wrap: wrap;
 }
 
 .question-card {
@@ -244,7 +252,9 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
+  gap: 16px;
   cursor: pointer;
+  flex-wrap: wrap;
 }
 
 .question-card-header h4 {
@@ -255,12 +265,15 @@
   display: flex;
   align-items: center;
   gap: 8px;
+  flex: 1;
+  min-width: 200px;
 }
 
 .question-card-actions {
   display: flex;
   align-items: center;
   gap: 12px;
+  flex-shrink: 0;
 }
 
 .question-card-body {
@@ -272,7 +285,7 @@
 
 .technical-grid {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 20px;
 }
 
@@ -293,9 +306,10 @@
 /* Test Cases */
 .test-cases-section {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 24px;
   margin-top: 12px;
+  width: 100%;
 }
 
 .test-case-list {
@@ -311,6 +325,7 @@
 
 .test-case-row input {
   flex: 1;
+  min-width: 0;
   font-size: 13px;
   padding: 8px 12px;
 }

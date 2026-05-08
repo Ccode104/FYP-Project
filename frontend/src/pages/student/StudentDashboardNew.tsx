@@ -541,6 +541,7 @@ export default function StudentDashboardNew() {
           <CalendarPanel events={events} />
         </aside>
       </div>
+    </div>
 
       <Modal
         open={enrollModalOpen}

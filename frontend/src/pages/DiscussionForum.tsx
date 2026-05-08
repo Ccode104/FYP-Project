@@ -74,6 +74,7 @@ export default function DiscussionForum() {
   const [newThreadContent, setNewThreadContent] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [anonymityEnabled, setAnonymityEnabled] = useState(true);
+  const [autoLockEnabled, setAutoLockEnabled] = useState(false);
   const [replyingTo, setReplyingTo] = useState<number | null>(null);
   const [replyContent, setReplyContent] = useState('');
   const [repliesMap, setRepliesMap] = useState<Map<number, DiscussionMessage[]>>(new Map());
@@ -676,7 +677,7 @@ export default function DiscussionForum() {
                   </label>
                   <label className="toggle-item">
                     <div
-                      className={`toggle-switch on`}
+                      className={`toggle-switch ${anonymityEnabled ? 'on' : ''}`}
                       onClick={() => setAnonymityEnabled(!anonymityEnabled)}
                     >
                       <div className="toggle-knob"></div>

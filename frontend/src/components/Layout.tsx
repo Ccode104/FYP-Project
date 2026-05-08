@@ -158,7 +158,7 @@ export default function Layout({ children }: { children: ReactNode }) {
         )}
 
         <main
-          className={`app-content app-main ${pathname.includes('/videos/') || pathname.includes('/quiz-management') || pathname.includes('/quizzes/') || isStudentDashboard ? 'app-main--full-width' : ''}`}
+          className={`app-content app-main ${pathname.includes('/videos/') || pathname.includes('/quiz-management') || pathname.includes('/quizzes/') || pathname.includes('/assignments/new') || isStudentDashboard ? 'app-main--full-width' : ''}`}
         >
           {children}
         </main>
